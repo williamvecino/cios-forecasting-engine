@@ -22,6 +22,17 @@ export interface LRRange {
   max: number;
 }
 
+/**
+ * LR_RANGES define the magnitude of evidence for each signal type,
+ * expressed as a positive-direction LR (> 1.0 = supports adoption).
+ *
+ * Some types are inherently directional:
+ *   - "Operational friction" and "Competitor counteraction" are always
+ *     constraining, so their ranges are already < 1.0.
+ *
+ * For types that can go either way (Regulatory/clinical, Phase III
+ * clinical, etc.), computeLR inverts the result for negative signals.
+ */
 export const LR_RANGES: Record<SignalType, LRRange> = {
   "Phase III clinical":       { min: 1.8, max: 2.5 },
   "Guideline inclusion":      { min: 1.7, max: 2.2 },
@@ -67,12 +78,26 @@ function normalizeTiming(timing: Timing): number {
   return map[timing];
 }
 
+/**
+ * Compute the Bayesian likelihood ratio for a signal.
+ *
+ * Direction semantics:
+ *   - "Positive": LR > 1.0 (signal increases posterior probability).
+ *   - "Negative": LR < 1.0 (signal decreases posterior probability).
+ *
+ * The LR_RANGES define evidence magnitude. Direction determines whether
+ * the raw LR is used as-is or inverted (1/LR) to place it on the
+ * correct side of 1.0. For inherently constraining types (Operational
+ * friction, Competitor counteraction) whose ranges are already < 1.0,
+ * inversion only applies if direction = "Positive" is somehow selected.
+ */
 export function computeLR(
   signalType: string,
   strength: number,
   credibility: number,
   scope: Scope,
-  timing: Timing
+  timing: Timing,
+  direction: "Positive" | "Negative" = "Positive"
 ): number {
   const range = LR_RANGES[signalType as SignalType];
   if (!range) return 1.0;
@@ -83,6 +108,17 @@ export function computeLR(
     ATTRIBUTE_WEIGHTS.scope * normalizeScope(scope) +
     ATTRIBUTE_WEIGHTS.timing * normalizeTiming(timing);
 
-  const lr = range.min + normalizedScore * (range.max - range.min);
-  return Number(lr.toFixed(2));
+  const rawLR = range.min + normalizedScore * (range.max - range.min);
+
+  // Apply direction: ensure the LR is on the correct side of 1.0
+  let lr: number;
+  if (direction === "Negative" && rawLR > 1.0) {
+    lr = 1 / rawLR;
+  } else if (direction === "Positive" && rawLR < 1.0) {
+    lr = 1 / rawLR;
+  } else {
+    lr = rawLR;
+  }
+
+  return Number(lr.toFixed(3));
 }

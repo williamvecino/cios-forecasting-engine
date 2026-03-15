@@ -207,7 +207,7 @@ export default function SignalsRegister() {
       reliabilityScore: 3,
       scope: "national",
       timing: "current",
-      likelihoodRatio: computeLR("Field intelligence", 3, 3, "national", "current"),
+      likelihoodRatio: computeLR("Field intelligence", 3, 3, "national", "current", "Positive"),
       targetPopulation: "General",
       route: "CIOS→MIOS",
       miosFlag: "Yes",
@@ -224,7 +224,8 @@ export default function SignalsRegister() {
       v.strengthScore,
       v.reliabilityScore,
       v.scope as Scope,
-      v.timing as Timing
+      v.timing as Timing,
+      v.direction as "Positive" | "Negative"
     );
     form.setValue("likelihoodRatio", lr, { shouldValidate: false });
   }, [form]);
@@ -232,6 +233,7 @@ export default function SignalsRegister() {
   useEffect(() => {
     recomputeLR();
   }, [
+    watchedValues.direction,
     watchedValues.signalType,
     watchedValues.strengthScore,
     watchedValues.reliabilityScore,
@@ -257,7 +259,8 @@ export default function SignalsRegister() {
       data.strengthScore,
       data.reliabilityScore,
       data.scope as Scope,
-      data.timing as Timing
+      data.timing as Timing,
+      data.direction as "Positive" | "Negative"
     );
     createSignal(
       { caseId, data: { ...data, likelihoodRatio: lr } },

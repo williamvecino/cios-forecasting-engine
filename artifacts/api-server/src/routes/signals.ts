@@ -3,8 +3,19 @@ import { db } from "@workspace/db";
 import { signalsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { computeLR, type Scope, type Timing } from "@workspace/db";
 
 const router = Router();
+
+function deriveDirectionSafeLR(body: Record<string, any>): number {
+  const signalType = body.signalType ?? "";
+  const strength = Number(body.strengthScore ?? 3);
+  const credibility = Number(body.reliabilityScore ?? 3);
+  const scope = (body.scope ?? "national") as Scope;
+  const timing = (body.timing ?? "current") as Timing;
+  const direction = (body.direction ?? "Positive") as "Positive" | "Negative";
+  return computeLR(signalType, strength, credibility, scope, timing, direction);
+}
 
 router.get("/cases/:caseId/signals", async (req, res) => {
   const signals = await db.select().from(signalsTable)
@@ -18,6 +29,10 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   const id = randomUUID();
   const signalId = body.signalId || `SIG-${Date.now()}`;
   const weightedScore = (body.strengthScore ?? 0) * (body.reliabilityScore ?? 0);
+
+  // Always recompute LR server-side so direction is correctly applied.
+  const lr = deriveDirectionSafeLR(body);
+
   const [created] = await db.insert(signalsTable).values({
     id,
     signalId,
@@ -29,7 +44,7 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     direction: body.direction,
     strengthScore: body.strengthScore,
     reliabilityScore: body.reliabilityScore,
-    likelihoodRatio: body.likelihoodRatio,
+    likelihoodRatio: lr,
     scope: body.scope || "national",
     timing: body.timing || "current",
     route: body.route,
@@ -37,13 +52,15 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     miosFlag: body.miosFlag || (body.route?.includes("MIOS") ? "Yes" : "No"),
     ohosFlag: body.ohosFlag || (body.route?.includes("OHOS") ? "Yes" : "No"),
     weightedSignalScore: weightedScore,
-    activeLikelihoodRatio: body.likelihoodRatio,
+    activeLikelihoodRatio: lr,
   }).returning();
   res.status(201).json(created);
 });
 
 router.put("/signals/:signalId", async (req, res) => {
   const body = req.body;
+  const lr = deriveDirectionSafeLR(body);
+
   const [updated] = await db.update(signalsTable)
     .set({
       signalDescription: body.signalDescription,
@@ -51,7 +68,7 @@ router.put("/signals/:signalId", async (req, res) => {
       direction: body.direction,
       strengthScore: body.strengthScore,
       reliabilityScore: body.reliabilityScore,
-      likelihoodRatio: body.likelihoodRatio,
+      likelihoodRatio: lr,
       scope: body.scope,
       timing: body.timing,
       route: body.route,
