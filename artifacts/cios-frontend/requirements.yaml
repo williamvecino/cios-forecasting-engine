@@ -1,0 +1,14 @@
+packages:
+  "recharts": "For complex data visualization (Gauges, Bar Charts, Timelines)"
+  "framer-motion": "For premium smooth animations and transitions in the executive dashboard"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility function to efficiently merge Tailwind CSS classes"
+  "date-fns": "For formatting dates in the calibration logs and timelines"
+  "react-hook-form": "For robust form state management"
+  "@hookform/resolvers": "For Zod validation integration with forms"
+  "zod": "For strict schema validation on forms"
+
+notes:
+  - "Using dark navy/slate theme to convey executive credibility and professional pharma context"
+  - "Importing API hooks directly from @workspace/api-client-react as instructed"
+  - "Implementing all 9 requested views with full routing and navigation"

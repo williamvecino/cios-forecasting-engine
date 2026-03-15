@@ -1,0 +1,368 @@
+Build a production-oriented web application from the attached Excel workbook “CIOSv19”.
+
+The workbook is the canonical base architecture. Your first job is to translate the workbook faithfully into code, not redesign it from scratch.
+
+PRIMARY GOAL
+Create a strategic forecasting engine that predicts HCP adoption and behavior toward medications and devices. The engine should be able to run as a standalone application, but it must also be architected so it can later connect to broader modules such as MIOS and OHOS.
+
+CORE PRODUCT REQUIREMENTS
+1. Use the Excel workbook as the source of truth for:
+   - tables
+   - field definitions
+   - scoring logic
+   - forecast logic
+   - output structure
+   - logging architecture
+2. Preserve the architecture and intent of the workbook.
+3. Build the app in a modular way so later upgrades can make it more like an Aaru-style prediction engine.
+4. Build a simple but clean UI that can later evolve into a client-facing website.
+5. Include a feedback layer so forecasts can later be evaluated, corrected, and improved over time.
+
+DO NOT
+- Do not redesign the forecasting logic unless absolutely necessary for functionality.
+- Do not collapse the architecture into a simple chatbot.
+- Do not replace structured forecasting with generic LLM summarization.
+- Do not make this only a static dashboard.
+- Do not make this only a spreadsheet viewer.
+- Do not make this dependent on MIOS or OHOS in order to run.
+- Do not overcomplicate the first version with enterprise auth, billing, or unnecessary infrastructure.
+
+SYSTEM ROLE
+This application is a forecasting engine for physician adoption, market behavior, and response to new evidence in pharmaceuticals and medical devices.
+
+The engine should answer questions such as:
+- What is the probability that HCP adoption of therapy X increases after new evidence?
+- What is the probability that a new clinical signal changes physician prescribing behavior?
+- What is the probability that a device or medication gains meaningful uptake within a defined time frame?
+- Which physician segments are most likely to change behavior?
+- What signals would increase or decrease adoption probability?
+
+STANDALONE + CONNECTED ARCHITECTURE
+The app must support two modes:
+
+MODE 1 — STANDALONE
+The app runs by itself using:
+- strategic question
+- structured signals
+- historical case library
+- actor assumptions
+- forecast engine
+- output summary
+
+MODE 2 — INTEGRATION-READY
+The app must be designed so it can later connect to MIOS and OHOS through shared schemas, common IDs, and APIs.
+This means the architecture should preserve future compatibility with:
+- ProgramID
+- StatementID
+- ObjectionID
+- SignalID
+- ActorID
+- AudienceType
+- Specialty
+- TriggerEvent
+- BeliefShiftID
+
+Even if those external modules are not active in v1, the data model should allow those future links.
+
+APPROACH TO BUILD
+PHASE 1
+Translate the Excel workbook into a faithful coded system.
+
+PHASE 2
+Structure the codebase so later enhancements can move the engine closer to an Aaru-like prediction system, especially for HCP adoption and behavior forecasting.
+
+PHASE 3
+Add a simple polished UI and feedback system so the product can later be turned into a client-facing website.
+
+TECHNICAL STACK
+Preferred stack:
+- Python backend
+- FastAPI or Flask backend
+- lightweight database: SQLite first, but structure so Postgres can be added later
+- frontend: simple responsive web UI using React, Next.js, or a similarly maintainable framework
+- charts/tables for forecast explanation
+- modular codebase
+- clean API boundaries
+- environment-based configuration
+- easy local run + easy Replit deployment
+
+If React/Next adds too much complexity for v1, use a simpler frontend, but preserve a clean separation between backend logic and UI.
+
+SYSTEM MODULES TO BUILD
+
+MODULE 1 — QUESTION ENGINE
+Purpose:
+Convert a user-entered strategic question into a structured forecasting event.
+
+Inputs:
+- free text strategic question
+- product or device name
+- therapy area
+- specialty
+- geography if relevant
+- forecast horizon
+- optional comparator
+
+Outputs:
+- EventID
+- structured forecast record
+- standardized question object
+
+MODULE 2 — SIGNAL REGISTER
+Purpose:
+Store and manage structured incoming signals.
+
+Signal categories should support:
+- clinical evidence signal
+- safety signal
+- economic signal
+- access/reimbursement signal
+- KOL signal
+- competitive signal
+- guideline signal
+- behavioral signal
+- operational/commercial signal
+
+Each signal should preserve as much workbook logic as possible, including fields such as:
+- SignalID
+- EventID
+- SignalDescription
+- SignalType
+- Direction
+- StrengthScore
+- ReliabilityScore
+- LikelihoodRatio
+- SourceType
+- SourceDetail
+- DateObserved
+- LinkedStatementID if available
+- ValidationStatus
+- Specialty relevance
+- Actor relevance
+
+MODULE 3 — CASE LIBRARY
+Purpose:
+Store historical analog cases.
+
+This is critical. The app must support a structured library of cases relevant to HCP adoption and behavior for medications and devices, especially by specialty such as cardiology.
+
+Each case should support fields such as:
+- CaseID
+- therapy area
+- product type: medication or device
+- specialty
+- evidence type
+- launch stage / lifecycle stage
+- actor mix
+- market access conditions
+- outcome pattern
+- adoption trajectory
+- key inflection signals
+- final observed outcome
+- notes
+
+The initial case library should be importable from Excel and editable through the app.
+
+MODULE 4 — ANALOG / SIMILARITY ENGINE
+Purpose:
+Move the system closer to an Aaru-like engine.
+
+This module should retrieve and rank the most relevant historical analog cases to the current forecasting question.
+
+Requirements:
+- compare current event to historical cases
+- similarity scoring should consider:
+  - therapy area
+  - medication vs device
+  - specialty
+  - evidence type
+  - signal pattern
+  - access/economic structure
+  - actor similarity
+  - lifecycle stage
+- return top analog cases
+- show similarity reasoning in plain language
+- design this so weights can be adjusted later
+
+This is a priority module and should be built in a modular way.
+
+MODULE 5 — ACTOR REACTION ENGINE
+Purpose:
+Model HCP behavior and broader stakeholder reactions.
+
+This is one of the most important modules for making the engine closer to an Aaru-like forecasting system.
+
+The engine should support multiple actors such as:
+- general physicians if relevant
+- specialist physicians
+- subspecialists
+- interventional specialists where relevant
+- surgeons where relevant
+- payers
+- hospital systems / IDNs
+- regulators
+- patients/caregivers optionally in future versions
+- commercial field force optionally in future versions
+
+For HCP adoption specifically, the actor model should support:
+- evidence sensitivity
+- safety sensitivity
+- practical workflow friction
+- habit inertia
+- threshold for changing behavior
+- trust in endpoint type
+- trust in subgroup data
+- economic sensitivity
+- guideline dependence
+- peer/KOL influence
+- speed of response to new information
+
+The actor engine should not just output one number. It should allow decomposition such as:
+- likely early adopters
+- skeptical segments
+- high-friction segments
+- likely delayed adopters
+
+MODULE 6 — FORECAST ENGINE
+Purpose:
+Compute structured forecast probabilities using workbook logic as the core and additional modular inputs.
+
+Requirements:
+- preserve workbook calculation logic where possible
+- allow prior probability + signal updates + analog influence + actor reaction adjustments
+- output final adoption probability
+- output confidence / forecast stability if possible
+- output key forecast drivers
+- output what pushes the estimate up
+- output what pushes the estimate down
+- output major uncertainties
+- output scenario ranges if possible
+
+Important:
+This is a structured engine, not a generative AI opinion system.
+Use deterministic logic and transparent scoring where possible.
+LLM use should be limited to explanation, summarization, and optional signal parsing support, not replacing the actual forecast logic.
+
+MODULE 7 — CALIBRATION / FEEDBACK ENGINE
+Purpose:
+Turn the system from a one-time forecaster into a learning system.
+
+Requirements:
+- log each forecast
+- allow entry of actual outcomes later
+- compare forecast vs realized outcome
+- track forecast error
+- track calibration by probability band
+- support notes on why a forecast was right or wrong
+- support user feedback field
+- support internal reviewer comments
+- show a simple calibration dashboard
+
+This module is essential because the app needs a feedback loop and must eventually improve over time.
+
+MODULE 8 — REPORT / OUTPUT ENGINE
+Purpose:
+Generate a clear output that can be used internally or adapted for client-facing use.
+
+Output should include:
+- forecast probability
+- confidence/stability if available
+- top positive drivers
+- top negative drivers
+- key analog cases
+- actor-level behavior interpretation
+- signals driving the model
+- sensitivity analysis
+- what would change the forecast most
+- feedback section
+- exportable clean summary
+
+The narrative output should sound polished and executive, but it must be traceable to the structured engine.
+
+MODULE 9 — USER INTERFACE
+Purpose:
+Simple, clean, modern UI that can later be turned into a client-facing website.
+
+UI requirements:
+- landing page with clear value proposition
+- page for entering a strategic question
+- page for adding / editing signals
+- page for browsing / uploading case library
+- page for forecast results
+- page for calibration / prediction log
+- page for feedback / review
+
+Design direction:
+- minimal
+- professional
+- clean
+- simple cards and tables
+- easy to understand
+- no clutter
+- should look credible for pharma / medtech strategic use
+- must be responsive
+- easy to restyle later into a client-facing website
+
+The UI should not look like a developer console or a spreadsheet. It should look like an early-stage product.
+
+DATA INGESTION REQUIREMENTS
+- Read the Excel workbook and map each relevant sheet into a data model
+- Preserve workbook column names where practical
+- Create import utilities so updated Excel versions can be ingested later
+- If formulas are present, translate them into backend logic rather than relying permanently on spreadsheet execution
+- If a sheet is ambiguous, create a clear mapping file or assumptions document
+
+ARCHITECTURAL PRINCIPLES
+1. Preserve the workbook architecture.
+2. Build modularly.
+3. Keep CIOS standalone-capable.
+4. Keep future MIOS/OHOS integration possible.
+5. Make the analog engine and actor engine first-class citizens.
+6. Prefer transparent logic over opaque black-box AI.
+7. Use AI only where helpful:
+   - signal parsing
+   - narrative explanation
+   - optional case summarization
+   - optional text cleanup
+8. Make the system explainable and editable.
+
+DELIVERABLES REQUIRED
+Please produce:
+1. Working full-stack application
+2. Import pipeline from Excel workbook
+3. Database schema
+4. Clean UI
+5. Forecast engine implementation
+6. Analog retrieval module
+7. Actor reaction module
+8. Prediction log and calibration module
+9. Feedback form / feedback storage
+10. README explaining:
+   - architecture
+   - module structure
+   - how workbook was mapped into code
+   - how to run locally
+   - how to deploy
+   - where future MIOS/OHOS integration points belong
+11. Assumptions file listing any workbook ambiguities or interpretation decisions
+12. Seed data support so at least a sample forecast can be run after setup
+
+IMPORTANT BUILD ORDER
+Build in this order:
+1. ingest workbook and define schema
+2. recreate workbook logic faithfully
+3. build standalone CIOS workflow end to end
+4. add analog retrieval layer
+5. add actor reaction layer
+6. add calibration/feedback layer
+7. build polished UI
+8. expose integration hooks for future MIOS/OHOS connection
+
+OUTPUT EXPERIENCE
+The user experience should ultimately feel like:
+Ask a strategic question → enter signals / retrieve analogs → receive probability + key drivers + likely HCP behavior + what changes the estimate.
+
+That is the core product.
+
+FINAL REQUEST
+Start by analyzing the Excel workbook, proposing the code architecture, mapping sheets to modules, and then building the application step by step while preserving the workbook’s logic and structure.

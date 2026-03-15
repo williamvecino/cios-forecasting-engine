@@ -1,22 +1,41 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
+  description: CIOS Forecasting Engine API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: cases
+    description: Forecast case management
+  - name: signals
+    description: Signal register
+  - name: actors
+    description: Actor configuration
+  - name: forecasts
+    description: Forecast engine
+  - name: analogs
+    description: Case library and analog retrieval
+  - name: calibration
+    description: Calibration and feedback
+  - name: scenarios
+    description: Scenario simulation
+  - name: guidance
+    description: Strategic guidance
+  - name: field
+    description: Field intelligence
+  - name: watchlist
+    description: Signal watchlist
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +43,545 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /cases:
+    get:
+      operationId: listCases
+      tags: [cases]
+      summary: List all forecast cases
+      responses:
+        "200":
+          description: List of cases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Case"
+    post:
+      operationId: createCase
+      tags: [cases]
+      summary: Create a new forecast case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCaseRequest"
+      responses:
+        "201":
+          description: Created case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+
+  /cases/{caseId}:
+    get:
+      operationId: getCase
+      tags: [cases]
+      summary: Get a specific case
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Case detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+    put:
+      operationId: updateCase
+      tags: [cases]
+      summary: Update a case
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCaseRequest"
+      responses:
+        "200":
+          description: Updated case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+    delete:
+      operationId: deleteCase
+      tags: [cases]
+      summary: Delete a case
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/signals:
+    get:
+      operationId: listSignals
+      tags: [signals]
+      summary: List signals for a case
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of signals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Signal"
+    post:
+      operationId: createSignal
+      tags: [signals]
+      summary: Add a signal to a case
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSignalRequest"
+      responses:
+        "201":
+          description: Created signal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signal"
+
+  /signals/{signalId}:
+    put:
+      operationId: updateSignal
+      tags: [signals]
+      summary: Update a signal
+      parameters:
+        - name: signalId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSignalRequest"
+      responses:
+        "200":
+          description: Updated signal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Signal"
+    delete:
+      operationId: deleteSignal
+      tags: [signals]
+      summary: Delete a signal
+      parameters:
+        - name: signalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/forecast:
+    get:
+      operationId: runForecast
+      tags: [forecasts]
+      summary: Run the CIOS forecast engine for a case
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Forecast result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForecastResult"
+
+  /actors:
+    get:
+      operationId: listActors
+      tags: [actors]
+      summary: List actor configurations
+      responses:
+        "200":
+          description: List of actors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Actor"
+
+  /actors/{actorId}:
+    put:
+      operationId: updateActor
+      tags: [actors]
+      summary: Update actor weights
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateActorRequest"
+      responses:
+        "200":
+          description: Updated actor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Actor"
+
+  /case-library:
+    get:
+      operationId: listCaseLibrary
+      tags: [analogs]
+      summary: List historical analog cases
+      responses:
+        "200":
+          description: Case library
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalogCase"
+    post:
+      operationId: createAnalogCase
+      tags: [analogs]
+      summary: Add an analog case to the library
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAnalogCaseRequest"
+      responses:
+        "201":
+          description: Created analog case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalogCase"
+
+  /case-library/{analogId}:
+    put:
+      operationId: updateAnalogCase
+      tags: [analogs]
+      summary: Update an analog case
+      parameters:
+        - name: analogId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAnalogCaseRequest"
+      responses:
+        "200":
+          description: Updated analog case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalogCase"
+    delete:
+      operationId: deleteAnalogCase
+      tags: [analogs]
+      summary: Delete an analog case
+      parameters:
+        - name: analogId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/analogs:
+    get:
+      operationId: getAnalogs
+      tags: [analogs]
+      summary: Retrieve top analog cases for a case
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ranked analog matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalogMatch"
+
+  /calibration:
+    get:
+      operationId: listCalibration
+      tags: [calibration]
+      summary: List calibration log entries
+      responses:
+        "200":
+          description: Calibration log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalibrationEntry"
+
+  /calibration/{forecastId}/outcome:
+    post:
+      operationId: recordOutcome
+      tags: [calibration]
+      summary: Record actual outcome for a forecast
+      parameters:
+        - name: forecastId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordOutcomeRequest"
+      responses:
+        "200":
+          description: Updated calibration entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalibrationEntry"
+
+  /calibration/stats:
+    get:
+      operationId: getCalibrationStats
+      tags: [calibration]
+      summary: Get calibration statistics
+      responses:
+        "200":
+          description: Calibration statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalibrationStats"
+
+  /scenarios:
+    get:
+      operationId: listScenarios
+      tags: [scenarios]
+      summary: List scenarios for all cases
+      parameters:
+        - name: caseId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scenarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Scenario"
+    post:
+      operationId: createScenario
+      tags: [scenarios]
+      summary: Create a new scenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScenarioRequest"
+      responses:
+        "201":
+          description: Created scenario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scenario"
+
+  /guidance:
+    get:
+      operationId: listGuidance
+      tags: [guidance]
+      summary: List strategic guidance items
+      parameters:
+        - name: caseId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Guidance items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GuidanceItem"
+    post:
+      operationId: createGuidance
+      tags: [guidance]
+      summary: Create a guidance item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGuidanceRequest"
+      responses:
+        "201":
+          description: Created guidance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuidanceItem"
+
+  /field-intelligence:
+    get:
+      operationId: listFieldIntelligence
+      tags: [field]
+      summary: List field intelligence entries
+      responses:
+        "200":
+          description: Field intelligence
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FieldIntelligence"
+    post:
+      operationId: createFieldIntelligence
+      tags: [field]
+      summary: Submit field intelligence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFieldIntelligenceRequest"
+      responses:
+        "201":
+          description: Created field intelligence entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldIntelligence"
+
+  /watchlist:
+    get:
+      operationId: listWatchlist
+      tags: [watchlist]
+      summary: List signal watchlist items
+      responses:
+        "200":
+          description: Watchlist items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WatchlistItem"
+    post:
+      operationId: createWatchlistItem
+      tags: [watchlist]
+      summary: Add item to signal watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWatchlistRequest"
+      responses:
+        "201":
+          description: Created watchlist item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistItem"
+
+  /specialty-profiles:
+    get:
+      operationId: listSpecialtyProfiles
+      tags: [actors]
+      summary: List available specialty actor profiles
+      responses:
+        "200":
+          description: Specialty profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SpecialtyProfile"
+
+  /seed:
+    post:
+      operationId: seedDatabase
+      tags: [health]
+      summary: Seed database with workbook sample data
+      responses:
+        "200":
+          description: Seed result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeedResult"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +592,880 @@ components:
       required:
         - status
 
+    SeedResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    Case:
+      type: object
+      properties:
+        id:
+          type: string
+        caseId:
+          type: string
+        strategicQuestion:
+          type: string
+        outcomeDefinition:
+          type: string
+        timeHorizon:
+          type: string
+        priorProbability:
+          type: number
+        currentProbability:
+          type: number
+        confidenceLevel:
+          type: string
+        primaryBrand:
+          type: string
+        primarySpecialtyProfile:
+          type: string
+        payerEnvironment:
+          type: string
+        guidelineLeverage:
+          type: string
+        competitorProfile:
+          type: string
+        lastUpdate:
+          type: string
+        signalCount:
+          type: integer
+        topSupportiveActor:
+          type: string
+          nullable: true
+        topConstrainingActor:
+          type: string
+          nullable: true
+        miosRoutingCheck:
+          type: string
+          nullable: true
+        ohosRoutingCheck:
+          type: string
+          nullable: true
+      required:
+        - id
+        - caseId
+        - strategicQuestion
+        - priorProbability
+
+    CreateCaseRequest:
+      type: object
+      properties:
+        caseId:
+          type: string
+        strategicQuestion:
+          type: string
+        outcomeDefinition:
+          type: string
+        timeHorizon:
+          type: string
+        priorProbability:
+          type: number
+        primaryBrand:
+          type: string
+        primarySpecialtyProfile:
+          type: string
+        payerEnvironment:
+          type: string
+        guidelineLeverage:
+          type: string
+        competitorProfile:
+          type: string
+      required:
+        - strategicQuestion
+        - priorProbability
+        - primaryBrand
+
+    Signal:
+      type: object
+      properties:
+        id:
+          type: string
+        signalId:
+          type: string
+        caseId:
+          type: string
+        candidateId:
+          type: string
+          nullable: true
+        brand:
+          type: string
+          nullable: true
+        signalDescription:
+          type: string
+        signalType:
+          type: string
+        direction:
+          type: string
+        strengthScore:
+          type: number
+        reliabilityScore:
+          type: number
+        likelihoodRatio:
+          type: number
+        route:
+          type: string
+          nullable: true
+        targetPopulation:
+          type: string
+          nullable: true
+        miosFlag:
+          type: string
+          nullable: true
+        ohosFlag:
+          type: string
+          nullable: true
+        weightedSignalScore:
+          type: number
+          nullable: true
+        actorAdjustedImpact:
+          type: number
+          nullable: true
+        activeLikelihoodRatio:
+          type: number
+          nullable: true
+        absoluteImpact:
+          type: number
+          nullable: true
+      required:
+        - id
+        - signalId
+        - caseId
+        - signalDescription
+        - signalType
+        - direction
+        - strengthScore
+        - reliabilityScore
+        - likelihoodRatio
+
+    CreateSignalRequest:
+      type: object
+      properties:
+        signalId:
+          type: string
+        signalDescription:
+          type: string
+        signalType:
+          type: string
+        direction:
+          type: string
+        strengthScore:
+          type: number
+        reliabilityScore:
+          type: number
+        likelihoodRatio:
+          type: number
+        route:
+          type: string
+        targetPopulation:
+          type: string
+        miosFlag:
+          type: string
+        ohosFlag:
+          type: string
+      required:
+        - signalDescription
+        - signalType
+        - direction
+        - strengthScore
+        - reliabilityScore
+        - likelihoodRatio
+
+    Actor:
+      type: object
+      properties:
+        id:
+          type: string
+        actorName:
+          type: string
+        influenceWeight:
+          type: number
+        positiveResponseFactor:
+          type: number
+        negativeResponseFactor:
+          type: number
+        outcomeOrientation:
+          type: number
+        roleInSystem:
+          type: string
+          nullable: true
+        baseInfluenceWeight:
+          type: number
+        canonicalActor:
+          type: string
+          nullable: true
+        specialtyProfile:
+          type: string
+          nullable: true
+      required:
+        - id
+        - actorName
+        - influenceWeight
+        - positiveResponseFactor
+        - negativeResponseFactor
+        - outcomeOrientation
+
+    UpdateActorRequest:
+      type: object
+      properties:
+        influenceWeight:
+          type: number
+        positiveResponseFactor:
+          type: number
+        negativeResponseFactor:
+          type: number
+        roleInSystem:
+          type: string
+      required:
+        - influenceWeight
+        - positiveResponseFactor
+        - negativeResponseFactor
+
+    ForecastResult:
+      type: object
+      properties:
+        caseId:
+          type: string
+        priorProbability:
+          type: number
+        priorOdds:
+          type: number
+        signalLrProduct:
+          type: number
+        actorAdjustmentFactor:
+          type: number
+        posteriorOdds:
+          type: number
+        currentProbability:
+          type: number
+        confidenceLevel:
+          type: string
+        netActorTranslation:
+          type: number
+        topSupportiveActor:
+          type: string
+          nullable: true
+        topConstrainingActor:
+          type: string
+          nullable: true
+        actorAggregation:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActorAggregation"
+        signalDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/SignalForecastDetail"
+        interpretation:
+          $ref: "#/components/schemas/ForecastInterpretation"
+        forecastId:
+          type: string
+        savedAt:
+          type: string
+      required:
+        - caseId
+        - priorProbability
+        - currentProbability
+        - confidenceLevel
+
+    ActorAggregation:
+      type: object
+      properties:
+        actor:
+          type: string
+        netActorEffect:
+          type: number
+        interpretation:
+          type: string
+      required:
+        - actor
+        - netActorEffect
+        - interpretation
+
+    SignalForecastDetail:
+      type: object
+      properties:
+        signalId:
+          type: string
+        description:
+          type: string
+        direction:
+          type: string
+        likelihoodRatio:
+          type: number
+        weightedActorReaction:
+          type: number
+        actorReactions:
+          type: object
+          additionalProperties:
+            type: number
+      required:
+        - signalId
+        - description
+        - direction
+        - likelihoodRatio
+
+    ForecastInterpretation:
+      type: object
+      properties:
+        primaryStatement:
+          type: string
+        topSupportiveActor:
+          type: string
+          nullable: true
+        topConstrainingActor:
+          type: string
+          nullable: true
+        highestImpactSignal:
+          type: string
+          nullable: true
+        recommendedAction:
+          type: string
+          nullable: true
+        miosRoutingCheck:
+          type: string
+          nullable: true
+        ohosRoutingCheck:
+          type: string
+          nullable: true
+        behavioralSummary:
+          type: string
+          nullable: true
+      required:
+        - primaryStatement
+
+    AnalogCase:
+      type: object
+      properties:
+        id:
+          type: string
+        caseId:
+          type: string
+        therapyArea:
+          type: string
+        productType:
+          type: string
+        specialty:
+          type: string
+        evidenceType:
+          type: string
+          nullable: true
+        lifecycleStage:
+          type: string
+          nullable: true
+        actorMix:
+          type: string
+          nullable: true
+        marketAccessConditions:
+          type: string
+          nullable: true
+        outcomePattern:
+          type: string
+          nullable: true
+        adoptionTrajectory:
+          type: string
+          nullable: true
+        keyInflectionSignals:
+          type: string
+          nullable: true
+        finalObservedOutcome:
+          type: string
+          nullable: true
+        finalProbability:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - caseId
+        - therapyArea
+        - productType
+        - specialty
+
+    CreateAnalogCaseRequest:
+      type: object
+      properties:
+        caseId:
+          type: string
+        therapyArea:
+          type: string
+        productType:
+          type: string
+        specialty:
+          type: string
+        evidenceType:
+          type: string
+        lifecycleStage:
+          type: string
+        actorMix:
+          type: string
+        marketAccessConditions:
+          type: string
+        outcomePattern:
+          type: string
+        adoptionTrajectory:
+          type: string
+        keyInflectionSignals:
+          type: string
+        finalObservedOutcome:
+          type: string
+        finalProbability:
+          type: number
+        notes:
+          type: string
+      required:
+        - caseId
+        - therapyArea
+        - productType
+        - specialty
+
+    AnalogMatch:
+      type: object
+      properties:
+        analogCase:
+          $ref: "#/components/schemas/AnalogCase"
+        similarityScore:
+          type: number
+        similarityReasoning:
+          type: string
+        matchedDimensions:
+          type: array
+          items:
+            type: string
+      required:
+        - analogCase
+        - similarityScore
+        - similarityReasoning
+
+    CalibrationEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        forecastId:
+          type: string
+        caseId:
+          type: string
+        predictionDate:
+          type: string
+        predictedProbability:
+          type: number
+        observedOutcome:
+          type: number
+          nullable: true
+        brierComponent:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        userFeedback:
+          type: string
+          nullable: true
+        reviewerComments:
+          type: string
+          nullable: true
+        forecastError:
+          type: number
+          nullable: true
+      required:
+        - id
+        - forecastId
+        - caseId
+        - predictionDate
+        - predictedProbability
+
+    RecordOutcomeRequest:
+      type: object
+      properties:
+        observedOutcome:
+          type: number
+        notes:
+          type: string
+        userFeedback:
+          type: string
+        reviewerComments:
+          type: string
+      required:
+        - observedOutcome
+
+    CalibrationStats:
+      type: object
+      properties:
+        totalForecasts:
+          type: integer
+        calibratedForecasts:
+          type: integer
+        meanBrierScore:
+          type: number
+          nullable: true
+        meanForecastError:
+          type: number
+          nullable: true
+        bandStats:
+          type: array
+          items:
+            $ref: "#/components/schemas/CalibrationBand"
+      required:
+        - totalForecasts
+        - calibratedForecasts
+
+    CalibrationBand:
+      type: object
+      properties:
+        band:
+          type: string
+        count:
+          type: integer
+        meanPredicted:
+          type: number
+          nullable: true
+        meanActual:
+          type: number
+          nullable: true
+      required:
+        - band
+        - count
+
+    Scenario:
+      type: object
+      properties:
+        id:
+          type: string
+        scenarioId:
+          type: string
+        caseId:
+          type: string
+        hypotheticalSignal:
+          type: string
+        direction:
+          type: string
+        estimatedImpact:
+          type: number
+        newProbability:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - id
+        - scenarioId
+        - caseId
+        - hypotheticalSignal
+        - direction
+        - estimatedImpact
+
+    CreateScenarioRequest:
+      type: object
+      properties:
+        caseId:
+          type: string
+        hypotheticalSignal:
+          type: string
+        direction:
+          type: string
+        estimatedImpact:
+          type: number
+        notes:
+          type: string
+      required:
+        - caseId
+        - hypotheticalSignal
+        - direction
+        - estimatedImpact
+
+    GuidanceItem:
+      type: object
+      properties:
+        id:
+          type: string
+        guidanceId:
+          type: string
+        caseId:
+          type: string
+        keyRiskDriver:
+          type: string
+        recommendedAction:
+          type: string
+        targetAudience:
+          type: string
+          nullable: true
+        priorityLevel:
+          type: string
+        linkedSignalId:
+          type: string
+          nullable: true
+      required:
+        - id
+        - guidanceId
+        - caseId
+        - keyRiskDriver
+        - recommendedAction
+        - priorityLevel
+
+    CreateGuidanceRequest:
+      type: object
+      properties:
+        caseId:
+          type: string
+        keyRiskDriver:
+          type: string
+        recommendedAction:
+          type: string
+        targetAudience:
+          type: string
+        priorityLevel:
+          type: string
+        linkedSignalId:
+          type: string
+      required:
+        - caseId
+        - keyRiskDriver
+        - recommendedAction
+        - priorityLevel
+
+    FieldIntelligence:
+      type: object
+      properties:
+        id:
+          type: string
+        feedbackId:
+          type: string
+        date:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        audienceType:
+          type: string
+          nullable: true
+        specialty:
+          type: string
+          nullable: true
+        subspecialty:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        sourceRole:
+          type: string
+          nullable: true
+        sourceName:
+          type: string
+          nullable: true
+        signalCategory:
+          type: string
+          nullable: true
+        observedBarrier:
+          type: string
+          nullable: true
+        rawFieldFeedback:
+          type: string
+        beliefShiftRisk:
+          type: integer
+          nullable: true
+        messageMismatchRisk:
+          type: integer
+          nullable: true
+        accessRisk:
+          type: integer
+          nullable: true
+        competitiveRisk:
+          type: integer
+          nullable: true
+        urgencyScore:
+          type: integer
+          nullable: true
+        credibilityScore:
+          type: integer
+          nullable: true
+        frequencyScore:
+          type: integer
+          nullable: true
+        potentialImpact:
+          type: integer
+          nullable: true
+        totalSignalScore:
+          type: integer
+          nullable: true
+        ciosSignalDirection:
+          type: string
+          nullable: true
+        suggestedRoute:
+          type: string
+          nullable: true
+        fieldActionNeeded:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - id
+        - feedbackId
+        - rawFieldFeedback
+
+    CreateFieldIntelligenceRequest:
+      type: object
+      properties:
+        brand:
+          type: string
+        audienceType:
+          type: string
+        specialty:
+          type: string
+        subspecialty:
+          type: string
+        region:
+          type: string
+        sourceRole:
+          type: string
+        sourceName:
+          type: string
+        signalCategory:
+          type: string
+        observedBarrier:
+          type: string
+        rawFieldFeedback:
+          type: string
+        beliefShiftRisk:
+          type: integer
+        messageMismatchRisk:
+          type: integer
+        accessRisk:
+          type: integer
+        competitiveRisk:
+          type: integer
+        urgencyScore:
+          type: integer
+        credibilityScore:
+          type: integer
+        frequencyScore:
+          type: integer
+        potentialImpact:
+          type: integer
+        ciosSignalDirection:
+          type: string
+        fieldActionNeeded:
+          type: string
+        notes:
+          type: string
+      required:
+        - rawFieldFeedback
+
+    WatchlistItem:
+      type: object
+      properties:
+        id:
+          type: string
+        signalId:
+          type: string
+        signalName:
+          type: string
+        signalType:
+          type: string
+        expectedWindow:
+          type: string
+          nullable: true
+        owner:
+          type: string
+          nullable: true
+        expectedDirection:
+          type: string
+          nullable: true
+        estimatedImpact:
+          type: string
+          nullable: true
+        evidenceSource:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - id
+        - signalId
+        - signalName
+        - signalType
+
+    CreateWatchlistRequest:
+      type: object
+      properties:
+        signalName:
+          type: string
+        signalType:
+          type: string
+        expectedWindow:
+          type: string
+        owner:
+          type: string
+        expectedDirection:
+          type: string
+        estimatedImpact:
+          type: string
+        evidenceSource:
+          type: string
+        status:
+          type: string
+        notes:
+          type: string
+      required:
+        - signalName
+        - signalType
+
+    SpecialtyProfile:
+      type: object
+      properties:
+        profileName:
+          type: string
+        actors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpecialtyActor"
+      required:
+        - profileName
+        - actors
+
+    SpecialtyActor:
+      type: object
+      properties:
+        slot:
+          type: integer
+        displayActor:
+          type: string
+        canonicalActor:
+          type: string
+        roleInSystem:
+          type: string
+          nullable: true
+        baseInfluenceWeight:
+          type: number
+        basePositiveResponseFactor:
+          type: number
+        baseNegativeResponseFactor:
+          type: number
+        outcomeOrientation:
+          type: number
+      required:
+        - slot
+        - displayActor
+        - canonicalActor
+        - baseInfluenceWeight
+        - basePositiveResponseFactor
+        - baseNegativeResponseFactor
+        - outcomeOrientation

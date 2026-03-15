@@ -1,96 +1,93 @@
-# Workspace
+# CIOS — Clinical Intelligence & Outcome System
 
-## Overview
+## Purpose
+Full-stack Bayesian HCP adoption forecasting engine derived from the CIOSv19 Excel workbook. Translates prior probability → posterior probability using validated clinical signals and a 6-actor behavioral reaction model.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
-
-## Stack
-
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
-
-## Structure
-
-```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+## Core Formula (from workbook ProbabilityEngine sheet)
+```
+posterior_odds = prior_odds × signal_LR_product × EXP(net_actor_translation / 2)
+current_probability = posterior_odds / (1 + posterior_odds)
 ```
 
-## TypeScript & Composite Projects
+**Actor reaction per signal:**
+```
+raw_reaction = direction_sign × ((strength + reliability) / 10) × response_factor × outcome_orientation × pharma_multiplier
+net_actor_effect[actor] = sum(raw_reaction[signal]) × influenceWeight
+net_actor_translation = sum(net_actor_effect[all actors])
+```
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+**Confidence levels:**
+- Low: 0 signals
+- Developing: <3 signals
+- Moderate: |net_actor_translation| < 0.15
+- High: otherwise
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+## Architecture
+- **Monorepo**: pnpm workspaces
+- **Frontend**: `artifacts/cios-frontend` — React + Vite + Tailwind + Recharts + React Query
+- **Backend**: `artifacts/api-server` — Express 5 + TypeScript, serves `/api`
+- **Database**: PostgreSQL (Drizzle ORM) — `lib/db`
+- **API Spec**: OpenAPI 3.1 + orval codegen — `lib/api-spec`, `lib/api-client-react`, `lib/api-zod`
+- **Engine modules**: `artifacts/api-server/src/lib/`
+  - `forecast-engine.ts` — Core Bayesian calculation
+  - `pharma-logic.ts` — PharmaLogic 4-table modifier system
+  - `analog-engine.ts` — Analog case similarity scoring
+  - `seed-data.ts` — Workbook sample data (ARIKAYCE/NTM)
 
-## Root Scripts
+## Database Tables
+- `cases` — Forecast case headers
+- `signals` — Signal register per case
+- `actors` — Actor configuration (6 canonical actors)
+- `specialty_actor_sets` — Per-specialty actor profiles
+- `case_library` — Historical analog cases
+- `calibration_log` — Forecast prediction/outcome ledger
+- `scenarios` — Hypothetical signal scenarios
+- `guidance` — Strategic guidance items
+- `field_intelligence` — Field intelligence inbox
+- `watchlist` — Signal monitoring watchlist
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+## API Routes (all under `/api`)
+- `GET/POST /cases` — Forecast cases
+- `GET/PUT/DELETE /cases/:id` — Case CRUD
+- `GET/POST /cases/:id/signals` — Signal register
+- `PUT/DELETE /signals/:id` — Signal CRUD
+- `GET /cases/:id/forecast` — Run forecast engine
+- `GET /actors`, `PUT /actors/:id` — Actor weights
+- `GET /specialty-profiles` — Available specialty profiles
+- `GET/POST /case-library` — Analog case library
+- `GET /cases/:id/analogs` — Retrieve top analog matches
+- `GET /calibration`, `POST /calibration/:id/outcome` — Calibration log
+- `GET /calibration/stats` — Calibration statistics
+- `GET/POST /scenarios` — Scenario simulation
+- `GET/POST /guidance` — Strategic guidance
+- `GET/POST /field-intelligence` — Field intelligence
+- `GET/POST /watchlist` — Signal watchlist
+- `GET /specialty-profiles` — Specialty actor profiles
+- `POST /seed` — Seed database with workbook sample data
 
-## Packages
+## Frontend Pages
+- `/` — Executive Dashboard (probability gauge, active cases, calibration health)
+- `/cases` — Question Engine (case list + create new case)
+- `/cases/:id/signals` — Signal Register (add/view signals per case)
+- `/cases/:id/forecast` — Forecast Engine (Bayesian chain, actor profile, signal drivers)
+- `/cases/:id/analogs` — Analog Retrieval (top matching historical cases)
+- `/case-library` — Case Library (manage analog cases)
+- `/calibration` — Calibration (prediction log, Brier scores, outcome recording)
+- `/field-intelligence` — Field Intelligence (MSL/field submissions)
+- `/watchlist` — Signal Watchlist (upcoming signal monitoring)
 
-### `artifacts/api-server` (`@workspace/api-server`)
+## Sample Data (from workbook)
+- **CASE-001**: ARIKAYCE (NTM/Pulmonology), prior: 45%, posterior: ~60.3%, confidence: High
+- **3 signals**: CS-001 (Clinical evidence +LR 1.32), CS-002 (Field intelligence -LR 0.68), CS-003 (Access/commercial +LR 1.40)
+- **4 analog cases**: Pulmonology rare-disease, Cardiology device, Infectious disease, COPD/bronchiectasis
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+## Key Design Decisions
+- PharmaLogic uses 6×N multiplier tables (signal type × actor index) + keyword adjustments capped at 1.6
+- Analog similarity scoring: weighted dimensions (therapy area 25%, specialty 20%, product type 15%, evidence 15%, access 10%)
+- Forecast automatically saves to calibration_log on each run
+- Database auto-seeded via POST /api/seed (idempotent — checks for existing data)
+- Integration-ready: MIOS/OHOS flags on each signal, routing checks on forecast output
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+## Workflows
+- `artifacts/api-server: API Server` — Express on port 8080, serves `/api`
+- `artifacts/cios-frontend: web` — Vite dev server, serves `/`
