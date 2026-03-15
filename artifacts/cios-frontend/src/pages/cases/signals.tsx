@@ -14,8 +14,9 @@ import {
   Sparkles,
   Pencil,
   Info,
+  Trash2,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   SIGNAL_TYPES,
   SCOPE_VALUES,
@@ -192,11 +193,24 @@ export default function SignalsRegister() {
   const [isCreating, setIsCreating] = useState(false);
   const [autoClassified, setAutoClassified] = useState<SignalType | null>(null);
   const [showTypeOverride, setShowTypeOverride] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const { data: caseData } = useGetCase(caseId);
   const { data: signals, isLoading } = useListSignals(caseId);
   const { mutate: createSignal, isPending } = useCreateSignal();
   const queryClient = useQueryClient();
+
+  const { mutate: deleteSignal, isPending: isDeleting } = useMutation({
+    mutationFn: async (signalId: string) => {
+      const res = await fetch(`/api/signals/${signalId}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error("Failed to delete signal");
+    },
+    onSuccess: () => {
+      setConfirmDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/signals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+    },
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(signalSchema),
@@ -570,27 +584,22 @@ export default function SignalsRegister() {
                   <th className="px-5 py-4 font-semibold">ID</th>
                   <th className="px-5 py-4 font-semibold">Intelligence</th>
                   <th className="px-5 py-4 font-semibold">Classification</th>
-                  <th className="px-5 py-4 font-semibold text-center">
-                    Effect
-                  </th>
-                  <th className="px-5 py-4 font-semibold text-center">
-                    Impact&thinsp;/&thinsp;Reliability
-                  </th>
-                  <th className="px-5 py-4 font-semibold text-right">
-                    Forecast weight
-                  </th>
+                  <th className="px-5 py-4 font-semibold text-center">Effect</th>
+                  <th className="px-5 py-4 font-semibold text-center">Impact&thinsp;/&thinsp;Reliability</th>
+                  <th className="px-5 py-4 font-semibold text-right">Forecast weight</th>
+                  <th className="px-5 py-4 w-10" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">
                       Loading signals…
                     </td>
                   </tr>
                 ) : signals?.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center">
+                    <td colSpan={7} className="px-5 py-10 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Sparkles className="w-8 h-8 text-muted-foreground/30" />
                         <span className="text-muted-foreground">
@@ -608,7 +617,7 @@ export default function SignalsRegister() {
                     return (
                       <tr
                         key={sig.id}
-                        className="hover:bg-muted/10 transition-colors"
+                        className="group hover:bg-muted/10 transition-colors"
                       >
                         <td className="px-5 py-4 font-mono text-xs text-muted-foreground">
                           {sig.signalId}
@@ -665,6 +674,34 @@ export default function SignalsRegister() {
                               {lrToStrengthLabel(sig.likelihoodRatio, sig.direction ?? "Positive").label.split(" — ")[0]}
                             </span>
                           </div>
+                        </td>
+                        <td className="px-3 py-4 text-right">
+                          {confirmDeleteId === sig.signalId ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className="text-[10px] text-destructive font-medium whitespace-nowrap">Remove?</span>
+                              <button
+                                onClick={() => deleteSignal(sig.signalId)}
+                                disabled={isDeleting}
+                                className="text-[10px] font-semibold text-destructive hover:underline disabled:opacity-50"
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="text-[10px] text-muted-foreground hover:text-foreground"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(sig.signalId)}
+                              className="opacity-20 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                              title="Remove signal"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
