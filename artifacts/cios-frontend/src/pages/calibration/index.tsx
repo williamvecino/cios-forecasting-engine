@@ -19,12 +19,16 @@ export default function Calibration() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="bg-primary/5 border-primary/20">
             <div className="text-sm text-muted-foreground">Mean Brier Score</div>
-            <div className="text-3xl font-display font-bold mt-2 text-primary">{stats?.meanBrierScore?.toFixed(3) || '-'}</div>
+            <div className="text-3xl font-display font-bold mt-2 text-primary">
+              {stats ? (stats.meanBrierScore ?? 0).toFixed(3) : '-'}
+            </div>
             <div className="text-xs text-muted-foreground mt-1">Lower is better (0-1)</div>
           </Card>
           <Card>
             <div className="text-sm text-muted-foreground">Mean Forecast Error</div>
-            <div className="text-3xl font-display font-bold mt-2 text-foreground">{stats?.meanForecastError ? (stats.meanForecastError * 100).toFixed(1) + '%' : '-'}</div>
+            <div className="text-3xl font-display font-bold mt-2 text-foreground">
+              {stats ? ((stats.meanForecastError ?? 0) * 100).toFixed(1) + '%' : '-'}
+            </div>
           </Card>
           <Card>
             <div className="text-sm text-muted-foreground">Calibrated Records</div>
