@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useRoute } from "wouter";
 import { useListSignals, useCreateSignal, useGetCase } from "@workspace/api-client-react";
-import { AppLayout, cn } from "@/components/layout";
+import { AppLayout } from "@/components/layout";
+import { cn } from "@/lib/cn";
 import { Card, Badge, Button, Input, Select, Label } from "@/components/ui-components";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

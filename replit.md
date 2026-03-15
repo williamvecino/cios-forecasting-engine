@@ -1,7 +1,9 @@
 # CIOS — Clinical Intelligence & Outcome System
 
 ## Purpose
-Full-stack Bayesian HCP adoption forecasting engine derived from the CIOSv19 Excel workbook. Translates prior probability → posterior probability using validated clinical signals and a 6-actor behavioral reaction model.
+Disease-agnostic, asset-agnostic, specialty-flexible Bayesian HCP adoption forecasting platform derived from the CIOSv19 Excel workbook. Works for any medication, device, diagnostic, therapeutic area, specialty, or geography. Translates prior probability → posterior probability using validated clinical signals and a 6-actor behavioral reaction model.
+
+**ARIKAYCE, CardioAsset X, and OncoDevice Y are demo seed cases only — the engine has no brand identity.**
 
 ## Core Formula (from workbook ProbabilityEngine sheet)
 ```

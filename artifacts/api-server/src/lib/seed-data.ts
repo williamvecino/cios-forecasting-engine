@@ -37,33 +37,98 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       await clearAll();
     }
 
-    await db.insert(casesTable).values({
-      id: randomUUID(),
-      caseId: "CASE-001",
-      strategicQuestion:
-        "Will the monitored product move closer to its target adoption threshold given the current validated signal set?",
-      outcomeDefinition:
-        "Net probability that the target HCP behavior becomes more likely after signal validation and actor-response translation.",
-      timeHorizon: "12 months",
-      priorProbability: 0.45,
-      currentProbability: null,
-      confidenceLevel: null,
-      primaryBrand: "Product A",
-      primarySpecialtyProfile: "General",
-      payerEnvironment: "Balanced",
-      guidelineLeverage: "Medium",
-      competitorProfile: "Entrenched standard of care",
-      topSupportiveActor: null,
-      topConstrainingActor: null,
-    });
+    // ── Demo cases ── 3 archetypes spanning different therapeutic areas.
+    // These are illustrative only. CIOS operates for any asset, specialty, and geography.
+    await db.insert(casesTable).values([
+      {
+        id: randomUUID(),
+        caseId: "CASE-DEMO-01",
+        // Asset metadata
+        assetName: "ARIKAYCE",
+        assetType: "Medication",
+        therapeuticArea: "Rare disease / Orphan",
+        diseaseState: "NTM Lung Disease (MAC)",
+        specialty: "Pulmonology / Infectious Disease",
+        geography: "US",
+        // Strategic framing
+        strategicQuestion:
+          "Will ARIKAYCE achieve target specialist adoption (≥4 Rx/quarter) within 12 months given current validated signals?",
+        outcomeDefinition:
+          "Target Pulmonologist reaches ≥4 Rx/quarter for NTM MAC patients within forecast horizon.",
+        timeHorizon: "12 months",
+        priorProbability: 0.45,
+        currentProbability: null,
+        confidenceLevel: null,
+        primaryBrand: "ARIKAYCE",
+        primarySpecialtyProfile: "Pulmonology / rare disease",
+        payerEnvironment: "Balanced",
+        guidelineLeverage: "High",
+        competitorProfile: "Entrenched standard of care",
+        topSupportiveActor: null,
+        topConstrainingActor: null,
+        isDemo: "true",
+      },
+      {
+        id: randomUUID(),
+        caseId: "CASE-DEMO-02",
+        assetName: "CardioAsset X",
+        assetType: "Medication",
+        therapeuticArea: "Cardiology",
+        diseaseState: "Heart Failure with Reduced Ejection Fraction (HFrEF)",
+        specialty: "Cardiology",
+        geography: "US",
+        strategicQuestion:
+          "Will CardioAsset X displace entrenched standard-of-care beta-blocker combinations within target cardiologist accounts over 18 months?",
+        outcomeDefinition:
+          "Target Cardiologist initiates CardioAsset X in ≥3 new HFrEF patients within 18 months.",
+        timeHorizon: "18 months",
+        priorProbability: 0.35,
+        currentProbability: null,
+        confidenceLevel: null,
+        primaryBrand: "CardioAsset X",
+        primarySpecialtyProfile: "Cardiology / mixed specialist",
+        payerEnvironment: "Medicare-heavy",
+        guidelineLeverage: "High",
+        competitorProfile: "Entrenched standard of care",
+        topSupportiveActor: null,
+        topConstrainingActor: null,
+        isDemo: "true",
+      },
+      {
+        id: randomUUID(),
+        caseId: "CASE-DEMO-03",
+        assetName: "OncoDevice Y",
+        assetType: "Device",
+        therapeuticArea: "Oncology",
+        diseaseState: "NSCLC (Stage III-IV)",
+        specialty: "Oncology",
+        geography: "US + EU5",
+        strategicQuestion:
+          "Will tumor-board adoption of OncoDevice Y reach threshold in academic oncology centers within 24 months?",
+        outcomeDefinition:
+          "Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.",
+        timeHorizon: "24 months",
+        priorProbability: 0.55,
+        currentProbability: null,
+        confidenceLevel: null,
+        primaryBrand: "OncoDevice Y",
+        primarySpecialtyProfile: "Oncology / academic-led",
+        payerEnvironment: "Commercial-heavy",
+        guidelineLeverage: "Medium",
+        competitorProfile: "Crowded class / multiple competitors",
+        topSupportiveActor: null,
+        topConstrainingActor: null,
+        isDemo: "true",
+      },
+    ]);
 
     await db.insert(signalsTable).values([
       {
         id: randomUUID(),
         signalId: "CS-001",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         candidateId: "CS-001",
-        brand: "Product A",
+        brand: "ARIKAYCE",
         signalDescription:
           "A new peer-reviewed publication strengthens the evidence linkage between the primary mechanism and patient outcomes.",
         signalType: "Clinical evidence",
@@ -83,9 +148,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         id: randomUUID(),
         signalId: "CS-002",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         candidateId: "CS-002",
-        brand: "Product A",
+        brand: "ARIKAYCE",
         signalDescription:
           "Field accounts report continued requests for a simpler identification and referral pathway.",
         signalType: "Field intelligence",
@@ -105,9 +170,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         id: randomUUID(),
         signalId: "CS-003",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         candidateId: "CS-003",
-        brand: "Product A",
+        brand: "ARIKAYCE",
         signalDescription:
           "Emerging payer coverage shift could reduce reimbursement obstacles in key target accounts.",
         signalType: "Access / commercial",
@@ -413,7 +478,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
     await db.insert(calibrationLogTable).values({
       id: randomUUID(),
       forecastId: "FCAST-DEMO",
-      caseId: "CASE-001",
+      caseId: "CASE-DEMO-01",
       predictedProbability: 0.45,
       notes: "Baseline prior only — no signals computed yet.",
       snapshotJson: JSON.stringify({ version: "baseline", priorProbability: 0.45 }),
@@ -423,7 +488,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         id: randomUUID(),
         scenarioId: "SCN-001",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         hypotheticalSignal: "Single additional high-strength positive signal",
         direction: "Positive",
         estimatedImpact: 0.15,
@@ -433,7 +498,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         id: randomUUID(),
         scenarioId: "SCN-002",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         hypotheticalSignal: "Single additional high-strength negative signal",
         direction: "Negative",
         estimatedImpact: -0.12,
@@ -446,7 +511,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         id: randomUUID(),
         guidanceId: "GUID-001",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         keyRiskDriver: "Academic KOLs",
         recommendedAction: "Leverage supportive KOL sentiment to accelerate peer-to-peer adoption momentum.",
         targetAudience: "Medical Affairs / Field",
@@ -456,7 +521,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         id: randomUUID(),
         guidanceId: "GUID-002",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         keyRiskDriver: "Identification / referral gap (Field intelligence)",
         recommendedAction: "Route simplification barrier to MIOS and OHOS for coordinated field response.",
         targetAudience: "Field strategy / Sales",
@@ -466,7 +531,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         id: randomUUID(),
         guidanceId: "GUID-003",
-        caseId: "CASE-001",
+        caseId: "CASE-DEMO-01",
         keyRiskDriver: "Access / reimbursement environment",
         recommendedAction: "Monitor payer coverage expansion; accelerate pull-through when confirmed.",
         targetAudience: "Market Access",
@@ -478,7 +543,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
     await db.insert(fieldIntelligenceTable).values({
       id: randomUUID(),
       feedbackId: "FB-001",
-      brand: "Product A",
+      brand: "ARIKAYCE",
       audienceType: "HCP",
       specialty: "Specialist",
       subspecialty: "Academic center",

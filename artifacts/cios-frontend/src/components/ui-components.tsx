@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "./layout";
+import { cn } from "@/lib/cn";
 
 // Beautiful custom components reflecting the premium dark theme
 

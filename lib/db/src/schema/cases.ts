@@ -5,23 +5,43 @@ import { z } from "zod/v4";
 export const casesTable = pgTable("cases", {
   id: text("id").primaryKey(),
   caseId: text("case_id").notNull().unique(),
+
+  // Structured asset metadata — disease-agnostic inputs
+  assetName: text("asset_name"),
+  assetType: text("asset_type").default("Medication"),
+  therapeuticArea: text("therapeutic_area"),
+  diseaseState: text("disease_state"),
+  specialty: text("specialty"),
+  geography: text("geography").default("US"),
+
+  // Strategic question framing
   strategicQuestion: text("strategic_question").notNull(),
   outcomeDefinition: text("outcome_definition"),
-  timeHorizon: text("time_horizon"),
+  timeHorizon: text("time_horizon").default("12 months"),
+
+  // Bayesian engine inputs
   priorProbability: real("prior_probability").notNull().default(0.45),
-  currentProbability: real("current_probability"),
-  confidenceLevel: text("confidence_level"),
-  primaryBrand: text("primary_brand"),
+
+  // Actor environment context
   primarySpecialtyProfile: text("primary_specialty_profile").default("General"),
   payerEnvironment: text("payer_environment").default("Balanced"),
   guidelineLeverage: text("guideline_leverage").default("Medium"),
   competitorProfile: text("competitor_profile").default("Entrenched standard of care"),
+
+  // Computed engine outputs (written back after forecast run)
+  currentProbability: real("current_probability"),
+  confidenceLevel: text("confidence_level"),
   topSupportiveActor: text("top_supportive_actor"),
   topConstrainingActor: text("top_constraining_actor"),
   miosRoutingCheck: text("mios_routing_check"),
   ohosRoutingCheck: text("ohos_routing_check"),
+
+  // Backward-compat alias kept for codegen consumers
+  primaryBrand: text("primary_brand"),
+
   lastUpdate: timestamp("last_update").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: text("is_demo").default("false"),
 });
 
 export const insertCaseSchema = createInsertSchema(casesTable).omit({
