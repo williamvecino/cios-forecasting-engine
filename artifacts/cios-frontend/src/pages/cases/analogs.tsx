@@ -1,15 +1,60 @@
 import { useRoute } from "wouter";
 import { useGetAnalogs, useGetCase } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
+import { cn } from "@/lib/cn";
 import { Card, Badge, Button } from "@/components/ui-components";
-import { Library, CheckCircle2, RefreshCcw } from "lucide-react";
+import { Library, CheckCircle2, RefreshCcw, AlertTriangle, BookOpen, Minus } from "lucide-react";
+
+function ConfidenceBand({ band }: { band: string }) {
+  const styles: Record<string, string> = {
+    High: "bg-success/10 text-success border-success/20",
+    Moderate: "bg-warning/10 text-warning border-warning/20",
+    Low: "bg-muted/20 text-muted-foreground border-border",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
+        styles[band] ?? styles["Low"]
+      )}
+    >
+      {band} Confidence
+    </span>
+  );
+}
+
+function SimilarityMeter({ score }: { score: number }) {
+  const pct = Math.min(100, Math.max(0, score));
+  const color =
+    pct >= 65
+      ? "bg-success"
+      : pct >= 35
+        ? "bg-warning"
+        : "bg-muted-foreground/40";
+  return (
+    <div className="w-full">
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+          Similarity Score
+        </span>
+        <span className="text-2xl font-display font-bold">{pct.toFixed(0)}%</span>
+      </div>
+      <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all", color)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function AnalogRetrieval() {
   const [, params] = useRoute("/cases/:caseId/analogs");
   const caseId = params?.caseId || "";
 
   const { data: caseData } = useGetCase(caseId);
-  const { data: analogs, isLoading } = useGetAnalogs(caseId);
+  const { data: analogs, isLoading, refetch } = useGetAnalogs(caseId);
 
   return (
     <AppLayout>
@@ -21,51 +66,193 @@ export default function AnalogRetrieval() {
               <span className="text-sm font-medium text-muted-foreground">{caseId}</span>
             </div>
             <h1 className="text-3xl font-bold">Analog Case Retrieval</h1>
-            <p className="text-muted-foreground mt-1">Matched historical patterns based on specialty, leverage, and actors.</p>
+            <p className="text-muted-foreground mt-1">
+              Historical patterns ranked by structural similarity to{" "}
+              <span className="text-foreground font-medium">
+                {(caseData as any)?.assetName || caseData?.primaryBrand || caseId}
+              </span>
+              . Explains why each analog was selected and what its trajectory teaches.
+            </p>
           </div>
-          <Button variant="outline" className="gap-2"><RefreshCcw className="w-4 h-4"/> Rerun Matching</Button>
+          <Button variant="outline" className="gap-2" onClick={() => refetch()}>
+            <RefreshCcw className="w-4 h-4" /> Rerun Matching
+          </Button>
         </header>
 
         {isLoading ? (
-          <div className="text-center p-12 text-muted-foreground animate-pulse">Running similarity vectors against library...</div>
+          <div className="text-center p-12 text-muted-foreground animate-pulse">
+            Running similarity vectors against library…
+          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6">
-            {analogs?.map((match, i) => (
-              <Card key={i} className="relative overflow-hidden group">
-                <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/80" />
-                <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-mono text-sm text-primary font-semibold">{match.analogCase.caseId}</span>
-                      <Badge variant="default">{match.analogCase.therapyArea}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-4">{match.similarityReasoning}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {match.matchedDimensions?.map(dim => (
-                        <div key={dim} className="flex items-center gap-1 text-xs bg-muted/30 px-2 py-1 rounded-md text-foreground">
-                          <CheckCircle2 className="w-3 h-3 text-success" />
-                          {dim}
+          <div className="space-y-4">
+            {analogs?.map((match, i) => {
+              const m = match as any;
+              const score = match.similarityScore; // already 0-100
+              const rank = i + 1;
+              return (
+                <Card key={i} className="relative overflow-hidden">
+                  {/* Rank stripe */}
+                  <div
+                    className={cn(
+                      "absolute top-0 left-0 w-1.5 h-full",
+                      score >= 65
+                        ? "bg-success/70"
+                        : score >= 35
+                          ? "bg-warning/60"
+                          : "bg-muted-foreground/30"
+                    )}
+                  />
+
+                  <div className="pl-2">
+                    {/* Top row */}
+                    <div className="flex flex-col lg:flex-row gap-5">
+                      {/* Left: metadata + reasoning */}
+                      <div className="flex-1 min-w-0">
+                        {/* Header */}
+                        <div className="flex items-center flex-wrap gap-2 mb-2">
+                          <span className="text-xs text-muted-foreground font-mono font-semibold">
+                            #{rank}
+                          </span>
+                          <span className="font-mono text-sm text-primary font-bold">
+                            {match.analogCase.caseId}
+                          </span>
+                          {match.analogCase.therapyArea && (
+                            <Badge variant="default">{match.analogCase.therapyArea}</Badge>
+                          )}
+                          {match.analogCase.specialty && (
+                            <Badge variant="default">{match.analogCase.specialty}</Badge>
+                          )}
+                          {match.analogCase.productType && (
+                            <span className="text-xs text-muted-foreground">
+                              · {match.analogCase.productType}
+                            </span>
+                          )}
+                          {match.analogCase.lifecycleStage && (
+                            <span className="text-xs text-muted-foreground">
+                              · {match.analogCase.lifecycleStage}
+                            </span>
+                          )}
+                          <ConfidenceBand band={m.confidenceBand ?? "Low"} />
                         </div>
-                      ))}
+
+                        {/* Why selected */}
+                        <div className="mb-3">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                            Why selected
+                          </div>
+                          <p className="text-sm text-foreground/80 leading-relaxed">
+                            {match.similarityReasoning}
+                          </p>
+                        </div>
+
+                        {/* Matched dimensions */}
+                        {match.matchedDimensions && match.matchedDimensions.length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">
+                              Matched dimensions
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {match.matchedDimensions.map((dim) => (
+                                <div
+                                  key={dim}
+                                  className="flex items-center gap-1 text-[11px] bg-success/8 border border-success/15 text-success px-2 py-0.5 rounded-md"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                  {dim}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Key differences */}
+                        {m.keyDifferences && m.keyDifferences.length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">
+                              Key differences
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {m.keyDifferences.map((diff: string) => (
+                                <div
+                                  key={diff}
+                                  className="flex items-center gap-1 text-[11px] bg-destructive/5 border border-destructive/15 text-destructive/80 px-2 py-0.5 rounded-md"
+                                >
+                                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                                  {diff}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Adoption lesson */}
+                        {m.adoptionLesson && (
+                          <div className="bg-muted/20 border border-border rounded-lg p-3">
+                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                              <BookOpen className="w-3 h-3" />
+                              Adoption lesson
+                            </div>
+                            <p className="text-xs text-foreground/75 leading-relaxed">
+                              {m.adoptionLesson}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: score panel */}
+                      <div className="lg:w-52 shrink-0 flex flex-col gap-3">
+                        <div className="bg-background rounded-xl border border-border p-4">
+                          <SimilarityMeter score={score} />
+                        </div>
+
+                        {(match.analogCase.finalObservedOutcome ||
+                          match.analogCase.finalProbability !== null) && (
+                          <div className="bg-background rounded-xl border border-border p-4">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                              Historical outcome
+                            </div>
+                            {match.analogCase.finalProbability !== null &&
+                              match.analogCase.finalProbability !== undefined && (
+                                <div className="text-xl font-display font-bold text-foreground mb-1">
+                                  {(Number(match.analogCase.finalProbability) * 100).toFixed(0)}%
+                                </div>
+                              )}
+                            {match.analogCase.finalObservedOutcome && (
+                              <div
+                                className="text-xs text-muted-foreground leading-snug"
+                                title={match.analogCase.finalObservedOutcome}
+                              >
+                                {match.analogCase.finalObservedOutcome}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {match.analogCase.actorMix && (
+                          <div className="bg-background rounded-xl border border-border p-3">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                              Actor mix
+                            </div>
+                            <p className="text-xs text-foreground/70 leading-snug">
+                              {match.analogCase.actorMix}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="lg:w-48 bg-background rounded-xl border border-border p-4 flex flex-col items-center justify-center shrink-0">
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Similarity Score</div>
-                    <div className="text-3xl font-display font-bold text-foreground">{(match.similarityScore * 100).toFixed(0)}%</div>
-                    <div className="text-xs text-muted-foreground mt-2">Historical Outcome:</div>
-                    <div className="text-sm font-medium text-center truncate w-full" title={match.analogCase.finalObservedOutcome || ''}>
-                      {match.analogCase.finalObservedOutcome || 'N/A'}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
+
             {analogs?.length === 0 && (
               <Card className="text-center py-12">
                 <Library className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground">No close analogs found</h3>
-                <p className="text-muted-foreground">The current case profile does not strongly match historical records.</p>
+                <p className="text-muted-foreground text-sm mt-1">
+                  The current case profile does not strongly match historical records in the
+                  library.
+                </p>
               </Card>
             )}
           </div>

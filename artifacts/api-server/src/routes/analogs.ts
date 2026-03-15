@@ -67,14 +67,15 @@ router.get("/cases/:caseId/analogs", async (req, res) => {
   const caseRow = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
   const library = await db.select().from(caseLibraryTable);
 
+  const row = caseRow[0] as any;
   const query = {
-    therapyArea: caseRow[0]?.primaryBrand,
-    specialty: caseRow[0]?.primarySpecialtyProfile,
-    productType: "Medication",
+    therapyArea: row?.therapeuticArea || row?.primaryBrand,
+    specialty: row?.specialty || row?.primarySpecialtyProfile,
+    productType: row?.assetType || "Medication",
     evidenceType: "Phase 3 RCT",
-    specialtyProfile: caseRow[0]?.primarySpecialtyProfile,
-    payerEnvironment: caseRow[0]?.payerEnvironment ?? undefined,
-    primaryBrand: caseRow[0]?.primaryBrand ?? undefined,
+    specialtyProfile: row?.primarySpecialtyProfile,
+    payerEnvironment: row?.payerEnvironment ?? undefined,
+    primaryBrand: (row?.assetName || row?.primaryBrand) ?? undefined,
   };
 
   const matches = retrieveAnalogs(query, library, 5);
