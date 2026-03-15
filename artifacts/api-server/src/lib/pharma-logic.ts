@@ -33,30 +33,77 @@ export const SIGNAL_TYPE_MULTIPLIERS: Record<string, number[]> = {
   "unmapped": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
 };
 
+// Keyword multipliers — matched against signal description + target population text at runtime.
+// These are disease-AGNOSTIC routing weights: any signal for any asset in any therapy area
+// will automatically pick up the right actor adjustments based on what the signal text says.
+// Add new keywords freely to extend coverage to additional specialties and contexts.
+// Format: { keyword: [KOL, Community, HealthSys, Payer, Guideline, Competitor] }
 export const KEYWORD_MULTIPLIERS: Record<string, number[]> = {
-  "academic": [1.2, 0.95, 1.0, 1.1, 0.95, 0.95],
-  "kol": [1.2, 0.95, 0.95, 1.05, 0.95, 0.95],
-  "community": [0.95, 1.2, 1.0, 0.95, 1.0, 1.0],
-  "specialist": [1.05, 1.1, 0.95, 1.0, 0.95, 1.0],
-  "primary care": [0.9, 1.15, 1.0, 0.9, 1.0, 1.0],
-  "payer": [0.9, 0.95, 1.25, 0.95, 1.0, 1.0],
-  "access": [0.9, 0.95, 1.25, 0.95, 1.0, 1.0],
-  "formulary": [0.9, 0.95, 1.3, 1.0, 1.0, 1.0],
-  "guideline": [1.05, 0.95, 1.0, 1.3, 0.95, 0.95],
-  "hospital": [0.95, 1.0, 1.0, 0.95, 1.2, 1.0],
-  "health system": [0.95, 1.0, 1.0, 0.95, 1.2, 1.0],
-  "idn": [0.95, 1.0, 1.0, 0.95, 1.25, 1.0],
-  "pulmonology": [1.1, 1.05, 0.95, 1.05, 1.0, 0.95],
-  "cardiology": [0.95, 1.1, 1.1, 1.0, 1.05, 1.05],
-  "oncology": [1.15, 0.95, 1.0, 1.0, 1.0, 1.1],
-  "dermatology": [0.9, 1.15, 1.0, 0.95, 1.0, 1.05],
-  "psychiatry": [0.9, 1.05, 1.15, 0.95, 1.0, 1.05],
-  "infectious disease": [1.05, 0.95, 1.0, 1.15, 1.0, 0.95],
-  "competitor": [0.95, 1.0, 1.0, 0.95, 0.95, 1.25],
-  "generic": [0.95, 0.95, 1.1, 0.95, 0.95, 1.25],
-  "launch": [1.0, 1.0, 1.0, 1.0, 1.0, 1.15],
-  "switch": [0.95, 1.05, 1.0, 0.95, 1.0, 1.1],
-  "ntm": [1.1, 1.0, 0.95, 1.05, 1.0, 0.95],
+  // ── HCP channel keywords ──────────────────────────────────────────────────
+  "academic":           [1.2,  0.95, 1.0,  1.1,  0.95, 0.95],
+  "kol":                [1.2,  0.95, 0.95, 1.05, 0.95, 0.95],
+  "community":          [0.95, 1.2,  1.0,  0.95, 1.0,  1.0 ],
+  "specialist":         [1.05, 1.1,  0.95, 1.0,  0.95, 1.0 ],
+  "primary care":       [0.9,  1.15, 1.0,  0.9,  1.0,  1.0 ],
+
+  // ── Access / payer keywords ───────────────────────────────────────────────
+  "payer":              [0.9,  0.95, 1.25, 0.95, 1.0,  1.0 ],
+  "access":             [0.9,  0.95, 1.25, 0.95, 1.0,  1.0 ],
+  "formulary":          [0.9,  0.95, 1.3,  1.0,  1.0,  1.0 ],
+  "prior auth":         [0.9,  0.95, 1.2,  1.0,  1.0,  1.0 ],
+  "step therapy":       [0.9,  0.9,  1.2,  1.05, 1.0,  1.05],
+  "reimbursement":      [0.9,  0.95, 1.2,  1.0,  1.0,  1.0 ],
+
+  // ── Guideline / society keywords ──────────────────────────────────────────
+  "guideline":          [1.05, 0.95, 1.0,  1.3,  0.95, 0.95],
+  "pathway":            [1.05, 0.95, 1.0,  1.2,  1.0,  0.95],
+  "society":            [1.1,  0.95, 1.0,  1.1,  0.95, 0.95],
+
+  // ── Health system / site-of-care keywords ─────────────────────────────────
+  "hospital":           [0.95, 1.0,  1.0,  0.95, 1.2,  1.0 ],
+  "health system":      [0.95, 1.0,  1.0,  0.95, 1.2,  1.0 ],
+  "idn":                [0.95, 1.0,  1.0,  0.95, 1.25, 1.0 ],
+  "infusion":           [0.95, 0.95, 1.1,  1.0,  1.1,  1.0 ],
+
+  // ── Therapy area keywords — disease-agnostic, matched from signal text ────
+  "pulmonology":        [1.1,  1.05, 0.95, 1.05, 1.0,  0.95],
+  "respiratory":        [1.0,  1.1,  0.95, 1.0,  1.0,  0.95],
+  "cardiology":         [0.95, 1.1,  1.1,  1.0,  1.05, 1.05],
+  "oncology":           [1.15, 0.95, 1.0,  1.0,  1.0,  1.1 ],
+  "hematology":         [1.15, 0.9,  1.0,  1.0,  1.0,  1.1 ],
+  "dermatology":        [0.9,  1.15, 1.0,  0.95, 1.0,  1.05],
+  "psychiatry":         [0.9,  1.05, 1.15, 0.95, 1.0,  1.05],
+  "neurology":          [1.1,  0.95, 1.0,  1.0,  1.05, 1.0 ],
+  "infectious disease": [1.05, 0.95, 1.0,  1.15, 1.0,  0.95],
+  "rheumatology":       [1.1,  0.95, 1.0,  1.0,  1.05, 1.05],
+  "immunology":         [1.1,  0.95, 1.0,  1.0,  1.05, 1.05],
+  "gastroenterology":   [1.0,  1.05, 1.0,  1.0,  1.0,  1.05],
+  "nephrology":         [0.95, 1.05, 1.1,  1.0,  1.0,  1.0 ],
+  "endocrinology":      [0.95, 1.1,  1.0,  1.0,  1.0,  1.0 ],
+  "rare disease":       [1.15, 0.9,  0.95, 1.1,  1.0,  0.9 ],
+  "orphan":             [1.15, 0.9,  0.95, 1.1,  1.0,  0.9 ],
+  "device":             [1.0,  0.95, 1.15, 0.95, 1.05, 1.1 ],
+  "diagnostic":         [1.05, 0.9,  1.1,  0.95, 1.05, 1.05],
+  "digital":            [0.95, 1.0,  1.05, 0.9,  1.0,  1.0 ],
+
+  // ── Disease-specific examples — extend this list freely ───────────────────
+  "ntm":                [1.1,  1.0,  0.95, 1.05, 1.0,  0.95], // non-tuberculous mycobacteria
+  "nsclc":              [1.15, 0.9,  1.0,  1.0,  1.0,  1.1 ], // non-small cell lung cancer
+  "hfref":              [0.95, 1.1,  1.1,  1.0,  1.05, 1.05], // heart failure rEF
+  "ra":                 [1.1,  0.95, 1.0,  1.0,  1.05, 1.1 ], // rheumatoid arthritis
+  "t2dm":               [0.95, 1.15, 1.0,  1.0,  1.0,  1.05], // type 2 diabetes
+  "psoriasis":          [0.9,  1.15, 1.0,  0.95, 1.0,  1.1 ],
+  "mdd":                [0.9,  1.05, 1.15, 0.95, 1.0,  1.05], // major depressive disorder
+  "copd":               [1.0,  1.1,  0.95, 1.0,  1.0,  1.05],
+
+  // ── Competitive dynamics keywords ─────────────────────────────────────────
+  "competitor":         [0.95, 1.0,  1.0,  0.95, 0.95, 1.25],
+  "generic":            [0.95, 0.95, 1.1,  0.95, 0.95, 1.25],
+  "biosimilar":         [0.95, 0.95, 1.1,  0.95, 0.95, 1.2 ],
+  "launch":             [1.0,  1.0,  1.0,  1.0,  1.0,  1.15],
+  "switch":             [0.95, 1.05, 1.0,  0.95, 1.0,  1.1 ],
+  "label expansion":    [1.0,  1.05, 1.0,  1.0,  1.05, 1.0 ],
+  "indication":         [1.0,  1.0,  1.0,  1.0,  1.05, 1.05],
 };
 
 export const SPECIALTY_PROFILE_MODIFIERS: Record<string, number[]> = {

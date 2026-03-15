@@ -305,12 +305,12 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       {
         profile: "Pulmonology / rare disease",
         actors: [
-          { slot: 1, display: "Academic Pulmonologists", canonical: "Academic KOLs", role: "Reference-center pulmonologists and rare-disease KOLs shaping standards.", weight: 0.24, pos: 1.2, neg: 0.85, orient: 1 },
-          { slot: 2, display: "Community Pulmonologists", canonical: "Community Physicians", role: "Office and hospital pulmonologists who determine scale.", weight: 0.24, pos: 0.95, neg: 1.08, orient: 1 },
-          { slot: 3, display: "ID / Subspecialty Specialists", canonical: "Guideline Bodies", role: "Subspecialty experts influencing treatment algorithms and referral logic.", weight: 0.12, pos: 1.1, neg: 0.92, orient: 1 },
-          { slot: 4, display: "Payers / Rare Disease", canonical: "Payers / Access", role: "Specialty pharmacy and rare-disease access gatekeepers.", weight: 0.18, pos: 0.78, neg: 1.22, orient: 1 },
-          { slot: 5, display: "Guideline / Society Bodies", canonical: "Health Systems", role: "Society bodies shaping clinical practice statements.", weight: 0.12, pos: 1.15, neg: 0.9, orient: 1 },
-          { slot: 6, display: "Competitor Counteraction", canonical: "Competitor Counteraction", role: "Competing inhaled therapies and alternative treatment pathways.", weight: 0.1, pos: 0.9, neg: 1.12, orient: -1 },
+          { slot: 1, display: "Academic Specialists", canonical: "Academic KOLs", role: "Reference-center specialists and rare-disease KOLs shaping clinical standards.", weight: 0.24, pos: 1.2, neg: 0.85, orient: 1 },
+          { slot: 2, display: "Community Specialists", canonical: "Community Physicians", role: "Community and hospital-based specialists who determine real-world prescribing scale.", weight: 0.24, pos: 0.95, neg: 1.08, orient: 1 },
+          { slot: 3, display: "Subspecialty Consultants", canonical: "Guideline Bodies", role: "Subspecialty experts influencing treatment algorithms and referral logic.", weight: 0.12, pos: 1.1, neg: 0.92, orient: 1 },
+          { slot: 4, display: "Payers / Rare Disease Access", canonical: "Payers / Access", role: "Specialty pharmacy and rare-disease access gatekeepers.", weight: 0.18, pos: 0.78, neg: 1.22, orient: 1 },
+          { slot: 5, display: "Guideline / Society Bodies", canonical: "Health Systems", role: "Society bodies shaping clinical practice statements and recommendation tiers.", weight: 0.12, pos: 1.15, neg: 0.9, orient: 1 },
+          { slot: 6, display: "Competitor Counteraction", canonical: "Competitor Counteraction", role: "Competing therapies and alternative treatment approaches in the rare disease space.", weight: 0.1, pos: 0.9, neg: 1.12, orient: -1 },
         ],
       },
       {
@@ -362,9 +362,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         actors: [
           { slot: 1, display: "ID Specialists / Consultants", canonical: "Academic KOLs", role: "Infectious disease specialists and guideline committee members.", weight: 0.22, pos: 1.15, neg: 0.88, orient: 1 },
           { slot: 2, display: "Community Internists / PCPs", canonical: "Community Physicians", role: "Community physicians managing infectious conditions in outpatient settings.", weight: 0.2, pos: 0.92, neg: 1.1, orient: 1 },
-          { slot: 3, display: "Hospital Pharmacists / P&T", canonical: "Health Systems", role: "Formulary decision-makers and antimicrobial stewardship programs.", weight: 0.18, pos: 0.9, neg: 1.08, orient: 1 },
+          { slot: 3, display: "Hospital Pharmacists / P&T", canonical: "Health Systems", role: "Formulary decision-makers, P&T committee members, and stewardship program leads.", weight: 0.18, pos: 0.9, neg: 1.08, orient: 1 },
           { slot: 4, display: "Payers / CMS / Access", canonical: "Payers / Access", role: "Coverage bodies with evolving reimbursement positions on novel agents.", weight: 0.16, pos: 0.82, neg: 1.18, orient: 1 },
-          { slot: 5, display: "Guideline Bodies (IDSA/ATS)", canonical: "Guideline Bodies", role: "IDSA, ATS, and equivalent society guideline panels with high HCP deference.", weight: 0.16, pos: 1.28, neg: 0.88, orient: 1 },
+          { slot: 5, display: "Professional Society Bodies", canonical: "Guideline Bodies", role: "Professional society guideline panels with high HCP deference (e.g., IDSA and equivalent bodies).", weight: 0.16, pos: 1.28, neg: 0.88, orient: 1 },
           { slot: 6, display: "Generic / Alternative Therapy Pressure", canonical: "Competitor Counteraction", role: "Generic equivalents or standard-of-care alternatives constraining adoption.", weight: 0.08, pos: 0.9, neg: 1.1, orient: -1 },
         ],
       },
@@ -551,9 +551,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       sourceRole: "MSL",
       sourceName: "Field representative",
       signalCategory: "Clinical perception",
-      observedBarrier: "Physicians are asking for a more direct connection between mechanism and functional outcome data.",
+      observedBarrier: "Physicians are asking for a clearer connection between clinical trial endpoints and real-world patient outcomes.",
       rawFieldFeedback:
-        "KOLs at target accounts are asking for a simpler narrative linking the primary endpoint to real-world patient experience.",
+        "KOLs at target accounts want a simpler narrative linking the primary endpoint to day-to-day patient experience — the data story is not landing without that bridge.",
       beliefShiftRisk: 4,
       messageMismatchRisk: 5,
       accessRisk: 1,
