@@ -73,7 +73,7 @@ export default function CasesList() {
                 
                 <div>
                   <Label>Primary Brand</Label>
-                  <Input {...form.register("primaryBrand")} placeholder="e.g. ARIKAYCE" />
+                  <Input {...form.register("primaryBrand")} placeholder="e.g. Product A, Brand X" />
                 </div>
                 
                 <div>
@@ -92,6 +92,8 @@ export default function CasesList() {
                     <option value="Pulmonology / rare disease">Pulmonology / rare disease</option>
                     <option value="Cardiology / mixed specialist">Cardiology / mixed specialist</option>
                     <option value="Oncology / academic-led">Oncology / academic-led</option>
+                    <option value="Dermatology / community-led">Dermatology / community-led</option>
+                    <option value="Psychiatry / access-sensitive">Psychiatry / access-sensitive</option>
                     <option value="Infectious disease / guideline-led">Infectious disease / guideline-led</option>
                   </Select>
                 </div>

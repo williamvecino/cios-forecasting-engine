@@ -65,7 +65,7 @@ export default function FieldIntelligence() {
                 </div>
                 <div>
                   <Label>Brand</Label>
-                  <Input {...form.register("brand")} placeholder="e.g. ARIKAYCE" />
+                  <Input {...form.register("brand")} placeholder="e.g. Product A, Brand X" />
                 </div>
                 <div>
                   <Label>Source Role</Label>

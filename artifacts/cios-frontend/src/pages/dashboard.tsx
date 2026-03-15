@@ -107,7 +107,7 @@ export default function Dashboard() {
             <div className="space-y-3">
               <div className="flex gap-3 p-3 rounded-lg bg-warning/5 border border-warning/10 text-sm">
                 <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                <p className="text-muted-foreground">Competitor counteraction showing stronger negative impact across general pulmonology segments.</p>
+                <p className="text-muted-foreground">Competitor counteraction actor showing net negative effect — review constraining signals and routing options.</p>
               </div>
               <div className="flex gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10 text-sm">
                 <Activity className="w-4 h-4 text-primary shrink-0 mt-0.5" />

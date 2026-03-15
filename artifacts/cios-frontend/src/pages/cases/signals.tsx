@@ -139,7 +139,7 @@ export default function SignalsRegister() {
 
                 <div>
                   <Label>Target Population Keyword</Label>
-                  <Input {...form.register("targetPopulation")} placeholder="e.g. Pulmonology / NTM" />
+                  <Input {...form.register("targetPopulation")} placeholder="e.g. Specialist, Community, Academic" />
                 </div>
               </div>
 
