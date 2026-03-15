@@ -7,8 +7,16 @@ import { Card, Badge, Button, Input, Select, Label } from "@/components/ui-compo
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Activity, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  SIGNAL_TYPES,
+  SCOPE_VALUES,
+  TIMING_VALUES,
+  computeLR,
+  type Scope,
+  type Timing,
+} from "@/lib/lr-config";
 
 const signalSchema = z.object({
   signalDescription: z.string().min(5),
@@ -16,6 +24,8 @@ const signalSchema = z.object({
   direction: z.enum(["Positive", "Negative"]),
   strengthScore: z.coerce.number().min(1).max(5),
   reliabilityScore: z.coerce.number().min(1).max(5),
+  scope: z.enum(["local", "regional", "national", "global"]),
+  timing: z.enum(["early", "current", "late"]),
   likelihoodRatio: z.coerce.number().min(0.1).max(5),
   targetPopulation: z.string().default("General"),
   route: z.string().default("CIOS→MIOS"),
@@ -37,17 +47,25 @@ export default function SignalsRegister() {
     resolver: zodResolver(signalSchema),
     defaultValues: {
       direction: "Positive",
-      signalType: "Clinical evidence",
+      signalType: "Phase III clinical",
       strengthScore: 3,
       reliabilityScore: 3,
-      likelihoodRatio: 1.1
+      scope: "national",
+      timing: "current",
+      likelihoodRatio: computeLR("Phase III clinical", 3, 3, "national", "current")
     }
   });
 
-  // Auto-calculate rough LR suggestion based on strength and direction
-  const updateLR = (strength: number, direction: string) => {
-    const base = direction === "Positive" ? 1 + (strength * 0.1) : 1 - (strength * 0.1);
-    form.setValue("likelihoodRatio", Number(base.toFixed(2)));
+  const updateLR = () => {
+    const values = form.getValues();
+    const lr = computeLR(
+      values.signalType,
+      values.strengthScore,
+      values.reliabilityScore,
+      values.scope as Scope,
+      values.timing as Timing
+    );
+    form.setValue("likelihoodRatio", lr);
   };
 
   const onSubmit = (data: z.infer<typeof signalSchema>) => {
@@ -55,7 +73,7 @@ export default function SignalsRegister() {
       onSuccess: () => {
         setIsCreating(false);
         queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/signals`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] }); // dirty cache for engine
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
         form.reset();
       }
     });
@@ -90,12 +108,17 @@ export default function SignalsRegister() {
                 
                 <div>
                   <Label>Type</Label>
-                  <Select {...form.register("signalType")}>
-                    <option value="Clinical evidence">Clinical evidence</option>
-                    <option value="Field intelligence">Field intelligence</option>
-                    <option value="Access / commercial">Access / commercial</option>
-                    <option value="Guideline / policy">Guideline / policy</option>
-                    <option value="Competitor Counteraction">Competitive</option>
+                  <Select
+                    {...form.register("signalType")}
+                    onChange={(e) => {
+                      form.register("signalType").onChange(e);
+                      form.setValue("signalType", e.target.value);
+                      setTimeout(updateLR, 0);
+                    }}
+                  >
+                    {SIGNAL_TYPES.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
                   </Select>
                 </div>
                 
@@ -105,7 +128,6 @@ export default function SignalsRegister() {
                     {...form.register("direction")} 
                     onChange={(e) => {
                       form.register("direction").onChange(e);
-                      updateLR(form.getValues("strengthScore"), e.target.value);
                     }}
                   >
                     <option value="Positive">Positive (Supports Adoption)</option>
@@ -124,7 +146,8 @@ export default function SignalsRegister() {
                     {...form.register("strengthScore")}
                     onChange={(e) => {
                       form.register("strengthScore").onChange(e);
-                      updateLR(Number(e.target.value), form.getValues("direction"));
+                      form.setValue("strengthScore", Number(e.target.value));
+                      setTimeout(updateLR, 0);
                     }}
                   >
                     {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
@@ -132,9 +155,48 @@ export default function SignalsRegister() {
                 </div>
 
                 <div>
-                  <Label>Reliability (1-5)</Label>
-                  <Select {...form.register("reliabilityScore")}>
+                  <Label>Credibility (1-5)</Label>
+                  <Select
+                    {...form.register("reliabilityScore")}
+                    onChange={(e) => {
+                      form.register("reliabilityScore").onChange(e);
+                      form.setValue("reliabilityScore", Number(e.target.value));
+                      setTimeout(updateLR, 0);
+                    }}
+                  >
                     {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Scope</Label>
+                  <Select
+                    {...form.register("scope")}
+                    onChange={(e) => {
+                      form.register("scope").onChange(e);
+                      form.setValue("scope", e.target.value as Scope);
+                      setTimeout(updateLR, 0);
+                    }}
+                  >
+                    {SCOPE_VALUES.map(s => (
+                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Timing</Label>
+                  <Select
+                    {...form.register("timing")}
+                    onChange={(e) => {
+                      form.register("timing").onChange(e);
+                      form.setValue("timing", e.target.value as Timing);
+                      setTimeout(updateLR, 0);
+                    }}
+                  >
+                    {TIMING_VALUES.map(t => (
+                      <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)} cycle</option>
+                    ))}
                   </Select>
                 </div>
 
@@ -160,7 +222,7 @@ export default function SignalsRegister() {
                   <th className="px-6 py-4 font-semibold">ID</th>
                   <th className="px-6 py-4 font-semibold">Description</th>
                   <th className="px-6 py-4 font-semibold">Type</th>
-                  <th className="px-6 py-4 font-semibold text-center">Str/Rel</th>
+                  <th className="px-6 py-4 font-semibold text-center">Str/Cred</th>
                   <th className="px-6 py-4 font-semibold text-right">LR</th>
                   <th className="px-6 py-4 font-semibold text-right">Actor Impact</th>
                 </tr>

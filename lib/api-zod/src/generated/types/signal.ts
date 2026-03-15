@@ -18,6 +18,8 @@ export interface Signal {
   strengthScore: number;
   reliabilityScore: number;
   likelihoodRatio: number;
+  scope?: 'local' | 'regional' | 'national' | 'global' | null;
+  timing?: 'early' | 'current' | 'late' | null;
   route?: string | null;
   targetPopulation?: string | null;
   miosFlag?: string | null;

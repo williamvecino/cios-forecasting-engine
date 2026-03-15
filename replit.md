@@ -78,9 +78,16 @@ net_actor_translation = sum(net_actor_effect[all actors])
 - `/field-intelligence` — Field Intelligence (MSL/field submissions)
 - `/watchlist` — Signal Watchlist (upcoming signal monitoring)
 
+## Signal LR Configuration
+- **LR config module**: `lib/db/src/lr-config.ts` (backend) and `artifacts/cios-frontend/src/lib/lr-config.ts` (frontend)
+- Each signal type has a configured LR range (min/max); LR is interpolated from strength, credibility, scope, and timing
+- Signal types: Phase III clinical (1.8–2.5), Guideline inclusion (1.7–2.2), KOL endorsement (1.2–1.4), Field intelligence (0.8–1.3), Operational friction (0.6–0.9), Competitor counteraction (0.7–0.9), Access / commercial (1.1–1.6), Regulatory / clinical (1.3–2.0)
+- Signals table has `scope` (local/regional/national/global) and `timing` (early/current/late) columns
+- Attribute weights: strength 35%, credibility 30%, scope 20%, timing 15%
+
 ## Sample Data (from workbook)
-- **CASE-001**: ARIKAYCE (NTM/Pulmonology), prior: 45%, posterior: ~60.3%, confidence: High
-- **3 signals**: CS-001 (Clinical evidence +LR 1.32), CS-002 (Field intelligence -LR 0.68), CS-003 (Access/commercial +LR 1.40)
+- **CASE-001**: ARIKAYCE (NTM/Pulmonology), prior: 45%
+- **3 signals**: CS-001 (Phase III clinical +LR 2.39), CS-002 (Operational friction -LR 0.81), CS-003 (Access/commercial +LR 1.53)
 - **4 analog cases**: Pulmonology rare-disease, Cardiology device, Infectious disease, COPD/bronchiectasis
 
 ## Key Design Decisions

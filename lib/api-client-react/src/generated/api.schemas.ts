@@ -61,6 +61,8 @@ export interface Signal {
   strengthScore: number;
   reliabilityScore: number;
   likelihoodRatio: number;
+  scope?: 'local' | 'regional' | 'national' | 'global' | null;
+  timing?: 'early' | 'current' | 'late' | null;
   route?: string | null;
   targetPopulation?: string | null;
   miosFlag?: string | null;
@@ -79,6 +81,8 @@ export interface CreateSignalRequest {
   strengthScore: number;
   reliabilityScore: number;
   likelihoodRatio: number;
+  scope?: 'local' | 'regional' | 'national' | 'global';
+  timing?: 'early' | 'current' | 'late';
   route?: string;
   targetPopulation?: string;
   miosFlag?: string;

@@ -1,6 +1,9 @@
-import { pgTable, text, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, real, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+
+export const scopeEnum = pgEnum("signal_scope", ["local", "regional", "national", "global"]);
+export const timingEnum = pgEnum("signal_timing", ["early", "current", "late"]);
 
 export const signalsTable = pgTable("signals", {
   id: text("id").primaryKey(),
@@ -14,6 +17,8 @@ export const signalsTable = pgTable("signals", {
   strengthScore: real("strength_score").notNull(),
   reliabilityScore: real("reliability_score").notNull(),
   likelihoodRatio: real("likelihood_ratio").notNull(),
+  scope: scopeEnum("scope").default("national"),
+  timing: timingEnum("timing").default("current"),
   route: text("route"),
   targetPopulation: text("target_population"),
   miosFlag: text("mios_flag").default("No"),

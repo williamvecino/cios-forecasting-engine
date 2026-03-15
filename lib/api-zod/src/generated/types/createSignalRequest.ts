@@ -14,6 +14,8 @@ export interface CreateSignalRequest {
   strengthScore: number;
   reliabilityScore: number;
   likelihoodRatio: number;
+  scope?: 'local' | 'regional' | 'national' | 'global';
+  timing?: 'early' | 'current' | 'late';
   route?: string;
   targetPopulation?: string;
   miosFlag?: string;

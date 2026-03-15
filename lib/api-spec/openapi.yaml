@@ -709,6 +709,14 @@ components:
           type: number
         likelihoodRatio:
           type: number
+        scope:
+          type: string
+          enum: [local, regional, national, global]
+          nullable: true
+        timing:
+          type: string
+          enum: [early, current, late]
+          nullable: true
         route:
           type: string
           nullable: true
@@ -761,6 +769,12 @@ components:
           type: number
         likelihoodRatio:
           type: number
+        scope:
+          type: string
+          enum: [local, regional, national, global]
+        timing:
+          type: string
+          enum: [early, current, late]
         route:
           type: string
         targetPopulation:
