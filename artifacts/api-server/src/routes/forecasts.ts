@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runForecastEngine } from "../lib/forecast-engine.js";
 import { simulateAgents } from "../lib/agent-engine.js";
-import { getLrCorrections } from "./calibration.js";
+import { getLrCorrections, getBucketCorrections, getBucket } from "./calibration.js";
 
 const router = Router();
 
@@ -21,7 +21,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     return res.status(400).json({ error: "No actors configured. Please seed the database first." });
   }
 
-  // Apply LR corrections and freshness decay to signal likelihood ratios
+  // ── Apply LR corrections and freshness decay ─────────────────────────────
   const corrections = await getLrCorrections();
   const now = Date.now();
   const signalsWithAdjustedLR = signals.map((s) => {
@@ -34,11 +34,10 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     return { ...s, likelihoodRatio: Number(adjusted.toFixed(4)) };
   });
 
-  // Run agent simulation inline when signals exist — this drives the actor factor
+  // ── Run agent simulation ─────────────────────────────────────────────────
   let agentSimulationResult: Parameters<typeof runForecastEngine>[8] = undefined;
   if (signalsWithAdjustedLR.length > 0) {
     const { agentResults, agentDerivedActorTranslation } = simulateAgents(signalsWithAdjustedLR);
-    // Attach influenceScore from archetype for contribution weighting
     const enrichedResults = agentResults.map((r) => {
       const arch = AGENT_ARCHETYPES.find((a) => a.id === r.agentId);
       return { ...r, influenceScore: arch?.influenceScore ?? 1 };
@@ -65,8 +64,26 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     agentSimulationResult
   );
 
+  // ── Apply bucket-level probability correction (downstream calibration) ───
+  const bucketCorrections = await getBucketCorrections();
+  const rawProbability = result.currentProbability;
+  const bucket = getBucket(rawProbability);
+  const bucketCorrectionPp = bucket ? (bucketCorrections[bucket] ?? 0) : 0;
+  const calibratedProbability = bucket && bucketCorrectionPp !== 0
+    ? Math.max(0.01, Math.min(0.99, rawProbability + bucketCorrectionPp))
+    : rawProbability;
+
+  const finalResult = {
+    ...result,
+    currentProbability: calibratedProbability,
+    rawProbability,
+    bucketCorrectionApplied: bucketCorrectionPp !== 0
+      ? { bucket, correctionPp: bucketCorrectionPp }
+      : null,
+  };
+
   await db.update(casesTable).set({
-    currentProbability: result.currentProbability,
+    currentProbability: calibratedProbability,
     confidenceLevel: result.confidenceLevel,
     topSupportiveActor: result.topSupportiveActor,
     topConstrainingActor: result.topConstrainingActor,
@@ -80,15 +97,14 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     id: randomUUID(),
     forecastId,
     caseId: req.params.caseId,
-    predictedProbability: result.currentProbability,
-    snapshotJson: JSON.stringify(result),
+    predictedProbability: calibratedProbability,
+    snapshotJson: JSON.stringify(finalResult),
   }).onConflictDoNothing();
 
-  res.json({ ...result, forecastId, savedAt: new Date().toISOString() });
+  res.json({ ...finalResult, forecastId, savedAt: new Date().toISOString() });
 });
 
 // Freshness decay factor: exp(-λ × ageMonths)
-// Clinical evidence decays slowly; field intelligence decays fast
 const DECAY_LAMBDA: Record<string, number> = {
   "Phase III clinical":       0.06,
   "Guideline inclusion":      0.05,

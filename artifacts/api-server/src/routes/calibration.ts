@@ -1,16 +1,33 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { calibrationLogTable, lrCorrectionsTable } from "@workspace/db";
+import { calibrationLogTable, lrCorrectionsTable, bucketCorrectionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 const router = Router();
 
 const MIN_SAMPLE_FOR_CORRECTION = 5;
-const CORRECTION_THRESHOLD = 0.10; // 10pp systematic error triggers correction
-const MAX_CORRECTION = 0.20;       // cap at ±20% per application
+const CORRECTION_THRESHOLD = 0.10;
+const MAX_CORRECTION = 0.20;
 
-// ── Exported helper: returns { signalType -> correctionFactor } map ──────────
+const MIN_BUCKET_SAMPLE = 3;
+const BUCKET_THRESHOLD = 0.08;
+const MAX_BUCKET_CORRECTION_PP = 0.15;
+
+// ── Probability buckets ──────────────────────────────────────────────────────
+const BUCKETS = [
+  { label: "0.40-0.60", min: 0.40, max: 0.60 },
+  { label: "0.60-0.75", min: 0.60, max: 0.75 },
+  { label: "0.75-0.90", min: 0.75, max: 0.90 },
+  { label: "0.90+",     min: 0.90, max: 1.01 },
+];
+
+export function getBucket(p: number): string | null {
+  const b = BUCKETS.find((bk) => p >= bk.min && p < bk.max);
+  return b ? b.label : null;
+}
+
+// ── Exported helper: { signalType -> correctionFactor } ─────────────────────
 export async function getLrCorrections(): Promise<Record<string, number>> {
   const rows = await db.select().from(lrCorrectionsTable);
   const map: Record<string, number> = {};
@@ -20,11 +37,18 @@ export async function getLrCorrections(): Promise<Record<string, number>> {
   return map;
 }
 
-// ── Internal: recompute corrections from calibrated cases ────────────────────
-async function computeAndSaveCorrections(): Promise<{
-  updated: string[];
-  skipped: string[];
-}> {
+// ── Exported helper: { bucket -> correctionPp } ──────────────────────────────
+export async function getBucketCorrections(): Promise<Record<string, number>> {
+  const rows = await db.select().from(bucketCorrectionsTable);
+  const map: Record<string, number> = {};
+  for (const row of rows) {
+    map[row.bucket] = row.correctionPp ?? 0;
+  }
+  return map;
+}
+
+// ── Internal: recompute signal-type LR corrections ──────────────────────────
+async function computeAndSaveLrCorrections(): Promise<{ updated: string[]; skipped: string[] }> {
   const rows = await db.select().from(calibrationLogTable);
   const calibrated = rows.filter((r) => r.observedOutcome !== null && r.snapshotJson);
 
@@ -51,27 +75,17 @@ async function computeAndSaveCorrections(): Promise<{
       skipped.push(`${signalType} (n=${errors.length} < ${MIN_SAMPLE_FOR_CORRECTION})`);
       continue;
     }
-
     const meanError = errors.reduce((s, e) => s + e, 0) / errors.length;
-
     if (Math.abs(meanError) < CORRECTION_THRESHOLD) {
       skipped.push(`${signalType} (error=${(meanError * 100).toFixed(1)}pp < threshold)`);
       continue;
     }
-
-    // Correction direction:
-    // - Overforecast (meanError < 0): reduce LR → correctionFactor < 1
-    // - Underforecast (meanError > 0): increase LR → correctionFactor > 1
-    const rawAdjustment = meanError * 0.5; // half of observed error as correction
-    const clampedAdj = Math.max(-MAX_CORRECTION, Math.min(MAX_CORRECTION, rawAdjustment));
+    const rawAdj = meanError * 0.5;
+    const clampedAdj = Math.max(-MAX_CORRECTION, Math.min(MAX_CORRECTION, rawAdj));
     const correctionFactor = Number((1 + clampedAdj).toFixed(4));
-
     const direction = meanError > 0 ? "underforecast" : "overforecast";
-    const reason = `${signalType}: ${direction} by ${(Math.abs(meanError) * 100).toFixed(1)}pp ` +
-      `across ${errors.length} calibrated cases. ` +
-      `Correction factor ${correctionFactor} applied (${clampedAdj >= 0 ? "+" : ""}${(clampedAdj * 100).toFixed(1)}% LR adjustment).`;
+    const reason = `${signalType}: ${direction} by ${(Math.abs(meanError) * 100).toFixed(1)}pp across ${errors.length} cases. Factor ${correctionFactor} applied.`;
 
-    // Upsert: delete existing then insert new correction
     await db.delete(lrCorrectionsTable).where(eq(lrCorrectionsTable.signalType, signalType));
     await db.insert(lrCorrectionsTable).values({
       id: randomUUID(),
@@ -83,12 +97,76 @@ async function computeAndSaveCorrections(): Promise<{
       appliedAt: new Date(),
       reason,
     });
-
     updated.push(signalType);
+  }
+  return { updated, skipped };
+}
+
+// ── Internal: recompute bucket probability corrections ───────────────────────
+async function computeAndSaveBucketCorrections(): Promise<{ updated: string[]; skipped: string[] }> {
+  const rows = await db.select().from(calibrationLogTable);
+  const calibrated = rows.filter((r) => r.observedOutcome !== null);
+
+  const updated: string[] = [];
+  const skipped: string[] = [];
+
+  for (const bk of BUCKETS) {
+    const inBucket = calibrated.filter(
+      (r) => r.predictedProbability >= bk.min && r.predictedProbability < bk.max
+    );
+
+    if (inBucket.length < MIN_BUCKET_SAMPLE) {
+      skipped.push(`${bk.label} (n=${inBucket.length} < ${MIN_BUCKET_SAMPLE})`);
+      continue;
+    }
+
+    const meanError = inBucket.reduce((s, r) => s + (r.forecastError ?? 0), 0) / inBucket.length;
+
+    if (Math.abs(meanError) < BUCKET_THRESHOLD) {
+      skipped.push(`${bk.label} (meanError=${(meanError * 100).toFixed(1)}pp < ${BUCKET_THRESHOLD * 100}pp threshold)`);
+      continue;
+    }
+
+    const rawCorrPp = meanError * 0.5;
+    const correctionPp = Number(
+      Math.max(-MAX_BUCKET_CORRECTION_PP, Math.min(MAX_BUCKET_CORRECTION_PP, rawCorrPp)).toFixed(4)
+    );
+
+    const direction = meanError > 0 ? "underforecast" : "overforecast";
+    const reason =
+      `Bucket ${bk.label}: ${direction} by ${(Math.abs(meanError) * 100).toFixed(1)}pp ` +
+      `across ${inBucket.length} cases. Probability adjustment ${correctionPp >= 0 ? "+" : ""}${(correctionPp * 100).toFixed(1)}pp applied.`;
+
+    await db.delete(bucketCorrectionsTable).where(eq(bucketCorrectionsTable.bucket, bk.label));
+    await db.insert(bucketCorrectionsTable).values({
+      id: randomUUID(),
+      bucket: bk.label,
+      correctionPp,
+      sampleSize: inBucket.length,
+      meanForecastError: Number(meanError.toFixed(4)),
+      direction,
+      appliedAt: new Date(),
+      reason,
+    });
+    updated.push(bk.label);
   }
 
   return { updated, skipped };
 }
+
+// ── Combined auto-trigger (both correction types) ───────────────────────────
+async function computeAndSaveCorrections(): Promise<{
+  lr: { updated: string[]; skipped: string[] };
+  bucket: { updated: string[]; skipped: string[] };
+}> {
+  const [lr, bucket] = await Promise.all([
+    computeAndSaveLrCorrections(),
+    computeAndSaveBucketCorrections(),
+  ]);
+  return { lr, bucket };
+}
+
+// ── Routes ───────────────────────────────────────────────────────────────────
 
 router.get("/calibration", async (_req, res) => {
   const rows = await db.select().from(calibrationLogTable).orderBy(calibrationLogTable.predictionDate);
@@ -117,7 +195,6 @@ router.post("/calibration/:forecastId/outcome", async (req, res) => {
     .where(eq(calibrationLogTable.forecastId, req.params.forecastId))
     .returning();
 
-  // Auto-trigger correction recomputation after each new outcome
   computeAndSaveCorrections().catch((err) =>
     console.warn("[calibration] correction auto-compute failed:", err)
   );
@@ -137,11 +214,11 @@ router.get("/calibration/stats", async (_req, res) => {
     : null;
 
   const bands = [
-    { label: "0–0.2", min: 0, max: 0.2 },
-    { label: "0.2–0.4", min: 0.2, max: 0.4 },
-    { label: "0.4–0.6", min: 0.4, max: 0.6 },
-    { label: "0.6–0.8", min: 0.6, max: 0.8 },
-    { label: "0.8–1.0", min: 0.8, max: 1.0 },
+    { label: "0–0.2",  min: 0,   max: 0.2 },
+    { label: "0.2–0.4",min: 0.2, max: 0.4 },
+    { label: "0.4–0.6",min: 0.4, max: 0.6 },
+    { label: "0.6–0.8",min: 0.6, max: 0.8 },
+    { label: "0.8–1.0",min: 0.8, max: 1.0 },
   ];
 
   const bandStats = bands.map((b) => {
@@ -226,10 +303,8 @@ router.get("/calibration/error-patterns", async (_req, res) => {
   res.json({ signalPatterns, actorPatterns, calibratedCount: calibrated.length });
 });
 
-// ── LR Corrections audit trail ───────────────────────────────────────────────
 router.get("/calibration/lr-corrections", async (_req, res) => {
-  const rows = await db.select().from(lrCorrectionsTable)
-    .orderBy(lrCorrectionsTable.appliedAt);
+  const rows = await db.select().from(lrCorrectionsTable).orderBy(lrCorrectionsTable.appliedAt);
   res.json({
     corrections: rows.map((r) => ({
       signalType: r.signalType,
@@ -247,14 +322,33 @@ router.get("/calibration/lr-corrections", async (_req, res) => {
   });
 });
 
-// ── Manual trigger: recompute all corrections ────────────────────────────────
+router.get("/calibration/bucket-corrections", async (_req, res) => {
+  const rows = await db.select().from(bucketCorrectionsTable).orderBy(bucketCorrectionsTable.bucket);
+  res.json({
+    corrections: rows.map((r) => ({
+      bucket: r.bucket,
+      correctionPp: r.correctionPp,
+      sampleSize: r.sampleSize,
+      meanForecastError: r.meanForecastError,
+      direction: r.direction,
+      appliedAt: r.appliedAt,
+      reason: r.reason,
+      status: r.sampleSize >= MIN_BUCKET_SAMPLE ? "active" : "pending_threshold",
+    })),
+    thresholdRequired: MIN_BUCKET_SAMPLE,
+    errorThreshold: BUCKET_THRESHOLD,
+    maxCorrectionPp: MAX_BUCKET_CORRECTION_PP,
+    buckets: BUCKETS.map((b) => b.label),
+  });
+});
+
 router.post("/calibration/compute-corrections", async (_req, res) => {
   try {
     const result = await computeAndSaveCorrections();
     res.json({
       message: "Corrections recomputed.",
-      updated: result.updated,
-      skipped: result.skipped,
+      lr: result.lr,
+      bucket: result.bucket,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

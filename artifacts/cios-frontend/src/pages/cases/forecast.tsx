@@ -23,6 +23,13 @@ import {
   Send,
   ChevronRight,
   Library,
+  Lightbulb,
+  ShieldAlert,
+  AlertTriangle,
+  ThumbsDown,
+  ThumbsUp,
+  EyeOff,
+  Crosshair,
 } from "lucide-react";
 import {
   BarChart,
@@ -160,6 +167,22 @@ export default function ForecastResults() {
     queryFn: () => fetch(`/api/cases/${caseId}/simulation`).then((r) => r.json()),
     enabled: Boolean(caseId),
     staleTime: 60_000,
+  });
+
+  const { data: questions } = useQuery<any>({
+    queryKey: [`/api/cases/${caseId}/questions`],
+    queryFn: () => fetch(`/api/cases/${caseId}/questions`).then((r) => r.json()),
+    enabled: Boolean(caseId),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const { data: challenge } = useQuery<any>({
+    queryKey: [`/api/cases/${caseId}/challenge`],
+    queryFn: () => fetch(`/api/cases/${caseId}/challenge`).then((r) => r.json()),
+    enabled: Boolean(caseId),
+    staleTime: 60_000,
+    retry: false,
   });
 
   if (isLoading) {
@@ -808,6 +831,133 @@ export default function ForecastResults() {
                   );
                 })}
             </div>
+          </Card>
+        )}
+
+        {/* Strategic Questions */}
+        {questions && questions.questions?.length > 0 && (
+          <Card>
+            <div className="flex items-center gap-2 mb-1">
+              <Lightbulb className="w-4 h-4 text-amber-500" />
+              <span className="text-sm font-semibold">Strategic Questions</span>
+              <Badge variant="outline" className="ml-auto text-[10px]">
+                {questions.questions.length} questions generated
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Next-step intelligence questions derived from this forecast. Each is generated from a specific pattern in the model — not general prompts.
+            </p>
+            <div className="space-y-3">
+              {questions.questions.map((q: any, i: number) => (
+                <div key={i} className={cn(
+                  "p-4 rounded-xl border",
+                  q.urgency === "high"
+                    ? "border-amber-400/40 bg-amber-400/5"
+                    : "border-border bg-background"
+                )}>
+                  <div className="flex items-start gap-2 mb-2">
+                    <span className={cn(
+                      "shrink-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border mt-0.5",
+                      q.urgency === "high"
+                        ? "bg-amber-400/15 border-amber-400/30 text-amber-600"
+                        : "bg-muted border-border text-muted-foreground"
+                    )}>
+                      {q.urgency}
+                    </span>
+                    <p className="text-sm font-medium leading-snug">{q.question}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground pl-10">{q.why}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Forecast Challenge */}
+        {challenge && !challenge.error && (
+          <Card>
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldAlert className="w-4 h-4 text-destructive" />
+              <span className="text-sm font-semibold">Forecast Challenge</span>
+              <Badge variant="outline" className="ml-auto text-[10px]">
+                {(challenge.forecastProbability * 100).toFixed(0)}% challenged
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Structured challenge of the current forecast. Read both sides before acting on the number.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* Too Optimistic */}
+              <div className="p-4 rounded-xl border border-destructive/20 bg-destructive/5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <ThumbsDown className="w-3.5 h-3.5 text-destructive" />
+                  <span className="text-xs font-semibold text-destructive uppercase tracking-wider">Case: Too Optimistic</span>
+                </div>
+                <p className="text-xs font-medium mb-3 leading-snug">{challenge.tooOptimistic?.claim}</p>
+                <ul className="space-y-1.5">
+                  {(challenge.tooOptimistic?.evidence ?? []).map((e: string, i: number) => (
+                    <li key={i} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                      <span className="shrink-0 text-destructive mt-0.5">•</span>
+                      {e}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Too Pessimistic */}
+              <div className="p-4 rounded-xl border border-success/20 bg-success/5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <ThumbsUp className="w-3.5 h-3.5 text-success" />
+                  <span className="text-xs font-semibold text-success uppercase tracking-wider">Case: Too Pessimistic</span>
+                </div>
+                <p className="text-xs font-medium mb-3 leading-snug">{challenge.tooPessimistic?.claim}</p>
+                <ul className="space-y-1.5">
+                  {(challenge.tooPessimistic?.evidence ?? []).map((e: string, i: number) => (
+                    <li key={i} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                      <span className="shrink-0 text-success mt-0.5">•</span>
+                      {e}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Missing Evidence */}
+            {challenge.missingEvidence?.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Missing Evidence</span>
+                </div>
+                <div className="space-y-2">
+                  {challenge.missingEvidence.map((me: any, i: number) => (
+                    <div key={i} className="p-3 rounded-lg border border-border bg-background">
+                      <p className="text-xs font-semibold mb-0.5">{me.domain}</p>
+                      <p className="text-[11px] text-muted-foreground">{me.reason}</p>
+                      {me.estimatedImpact && (
+                        <p className="text-[11px] text-amber-600 mt-1 font-medium">{me.estimatedImpact}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Fragile Assumption */}
+            {challenge.fragileAssumption && (
+              <div className="p-4 rounded-xl border border-amber-400/30 bg-amber-400/5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Crosshair className="w-3.5 h-3.5 text-amber-600" />
+                  <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Most Fragile Assumption</span>
+                </div>
+                <p className="text-xs font-medium mb-1">{challenge.fragileAssumption.assumption}</p>
+                <p className="text-[11px] text-muted-foreground mb-1">
+                  <span className="font-semibold">Breaking condition:</span> {challenge.fragileAssumption.breakingCondition}
+                </p>
+                <p className="text-[11px] text-amber-700 font-medium">{challenge.fragileAssumption.probabilityShiftIfBroken}</p>
+              </div>
+            )}
           </Card>
         )}
 

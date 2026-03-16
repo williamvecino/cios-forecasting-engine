@@ -13,6 +13,7 @@ import watchlistRouter from "./watchlist.js";
 import seedRouter from "./seed.js";
 import discoverRouter from "./discover.js";
 import simulationRouter from "./simulation.js";
+import intelligenceRouter from "./intelligence.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(watchlistRouter);
 router.use(seedRouter);
 router.use(discoverRouter);
 router.use(simulationRouter);
+router.use(intelligenceRouter);
 
 export default router;

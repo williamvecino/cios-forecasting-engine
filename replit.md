@@ -19,6 +19,9 @@ Disease-agnostic, asset-agnostic, specialty-flexible Bayesian HCP adoption forec
 - **Signal Register** — Full CRUD with inline edit (pencil icon) and delete confirm
 - **Calibration Learning Loop** — Outcome tracking with Brier score / mean forecast error; `lr_corrections` table captures signal-type-level bias; auto-triggers correction recomputation after each recorded outcome (≥5 cases, |meanError| > 10pp threshold, ±20% cap)
 - **Signal Freshness Decay** — `exp(−λ × ageMonths)` applied per signal type at forecast time (λ = 0.06 for Phase III clinical evidence → 0.35 for field intelligence)
+- **Bucket Calibration (Layer 2)** — Probability-space additive correction applied downstream of LR corrections. 4 buckets: 0.40-0.60, 0.60-0.75, 0.75-0.90, 0.90+. Triggers when n≥3 calibrated cases in bucket with |meanError|>8pp; max cap ±15pp. `bucket_corrections` DB table; auto-triggered alongside LR corrections after every outcome recording. `rawProbability` and `bucketCorrectionApplied` exposed in forecast response
+- **Strategic Questions Engine** — Generates 5 structured intelligence questions per case from the latest calibration snapshot: reversal_risk, bottleneck_actor, threshold_movement, missing_signal, confidence_stress. Each rated high/medium urgency with a "why" explanation. Rendered on forecast page as an expandable card
+- **Forecast Challenge Mode** — Structured adversarial critique of the current forecast: tooOptimistic argument + evidence, tooPessimistic argument + evidence, missingEvidence domains, and the single most fragile model assumption with its breaking condition and probability impact. Rendered on forecast page below Strategic Questions
 
 ## Core Formula (from workbook ProbabilityEngine sheet)
 ```
