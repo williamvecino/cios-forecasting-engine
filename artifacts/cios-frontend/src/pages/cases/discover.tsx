@@ -6,11 +6,10 @@ import { Card, Badge, Button, Input, Label, Select } from "@/components/ui-compo
 import { cn } from "@/lib/cn";
 import {
   CheckCircle2, XCircle, Pencil, AlertTriangle, Sparkles,
-  TrendingUp, TrendingDown, Check, X, ChevronRight,
+  TrendingUp, TrendingDown, Check, X, ChevronRight, RotateCcw, Trash2,
 } from "lucide-react";
 import { useGetCase } from "@workspace/api-client-react";
-import { SIGNAL_TYPES } from "@/lib/lr-config";
-import { lrToStrengthLabel } from "@/lib/lr-config";
+import { SIGNAL_TYPES, lrToStrengthLabel } from "@/lib/lr-config";
 
 const DOCUMENT_TYPES = [
   "Press release / news",
@@ -188,6 +187,8 @@ function CandidateTableSection({
   candidates,
   onApprove,
   onReject,
+  onRestore,
+  onDelete,
   onUpdate,
   showActions,
   emptyMessage,
@@ -196,12 +197,15 @@ function CandidateTableSection({
   candidates: Candidate[];
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
+  onRestore?: (id: string) => void;
+  onDelete?: (id: string) => void;
   onUpdate?: (id: string, patch: Partial<Candidate>) => void;
   showActions: boolean;
   emptyMessage?: string;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   if (candidates.length === 0 && !emptyMessage) return null;
 
@@ -335,10 +339,68 @@ function CandidateTableSection({
                           )
                         )}
                         {c.status === "approved" && (
-                          <Badge variant="success" className="text-[10px]">Confirmed</Badge>
+                          confirmDeleteId === c.id ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className="text-[10px] text-destructive font-medium whitespace-nowrap">Delete?</span>
+                              <button
+                                onClick={() => { onDelete?.(c.id); setConfirmDeleteId(null); }}
+                                className="text-[10px] font-semibold text-destructive hover:underline"
+                              >Yes</button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="text-[10px] text-muted-foreground hover:text-foreground"
+                              >Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => setEditingId(c.id)}
+                                title="Edit confirmed signal"
+                                className="opacity-30 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(c.id)}
+                                title="Delete signal"
+                                className="opacity-30 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )
                         )}
                         {c.status === "rejected" && (
-                          <Badge variant="secondary" className="text-[10px]">Rejected</Badge>
+                          confirmDeleteId === c.id ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className="text-[10px] text-destructive font-medium whitespace-nowrap">Delete?</span>
+                              <button
+                                onClick={() => { onDelete?.(c.id); setConfirmDeleteId(null); }}
+                                className="text-[10px] font-semibold text-destructive hover:underline"
+                              >Yes</button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="text-[10px] text-muted-foreground hover:text-foreground"
+                              >Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => onRestore?.(c.id)}
+                                title="Restore to review queue"
+                                className="opacity-30 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(c.id)}
+                                title="Delete permanently"
+                                className="opacity-30 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )
                         )}
                       </td>
                     )}
@@ -444,6 +506,30 @@ export default function SignalDiscover() {
       }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/candidates`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/signals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+    },
+  });
+
+  const { mutate: restoreMutation } = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/candidates/${id}/restore`, { method: "PATCH" }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/candidates`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/signals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/completeness`] });
+    },
+  });
+
+  const { mutate: deleteMutation } = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/candidates/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/candidates`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/signals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/completeness`] });
     },
   });
 
@@ -611,7 +697,9 @@ export default function SignalDiscover() {
           <CandidateTableSection
             title="Confirmed Signals — added to forecast"
             candidates={approved}
-            showActions={false}
+            onUpdate={(id, patch) => updateMutation({ id, patch })}
+            onDelete={(id) => deleteMutation(id)}
+            showActions
           />
         )}
 
@@ -620,7 +708,9 @@ export default function SignalDiscover() {
           <CandidateTableSection
             title="Rejected"
             candidates={rejected}
-            showActions={false}
+            onRestore={(id) => restoreMutation(id)}
+            onDelete={(id) => deleteMutation(id)}
+            showActions
           />
         )}
       </div>

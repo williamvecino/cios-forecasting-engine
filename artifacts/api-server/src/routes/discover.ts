@@ -157,6 +157,22 @@ router.patch("/candidates/:id", async (req, res) => {
 
   const [updated] = await db.update(candidateSignalsTable).set(updateData).where(eq(candidateSignalsTable.id, id)).returning();
   if (!updated) return res.status(404).json({ error: "Not found" });
+
+  if (updated.status === "approved" && updated.promotedSignalId) {
+    const rawTiming = (updated.timing ?? "current").toLowerCase();
+    const timingMap: Record<string, string> = { past: "early", early: "early", current: "current", emerging: "late", late: "late" };
+    await db.update(signalsTable).set({
+      signalDescription: updated.signalDescription,
+      signalType: updated.signalType,
+      direction: updated.direction,
+      strengthScore: updated.strengthScore,
+      reliabilityScore: updated.reliabilityScore,
+      scope: updated.scope as any,
+      timing: (timingMap[rawTiming] ?? "current") as any,
+      likelihoodRatio: updated.likelihoodRatio ?? 1,
+    }).where(eq(signalsTable.signalId, updated.promotedSignalId));
+  }
+
   res.json(updated);
 });
 
@@ -202,7 +218,27 @@ router.patch("/candidates/:id/reject", async (req, res) => {
   res.json(updated);
 });
 
+router.patch("/candidates/:id/restore", async (req, res) => {
+  const [candidate] = await db.select().from(candidateSignalsTable).where(eq(candidateSignalsTable.id, req.params.id));
+  if (!candidate) return res.status(404).json({ error: "Not found" });
+
+  if (candidate.promotedSignalId) {
+    await db.delete(signalsTable).where(eq(signalsTable.signalId, candidate.promotedSignalId));
+  }
+
+  const [updated] = await db
+    .update(candidateSignalsTable)
+    .set({ status: "pending", promotedSignalId: null })
+    .where(eq(candidateSignalsTable.id, req.params.id))
+    .returning();
+  res.json(updated);
+});
+
 router.delete("/candidates/:id", async (req, res) => {
+  const [candidate] = await db.select().from(candidateSignalsTable).where(eq(candidateSignalsTable.id, req.params.id));
+  if (candidate?.promotedSignalId) {
+    await db.delete(signalsTable).where(eq(signalsTable.signalId, candidate.promotedSignalId));
+  }
   await db.delete(candidateSignalsTable).where(eq(candidateSignalsTable.id, req.params.id));
   res.status(204).end();
 });
