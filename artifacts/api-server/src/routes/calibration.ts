@@ -102,25 +102,42 @@ async function computeAndSaveLrCorrections(): Promise<{ updated: string[]; skipp
   return { updated, skipped };
 }
 
-// ── Internal: recompute bucket probability corrections ───────────────────────
+// ── Internal: recompute bucket probability corrections (with guardrails) ─────
 async function computeAndSaveBucketCorrections(): Promise<{ updated: string[]; skipped: string[] }> {
   const rows = await db.select().from(calibrationLogTable);
   const calibrated = rows.filter((r) => r.observedOutcome !== null);
+
+  // Load existing bucket rows for flip detection
+  const existingBucketRows = await db.select().from(bucketCorrectionsTable);
+  const existingByBucket: Record<string, typeof existingBucketRows[0]> = {};
+  for (const row of existingBucketRows) {
+    existingByBucket[row.bucket] = row;
+  }
 
   const updated: string[] = [];
   const skipped: string[] = [];
 
   for (const bk of BUCKETS) {
-    const inBucket = calibrated.filter(
-      (r) => r.predictedProbability >= bk.min && r.predictedProbability < bk.max
-    );
+    const inBucket = calibrated
+      .filter((r) => r.predictedProbability >= bk.min && r.predictedProbability < bk.max)
+      .sort((a, b) => new Date(b.predictionDate!).getTime() - new Date(a.predictionDate!).getTime());
 
     if (inBucket.length < MIN_BUCKET_SAMPLE) {
       skipped.push(`${bk.label} (n=${inBucket.length} < ${MIN_BUCKET_SAMPLE})`);
       continue;
     }
 
-    const meanError = inBucket.reduce((s, r) => s + (r.forecastError ?? 0), 0) / inBucket.length;
+    // Recency-weighted mean: exp(−0.1 × rank), rank 0 = most recent
+    const DECAY = 0.1;
+    let weightedSum = 0;
+    let weightTotal = 0;
+    for (let i = 0; i < inBucket.length; i++) {
+      const w = Math.exp(-DECAY * i);
+      weightedSum += (inBucket[i].forecastError ?? 0) * w;
+      weightTotal += w;
+    }
+    const meanError = weightedSum / weightTotal;
+    const meanAbsoluteError = inBucket.reduce((s, r) => s + Math.abs(r.forecastError ?? 0), 0) / inBucket.length;
 
     if (Math.abs(meanError) < BUCKET_THRESHOLD) {
       skipped.push(`${bk.label} (meanError=${(meanError * 100).toFixed(1)}pp < ${BUCKET_THRESHOLD * 100}pp threshold)`);
@@ -133,9 +150,21 @@ async function computeAndSaveBucketCorrections(): Promise<{ updated: string[]; s
     );
 
     const direction = meanError > 0 ? "underforecast" : "overforecast";
+
+    // Guardrails: flip detection + warnings
+    const existing = existingByBucket[bk.label];
+    const previousDirection = existing?.direction ?? null;
+    const flipped = previousDirection !== null && previousDirection !== direction;
+    const flipCount = (existing?.flipCount ?? 0) + (flipped ? 1 : 0);
+    const lowSampleWarning = inBucket.length < 5;
+    const directionFlipWarning = flipped;
+
     const reason =
       `Bucket ${bk.label}: ${direction} by ${(Math.abs(meanError) * 100).toFixed(1)}pp ` +
-      `across ${inBucket.length} cases. Probability adjustment ${correctionPp >= 0 ? "+" : ""}${(correctionPp * 100).toFixed(1)}pp applied.`;
+      `across ${inBucket.length} cases (recency-weighted). ` +
+      `Adjustment ${correctionPp >= 0 ? "+" : ""}${(correctionPp * 100).toFixed(1)}pp applied.` +
+      (directionFlipWarning ? ` ⚠ Direction flipped from ${previousDirection}.` : "") +
+      (lowSampleWarning ? ` ⚠ Low sample size (n=${inBucket.length}).` : "");
 
     await db.delete(bucketCorrectionsTable).where(eq(bucketCorrectionsTable.bucket, bk.label));
     await db.insert(bucketCorrectionsTable).values({
@@ -144,7 +173,13 @@ async function computeAndSaveBucketCorrections(): Promise<{ updated: string[]; s
       correctionPp,
       sampleSize: inBucket.length,
       meanForecastError: Number(meanError.toFixed(4)),
+      meanAbsoluteError: Number(meanAbsoluteError.toFixed(4)),
       direction,
+      previousDirection,
+      flipCount,
+      lowSampleWarning,
+      directionFlipWarning,
+      recencyWeighted: true,
       appliedAt: new Date(),
       reason,
     });
@@ -339,6 +374,205 @@ router.get("/calibration/bucket-corrections", async (_req, res) => {
     errorThreshold: BUCKET_THRESHOLD,
     maxCorrectionPp: MAX_BUCKET_CORRECTION_PP,
     buckets: BUCKETS.map((b) => b.label),
+  });
+});
+
+// ── Diagnostics: full bucket + pre/post calibration inspection ───────────────
+router.get("/calibration/diagnostics", async (_req, res) => {
+  const [calRows, bucketRows, lrRows] = await Promise.all([
+    db.select().from(calibrationLogTable),
+    db.select().from(bucketCorrectionsTable),
+    db.select().from(lrCorrectionsTable),
+  ]);
+  const calibrated = calRows.filter((r) => r.observedOutcome !== null);
+
+  // Per-bucket breakdown
+  const bucketByLabel: Record<string, typeof bucketRows[0]> = {};
+  for (const r of bucketRows) bucketByLabel[r.bucket] = r;
+
+  const bucketDiagnostics = BUCKETS.map((bk) => {
+    const inBucket = calibrated.filter(
+      (r) => r.predictedProbability >= bk.min && r.predictedProbability < bk.max
+    );
+    const stored = bucketByLabel[bk.label];
+    const isActive = stored && Math.abs(stored.correctionPp ?? 0) > 0;
+    const sampleSize = inBucket.length;
+    const meanSignedError = sampleSize > 0
+      ? inBucket.reduce((s, r) => s + (r.forecastError ?? 0), 0) / sampleSize
+      : null;
+    const meanAbsoluteError = sampleSize > 0
+      ? inBucket.reduce((s, r) => s + Math.abs(r.forecastError ?? 0), 0) / sampleSize
+      : null;
+
+    return {
+      bucket: bk.label,
+      sampleSize,
+      meanSignedError: meanSignedError !== null ? Number(meanSignedError.toFixed(4)) : null,
+      meanAbsoluteError: meanAbsoluteError !== null ? Number(meanAbsoluteError.toFixed(4)) : null,
+      correctionAppliedPp: stored?.correctionPp ?? null,
+      direction: stored?.direction ?? null,
+      lastUpdated: stored?.appliedAt ?? null,
+      isActive: isActive ?? false,
+      belowThreshold: !isActive && sampleSize >= MIN_BUCKET_SAMPLE,
+      warnings: {
+        lowSample: stored?.lowSampleWarning ?? (sampleSize < 5 && sampleSize >= MIN_BUCKET_SAMPLE),
+        directionFlip: stored?.directionFlipWarning ?? false,
+        flipCount: stored?.flipCount ?? 0,
+        pendingThreshold: sampleSize < MIN_BUCKET_SAMPLE,
+      },
+      recencyWeighted: stored?.recencyWeighted ?? false,
+    };
+  });
+
+  // Aggregate pre-calibration vs post-calibration (cases that have outcomes)
+  let totalRawError = 0, totalCalibError = 0, count = 0;
+  const caseLevel = calibrated.map((r) => {
+    const bucket = getBucket(r.predictedProbability);
+    const bucketCorrPp = bucket ? (bucketByLabel[bucket]?.correctionPp ?? 0) : 0;
+    const calibrated_prob = Math.max(0.01, Math.min(0.99, r.predictedProbability + bucketCorrPp));
+    const rawErr = (r.observedOutcome ?? 0) - r.predictedProbability;
+    const calibErr = (r.observedOutcome ?? 0) - calibrated_prob;
+    totalRawError += rawErr;
+    totalCalibError += calibErr;
+    count++;
+    return {
+      caseId: r.caseId,
+      bucket,
+      preCalibratedProbability: r.predictedProbability,
+      bucketCorrectionPp: bucketCorrPp,
+      postCalibratedProbability: Number(calibrated_prob.toFixed(4)),
+      actual: r.observedOutcome,
+      rawError: Number(rawErr.toFixed(4)),
+      calibratedError: Number(calibErr.toFixed(4)),
+    };
+  });
+
+  res.json({
+    bucketDiagnostics,
+    caseLevel,
+    aggregate: {
+      calibratedCaseCount: count,
+      meanRawError: count > 0 ? Number((totalRawError / count).toFixed(4)) : null,
+      meanCalibratedError: count > 0 ? Number((totalCalibError / count).toFixed(4)) : null,
+      absoluteDeltaMean: count > 0 ? Number((Math.abs(totalCalibError / count) - Math.abs(totalRawError / count)).toFixed(4)) : null,
+    },
+    guardrailConfig: {
+      minBucketSample: MIN_BUCKET_SAMPLE,
+      errorThreshold: BUCKET_THRESHOLD,
+      maxCorrectionPp: MAX_BUCKET_CORRECTION_PP,
+      recencyDecayLambda: 0.1,
+    },
+    lrCorrectionsActive: lrRows.length,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+// ── Validation Report: structured raw vs calibrated vs actual ────────────────
+router.get("/calibration/validation-report", async (_req, res) => {
+  const [calRows, bucketRows] = await Promise.all([
+    db.select().from(calibrationLogTable),
+    db.select().from(bucketCorrectionsTable),
+  ]);
+  const calibrated = calRows.filter((r) => r.observedOutcome !== null && r.snapshotJson);
+
+  const bucketByLabel: Record<string, typeof bucketRows[0]> = {};
+  for (const r of bucketRows) bucketByLabel[r.bucket] = r;
+
+  const cases = calibrated.map((r) => {
+    let snapshot: any = {};
+    try { snapshot = JSON.parse(r.snapshotJson!); } catch {}
+
+    const bucket = getBucket(r.predictedProbability);
+    const bucketCorrPp = bucket ? (bucketByLabel[bucket]?.correctionPp ?? 0) : 0;
+    const calibratedProb = Math.max(0.01, Math.min(0.99, r.predictedProbability + bucketCorrPp));
+    const actual = r.observedOutcome!;
+    const rawError = actual - r.predictedProbability;
+    const calibError = actual - calibratedProb;
+    const improved = Math.abs(calibError) < Math.abs(rawError);
+
+    return {
+      caseId: r.caseId,
+      therapyArea: snapshot.therapyArea ?? null,
+      specialty: snapshot.specialty ?? null,
+      bucket,
+      rawProbability: r.predictedProbability,
+      calibratedProbability: Number(calibratedProb.toFixed(4)),
+      actual,
+      rawError: Number(rawError.toFixed(4)),
+      calibratedError: Number(calibError.toFixed(4)),
+      bucketCorrectionPp: bucketCorrPp,
+      improved,
+      predictionDate: r.predictionDate,
+    };
+  });
+
+  // Bucket-level summary
+  const bucketSummary = BUCKETS.map((bk) => {
+    const inBucket = cases.filter((c) => c.bucket === bk.label);
+    if (inBucket.length === 0) return { bucket: bk.label, n: 0 };
+    const meanRaw = inBucket.reduce((s, c) => s + c.rawError, 0) / inBucket.length;
+    const meanCalib = inBucket.reduce((s, c) => s + c.calibratedError, 0) / inBucket.length;
+    const improvementCount = inBucket.filter((c) => c.improved).length;
+    return {
+      bucket: bk.label,
+      n: inBucket.length,
+      meanRawError: Number(meanRaw.toFixed(4)),
+      meanCalibratedError: Number(meanCalib.toFixed(4)),
+      improvementRate: Number((improvementCount / inBucket.length).toFixed(3)),
+      verdict: Math.abs(meanCalib) < Math.abs(meanRaw) ? "improving" : "degrading",
+    };
+  });
+
+  // Therapy area breakouts
+  const taMap: Record<string, typeof cases> = {};
+  for (const c of cases) {
+    const ta = c.therapyArea ?? "Unknown";
+    if (!taMap[ta]) taMap[ta] = [];
+    taMap[ta].push(c);
+  }
+  const therapyAreaBreakout = Object.entries(taMap).map(([ta, taCases]) => {
+    const meanRaw = taCases.reduce((s, c) => s + c.rawError, 0) / taCases.length;
+    const meanCalib = taCases.reduce((s, c) => s + c.calibratedError, 0) / taCases.length;
+    return {
+      therapyArea: ta,
+      n: taCases.length,
+      meanRawError: Number(meanRaw.toFixed(4)),
+      meanCalibratedError: Number(meanCalib.toFixed(4)),
+      verdict: Math.abs(meanCalib) < Math.abs(meanRaw) ? "improving" : "degrading",
+    };
+  }).sort((a, b) => b.n - a.n);
+
+  // Overall verdict
+  const totalRaw = cases.reduce((s, c) => s + Math.abs(c.rawError), 0);
+  const totalCalib = cases.reduce((s, c) => s + Math.abs(c.calibratedError), 0);
+  const overallVerdict = cases.length < 4
+    ? "insufficient_data"
+    : totalCalib < totalRaw ? "improving" : "degrading";
+
+  // Coverage check
+  const moderateCases = cases.filter((c) => c.bucket === "0.60-0.75" || c.bucket === "0.40-0.60");
+  const highConfCases = cases.filter((c) => c.bucket === "0.75-0.90" || c.bucket === "0.90+");
+  const psychiatryCases = cases.filter((c) => (c.therapyArea ?? "").toLowerCase().includes("psychiatry") || (c.specialty ?? "").toLowerCase().includes("psychiatry"));
+  const cardiologyCases = cases.filter((c) => (c.therapyArea ?? "").toLowerCase().includes("cardio") || (c.specialty ?? "").toLowerCase().includes("cardio"));
+
+  res.json({
+    cases,
+    bucketSummary,
+    therapyAreaBreakout,
+    coverageCheck: {
+      moderateCases: moderateCases.length,
+      highConfCases: highConfCases.length,
+      psychiatryCases: psychiatryCases.length,
+      cardiologyCases: cardiologyCases.length,
+      meetsRequirements: moderateCases.length >= 2 && highConfCases.length >= 2,
+    },
+    overall: {
+      n: cases.length,
+      meanAbsRawError: cases.length > 0 ? Number((totalRaw / cases.length).toFixed(4)) : null,
+      meanAbsCalibratedError: cases.length > 0 ? Number((totalCalib / cases.length).toFixed(4)) : null,
+      verdict: overallVerdict,
+    },
+    generatedAt: new Date().toISOString(),
   });
 });
 

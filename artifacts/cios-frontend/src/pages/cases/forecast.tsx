@@ -185,6 +185,16 @@ export default function ForecastResults() {
     retry: false,
   });
 
+  const { data: traceData } = useQuery<any>({
+    queryKey: [`/api/cases/${caseId}/trace`],
+    queryFn: () => fetch(`/api/cases/${caseId}/trace`).then((r) => r.json()),
+    enabled: Boolean(caseId),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const [showTrace, setShowTrace] = useState(false);
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -831,6 +841,161 @@ export default function ForecastResults() {
                   );
                 })}
             </div>
+          </Card>
+        )}
+
+        {/* Forecast Trace */}
+        {traceData && !traceData.error && (
+          <Card>
+            <button
+              onClick={() => setShowTrace((v) => !v)}
+              className="w-full flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-2">
+                <Crosshair className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-sm font-semibold">Forecast Trace</span>
+                <span className="text-xs text-muted-foreground">Structured audit — exactly why this forecast is {traceData.forecastProbability}%</span>
+              </div>
+              <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showTrace && "rotate-90")} />
+            </button>
+
+            {showTrace && (
+              <div className="mt-4 pt-4 border-t border-border space-y-4">
+                {/* Signal drivers */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <TrendingUp className="w-3.5 h-3.5 text-success" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-success">Top Positive Drivers</span>
+                    </div>
+                    {traceData.topPositiveDrivers?.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {traceData.topPositiveDrivers.map((d: any, i: number) => (
+                          <div key={i} className="flex items-start justify-between gap-2 p-2.5 rounded-lg border border-success/20 bg-success/5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-semibold text-success uppercase tracking-wider">{d.signalType}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{d.description}</p>
+                            </div>
+                            <span className="shrink-0 text-xs font-mono font-bold text-success">LR {d.lr}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-muted-foreground">No positive drivers identified.</p>}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <TrendingDown className="w-3.5 h-3.5 text-destructive" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-destructive">Top Negative Drivers</span>
+                    </div>
+                    {traceData.topNegativeDrivers?.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {traceData.topNegativeDrivers.map((d: any, i: number) => (
+                          <div key={i} className="flex items-start justify-between gap-2 p-2.5 rounded-lg border border-destructive/20 bg-destructive/5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-semibold text-destructive uppercase tracking-wider">{d.signalType}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{d.description}</p>
+                            </div>
+                            <span className="shrink-0 text-xs font-mono font-bold text-destructive">LR {d.lr}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-muted-foreground">No negative drivers identified.</p>}
+                  </div>
+                </div>
+
+                {/* Actor bottleneck + analog support */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl border border-amber-400/30 bg-amber-400/5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 mb-1">Actor Bottleneck</p>
+                    {traceData.actorBottleneck ? (
+                      <>
+                        <p className="text-sm font-semibold capitalize">{traceData.actorBottleneck.label}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Net actor effect: <span className="font-mono text-amber-600">{traceData.actorBottleneck.netActorEffect}</span> — {traceData.actorBottleneck.influence === "strong_resistance" ? "Strong resistance" : "Mild resistance"}
+                        </p>
+                      </>
+                    ) : <p className="text-xs text-muted-foreground">No bottleneck identified.</p>}
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Analog Support</p>
+                    {traceData.analogSupport?.topMatchName ? (
+                      <>
+                        <p className="text-sm font-semibold">{traceData.analogSupport.topMatchName}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Similarity: <span className="font-mono">{traceData.analogSupport.topMatchSimilarity}/100</span>
+                          {traceData.analogSupport.topMatchFinalProbability !== null && (
+                            <> · Final outcome: <span className="font-mono">{traceData.analogSupport.topMatchFinalProbability}%</span></>
+                          )}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{traceData.analogSupport.coverageNote}</p>
+                      </>
+                    ) : <p className="text-xs text-muted-foreground">{traceData.analogSupport?.coverageNote}</p>}
+                  </div>
+                </div>
+
+                {/* Calibration summary */}
+                {traceData.calibrationSummary && (
+                  <div className="p-3.5 rounded-xl border border-border bg-background">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Calibration Layer</p>
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Raw: </span>
+                        <span className="font-mono font-semibold">{traceData.calibrationSummary.rawProbability}%</span>
+                      </div>
+                      <span className="text-muted-foreground">→</span>
+                      <div>
+                        <span className="text-muted-foreground">Calibrated: </span>
+                        <span className="font-mono font-semibold">{traceData.calibrationSummary.calibratedProbability}%</span>
+                      </div>
+                      {traceData.calibrationSummary.totalShiftPp !== 0 && (
+                        <span className={cn(
+                          "text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded border",
+                          traceData.calibrationSummary.totalShiftPp < 0
+                            ? "bg-amber-400/10 border-amber-400/30 text-amber-600"
+                            : "bg-blue-500/10 border-blue-500/30 text-blue-500"
+                        )}>
+                          {traceData.calibrationSummary.totalShiftPp > 0 ? "+" : ""}{traceData.calibrationSummary.totalShiftPp}pp
+                        </span>
+                      )}
+                      {traceData.calibrationSummary.bucketCorrectionApplied && (
+                        <span className="text-[10px] text-muted-foreground">
+                          Bucket [{traceData.calibrationSummary.bucketCorrectionApplied.bucket}]: {traceData.calibrationSummary.bucketCorrectionApplied.correctionPp > 0 ? "+" : ""}{traceData.calibrationSummary.bucketCorrectionApplied.correctionPp}pp
+                        </span>
+                      )}
+                      {traceData.calibrationSummary.lrCorrectionCount > 0 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          LR corrections: {traceData.calibrationSummary.lrCorrectionCount} active
+                        </span>
+                      )}
+                      {traceData.calibrationSummary.warnings?.bucketLowSample && (
+                        <span className="text-[10px] text-amber-600 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Low sample warning
+                        </span>
+                      )}
+                      {traceData.calibrationSummary.warnings?.bucketDirectionFlip && (
+                        <span className="text-[10px] text-destructive flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Direction flip warning
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fragile assumption */}
+                {traceData.fragileAssumption && (
+                  <div className="p-3.5 rounded-xl border border-amber-400/30 bg-amber-400/5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 mb-1.5">Most Fragile Assumption</p>
+                    <p className="text-xs font-medium">{traceData.fragileAssumption.assumption}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      <span className="font-semibold">If broken:</span> {traceData.fragileAssumption.breakingCondition}
+                    </p>
+                    <p className="text-[11px] text-amber-700 mt-1 font-medium">{traceData.fragileAssumption.probabilityShiftIfBroken}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         )}
 

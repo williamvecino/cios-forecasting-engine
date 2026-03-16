@@ -17,7 +17,7 @@ import {
   Cell,
   Label,
 } from "recharts";
-import { BarChart2, Target, TrendingDown, TrendingUp, Minus, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
+import { BarChart2, Target, TrendingDown, TrendingUp, Minus, CheckCircle2, Clock, AlertTriangle, FlaskConical, ShieldCheck, ShieldAlert, Activity, FileSearch, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/cn";
 
@@ -75,6 +75,21 @@ export default function Calibration() {
     queryFn: () => fetch("/api/calibration/error-patterns").then((r) => r.json()),
     staleTime: 30_000,
   });
+
+  const { data: diagnostics, refetch: refetchDiagnostics } = useQuery<any>({
+    queryKey: ["/api/calibration/diagnostics"],
+    queryFn: () => fetch("/api/calibration/diagnostics").then((r) => r.json()),
+    staleTime: 30_000,
+  });
+
+  const { data: validationReport, refetch: refetchValidation } = useQuery<any>({
+    queryKey: ["/api/calibration/validation-report"],
+    queryFn: () => fetch("/api/calibration/validation-report").then((r) => r.json()),
+    staleTime: 30_000,
+  });
+
+  const [showDiagnostics, setShowDiagnostics] = useState(true);
+  const [showValidation, setShowValidation] = useState(false);
 
   const errorPatterns = activePatternTab === "signal_type"
     ? (errorData?.signalPatterns ?? [])
@@ -511,6 +526,293 @@ export default function Calibration() {
               </tbody>
             </table>
           </div>
+        </Card>
+
+        {/* Bucket Diagnostics Panel */}
+        <Card>
+          <button
+            onClick={() => setShowDiagnostics((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <FlaskConical className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Bucket Calibration Diagnostics</span>
+              <span className="text-xs text-muted-foreground">Full inspection of correction state per probability range</span>
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showDiagnostics && "rotate-90")} />
+          </button>
+
+          {showDiagnostics && diagnostics && (
+            <div className="mt-4 pt-4 border-t border-border space-y-4">
+              {/* Aggregate */}
+              {diagnostics.aggregate && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl border border-border bg-background text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Calibrated Cases</p>
+                    <p className="text-2xl font-display font-bold">{diagnostics.aggregate.calibratedCaseCount}</p>
+                  </div>
+                  <div className="p-3 rounded-xl border border-border bg-background text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Mean Raw Error</p>
+                    <p className={cn("text-2xl font-display font-bold", diagnostics.aggregate.meanRawError > 0 ? "text-blue-500" : "text-amber-500")}>
+                      {diagnostics.aggregate.meanRawError !== null ? `${(diagnostics.aggregate.meanRawError * 100).toFixed(1)}pp` : "—"}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl border border-border bg-background text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Mean Calibrated Error</p>
+                    <p className={cn("text-2xl font-display font-bold", diagnostics.aggregate.meanCalibratedError > 0 ? "text-blue-500" : "text-amber-500")}>
+                      {diagnostics.aggregate.meanCalibratedError !== null ? `${(diagnostics.aggregate.meanCalibratedError * 100).toFixed(1)}pp` : "—"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Bucket table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-2 px-3 text-muted-foreground font-semibold">Bucket</th>
+                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">n</th>
+                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Mean Signed Error</th>
+                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Mean Abs Error</th>
+                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Correction Applied</th>
+                      <th className="text-left py-2 px-3 text-muted-foreground font-semibold">Status</th>
+                      <th className="text-left py-2 px-3 text-muted-foreground font-semibold">Warnings</th>
+                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Last Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(diagnostics.bucketDiagnostics ?? []).map((bk: any) => (
+                      <tr key={bk.bucket} className="border-b border-border/50 hover:bg-muted/10">
+                        <td className="py-2.5 px-3 font-mono font-semibold">{bk.bucket}</td>
+                        <td className="py-2.5 px-3 text-right">{bk.sampleSize}</td>
+                        <td className={cn("py-2.5 px-3 text-right font-mono", bk.meanSignedError === null ? "text-muted-foreground" : bk.meanSignedError < 0 ? "text-amber-500" : "text-blue-500")}>
+                          {bk.meanSignedError !== null ? `${(bk.meanSignedError * 100).toFixed(1)}pp` : "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono">
+                          {bk.meanAbsoluteError !== null ? `${(bk.meanAbsoluteError * 100).toFixed(1)}pp` : "—"}
+                        </td>
+                        <td className={cn("py-2.5 px-3 text-right font-mono font-semibold", bk.correctionAppliedPp === null ? "text-muted-foreground" : bk.correctionAppliedPp < 0 ? "text-amber-500" : "text-blue-500")}>
+                          {bk.correctionAppliedPp !== null ? `${(bk.correctionAppliedPp * 100).toFixed(1)}pp` : "—"}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {bk.warnings.pendingThreshold ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-muted border-border text-muted-foreground">Pending (n&lt;{bk.warnings.pendingThreshold ? 3 : 5})</span>
+                          ) : bk.isActive ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-success/10 border-success/30 text-success font-semibold">
+                              <ShieldCheck className="w-2.5 h-2.5" /> Active
+                            </span>
+                          ) : bk.belowThreshold ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-primary/10 border-primary/30 text-primary">Below threshold</span>
+                          ) : (
+                            <span className="text-muted-foreground text-[10px]">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 space-x-1">
+                          {bk.warnings.lowSample && (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-amber-400/10 border-amber-400/30 text-amber-600">Low sample</span>
+                          )}
+                          {bk.warnings.directionFlip && (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-destructive/10 border-destructive/30 text-destructive">
+                              Dir. flip ×{bk.warnings.flipCount}
+                            </span>
+                          )}
+                          {!bk.warnings.lowSample && !bk.warnings.directionFlip && (
+                            <span className="text-muted-foreground text-[10px]">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground">
+                          {bk.lastUpdated ? new Date(bk.lastUpdated).toLocaleDateString() : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Guardrail config note */}
+              {diagnostics.guardrailConfig && (
+                <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+                  <span>Min sample: <strong className="text-foreground">{diagnostics.guardrailConfig.minBucketSample}</strong></span>
+                  <span>Error threshold: <strong className="text-foreground">{(diagnostics.guardrailConfig.errorThreshold * 100).toFixed(0)}pp</strong></span>
+                  <span>Max correction: <strong className="text-foreground">±{(diagnostics.guardrailConfig.maxCorrectionPp * 100).toFixed(0)}pp</strong></span>
+                  <span>Recency decay λ: <strong className="text-foreground">{diagnostics.guardrailConfig.recencyDecayLambda}</strong></span>
+                  <span>LR corrections active: <strong className="text-foreground">{diagnostics.lrCorrectionsActive}</strong></span>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* Validation Report */}
+        <Card>
+          <button
+            onClick={() => {
+              if (!showValidation) refetchValidation();
+              setShowValidation((v) => !v);
+            }}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <FileSearch className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Validation Report</span>
+              <span className="text-xs text-muted-foreground">Raw vs calibrated vs actual — per bucket and therapy area</span>
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showValidation && "rotate-90")} />
+          </button>
+
+          {showValidation && validationReport && (
+            <div className="mt-4 pt-4 border-t border-border space-y-5">
+              {/* Coverage check */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "Moderate cases", n: validationReport.coverageCheck?.moderateCases, req: 2 },
+                  { label: "High-conf cases", n: validationReport.coverageCheck?.highConfCases, req: 2 },
+                  { label: "Psychiatry cases", n: validationReport.coverageCheck?.psychiatryCases, req: 1 },
+                  { label: "Cardiology cases", n: validationReport.coverageCheck?.cardiologyCases, req: 1 },
+                ].map((item) => (
+                  <div key={item.label} className={cn(
+                    "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border",
+                    item.n >= item.req ? "border-success/30 bg-success/5 text-success" : "border-amber-400/30 bg-amber-400/5 text-amber-600"
+                  )}>
+                    {item.n >= item.req ? <ShieldCheck className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
+                    <span className="font-semibold">{item.n}</span> {item.label} (req ≥{item.req})
+                  </div>
+                ))}
+                <div className={cn(
+                  "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-semibold",
+                  validationReport.overall?.verdict === "improving" ? "border-success/40 bg-success/10 text-success" :
+                  validationReport.overall?.verdict === "degrading" ? "border-destructive/40 bg-destructive/10 text-destructive" :
+                  "border-border bg-muted/10 text-muted-foreground"
+                )}>
+                  <Activity className="w-3 h-3" />
+                  {validationReport.overall?.verdict === "improving" ? "Calibration improving" :
+                   validationReport.overall?.verdict === "degrading" ? "Calibration degrading" :
+                   "Insufficient data"}
+                </div>
+              </div>
+
+              {/* Bucket summary */}
+              <div>
+                <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Bucket-Level Summary</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Bucket</th>
+                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">n</th>
+                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Mean Raw Error</th>
+                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Mean Calib Error</th>
+                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Improvement Rate</th>
+                      <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(validationReport.bucketSummary ?? []).map((bk: any) => (
+                      <tr key={bk.bucket} className="border-b border-border/50">
+                        <td className="py-2 px-2 font-mono font-semibold">{bk.bucket}</td>
+                        <td className="py-2 px-2 text-right text-muted-foreground">{bk.n ?? 0}</td>
+                        <td className={cn("py-2 px-2 text-right font-mono", !bk.meanRawError ? "text-muted-foreground" : bk.meanRawError < 0 ? "text-amber-500" : "text-blue-500")}>
+                          {bk.meanRawError !== undefined ? `${(bk.meanRawError * 100).toFixed(1)}pp` : "—"}
+                        </td>
+                        <td className={cn("py-2 px-2 text-right font-mono", !bk.meanCalibratedError ? "text-muted-foreground" : bk.meanCalibratedError < 0 ? "text-amber-500" : "text-blue-500")}>
+                          {bk.meanCalibratedError !== undefined ? `${(bk.meanCalibratedError * 100).toFixed(1)}pp` : "—"}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {bk.improvementRate !== undefined ? `${(bk.improvementRate * 100).toFixed(0)}%` : "—"}
+                        </td>
+                        <td className="py-2 px-2">
+                          {bk.n > 0 ? (
+                            <span className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded border font-semibold",
+                              bk.verdict === "improving" ? "bg-success/10 border-success/30 text-success" :
+                              bk.verdict === "degrading" ? "bg-destructive/10 border-destructive/30 text-destructive" :
+                              "bg-muted border-border text-muted-foreground"
+                            )}>
+                              {bk.verdict ?? "n/a"}
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Therapy area breakout */}
+              {(validationReport.therapyAreaBreakout ?? []).length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Therapy Area Breakout</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {validationReport.therapyAreaBreakout.map((ta: any) => (
+                      <div key={ta.therapyArea} className={cn(
+                        "p-3 rounded-xl border text-xs",
+                        ta.verdict === "improving" ? "border-success/20 bg-success/5" : "border-amber-400/20 bg-amber-400/5"
+                      )}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold">{ta.therapyArea}</span>
+                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-semibold",
+                            ta.verdict === "improving" ? "bg-success/10 border-success/30 text-success" : "bg-amber-400/10 border-amber-400/30 text-amber-600"
+                          )}>{ta.verdict}</span>
+                        </div>
+                        <div className="flex gap-3 text-muted-foreground">
+                          <span>n={ta.n}</span>
+                          <span>Raw: <span className={cn("font-mono", ta.meanRawError < 0 ? "text-amber-500" : "text-blue-500")}>{(ta.meanRawError * 100).toFixed(1)}pp</span></span>
+                          <span>Calib: <span className={cn("font-mono", ta.meanCalibratedError < 0 ? "text-amber-500" : "text-blue-500")}>{(ta.meanCalibratedError * 100).toFixed(1)}pp</span></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Per-case detail */}
+              <div>
+                <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Case-Level Detail</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Case</th>
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Therapy Area</th>
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Bucket</th>
+                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Raw %</th>
+                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Calib %</th>
+                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Actual %</th>
+                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Raw Err</th>
+                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Calib Err</th>
+                        <th className="text-center py-1.5 px-2 text-muted-foreground font-semibold">Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(validationReport.cases ?? []).map((c: any, i: number) => (
+                        <tr key={i} className="border-b border-border/50">
+                          <td className="py-2 px-2 font-mono text-[10px]">{c.caseId}</td>
+                          <td className="py-2 px-2 text-muted-foreground">{c.therapyArea ?? "—"}</td>
+                          <td className="py-2 px-2 font-mono">{c.bucket ?? "—"}</td>
+                          <td className="py-2 px-2 text-right font-mono">{(c.rawProbability * 100).toFixed(1)}%</td>
+                          <td className="py-2 px-2 text-right font-mono">{(c.calibratedProbability * 100).toFixed(1)}%</td>
+                          <td className="py-2 px-2 text-right font-mono font-semibold">{(c.actual * 100).toFixed(1)}%</td>
+                          <td className={cn("py-2 px-2 text-right font-mono", c.rawError < 0 ? "text-amber-500" : "text-blue-500")}>
+                            {c.rawError > 0 ? "+" : ""}{(c.rawError * 100).toFixed(1)}pp
+                          </td>
+                          <td className={cn("py-2 px-2 text-right font-mono", c.calibratedError < 0 ? "text-amber-500" : "text-blue-500")}>
+                            {c.calibratedError > 0 ? "+" : ""}{(c.calibratedError * 100).toFixed(1)}pp
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            {c.improved ? (
+                              <span className="text-success text-[10px] font-semibold">↑ Better</span>
+                            ) : (
+                              <span className="text-destructive text-[10px]">↓ Worse</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* How calibration works */}
