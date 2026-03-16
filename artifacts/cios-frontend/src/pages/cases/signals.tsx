@@ -12,7 +12,6 @@ import {
   TrendingUp,
   TrendingDown,
   Sparkles,
-  Pencil,
   Info,
   Trash2,
 } from "lucide-react";
@@ -191,8 +190,7 @@ export default function SignalsRegister() {
   const caseId = params?.caseId || "";
 
   const [isCreating, setIsCreating] = useState(false);
-  const [autoClassified, setAutoClassified] = useState<SignalType | null>(null);
-  const [showTypeOverride, setShowTypeOverride] = useState(false);
+  const [suggestedType, setSuggestedType] = useState<SignalType | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const { data: caseData } = useGetCase(caseId);
@@ -259,12 +257,12 @@ export default function SignalsRegister() {
   const handleDescriptionChange = useCallback(
     (text: string) => {
       const detected = classifyDescription(text);
-      setAutoClassified(detected);
-      if (detected && !showTypeOverride) {
+      setSuggestedType(detected);
+      if (detected) {
         form.setValue("signalType", detected);
       }
     },
-    [form, showTypeOverride]
+    [form]
   );
 
   const onSubmit = (data: FormValues) => {
@@ -281,8 +279,7 @@ export default function SignalsRegister() {
       {
         onSuccess: () => {
           setIsCreating(false);
-          setAutoClassified(null);
-          setShowTypeOverride(false);
+          setSuggestedType(null);
           queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/signals`] });
           queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
           form.reset();
@@ -358,59 +355,36 @@ export default function SignalsRegister() {
                 )}
 
                 {/* Classification row */}
-                <div className="flex items-center gap-2 mt-2 min-h-[24px]">
-                  {autoClassified && !showTypeOverride ? (
-                    <>
-                      <Sparkles className="w-3 h-3 text-primary shrink-0" />
-                      <span className="text-xs text-muted-foreground">Auto-classified as</span>
-                      <span className="text-xs font-semibold text-primary">{autoClassified}</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowTypeOverride(true)}
-                        className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <Pencil className="w-3 h-3" /> Override
-                      </button>
-                    </>
+                <div className="flex items-center gap-2 mt-2">
+                  {suggestedType ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Sparkles className="w-3 h-3 text-primary" />
+                      <span className="text-xs text-muted-foreground">Suggested type:</span>
+                      <span className="text-xs font-semibold text-primary">{suggestedType}</span>
+                    </div>
                   ) : (
-                    <>
-                      <span className="text-xs text-muted-foreground">
-                        {autoClassified ? "Override classification:" : "Select signal type:"}
-                      </span>
-                      <Controller
-                        control={form.control}
-                        name="signalType"
-                        render={({ field }) => (
-                          <Select
-                            {...field}
-                            onChange={(e) => {
-                              field.onChange(e);
-                              form.setValue("signalType", e.target.value);
-                            }}
-                            className="flex-1 max-w-xs text-xs"
-                          >
-                            {SIGNAL_TYPES.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                      />
-                      {showTypeOverride && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowTypeOverride(false);
-                            if (autoClassified) form.setValue("signalType", autoClassified);
-                          }}
-                          className="text-[10px] text-muted-foreground hover:text-foreground"
-                        >
-                          Reset
-                        </button>
-                      )}
-                    </>
+                    <span className="text-xs text-muted-foreground shrink-0">Classification:</span>
                   )}
+                  <Controller
+                    control={form.control}
+                    name="signalType"
+                    render={({ field }) => (
+                      <Select
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          form.setValue("signalType", e.target.value);
+                        }}
+                        className="flex-1 max-w-xs text-xs"
+                      >
+                        {SIGNAL_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
                 </div>
               </div>
 
@@ -561,8 +535,7 @@ export default function SignalsRegister() {
                   variant="ghost"
                   onClick={() => {
                     setIsCreating(false);
-                    setAutoClassified(null);
-                    setShowTypeOverride(false);
+                    setSuggestedType(null);
                   }}
                 >
                   Cancel
