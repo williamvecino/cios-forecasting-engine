@@ -1,0 +1,121 @@
+Run a full diagnostic of the latest CIOS build.
+
+Goal:
+Determine whether the system is now functioning as an adaptive intelligence engine rather than only a structured forecasting tool.
+
+Do not modify the system first. Evaluate it and report.
+
+Run the following five diagnostic tests:
+
+1. Signal Discovery Test
+Use the Weltruza strategic memo as input.
+The system should automatically detect candidate signals from the text and classify them.
+
+Expected signal domains include:
+- clinical efficacy evidence
+- delivery / formulation advantage
+- physician perception barriers
+- metabolic risk narrative
+- relapse / adherence advantage
+- competitor pressure
+- access / reimbursement if present
+
+Output:
+- detected signals
+- signal category
+- direction
+- confidence level
+- missing signal domains warning if applicable
+
+Purpose:
+Verify that the system can identify important signals without relying fully on manual analyst entry.
+
+2. Actor Reaction Test
+Using the Weltruza case and confirmed signals, run the stakeholder simulation.
+
+Actors to include at minimum:
+- academic psychiatrists
+- community psychiatrists
+- hospital / inpatient prescribers
+- payers
+- competitors
+
+Output:
+- actor-specific stance
+- main drivers for each actor
+- whether actors influence each other
+- likely sequence of adoption by segment
+
+Purpose:
+Verify that the actor model is dynamic and not just a static label system.
+
+3. Analog Retrieval Test
+Run analog case retrieval for the Weltruza case.
+
+Expected analogs should prioritize relevant schizophrenia / LAI / antipsychotic cases such as:
+- Uzedy
+- Abilify Maintena
+- Invega Sustenna
+- Aristada
+- Lybalvi as a strategic narrative competitor if relevant
+
+Output:
+- top analog matches
+- similarity explanation
+- key similarities
+- key differences
+- whether analogs influence forecast interpretation
+
+Purpose:
+Verify that analog retrieval is relevant and meaningful, not generic.
+
+4. Forecast Sensitivity Test
+Run the forecast with the full confirmed signal set.
+Then remove the most influential positive signal and rerun.
+Then add one meaningful negative adoption signal and rerun.
+
+Output:
+- baseline forecast probability
+- probability after removing top positive signal
+- probability after adding negative signal
+- top factors pushing outlook up
+- top factors pushing outlook down
+
+Purpose:
+Verify that the forecast responds materially and plausibly to key signals.
+
+5. Calibration Logging Test
+Create a forecast record in the calibration / prediction ledger.
+
+Verify the system can log:
+- case name
+- predicted probability
+- date
+- outcome placeholder
+- later outcome entry field
+
+Output:
+- confirmation that prediction was logged
+- current calibration fields available
+- whether calibration is infrastructure-only or fully functional
+
+Purpose:
+Verify that the learning loop foundation exists.
+
+Final diagnostic report:
+After all five tests, produce a structured diagnosis with these sections:
+
+- What is working well
+- What is partially working
+- What is still placeholder logic
+- What is missing for a true intelligence engine
+- Top 5 next improvements
+
+Then classify the current system as one of:
+A. Structured forecasting engine
+B. Advanced forecasting system with early learning capability
+C. Adaptive intelligence engine
+
+Important:
+This is a diagnostic pass, not a redesign pass.
+Be specific and evidence-based in the report.
