@@ -17,7 +17,7 @@ import {
   Cell,
   Label,
 } from "recharts";
-import { BarChart2, Target, TrendingDown, TrendingUp, Minus, CheckCircle2, Clock, AlertTriangle, FlaskConical, ShieldCheck, ShieldAlert, Activity, FileSearch, ChevronRight } from "lucide-react";
+import { BarChart2, Target, TrendingDown, TrendingUp, Minus, CheckCircle2, Clock, AlertTriangle, FlaskConical, ShieldCheck, ShieldAlert, Activity, FileSearch, ChevronRight, LayoutGrid, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/cn";
 
@@ -88,8 +88,15 @@ export default function Calibration() {
     staleTime: 30_000,
   });
 
+  const { data: coverageMap } = useQuery<any>({
+    queryKey: ["/api/calibration/coverage-map"],
+    queryFn: () => fetch("/api/calibration/coverage-map").then((r) => r.json()),
+    staleTime: 30_000,
+  });
+
   const [showDiagnostics, setShowDiagnostics] = useState(true);
   const [showValidation, setShowValidation] = useState(false);
+  const [showCoverageMap, setShowCoverageMap] = useState(false);
 
   const errorPatterns = activePatternTab === "signal_type"
     ? (errorData?.signalPatterns ?? [])
@@ -692,6 +699,34 @@ export default function Calibration() {
                 </div>
               </div>
 
+              {/* Segmented verdict banner */}
+              {validationReport.overall?.segmentedVerdict && (
+                <div className={cn(
+                  "flex items-start gap-2 px-3 py-2.5 rounded-xl border text-xs",
+                  validationReport.overall.mixedBehaviorDetected
+                    ? "border-amber-400/40 bg-amber-400/8 text-amber-700"
+                    : validationReport.overall.segmentedVerdict === "broadly_improving"
+                    ? "border-success/30 bg-success/5 text-success"
+                    : "border-destructive/30 bg-destructive/5 text-destructive"
+                )}>
+                  {validationReport.overall.mixedBehaviorDetected
+                    ? <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    : <Activity className="w-3.5 h-3.5 shrink-0 mt-0.5" />}
+                  <div>
+                    <span className="font-semibold capitalize">
+                      {validationReport.overall.segmentedVerdict === "broadly_improving" ? "Broadly improving" :
+                       validationReport.overall.segmentedVerdict === "broadly_degrading" ? "Broadly degrading" :
+                       "Mixed behaviour across segments"}
+                    </span>
+                    {validationReport.overall.mixedBehaviorDetected && (
+                      <span className="ml-1.5 text-[10px] opacity-80">
+                        — calibration is helping some therapy areas but not others. Check breakout below.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Bucket summary */}
               <div>
                 <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Bucket-Level Summary</p>
@@ -765,6 +800,34 @@ export default function Calibration() {
                 </div>
               )}
 
+              {/* Question type breakout */}
+              {(validationReport.questionTypeBreakout ?? []).length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Question Type Breakout</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {validationReport.questionTypeBreakout.map((qt: any) => (
+                      <div key={qt.questionType} className={cn(
+                        "p-3 rounded-xl border text-xs",
+                        qt.verdict === "improving" ? "border-success/20 bg-success/5" : "border-amber-400/20 bg-amber-400/5"
+                      )}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold font-mono">{qt.questionType.replace(/_/g, " ")}</span>
+                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-semibold",
+                            qt.verdict === "improving" ? "bg-success/10 border-success/30 text-success" : "bg-amber-400/10 border-amber-400/30 text-amber-600"
+                          )}>{qt.verdict}</span>
+                        </div>
+                        <div className="flex gap-3 text-muted-foreground">
+                          <span>n={qt.n}</span>
+                          <span>Raw: <span className={cn("font-mono", qt.meanRawError < 0 ? "text-amber-500" : "text-blue-500")}>{(qt.meanRawError * 100).toFixed(1)}pp</span></span>
+                          <span>Calib: <span className={cn("font-mono", qt.meanCalibratedError < 0 ? "text-amber-500" : "text-blue-500")}>{(qt.meanCalibratedError * 100).toFixed(1)}pp</span></span>
+                        </div>
+                        <p className="text-muted-foreground mt-1">Improvement rate: {(qt.improvementRate * 100).toFixed(0)}% · +{qt.improvementPp.toFixed(1)}pp MAE reduction</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Per-case detail */}
               <div>
                 <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Case-Level Detail</p>
@@ -811,6 +874,115 @@ export default function Calibration() {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Coverage Map */}
+        <Card>
+          <button
+            onClick={() => setShowCoverageMap((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Calibration Coverage Map</span>
+              <span className="text-xs text-muted-foreground">Maturity grid — bucket × therapy area × question type</span>
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showCoverageMap && "rotate-90")} />
+          </button>
+
+          {showCoverageMap && coverageMap && (
+            <div className="mt-4 pt-4 border-t border-border space-y-5">
+              {/* Legend */}
+              <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+                <span className="font-semibold text-foreground uppercase tracking-wider">Maturity:</span>
+                {[
+                  { label: "None", cls: "bg-muted/20 text-muted-foreground border-border" },
+                  { label: "Low", cls: "bg-amber-400/10 text-amber-600 border-amber-400/30" },
+                  { label: "Medium", cls: "bg-blue-500/10 text-blue-500 border-blue-500/30" },
+                  { label: "High", cls: "bg-success/10 text-success border-success/30" },
+                ].map((m) => (
+                  <span key={m.label} className={cn("px-1.5 py-0.5 rounded border font-semibold", m.cls)}>{m.label}</span>
+                ))}
+                <span className="ml-2 font-semibold text-foreground uppercase tracking-wider">Flags:</span>
+                <span className="px-1.5 py-0.5 rounded border bg-success/10 text-success border-success/30 font-semibold">✓ active</span>
+                <span className="px-1.5 py-0.5 rounded border bg-amber-400/10 text-amber-600 border-amber-400/30">⚠ low-n</span>
+              </div>
+
+              {(() => {
+                const BUCKETS = ["0.40-0.60", "0.60-0.75", "0.75-0.90", "0.90+"];
+                const maturityCls = (m: string) => {
+                  if (m === "high") return "bg-success/10 text-success border-success/30";
+                  if (m === "medium") return "bg-blue-500/10 text-blue-500 border-blue-500/30";
+                  if (m === "low") return "bg-amber-400/10 text-amber-600 border-amber-400/30";
+                  return "bg-muted/10 text-muted-foreground border-border";
+                };
+                const CoverageCell = ({ cell }: { cell: any }) => {
+                  if (!cell || cell.n === 0) return <td className="py-2 px-2 text-center text-muted-foreground/30 text-[10px]">—</td>;
+                  return (
+                    <td className="py-2 px-2 text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-semibold", maturityCls(cell.maturity))}>
+                          {cell.maturity}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground">n={cell.n}</span>
+                        <div className="flex gap-1 flex-wrap justify-center">
+                          {cell.correctionActive && <span className="text-[8px] text-success font-semibold">✓ active</span>}
+                          {cell.lowSampleWarning && <span className="text-[8px] text-amber-600">⚠ low-n</span>}
+                          {cell.bucketThresholdMet && !cell.correctionActive && <span className="text-[8px] text-muted-foreground">threshold met</span>}
+                        </div>
+                      </div>
+                    </td>
+                  );
+                };
+
+                const TableSection = ({ title, rows, dimKey }: { title: string; rows: any[]; dimKey: string }) => (
+                  <div>
+                    <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{title}</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left py-1.5 px-3 text-muted-foreground font-semibold min-w-40">Segment</th>
+                            <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Total n</th>
+                            {BUCKETS.map((b) => (
+                              <th key={b} className="text-center py-1.5 px-2 text-muted-foreground font-semibold min-w-24">{b}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row: any) => (
+                            <tr key={row[dimKey]} className="border-b border-border/50 hover:bg-muted/10">
+                              <td className="py-2 px-3 font-semibold">{row[dimKey] === "__global" ? "Global" : row[dimKey]}</td>
+                              <td className="py-2 px-2 text-right text-muted-foreground">{row.totalResolved}</td>
+                              {BUCKETS.map((b) => <CoverageCell key={b} cell={row.buckets?.[b]} />)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+
+                const globalRow = coverageMap.globalRow ? [{ ...coverageMap.globalRow, __global: "__global" }] : [];
+
+                return (
+                  <>
+                    <TableSection title="Global" rows={globalRow} dimKey="__global" />
+                    {(coverageMap.byTherapyArea ?? []).length > 0 && (
+                      <TableSection title="By Therapy Area" rows={coverageMap.byTherapyArea} dimKey="therapyArea" />
+                    )}
+                    {(coverageMap.byQuestionType ?? []).length > 0 && (
+                      <TableSection title="By Question Type" rows={coverageMap.byQuestionType.map((r: any) => ({ ...r, questionType: r.questionType.replace(/_/g, " ") }))} dimKey="questionType" />
+                    )}
+                  </>
+                );
+              })()}
+
+              <p className="text-[10px] text-muted-foreground">
+                Total forecasts tracked: <strong className="text-foreground">{coverageMap.totalForecasts}</strong> · Resolved cases: <strong className="text-foreground">{coverageMap.totalResolvedCases}</strong>
+              </p>
             </div>
           )}
         </Card>

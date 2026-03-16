@@ -30,6 +30,7 @@ import {
   ThumbsUp,
   EyeOff,
   Crosshair,
+  LayoutGrid,
 } from "lucide-react";
 import {
   BarChart,
@@ -861,6 +862,36 @@ export default function ForecastResults() {
 
             {showTrace && (
               <div className="mt-4 pt-4 border-t border-border space-y-4">
+                {/* Case Context */}
+                {traceData.caseContext && (
+                  <div className="p-3.5 rounded-xl border border-border bg-muted/5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Case Context</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1.5 text-xs">
+                      {[
+                        { label: "Therapy Area", value: traceData.caseContext.therapeuticArea },
+                        { label: "Disease State", value: traceData.caseContext.diseaseState },
+                        { label: "Specialty", value: traceData.caseContext.specialty },
+                        { label: "Question Type", value: traceData.caseContext.questionType?.replace(/_/g, " ") },
+                        { label: "Time Horizon", value: traceData.caseContext.timeHorizon },
+                        { label: "Case Mode", value: traceData.caseContext.caseMode },
+                      ].map(({ label, value }) => value ? (
+                        <div key={label} className="flex flex-col gap-0.5">
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
+                          <span className="font-semibold leading-snug capitalize">{value}</span>
+                        </div>
+                      ) : null)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Coverage note banner */}
+                {traceData.coverageNote && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-primary/20 bg-primary/5 text-xs text-primary">
+                    <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                    <span>{traceData.coverageNote}</span>
+                  </div>
+                )}
+
                 {/* Signal drivers */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
@@ -929,9 +960,8 @@ export default function ForecastResults() {
                             <> · Final outcome: <span className="font-mono">{traceData.analogSupport.topMatchFinalProbability}%</span></>
                           )}
                         </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{traceData.analogSupport.coverageNote}</p>
                       </>
-                    ) : <p className="text-xs text-muted-foreground">{traceData.analogSupport?.coverageNote}</p>}
+                    ) : <p className="text-xs text-muted-foreground">No analog match found.</p>}
                   </div>
                 </div>
 
