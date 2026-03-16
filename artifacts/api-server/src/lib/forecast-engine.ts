@@ -2,6 +2,9 @@ import { Signal } from "@workspace/db";
 import {
   ACTOR_NAMES,
   getPharmaMultiplier,
+  interpretActorEffect,
+  actorStance,
+  getExpectedBehavior,
   type ActorIndex,
 } from "./pharma-logic.js";
 
@@ -110,90 +113,6 @@ export interface ForecastOutput {
     ohosRoutingCheck: string | null;
     behavioralSummary: string | null;
   };
-}
-
-function interpretActorEffect(effect: number): string {
-  if (effect > 0.25) return "Strong support";
-  if (effect > 0.05) return "Moderate support";
-  if (effect < -0.25) return "Strong constraint";
-  if (effect < -0.05) return "Moderate constraint";
-  return "Neutral / mixed";
-}
-
-function actorStance(effect: number): string {
-  if (effect > 0.25) return "Strongly supportive";
-  if (effect > 0.05) return "Supportive";
-  if (effect < -0.25) return "Strongly resistive";
-  if (effect < -0.05) return "Resistive";
-  return "Neutral";
-}
-
-const ACTOR_BEHAVIOR_TEMPLATES: Record<
-  string,
-  { supportive: string; neutral: string; resistive: string }
-> = {
-  "Academic KOLs": {
-    supportive:
-      "Expected to present data at major congresses, author supportive publications, and anchor prescriber confidence through peer influence.",
-    neutral:
-      "Observing evidence with cautious interest — likely to await larger datasets or real-world outcomes before publicly endorsing.",
-    resistive:
-      "May raise questions about comparative evidence or highlight unmet durability concerns in peer forums, slowing early adoption.",
-  },
-  "Community Physicians": {
-    supportive:
-      "Broadly receptive to prescribing given clear guideline clarity and accessible access; real-world uptake volume likely to scale.",
-    neutral:
-      "Waiting for experience from early adopters and payer access confirmation before routinely incorporating into practice.",
-    resistive:
-      "Habitual patterns and reimbursement friction are dampening trial initiation; significant educational investment required.",
-  },
-  "Specialty Extenders / PCPs": {
-    supportive:
-      "Actively referring or co-managing patients; will amplify reach beyond specialist-only population.",
-    neutral:
-      "Limited familiarity with the indication — prescribing will follow specialist leadership rather than independent initiation.",
-    resistive:
-      "Minimal engagement anticipated; adoption will remain confined to specialist-initiated pathways.",
-  },
-  "Payers / Access": {
-    supportive:
-      "Favorable coverage positioning reduces patient-level friction; broad formulary placement expected to unlock volume.",
-    neutral:
-      "Step-edit or PA requirements in place — access is conditional and will require case-by-case justification.",
-    resistive:
-      "Restrictive formulary tiers or non-coverage rulings are creating material access barriers that will suppress uptake.",
-  },
-  "Guideline / Society Bodies": {
-    supportive:
-      "Inclusion in treatment algorithms or preferred therapy designation gives prescribers explicit clinical license to adopt broadly.",
-    neutral:
-      "Under review or pending data — prescribers are waiting for guideline clarity before committing at scale.",
-    resistive:
-      "Current guidelines favor alternative approaches; off-guideline use creates clinical-liability hesitancy among cautious prescribers.",
-  },
-  "Competitor Counteraction": {
-    supportive:
-      "Competitive noise is low or misdirected — minimal disruption to messaging and account access.",
-    neutral:
-      "Established competitors are maintaining formulary position but not actively counter-detailing; status quo access protected.",
-    resistive:
-      "Aggressive counter-detailing, rebate defense, and formulary-tier competition are eroding differentiation at the point of prescribing.",
-  },
-};
-
-function getExpectedBehavior(actorName: string, effect: number): string {
-  const templates = ACTOR_BEHAVIOR_TEMPLATES[actorName];
-  if (!templates) {
-    if (effect > 0.05)
-      return "This stakeholder group is responding favorably and is expected to support adoption through their sphere of influence.";
-    if (effect < -0.05)
-      return "This stakeholder group is exhibiting resistance behaviors that will require targeted mitigation efforts.";
-    return "This stakeholder group is observing from a neutral position — engagement strategy should monitor for inflection.";
-  }
-  if (effect > 0.05) return templates.supportive;
-  if (effect < -0.05) return templates.resistive;
-  return templates.neutral;
 }
 
 function interpretProbability(prob: number): string {
