@@ -44,10 +44,10 @@ function BayesianChain({
     <div className="flex items-center justify-between bg-background border border-border rounded-2xl p-6 relative overflow-x-auto gap-4">
       <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-border via-primary/20 to-border -translate-y-1/2 z-0" />
       {[
-        { label: "Prior Odds", val: prior.toFixed(3), desc: "Baseline belief", highlight: false },
-        { label: "Signal LR", val: `× ${lr.toFixed(3)}`, desc: "Evidence multiplier", highlight: true },
-        { label: "Actor Adj.", val: `× ${actors.toFixed(3)}`, desc: "Behavioral factor", highlight: true },
-        { label: "Posterior Odds", val: posterior.toFixed(3), desc: "Final odds", highlight: false },
+        { label: "Starting Point", val: prior.toFixed(3), desc: "Prior probability", highlight: false },
+        { label: "Evidence Strength", val: `× ${lr.toFixed(3)}`, desc: "Signal weight", highlight: true },
+        { label: "Stakeholder Response", val: `× ${actors.toFixed(3)}`, desc: "Behavioral influence", highlight: true },
+        { label: "Overall Outlook", val: posterior.toFixed(3), desc: "Posterior odds", highlight: false },
       ].map((step, i) => (
         <div
           key={i}
@@ -124,10 +124,10 @@ export default function ForecastResults() {
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
           <BrainCircuit className="w-12 h-12 text-primary animate-pulse" />
           <div className="text-lg font-display text-muted-foreground">
-            Computing Bayesian posterior…
+            Calculating your forecast…
           </div>
           <div className="text-xs text-muted-foreground/60">
-            Applying signal LRs × actor adjustments
+            Weighing evidence and stakeholder signals
           </div>
         </div>
       </AppLayout>
@@ -281,7 +281,7 @@ export default function ForecastResults() {
         {/* Bayesian computation chain */}
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-            Bayesian Computation Chain — Prior Odds × Signal LR Product × Actor Adjustment = Posterior Odds
+            How this forecast was built — Evidence × Stakeholder Response
           </h3>
           <BayesianChain
             prior={forecast.priorOdds || 0}
@@ -295,13 +295,13 @@ export default function ForecastResults() {
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1 flex items-center gap-2">
             <Users className="w-3.5 h-3.5" />
-            Actor Reaction Layer — Expected Stakeholder Behavior
+            Stakeholder Response — Expected Behavioral Influence
           </h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Bar chart */}
             <Card>
               <div className="text-xs text-muted-foreground mb-4">
-                Net actor effect (positive = supportive, negative = resistive)
+                Net influence (positive = supportive, negative = resistant)
               </div>
               <div className="h-[240px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -324,7 +324,7 @@ export default function ForecastResults() {
                         borderRadius: "8px",
                         fontSize: "12px",
                       }}
-                      formatter={(val: number) => [val.toFixed(3), "Net actor effect"]}
+                      formatter={(val: number) => [val.toFixed(3), "Net influence"]}
                     />
                     <ReferenceLine x={0} stroke="var(--color-border)" />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
@@ -553,7 +553,7 @@ export default function ForecastResults() {
                     LR {sig.likelihoodRatio.toFixed(2)}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">
-                    Actor adj: {sig.weightedActorReaction?.toFixed(3)}
+                    Stakeholder: {sig.weightedActorReaction?.toFixed(3)}
                   </span>
                 </div>
               </div>
