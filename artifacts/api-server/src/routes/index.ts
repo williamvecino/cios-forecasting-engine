@@ -14,6 +14,7 @@ import seedRouter from "./seed.js";
 import discoverRouter from "./discover.js";
 import simulationRouter from "./simulation.js";
 import intelligenceRouter from "./intelligence.js";
+import portfolioRouter from "./portfolio.js";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(seedRouter);
 router.use(discoverRouter);
 router.use(simulationRouter);
 router.use(intelligenceRouter);
+router.use(portfolioRouter);
 
 export default router;

@@ -10,6 +10,7 @@ import SignalDiscover from "@/pages/cases/discover";
 import ForecastResults from "@/pages/cases/forecast";
 import AnalogRetrieval from "@/pages/cases/analogs";
 import AgentSimulation from "@/pages/cases/agents";
+import Portfolio from "@/pages/cases/portfolio";
 import CaseLibrary from "@/pages/case-library/index";
 import Calibration from "@/pages/calibration/index";
 import FieldIntelligence from "@/pages/field-intelligence/index";
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/cases/:caseId/forecast" component={ForecastResults} />
       <Route path="/cases/:caseId/analogs" component={AnalogRetrieval} />
       <Route path="/cases/:caseId/agents" component={AgentSimulation} />
+      <Route path="/cases/:caseId/portfolio" component={Portfolio} />
       <Route path="/case-library" component={CaseLibrary} />
       <Route path="/calibration" component={Calibration} />
       <Route path="/field-intelligence" component={FieldIntelligence} />

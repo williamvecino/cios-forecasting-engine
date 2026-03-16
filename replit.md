@@ -40,6 +40,7 @@ Disease-agnostic, asset-agnostic, specialty-flexible Bayesian HCP adoption forec
 - **Error Patterns** — `GET /calibration/error-patterns` returns signal-type and actor-level mean forecast error + Brier score breakdown. Rendered as horizontal bar chart on Calibration page with "By Signal Type" / "By Actor" tabs
 - **Strategic Questions Engine** — Generates 5 structured intelligence questions per case from the latest calibration snapshot: reversal_risk, bottleneck_actor, threshold_movement, missing_signal, confidence_stress. Each rated high/medium urgency with a "why" explanation. Rendered on forecast page
 - **Forecast Challenge Mode** — Structured adversarial critique: tooOptimistic/tooPessimistic arguments + evidence, missingEvidence domains, single most fragile assumption. Rendered on forecast page below Strategic Questions
+- **Forecast Portfolio** — Evaluate multiple strategic questions against the same case's signal set. `POST /api/cases/:caseId/portfolio` accepts up to 10 questions (each with optional prior override), runs the Bayesian engine per-question, applies per-question hierarchical calibration (different questionType → different calibration segment), and returns per-question results (rawProbability, calibratedProbability, calibrationConfidence, keyDrivers, traceSummary) plus portfolio-level summary (highest-risk, highest-upside, most signal-sensitive, cross-question consistency spread). Engine in `lib/portfolio-engine.ts`, route in `routes/portfolio.ts`, frontend at `/cases/:caseId/portfolio`
 
 ## Core Formula (from workbook ProbabilityEngine sheet)
 ```
@@ -109,6 +110,7 @@ net_actor_translation = sum(net_actor_effect[all actors])
 - `GET/POST /field-intelligence` — Field intelligence
 - `GET/POST /watchlist` — Signal watchlist
 - `GET /specialty-profiles` — Specialty actor profiles
+- `POST /cases/:id/portfolio` — Forecast Portfolio (multi-question evaluation)
 - `POST /seed` — Seed database with workbook sample data
 
 ## Frontend Pages
@@ -118,6 +120,7 @@ net_actor_translation = sum(net_actor_effect[all actors])
 - `/cases/:id/discover` — Signal Detection (Document Intake → AI extraction → Review Queue → Confirm/Edit/Reject)
 - `/cases/:id/forecast` — Forecast Engine (Bayesian chain, actor profile, signal drivers, + Outcome Recording section)
 - `/cases/:id/analogs` — Analog Retrieval (top-5 matches + Pattern Intelligence section)
+- `/cases/:id/portfolio` — Forecast Portfolio (multi-question evaluation with summary)
 - `/cases/:id/agents` — Agent Simulation (7-archetype reaction model + Adoption Sequence + Influence Matrix)
 - `/case-library` — Case Library (manage analog cases)
 - `/calibration` — Calibration (prediction log, Brier scores, outcome recording)
