@@ -17,7 +17,7 @@ import {
   Cell,
   Label,
 } from "recharts";
-import { BarChart2, Target, TrendingDown, TrendingUp, Minus, CheckCircle2, Clock, AlertTriangle, FlaskConical, ShieldCheck, ShieldAlert, Activity, FileSearch, ChevronRight, LayoutGrid, AlertCircle } from "lucide-react";
+import { BarChart2, Target, TrendingDown, TrendingUp, Minus, CheckCircle2, Clock, AlertTriangle, FlaskConical, ShieldCheck, ShieldAlert, Activity, FileSearch, ChevronRight, LayoutGrid, AlertCircle, ListOrdered, BookOpen, FilePlus2, Zap, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/cn";
 
@@ -100,10 +100,151 @@ export default function Calibration() {
     staleTime: 30_000,
   });
 
+  const { data: acquisitionPlan } = useQuery<any>({
+    queryKey: ["/api/calibration/acquisition-plan"],
+    queryFn: () => fetch("/api/calibration/acquisition-plan").then((r) => r.json()),
+    staleTime: 30_000,
+  });
+
+  const { data: taxonomy, refetch: refetchTaxonomy } = useQuery<any>({
+    queryKey: ["/api/calibration/question-type-taxonomy"],
+    queryFn: () => fetch("/api/calibration/question-type-taxonomy").then((r) => r.json()),
+    staleTime: 30_000,
+  });
+
   const [showDiagnostics, setShowDiagnostics] = useState(true);
   const [showValidation, setShowValidation] = useState(false);
   const [showCoverageMap, setShowCoverageMap] = useState(false);
   const [showExpansionTargets, setShowExpansionTargets] = useState(false);
+  const [showAcquisitionPlan, setShowAcquisitionPlan] = useState(false);
+  const [showTaxonomy, setShowTaxonomy] = useState(false);
+  const [showIngestion, setShowIngestion] = useState(false);
+  const [showSimulation, setShowSimulation] = useState(false);
+
+  const CANONICAL_BUCKETS = ["0.40-0.60", "0.60-0.75", "0.75-0.90", "0.90+"];
+  const CANONICAL_QUESTION_TYPES = [
+    { type: "adoption_probability", label: "Adoption Probability" },
+    { type: "threshold_achievement", label: "Threshold Achievement" },
+    { type: "competitive_comparison", label: "Competitive Comparison" },
+    { type: "market_share", label: "Market Share" },
+    { type: "time_to_adoption", label: "Time to Adoption" },
+    { type: "specialty_penetration", label: "Specialty Penetration" },
+    { type: "other", label: "Other / Unclassified" },
+  ];
+
+  const [ingestionForm, setIngestionForm] = useState({
+    predictedProbability: "",
+    observedOutcome: "",
+    therapeuticArea: "",
+    questionType: "adoption_probability",
+    caseMode: "live" as "live" | "demo",
+    diseaseState: "",
+    specialty: "",
+    notes: "",
+    predictionDate: "",
+  });
+  const [ingestionSubmitting, setIngestionSubmitting] = useState(false);
+  const [ingestionResult, setIngestionResult] = useState<null | { ok: boolean; message: string; detail?: string }>(null);
+
+  const [simForm, setSimForm] = useState({
+    therapyArea: "",
+    bucket: "0.40-0.60",
+    questionType: "adoption_probability",
+    additionalCases: "3",
+    assumedMeanError: "",
+  });
+  const [simResult, setSimResult] = useState<any>(null);
+  const [simRunning, setSimRunning] = useState(false);
+
+  const handleIngestionSubmit = async () => {
+    const pp = parseFloat(ingestionForm.predictedProbability);
+    const oo = parseFloat(ingestionForm.observedOutcome);
+    if (isNaN(pp) || pp < 0 || pp > 1) {
+      setIngestionResult({ ok: false, message: "Predicted probability must be 0.00–1.00" });
+      return;
+    }
+    if (isNaN(oo) || oo < 0 || oo > 1) {
+      setIngestionResult({ ok: false, message: "Observed outcome must be 0.00–1.00" });
+      return;
+    }
+    if (!ingestionForm.therapeuticArea.trim()) {
+      setIngestionResult({ ok: false, message: "Therapy area is required" });
+      return;
+    }
+    setIngestionSubmitting(true);
+    setIngestionResult(null);
+    try {
+      const resp = await fetch("/api/calibration/resolved-cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          predictedProbability: pp,
+          observedOutcome: oo,
+          therapeuticArea: ingestionForm.therapeuticArea.trim(),
+          questionType: ingestionForm.questionType,
+          caseMode: ingestionForm.caseMode,
+          diseaseState: ingestionForm.diseaseState.trim() || null,
+          specialty: ingestionForm.specialty.trim() || null,
+          notes: ingestionForm.notes.trim() || null,
+          predictionDate: ingestionForm.predictionDate || null,
+        }),
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        setIngestionResult({
+          ok: true,
+          message: `Resolved case ingested — forecastError ${(data.forecastError * 100).toFixed(2)}pp, bucket ${data.bucket ?? "out-of-range"}`,
+          detail: `ID: ${data.forecastId}`,
+        });
+        setIngestionForm((f) => ({ ...f, predictedProbability: "", observedOutcome: "", notes: "", predictionDate: "" }));
+        queryClient.invalidateQueries({ queryKey: ["/api/calibration/acquisition-plan"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/calibration/expansion-targets"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/calibration/question-type-taxonomy"] });
+        refetchLogs();
+        refetchStats();
+        refetchTaxonomy();
+      } else {
+        setIngestionResult({ ok: false, message: data.error ?? "Ingestion failed" });
+      }
+    } catch (e: any) {
+      setIngestionResult({ ok: false, message: e.message ?? "Network error" });
+    } finally {
+      setIngestionSubmitting(false);
+    }
+  };
+
+  const handleSimRun = async () => {
+    const additional = parseInt(simForm.additionalCases, 10);
+    if (!simForm.therapyArea.trim()) {
+      setSimResult({ error: "Therapy area is required" });
+      return;
+    }
+    if (isNaN(additional) || additional < 1 || additional > 50) {
+      setSimResult({ error: "Additional cases must be 1–50" });
+      return;
+    }
+    setSimRunning(true);
+    setSimResult(null);
+    try {
+      const resp = await fetch("/api/calibration/impact-simulation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          therapyArea: simForm.therapyArea.trim(),
+          bucket: simForm.bucket,
+          questionType: simForm.questionType,
+          additionalCases: additional,
+          assumedMeanError: simForm.assumedMeanError !== "" ? parseFloat(simForm.assumedMeanError) : null,
+        }),
+      });
+      const data = await resp.json();
+      setSimResult(data);
+    } catch (e: any) {
+      setSimResult({ error: e.message ?? "Network error" });
+    } finally {
+      setSimRunning(false);
+    }
+  };
 
   const errorPatterns = activePatternTab === "signal_type"
     ? (errorData?.signalPatterns ?? [])
@@ -1088,6 +1229,465 @@ export default function Calibration() {
                   </>
                 );
               })()}
+            </div>
+          )}
+        </Card>
+
+        {/* Case Acquisition Planner */}
+        <Card>
+          <button
+            onClick={() => setShowAcquisitionPlan((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <ListOrdered className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Case Acquisition Planner</span>
+              <span className="text-xs text-muted-foreground">Ranked gaps converted to actionable acquisition priorities</span>
+              {acquisitionPlan?.summary?.criticalCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-destructive/10 text-destructive border-destructive/30 uppercase tracking-wider">
+                  {acquisitionPlan.summary.criticalCount} critical
+                </span>
+              )}
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showAcquisitionPlan && "rotate-90")} />
+          </button>
+
+          {showAcquisitionPlan && acquisitionPlan && (
+            <div className="mt-4 pt-4 border-t border-border space-y-4">
+              <div className="flex flex-wrap gap-4 text-xs">
+                {[
+                  { label: "Total Entries", value: acquisitionPlan.summary.totalEntries, cls: "" },
+                  { label: "Critical", value: acquisitionPlan.summary.criticalCount, cls: "text-destructive" },
+                  { label: "High", value: acquisitionPlan.summary.highCount, cls: "text-amber-600" },
+                  { label: "Resolved", value: acquisitionPlan.summary.totalResolved, cls: "text-success" },
+                ].map((s) => (
+                  <div key={s.label} className="flex flex-col gap-0.5">
+                    <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">{s.label}</span>
+                    <span className={cn("font-mono font-bold", s.cls)}>{s.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                {(acquisitionPlan.plan ?? []).map((entry: any) => {
+                  const priorityCls = entry.priority === "critical"
+                    ? "border-destructive/30 bg-destructive/5"
+                    : entry.priority === "high"
+                      ? "border-amber-500/30 bg-amber-500/5"
+                      : entry.priority === "medium"
+                        ? "border-primary/30 bg-primary/5"
+                        : "border-border bg-background";
+                  const priorityBadgeCls = entry.priority === "critical"
+                    ? "bg-destructive/20 text-destructive"
+                    : entry.priority === "high"
+                      ? "bg-amber-500/20 text-amber-700"
+                      : entry.priority === "medium"
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted text-muted-foreground";
+                  const dimLabel = entry.dimension === "therapy_area" ? "Therapy Area" : entry.dimension === "bucket" ? "Bucket" : "Question Type";
+                  return (
+                    <div key={`${entry.dimension}-${entry.key}`} className={cn("p-3 rounded-lg border text-xs", priorityCls)}>
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] font-bold font-mono text-muted-foreground shrink-0">#{entry.rank}</span>
+                          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0", priorityBadgeCls)}>
+                            {entry.priority}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground shrink-0 uppercase tracking-wider">{dimLabel}</span>
+                          <span className="font-semibold truncate">{entry.label}</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-muted-foreground shrink-0">score {entry.acquisitionScore.toFixed(2)}</span>
+                      </div>
+                      <p className="text-muted-foreground leading-snug mb-2">{entry.whyItMatters}</p>
+                      <div className="flex items-center gap-4 text-[10px]">
+                        <span><span className="text-muted-foreground">Resolved:</span> <strong>{entry.resolvedCases}</strong> / {entry.totalForecasts}</span>
+                        {entry.casesNeededForThreshold > 0 && (
+                          <span className="text-amber-600 font-semibold">+{entry.casesNeededForThreshold} to threshold</span>
+                        )}
+                        {entry.casesNeededForMediumConfidence > 0 && (
+                          <span className="text-primary font-semibold">+{entry.casesNeededForMediumConfidence} to medium confidence</span>
+                        )}
+                      </div>
+                      <p className="mt-1.5 text-[10px] text-muted-foreground italic">{entry.expectedImpact}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Question-Type Taxonomy */}
+        <Card>
+          <button
+            onClick={() => setShowTaxonomy((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Question-Type Taxonomy</span>
+              <span className="text-xs text-muted-foreground">All 7 canonical types with resolution counts and concentration flags</span>
+              {taxonomy?.summary?.hasOverconcentration && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-700 border-amber-500/30 uppercase tracking-wider">
+                  overconcentration
+                </span>
+              )}
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showTaxonomy && "rotate-90")} />
+          </button>
+
+          {showTaxonomy && taxonomy && (
+            <div className="mt-4 pt-4 border-t border-border space-y-4">
+              <div className="flex flex-wrap gap-4 text-xs">
+                {[
+                  { label: "Total Resolved", value: taxonomy.summary.totalResolved },
+                  { label: "Types w/ Resolved", value: `${taxonomy.summary.typesWithResolvedCases} / 7` },
+                  { label: "At Threshold", value: taxonomy.summary.typesAtThreshold },
+                  { label: "Medium Confidence", value: taxonomy.summary.typesAtMediumConfidence },
+                ].map((s) => (
+                  <div key={s.label} className="flex flex-col gap-0.5">
+                    <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">{s.label}</span>
+                    <span className="font-mono font-bold">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {taxonomy.summary.hasOverconcentration && (
+                <div className="flex items-start gap-2 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <span className="text-amber-700">
+                    Overconcentration detected: one or more question types hold &gt;{Math.round((taxonomy.overconcentrationThreshold ?? 0.6) * 100)}% of resolved cases. Diversify ingestion to improve cross-type calibration.
+                  </span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {(taxonomy.types ?? []).map((t: any) => {
+                  const pct = Math.round((t.resolvedShare ?? 0) * 100);
+                  const barWidth = Math.round((t.resolvedCases / Math.max(taxonomy.summary.totalResolved, 1)) * 100);
+                  const rowCls = t.isOverconcentrated
+                    ? "border-amber-500/30 bg-amber-500/5"
+                    : t.resolvedCases === 0
+                      ? "border-destructive/20 bg-destructive/5"
+                      : "border-border bg-background";
+                  return (
+                    <div key={t.type} className={cn("p-3 rounded-lg border text-xs", rowCls)}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{t.label}</span>
+                            {t.isOverconcentrated && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 uppercase tracking-wider">⚠ overconcentrated</span>
+                            )}
+                            {t.meetsMediumConfidence && !t.isOverconcentrated && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/10 text-green-700 uppercase tracking-wider">✓ calibrated</span>
+                            )}
+                          </div>
+                          <p className="text-muted-foreground mt-0.5 leading-snug">{t.description}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="font-mono font-bold">{t.resolvedCases} <span className="text-muted-foreground font-normal">resolved</span></div>
+                          <div className="text-muted-foreground">{pct}% of total</div>
+                        </div>
+                      </div>
+                      <div className="mt-2 h-1.5 rounded-full bg-muted/30 overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-full", t.isOverconcentrated ? "bg-amber-500" : t.resolvedCases === 0 ? "bg-destructive/40" : "bg-primary")}
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-[10px] text-muted-foreground">{t.statusNote}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Resolved-Case Ingestion */}
+        <Card>
+          <button
+            onClick={() => setShowIngestion((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <FilePlus2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Resolved-Case Ingestion</span>
+              <span className="text-xs text-muted-foreground">Add historical resolved cases directly to expand calibration coverage</span>
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showIngestion && "rotate-90")} />
+          </button>
+
+          {showIngestion && (
+            <div className="mt-4 pt-4 border-t border-border space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Enter a resolved case that did not go through the forecast engine. The case will be classified into the calibration log and corrections will recompute immediately.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Predicted Probability (0–1) *</label>
+                  <input
+                    type="number" min="0" max="1" step="0.01"
+                    placeholder="e.g. 0.62"
+                    value={ingestionForm.predictedProbability}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, predictedProbability: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Observed Outcome (0–1) *</label>
+                  <input
+                    type="number" min="0" max="1" step="0.01"
+                    placeholder="e.g. 0.55"
+                    value={ingestionForm.observedOutcome}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, observedOutcome: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Therapy Area *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cardiology"
+                    value={ingestionForm.therapeuticArea}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, therapeuticArea: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Question Type *</label>
+                  <select
+                    value={ingestionForm.questionType}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, questionType: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {CANONICAL_QUESTION_TYPES.map((qt) => (
+                      <option key={qt.type} value={qt.type}>{qt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Case Mode</label>
+                  <select
+                    value={ingestionForm.caseMode}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, caseMode: e.target.value as "live" | "demo" }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="live">Live</option>
+                    <option value="demo">Demo</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Prediction Date (optional)</label>
+                  <input
+                    type="date"
+                    value={ingestionForm.predictionDate}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, predictionDate: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Disease State (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Heart Failure"
+                    value={ingestionForm.diseaseState}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, diseaseState: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Specialty (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cardiology"
+                    value={ingestionForm.specialty}
+                    onChange={(e) => setIngestionForm((f) => ({ ...f, specialty: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes (optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. ATLAS trial 12-month follow-up"
+                  value={ingestionForm.notes}
+                  onChange={(e) => setIngestionForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              {ingestionResult && (
+                <div className={cn(
+                  "flex items-start gap-2 p-2.5 rounded-lg border text-xs",
+                  ingestionResult.ok ? "border-green-500/30 bg-green-500/5 text-green-700" : "border-destructive/30 bg-destructive/5 text-destructive"
+                )}>
+                  {ingestionResult.ok
+                    ? <CheckCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    : <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  }
+                  <div>
+                    <p className="font-semibold">{ingestionResult.message}</p>
+                    {ingestionResult.detail && <p className="font-mono text-[10px] mt-0.5 opacity-70">{ingestionResult.detail}</p>}
+                  </div>
+                </div>
+              )}
+
+              <Button
+                onClick={handleIngestionSubmit}
+                disabled={ingestionSubmitting}
+                className="w-full sm:w-auto"
+              >
+                {ingestionSubmitting ? "Ingesting…" : "Ingest Resolved Case"}
+              </Button>
+            </div>
+          )}
+        </Card>
+
+        {/* Learning Impact Simulation */}
+        <Card>
+          <button
+            onClick={() => setShowSimulation((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Learning Impact Simulation</span>
+              <span className="text-xs text-muted-foreground">Project coverage and confidence improvement from adding N resolved cases</span>
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showSimulation && "rotate-90")} />
+          </button>
+
+          {showSimulation && (
+            <div className="mt-4 pt-4 border-t border-border space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Specify a region and hypothetical case count to see what calibration state would result — no data is written.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Therapy Area *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cardiology"
+                    value={simForm.therapyArea}
+                    onChange={(e) => setSimForm((f) => ({ ...f, therapyArea: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Probability Bucket *</label>
+                  <select
+                    value={simForm.bucket}
+                    onChange={(e) => setSimForm((f) => ({ ...f, bucket: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {CANONICAL_BUCKETS.map((b) => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Question Type *</label>
+                  <select
+                    value={simForm.questionType}
+                    onChange={(e) => setSimForm((f) => ({ ...f, questionType: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {CANONICAL_QUESTION_TYPES.map((qt) => <option key={qt.type} value={qt.type}>{qt.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Additional Cases (1–50) *</label>
+                  <input
+                    type="number" min="1" max="50" step="1"
+                    value={simForm.additionalCases}
+                    onChange={(e) => setSimForm((f) => ({ ...f, additionalCases: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Assumed Mean Error (optional)</label>
+                  <input
+                    type="number" min="-1" max="1" step="0.01"
+                    placeholder="e.g. -0.12 (defaults to −0.10)"
+                    value={simForm.assumedMeanError}
+                    onChange={(e) => setSimForm((f) => ({ ...f, assumedMeanError: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  />
+                </div>
+              </div>
+
+              <Button onClick={handleSimRun} disabled={simRunning} className="w-full sm:w-auto">
+                {simRunning ? "Simulating…" : "Run Simulation"}
+              </Button>
+
+              {simResult && !simResult.error && (
+                <div className="space-y-3 pt-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg border border-border bg-muted/10">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Current State</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between"><span className="text-muted-foreground">Local n</span><span className="font-mono font-bold">{simResult.currentState.localN}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Global n</span><span className="font-mono">{simResult.currentState.globalN}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Fallback</span><span className="font-mono capitalize">{simResult.currentState.fallbackLevel.replace(/_/g, " ")}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Confidence</span><span className="font-mono capitalize">{simResult.currentState.confidenceLevel}</span></div>
+                        {simResult.currentState.currentMeanError !== null && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">Mean error</span><span className="font-mono">{(simResult.currentState.currentMeanError * 100).toFixed(2)}pp</span></div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-2">Projected (+{simResult.input.additionalCases} cases)</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between"><span className="text-muted-foreground">Local n</span><span className="font-mono font-bold text-primary">{simResult.projectedState.localN}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Global n</span><span className="font-mono">{simResult.projectedState.globalN}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Fallback</span><span className="font-mono capitalize">{simResult.projectedState.fallbackLevel.replace(/_/g, " ")}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Confidence</span><span className="font-mono capitalize">{simResult.projectedState.confidenceLevel}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Mean error</span><span className="font-mono">{(simResult.projectedState.assumedMeanError * 100).toFixed(2)}pp</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "Correction Threshold", ok: simResult.correctionThresholdReached },
+                      { label: "Medium Confidence", ok: simResult.mediumConfidenceReached },
+                      { label: "High Confidence", ok: simResult.highConfidenceReached },
+                    ].map((item) => (
+                      <div key={item.label} className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium",
+                        item.ok ? "border-green-500/30 bg-green-500/5 text-green-700" : "border-border bg-muted/10 text-muted-foreground"
+                      )}>
+                        {item.ok
+                          ? <CheckCircle className="w-3.5 h-3.5" />
+                          : <XCircle className="w-3.5 h-3.5 opacity-40" />
+                        }
+                        {item.label}
+                      </div>
+                    ))}
+                  </div>
+
+                  {simResult.casesNeededForThreshold > 0 && (
+                    <p className="text-xs text-amber-600 font-semibold">+{simResult.casesNeededForThreshold} more case(s) still needed for correction threshold after this addition.</p>
+                  )}
+                  {simResult.casesNeededForMediumConfidence > 0 && (
+                    <p className="text-xs text-primary font-semibold">+{simResult.casesNeededForMediumConfidence} more case(s) still needed for medium confidence after this addition.</p>
+                  )}
+
+                  <p className="text-xs text-muted-foreground italic border-t border-border pt-2">{simResult.interpretation}</p>
+                </div>
+              )}
+
+              {simResult?.error && (
+                <div className="flex items-start gap-2 p-2.5 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+                  <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  {simResult.error}
+                </div>
+              )}
             </div>
           )}
         </Card>

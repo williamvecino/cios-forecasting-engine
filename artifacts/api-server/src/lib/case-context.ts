@@ -85,13 +85,18 @@ export async function enrichCalibrationWithMetadata(
     const strategicQuestion = ctx.strategicQuestion ?? caseData?.strategicQuestion ?? null;
     const caseMode: "demo" | "live" = ctx.caseMode ?? (caseData?.isDemo === "true" ? "demo" : "live");
 
+    // Prefer explicit questionType from _caseContext (ingested rows set this directly),
+    // then fall back to deriving it from the strategic question text
+    const explicitQuestionType = ctx.questionType as ReturnType<typeof deriveQuestionType> | undefined;
+    const questionType = explicitQuestionType ?? deriveQuestionType(strategicQuestion);
+
     return {
       ...row,
       therapeuticArea,
       diseaseState,
       specialty,
       strategicQuestion,
-      questionType: deriveQuestionType(strategicQuestion),
+      questionType,
       caseMode,
     };
   });
