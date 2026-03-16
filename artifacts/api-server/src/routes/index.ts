@@ -16,6 +16,7 @@ import discoverRouter from "./discover.js";
 import simulationRouter from "./simulation.js";
 import intelligenceRouter from "./intelligence.js";
 import portfolioRouter from "./portfolio.js";
+import decisionPathRouter from "./decision-paths.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(discoverRouter);
 router.use(simulationRouter);
 router.use(intelligenceRouter);
 router.use(portfolioRouter);
+router.use(decisionPathRouter);
 
 export default router;

@@ -31,6 +31,7 @@ import {
   EyeOff,
   Crosshair,
   LayoutGrid,
+  Activity,
 } from "lucide-react";
 import {
   BarChart,
@@ -189,6 +190,14 @@ export default function ForecastResults() {
   const { data: traceData } = useQuery<any>({
     queryKey: [`/api/cases/${caseId}/trace`],
     queryFn: () => fetch(`/api/cases/${caseId}/trace`).then((r) => r.json()),
+    enabled: Boolean(caseId),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const { data: decisionPaths } = useQuery<any>({
+    queryKey: [`/api/cases/${caseId}/decision-paths`],
+    queryFn: () => fetch(`/api/cases/${caseId}/decision-paths`, { method: "POST" }).then((r) => r.json()),
     enabled: Boolean(caseId),
     staleTime: 60_000,
     retry: false,
@@ -841,6 +850,76 @@ export default function ForecastResults() {
                     </div>
                   );
                 })}
+            </div>
+          </Card>
+        )}
+
+        {/* HCP Decision Paths */}
+        {decisionPaths?.archetypes && (
+          <Card>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <Activity className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">HCP Decision Paths</span>
+              <span className="text-xs text-muted-foreground">
+                {decisionPaths.summary.activated}/{decisionPaths.summary.totalArchetypes} archetypes activated
+                {decisionPaths.summary.nearThreshold > 0 && ` · ${decisionPaths.summary.nearThreshold} near threshold`}
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-4">
+              How different HCP personas interpret and act on the current signal environment
+            </p>
+            <div className="space-y-3">
+              {decisionPaths.archetypes.map((arch: any) => {
+                const pct = Math.round(arch.convictionLevel * 100);
+                const threshPct = Math.round(arch.actionThreshold * 100);
+                const crossed = arch.actionThresholdCrossed;
+                const near = !crossed && arch.convictionLevel >= arch.actionThreshold - 0.10;
+                return (
+                  <div key={arch.archetypeId} className={cn(
+                    "p-3 rounded-lg border",
+                    crossed ? "border-emerald-500/30 bg-emerald-500/5" : near ? "border-amber-400/30 bg-amber-400/5" : "border-border bg-muted/5"
+                  )}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold">{arch.archetypeName}</span>
+                        {crossed && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-600 border-emerald-500/30 uppercase tracking-wider">
+                            Activated
+                          </span>
+                        )}
+                        {near && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-amber-400/10 text-amber-600 border-amber-400/30 uppercase tracking-wider">
+                            Near threshold
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {pct}% / {threshPct}%
+                      </span>
+                    </div>
+                    <div className="relative h-2.5 bg-muted/40 rounded-full overflow-visible mb-2">
+                      <div
+                        className={cn(
+                          "absolute inset-y-0 left-0 rounded-full transition-all",
+                          crossed ? "bg-emerald-500" : near ? "bg-amber-400" : "bg-blue-400/60"
+                        )}
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                      <div
+                        className="absolute top-[-3px] w-0.5 h-[16px] bg-foreground/50 rounded"
+                        style={{ left: `${threshPct}%` }}
+                        title={`Action threshold: ${threshPct}%`}
+                      />
+                    </div>
+                    <p className="text-[11px] leading-relaxed mb-1">
+                      <span className="font-medium">{arch.likelyBehavior}</span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      {arch.rationale}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         )}

@@ -142,7 +142,18 @@ net_actor_translation = sum(net_actor_effect[all actors])
 - `routes/calibration.ts` (~530 lines) — correction logic, core calibration endpoints: log listing, outcome recording, stats, error-patterns, LR/bucket corrections listing, diagnostics, validation-report, coverage-map, compute-corrections trigger
 - `routes/learning.ts` (~660 lines) — learning infrastructure endpoints: expansion-targets, acquisition-plan, question-type-taxonomy, resolved-case ingestion, impact-simulation
 - `lib/calibration-utils.ts` (~200 lines) — shared calibration lib: BUCKETS, getBucket, getLrCorrections, getBucketCorrections, computeDecay, computeAndSaveCorrections (+ internal LR/bucket recomputation), correction thresholds
+- `routes/decision-paths.ts` — Decision-Path Actor Modeling v1: POST /api/cases/:caseId/decision-paths, GET /api/decision-paths/archetypes
+- `lib/decision-path-engine.ts` — HCP archetype definitions + conviction computation engine (pure, no DB writes)
 - No route-to-route imports — shared logic lives in `lib/` modules
+
+## Decision-Path Actor Modeling v1
+- **5 HCP archetypes**: Evidence-Driven Adopter, Guideline Follower, Peer-Influenced Pragmatist, Risk-Averse Conservative, Access-Sensitive Prescriber
+- Each archetype has: signal sensitivity profile (weights per signal type), hesitation rule (friction triggers + multiplier), action threshold, adoption implication
+- **Decision flow**: signals → LR-based belief shift (magnitude from LR, sign from LR direction) → sigmoid conviction scaling (log-odds accumulation with 0.6 scaling factor) → threshold comparison → behavior generation
+- **Conviction model**: base prior log-odds -0.62 (~35%), accumulated weighted LR shifts scaled through logistic function for natural [0,1] bounding
+- **Friction**: negative-direction signals matching archetype's friction triggers have additional friction applied (frictionMultiplier × |rawShift|)
+- **Frontend**: HCP Decision Paths card on forecast page between Stakeholder Dynamics and Forecast Trace
+- **Separation**: completely separate from forecast-engine.ts; does not modify forecast math, calibration, confidence scoring, or portfolio
 
 ## Learning Layer (Concrete, not vague AI)
 1. **Case Memory**: `case_library` table stores completed cases with signal mix (JSONB), agent pattern, outcome notes, final probability
