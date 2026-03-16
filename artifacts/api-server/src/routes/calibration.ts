@@ -4,6 +4,7 @@ import { calibrationLogTable, lrCorrectionsTable, bucketCorrectionsTable, casesT
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { enrichCalibrationWithMetadata, deriveQuestionType } from "../lib/case-context.js";
+import { getBucket, getLrCorrections, getBucketCorrections, BUCKETS } from "../lib/calibration-utils.js";
 
 const router = Router();
 
@@ -14,39 +15,6 @@ const MAX_CORRECTION = 0.20;
 const MIN_BUCKET_SAMPLE = 3;
 const BUCKET_THRESHOLD = 0.08;
 const MAX_BUCKET_CORRECTION_PP = 0.15;
-
-// ── Probability buckets ──────────────────────────────────────────────────────
-const BUCKETS = [
-  { label: "0.40-0.60", min: 0.40, max: 0.60 },
-  { label: "0.60-0.75", min: 0.60, max: 0.75 },
-  { label: "0.75-0.90", min: 0.75, max: 0.90 },
-  { label: "0.90+",     min: 0.90, max: 1.01 },
-];
-
-export function getBucket(p: number): string | null {
-  const b = BUCKETS.find((bk) => p >= bk.min && p < bk.max);
-  return b ? b.label : null;
-}
-
-// ── Exported helper: { signalType -> correctionFactor } ─────────────────────
-export async function getLrCorrections(): Promise<Record<string, number>> {
-  const rows = await db.select().from(lrCorrectionsTable);
-  const map: Record<string, number> = {};
-  for (const row of rows) {
-    map[row.signalType] = row.correctionFactor;
-  }
-  return map;
-}
-
-// ── Exported helper: { bucket -> correctionPp } ──────────────────────────────
-export async function getBucketCorrections(): Promise<Record<string, number>> {
-  const rows = await db.select().from(bucketCorrectionsTable);
-  const map: Record<string, number> = {};
-  for (const row of rows) {
-    map[row.bucket] = row.correctionPp ?? 0;
-  }
-  return map;
-}
 
 // ── Internal: recompute signal-type LR corrections ──────────────────────────
 async function computeAndSaveLrCorrections(): Promise<{ updated: string[]; skipped: string[] }> {

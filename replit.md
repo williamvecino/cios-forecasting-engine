@@ -70,6 +70,12 @@ net_actor_translation = sum(net_actor_effect[all actors])
   - `forecast-engine.ts` — Core Bayesian calculation
   - `pharma-logic.ts` — PharmaLogic 4-table modifier system
   - `analog-engine.ts` — Analog case similarity scoring
+  - `calibration-utils.ts` — Shared calibration utilities (getBucket, getLrCorrections, getBucketCorrections, BUCKETS, computeDecay, DECAY_LAMBDA)
+  - `calibration-fallback.ts` — Hierarchical calibration fallback (local→global→signal_type→raw)
+  - `case-context.ts` — Question type derivation, metadata enrichment
+  - `agent-engine.ts` — 7-archetype stakeholder reaction simulation
+  - `question-engine.ts` — Strategic intelligence question generation
+  - `challenge-engine.ts` — Adversarial forecast critique
   - `seed-data.ts` — Workbook sample data (ARIKAYCE/NTM)
 
 ## Database Tables

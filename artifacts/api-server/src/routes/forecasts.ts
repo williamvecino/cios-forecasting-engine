@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runForecastEngine } from "../lib/forecast-engine.js";
 import { simulateAgents } from "../lib/agent-engine.js";
-import { getLrCorrections, getBucket } from "./calibration.js";
+import { getLrCorrections, getBucket, computeDecay } from "../lib/calibration-utils.js";
 import { computeHierarchicalCalibration, computeSegmentConfidence } from "../lib/calibration-fallback.js";
 import { deriveQuestionType } from "../lib/case-context.js";
 
@@ -134,22 +134,5 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
 
   res.json({ ...finalResult, forecastId, savedAt: new Date().toISOString() });
 });
-
-// Freshness decay factor: exp(-λ × ageMonths)
-const DECAY_LAMBDA: Record<string, number> = {
-  "Phase III clinical":       0.06,
-  "Guideline inclusion":      0.05,
-  "Regulatory / clinical":    0.08,
-  "KOL endorsement":          0.18,
-  "Access / commercial":      0.22,
-  "Competitor counteraction": 0.25,
-  "Operational friction":     0.20,
-  "Field intelligence":       0.35,
-};
-
-function computeDecay(signalType: string, ageMonths: number): number {
-  const lambda = DECAY_LAMBDA[signalType] ?? 0.15;
-  return Math.exp(-lambda * ageMonths);
-}
 
 export default router;

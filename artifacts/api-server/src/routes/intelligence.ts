@@ -4,7 +4,7 @@ import { casesTable, signalsTable, calibrationLogTable, caseLibraryTable, bucket
 import { eq, desc } from "drizzle-orm";
 import { generateStrategicQuestions } from "../lib/question-engine.js";
 import { generateForecastChallenge } from "../lib/challenge-engine.js";
-import { getBucket } from "./calibration.js";
+import { getBucket } from "../lib/calibration-utils.js";
 import { deriveQuestionType, getCoverageNote } from "../lib/case-context.js";
 import {
   computeHierarchicalCalibration,
