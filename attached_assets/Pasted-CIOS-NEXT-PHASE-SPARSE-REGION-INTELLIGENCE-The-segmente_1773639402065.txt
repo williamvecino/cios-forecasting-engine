@@ -1,0 +1,80 @@
+CIOS NEXT PHASE — SPARSE-REGION INTELLIGENCE
+
+The segmented calibration phase is complete.
+Do not add article workflows.
+Do not redesign the platform.
+
+The next priority is improving forecast discipline in sparse or immature calibration regions.
+
+Build in this order:
+
+1. HIERARCHICAL CALIBRATION FALLBACK
+Add an explicit fallback hierarchy for calibration interpretation when local segment coverage is sparse:
+
+local segment bucket
+→ global bucket
+→ signal-type correction only
+→ raw output
+
+Requirements:
+- show exactly which fallback level was used
+- do not pretend local calibration exists when sample size is inadequate
+- keep the logic inspectable and deterministic
+
+Goal:
+Reduce false precision in low-data regions while preserving useful correction in mature regions.
+
+2. SEGMENT CONFIDENCE SCORE
+For each forecast, generate a structured confidence-in-calibration score using:
+- local segment sample size
+- bucket maturity
+- correction stability
+- direction-flip history
+- similarity of current case to resolved calibrated cases
+
+Output:
+- calibration confidence = high / medium / low
+- short reason
+- keep separate from forecast probability
+
+Goal:
+Separate “predicted probability” from “how much to trust calibration around this case.”
+
+3. COVERAGE-AWARE TRACE ENRICHMENT
+Extend Forecast Trace to show:
+- local region maturity
+- fallback level used
+- confidence-in-calibration score
+- nearest calibrated segment context
+
+Goal:
+Make sparse-region behavior visible at the forecast level.
+
+4. EXPANSION TARGETS PANEL
+Add a diagnostics panel identifying the highest-priority case-library gaps:
+- therapy areas most needing resolved cases
+- buckets most needing resolved cases
+- question types most needing resolved cases
+
+Goal:
+Turn current weakness into explicit data-acquisition priorities.
+
+5. VALIDATION ROUND 4
+Run validation focused on sparse vs mature regions and show:
+- results in mature regions
+- results in sparse regions
+- whether fallback logic reduces instability
+- whether confidence scoring aligns with real coverage maturity
+
+Before building, show:
+1. architecture changes
+2. files/modules to modify
+3. data model changes
+4. validation plan
+
+Then proceed in this order:
+1. hierarchical fallback
+2. segment confidence score
+3. trace enrichment
+4. expansion targets
+5. validation round 4

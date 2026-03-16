@@ -94,9 +94,16 @@ export default function Calibration() {
     staleTime: 30_000,
   });
 
+  const { data: expansionTargets } = useQuery<any>({
+    queryKey: ["/api/calibration/expansion-targets"],
+    queryFn: () => fetch("/api/calibration/expansion-targets").then((r) => r.json()),
+    staleTime: 30_000,
+  });
+
   const [showDiagnostics, setShowDiagnostics] = useState(true);
   const [showValidation, setShowValidation] = useState(false);
   const [showCoverageMap, setShowCoverageMap] = useState(false);
+  const [showExpansionTargets, setShowExpansionTargets] = useState(false);
 
   const errorPatterns = activePatternTab === "signal_type"
     ? (errorData?.signalPatterns ?? [])
@@ -983,6 +990,104 @@ export default function Calibration() {
               <p className="text-[10px] text-muted-foreground">
                 Total forecasts tracked: <strong className="text-foreground">{coverageMap.totalForecasts}</strong> · Resolved cases: <strong className="text-foreground">{coverageMap.totalResolvedCases}</strong>
               </p>
+            </div>
+          )}
+        </Card>
+
+        {/* Expansion Targets */}
+        <Card>
+          <button
+            onClick={() => setShowExpansionTargets((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-destructive" />
+              <span className="text-sm font-semibold">Expansion Targets</span>
+              <span className="text-xs text-muted-foreground">Highest-priority case-library gaps by therapy area, bucket, question type</span>
+              {expansionTargets?.summary?.criticalGaps > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-destructive/10 text-destructive border-destructive/30 uppercase tracking-wider">
+                  {expansionTargets.summary.criticalGaps} critical gap{expansionTargets.summary.criticalGaps !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showExpansionTargets && "rotate-90")} />
+          </button>
+
+          {showExpansionTargets && expansionTargets && (
+            <div className="mt-4 pt-4 border-t border-border space-y-5">
+              {/* Summary row */}
+              <div className="flex flex-wrap gap-4 text-xs">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Total Forecasts</span>
+                  <span className="font-mono font-bold">{expansionTargets.summary.totalForecasts}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Resolved</span>
+                  <span className="font-mono font-bold text-success">{expansionTargets.summary.totalResolved}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Unresolved</span>
+                  <span className="font-mono font-bold text-amber-600">{expansionTargets.summary.totalUnresolved}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Resolution Rate</span>
+                  <span className="font-mono font-bold">{Math.round(expansionTargets.summary.resolutionRate * 100)}%</span>
+                </div>
+              </div>
+
+              {/* Gap score bar helper */}
+              {(() => {
+                const GapBar = ({ score, n, resolved }: { score: number; n: number; resolved: number }) => {
+                  const pct = Math.round(score * 100);
+                  const barCls = pct >= 80 ? "bg-destructive" : pct >= 50 ? "bg-amber-500" : "bg-blue-500";
+                  return (
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex-1 h-1.5 rounded-full bg-muted/30 overflow-hidden max-w-24">
+                        <div className={cn("h-full rounded-full", barCls)} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground shrink-0">{pct}% gap</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{resolved}/{n} resolved</span>
+                    </div>
+                  );
+                };
+
+                const GapTable = ({ title, rows, dimKey }: { title: string; rows: any[]; dimKey: string }) => {
+                  if (!rows || rows.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{title}</p>
+                      <div className="space-y-1.5">
+                        {rows.map((row: any, i: number) => (
+                          <div key={i} className={cn(
+                            "flex items-center gap-3 p-2.5 rounded-lg border text-xs",
+                            row.resolvedCases === 0
+                              ? "border-destructive/30 bg-destructive/5"
+                              : "border-border bg-background"
+                          )}>
+                            <div className="min-w-0 w-40 shrink-0">
+                              <span className="font-semibold leading-snug capitalize line-clamp-1">
+                                {(row[dimKey] as string)?.replace(/_/g, " ") ?? "—"}
+                              </span>
+                              {row.resolvedCases === 0 && (
+                                <span className="text-[10px] text-destructive font-semibold">no resolved cases</span>
+                              )}
+                            </div>
+                            <GapBar score={row.gapScore} n={row.totalForecasts} resolved={row.resolvedCases} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <>
+                    <GapTable title="By Therapy Area" rows={expansionTargets.byTherapyArea} dimKey="therapyArea" />
+                    <GapTable title="By Probability Bucket" rows={expansionTargets.byBucket} dimKey="bucket" />
+                    <GapTable title="By Question Type" rows={expansionTargets.byQuestionType} dimKey="questionType" />
+                  </>
+                );
+              })()}
             </div>
           )}
         </Card>

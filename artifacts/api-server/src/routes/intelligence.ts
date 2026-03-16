@@ -6,6 +6,11 @@ import { generateStrategicQuestions } from "../lib/question-engine.js";
 import { generateForecastChallenge } from "../lib/challenge-engine.js";
 import { getBucket } from "./calibration.js";
 import { deriveQuestionType, getCoverageNote } from "../lib/case-context.js";
+import {
+  computeHierarchicalCalibration,
+  computeSegmentConfidence,
+  findNearestCalibratedSegment,
+} from "../lib/calibration-fallback.js";
 
 const router = Router();
 
@@ -47,7 +52,6 @@ router.get("/cases/:caseId/questions", async (req, res) => {
     .from(signalsTable)
     .where(eq(signalsTable.caseId, req.params.caseId));
 
-  // Fetch bucket mean error for the current forecast probability
   const bucket = getBucket(snapshot.currentProbability ?? 0);
   const allBucketRows = await db.select().from(bucketCorrectionsTable);
   const bucketRow = bucket
@@ -90,7 +94,6 @@ router.get("/cases/:caseId/challenge", async (req, res) => {
     .from(signalsTable)
     .where(eq(signalsTable.caseId, req.params.caseId));
 
-  // Get therapy areas of top analogs for this case from the library
   const analogRows = await db
     .select({ therapyArea: caseLibraryTable.therapyArea })
     .from(caseLibraryTable)
@@ -174,7 +177,7 @@ router.get("/cases/:caseId/trace", async (req, res) => {
       }
     : null;
 
-  // ── Analog support — query library for therapy area / specialty matches ──────
+  // ── Analog support ─────────────────────────────────────────────────────────
   const therapyArea = snapshot.therapeuticArea ?? caseRow.therapeuticArea ?? null;
   const specialty = snapshot.specialty ?? caseRow.specialty ?? null;
   const analogLibraryRows = await db.select().from(caseLibraryTable).limit(50);
@@ -235,7 +238,7 @@ router.get("/cases/:caseId/trace", async (req, res) => {
     },
   };
 
-  // ── Fragile assumption (from challenge engine) ─────────────────────────────
+  // ── Fragile assumption ─────────────────────────────────────────────────────
   const analogRows = await db
     .select({ therapyArea: caseLibraryTable.therapyArea })
     .from(caseLibraryTable)
@@ -262,11 +265,26 @@ router.get("/cases/:caseId/trace", async (req, res) => {
     caseMode: caseRow.isDemo === "true" ? "demo" : "live",
   };
 
+  // ── Hierarchical calibration + confidence (Sparse-Region Intelligence) ─────
+  const [hierarchicalCalibration, nearestCalibratedSegment] = await Promise.all([
+    // Re-compute from current calibration state so trace is always honest
+    computeHierarchicalCalibration(rawProb, caseRow.therapeuticArea ?? null, questionType),
+    findNearestCalibratedSegment(caseRow.therapeuticArea ?? null, bucket),
+  ]);
+  const calibrationConfidence = await computeSegmentConfidence(
+    hierarchicalCalibration,
+    caseRow.therapeuticArea ?? null,
+  );
+
   res.json({
     caseId: req.params.caseId,
     forecastProbability: Number((calibProb * 100).toFixed(1)),
     caseContext,
     coverageNote,
+    // Sparse-region intelligence fields
+    hierarchicalCalibration,
+    calibrationConfidence,
+    nearestCalibratedSegment,
     topPositiveDrivers,
     topNegativeDrivers,
     actorBottleneck,

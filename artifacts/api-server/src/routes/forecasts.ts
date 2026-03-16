@@ -5,7 +5,9 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runForecastEngine } from "../lib/forecast-engine.js";
 import { simulateAgents } from "../lib/agent-engine.js";
-import { getLrCorrections, getBucketCorrections, getBucket } from "./calibration.js";
+import { getLrCorrections, getBucket } from "./calibration.js";
+import { computeHierarchicalCalibration, computeSegmentConfidence } from "../lib/calibration-fallback.js";
+import { deriveQuestionType } from "../lib/case-context.js";
 
 const router = Router();
 
@@ -64,22 +66,34 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     agentSimulationResult
   );
 
-  // ── Apply bucket-level probability correction (downstream calibration) ───
-  const bucketCorrections = await getBucketCorrections();
+  // ── Apply hierarchical calibration fallback ──────────────────────────────
   const rawProbability = result.currentProbability;
+  const therapyArea = caseData.therapeuticArea ?? null;
+  const questionType = deriveQuestionType(caseData.strategicQuestion ?? null);
+
+  const hierarchicalCalibration = await computeHierarchicalCalibration(
+    rawProbability,
+    therapyArea,
+    questionType,
+  );
+  const calibrationConfidence = await computeSegmentConfidence(
+    hierarchicalCalibration,
+    therapyArea,
+  );
+  const calibratedProbability = hierarchicalCalibration.calibratedProbability;
+
+  // Keep bucket field for backward compatibility with downstream consumers
   const bucket = getBucket(rawProbability);
-  const bucketCorrectionPp = bucket ? (bucketCorrections[bucket] ?? 0) : 0;
-  const calibratedProbability = bucket && bucketCorrectionPp !== 0
-    ? Math.max(0.01, Math.min(0.99, rawProbability + bucketCorrectionPp))
-    : rawProbability;
 
   const finalResult = {
     ...result,
     currentProbability: calibratedProbability,
     rawProbability,
-    bucketCorrectionApplied: bucketCorrectionPp !== 0
-      ? { bucket, correctionPp: bucketCorrectionPp }
+    bucketCorrectionApplied: hierarchicalCalibration.correctionAppliedPp !== 0
+      ? { bucket, correctionPp: hierarchicalCalibration.correctionAppliedPp }
       : null,
+    hierarchicalCalibration,
+    calibrationConfidence,
     // ── Case context metadata (embedded for validation + trace integrity) ───
     _caseContext: {
       caseId: req.params.caseId,

@@ -694,6 +694,101 @@ router.get("/calibration/coverage-map", async (_req, res) => {
   });
 });
 
+// ── Expansion Targets: highest-priority case-library gaps ────────────────────
+router.get("/calibration/expansion-targets", async (_req, res) => {
+  const [calRows] = await Promise.all([
+    db.select().from(calibrationLogTable),
+  ]);
+
+  // Enrich ALL rows (resolved + unresolved) with metadata
+  const enriched = await enrichCalibrationWithMetadata(calRows);
+
+  // ── By therapy area ───────────────────────────────────────────────────────
+  const taMap: Record<string, { total: number; resolved: number }> = {};
+  for (const r of enriched) {
+    const ta = r.therapeuticArea ?? "Unknown";
+    if (!taMap[ta]) taMap[ta] = { total: 0, resolved: 0 };
+    taMap[ta].total++;
+    if (r.observedOutcome !== null) taMap[ta].resolved++;
+  }
+
+  const byTherapyArea = Object.entries(taMap)
+    .map(([ta, s]) => ({
+      therapyArea: ta,
+      totalForecasts: s.total,
+      resolvedCases: s.resolved,
+      unresolvedCases: s.total - s.resolved,
+      gapScore: s.total > 0 ? Number(((s.total - s.resolved) / s.total).toFixed(2)) : 1,
+    }))
+    .filter((x) => x.unresolvedCases > 0)
+    .sort((a, b) => b.unresolvedCases - a.unresolvedCases || b.gapScore - a.gapScore)
+    .slice(0, 10);
+
+  // ── By probability bucket ─────────────────────────────────────────────────
+  const bucketMapData: Record<string, { total: number; resolved: number }> = {};
+  for (const bk of BUCKETS) bucketMapData[bk.label] = { total: 0, resolved: 0 };
+  for (const r of enriched) {
+    const bk = BUCKETS.find((b) => r.predictedProbability >= b.min && r.predictedProbability < b.max);
+    if (!bk) continue;
+    bucketMapData[bk.label].total++;
+    if (r.observedOutcome !== null) bucketMapData[bk.label].resolved++;
+  }
+
+  const byBucket = Object.entries(bucketMapData)
+    .map(([bk, s]) => ({
+      bucket: bk,
+      totalForecasts: s.total,
+      resolvedCases: s.resolved,
+      unresolvedCases: s.total - s.resolved,
+      gapScore: s.total > 0 ? Number(((s.total - s.resolved) / s.total).toFixed(2)) : 1,
+    }))
+    .sort((a, b) => b.unresolvedCases - a.unresolvedCases || b.gapScore - a.gapScore);
+
+  // ── By question type ──────────────────────────────────────────────────────
+  const qtMap: Record<string, { total: number; resolved: number }> = {};
+  for (const r of enriched) {
+    const qt = r.questionType ?? "other";
+    if (!qtMap[qt]) qtMap[qt] = { total: 0, resolved: 0 };
+    qtMap[qt].total++;
+    if (r.observedOutcome !== null) qtMap[qt].resolved++;
+  }
+
+  const byQuestionType = Object.entries(qtMap)
+    .map(([qt, s]) => ({
+      questionType: qt,
+      totalForecasts: s.total,
+      resolvedCases: s.resolved,
+      unresolvedCases: s.total - s.resolved,
+      gapScore: s.total > 0 ? Number(((s.total - s.resolved) / s.total).toFixed(2)) : 1,
+    }))
+    .filter((x) => x.unresolvedCases > 0)
+    .sort((a, b) => b.unresolvedCases - a.unresolvedCases || b.gapScore - a.gapScore);
+
+  const totalResolved = enriched.filter((r) => r.observedOutcome !== null).length;
+  const totalForecasts = enriched.length;
+  const criticalGaps = [
+    ...byTherapyArea.filter((x) => x.resolvedCases === 0),
+    ...byBucket.filter((x) => x.resolvedCases === 0),
+    ...byQuestionType.filter((x) => x.resolvedCases === 0),
+  ].length;
+
+  res.json({
+    byTherapyArea,
+    byBucket,
+    byQuestionType,
+    summary: {
+      totalForecasts,
+      totalResolved,
+      totalUnresolved: totalForecasts - totalResolved,
+      criticalGaps,
+      resolutionRate: totalForecasts > 0
+        ? Number((totalResolved / totalForecasts).toFixed(2))
+        : 0,
+    },
+    generatedAt: new Date().toISOString(),
+  });
+});
+
 router.post("/calibration/compute-corrections", async (_req, res) => {
   try {
     const result = await computeAndSaveCorrections();

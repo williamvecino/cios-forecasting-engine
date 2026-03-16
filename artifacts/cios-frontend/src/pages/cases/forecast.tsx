@@ -852,10 +852,23 @@ export default function ForecastResults() {
               onClick={() => setShowTrace((v) => !v)}
               className="w-full flex items-center justify-between group"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Crosshair className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 <span className="text-sm font-semibold">Forecast Trace</span>
                 <span className="text-xs text-muted-foreground">Structured audit — exactly why this forecast is {traceData.forecastProbability}%</span>
+                {traceData.calibrationConfidence && (() => {
+                  const lvl = traceData.calibrationConfidence.level;
+                  const cls = lvl === "high"
+                    ? "bg-success/10 text-success border-success/30"
+                    : lvl === "medium"
+                    ? "bg-blue-500/10 text-blue-500 border-blue-500/30"
+                    : "bg-amber-400/10 text-amber-600 border-amber-400/30";
+                  return (
+                    <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider", cls)}>
+                      Cal. confidence: {lvl}
+                    </span>
+                  );
+                })()}
               </div>
               <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showTrace && "rotate-90")} />
             </button>
@@ -1009,6 +1022,113 @@ export default function ForecastResults() {
                           <AlertTriangle className="w-3 h-3" /> Direction flip warning
                         </span>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Hierarchical Calibration Fallback */}
+                {traceData.hierarchicalCalibration && (
+                  <div className="p-3.5 rounded-xl border border-border bg-background space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Hierarchical Calibration Fallback</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(() => {
+                        const lvl = traceData.hierarchicalCalibration.fallbackLevel as string;
+                        const labelMap: Record<string, string> = {
+                          local_segment: "Local Segment",
+                          global_bucket: "Global Bucket",
+                          signal_type_only: "Signal-Type Only",
+                          raw: "Raw (no correction)",
+                        };
+                        const clsMap: Record<string, string> = {
+                          local_segment: "bg-success/10 text-success border-success/30",
+                          global_bucket: "bg-blue-500/10 text-blue-500 border-blue-500/30",
+                          signal_type_only: "bg-amber-400/10 text-amber-600 border-amber-400/30",
+                          raw: "bg-destructive/10 text-destructive border-destructive/30",
+                        };
+                        return (
+                          <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", clsMap[lvl] ?? "bg-muted/20 border-border text-muted-foreground")}>
+                            Level: {labelMap[lvl] ?? lvl}
+                          </span>
+                        );
+                      })()}
+                      <span className="text-[10px] text-muted-foreground">
+                        Local n={traceData.hierarchicalCalibration.localSegmentN} · Global n={traceData.hierarchicalCalibration.globalBucketN}
+                      </span>
+                      {traceData.hierarchicalCalibration.correctionAppliedPp !== 0 && (
+                        <span className={cn(
+                          "text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border",
+                          traceData.hierarchicalCalibration.correctionAppliedPp < 0
+                            ? "bg-amber-400/10 border-amber-400/30 text-amber-600"
+                            : "bg-blue-500/10 border-blue-500/30 text-blue-500"
+                        )}>
+                          {traceData.hierarchicalCalibration.correctionAppliedPp > 0 ? "+" : ""}{traceData.hierarchicalCalibration.correctionAppliedPp}pp applied
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">{traceData.hierarchicalCalibration.fallbackReason}</p>
+                  </div>
+                )}
+
+                {/* Calibration Confidence */}
+                {traceData.calibrationConfidence && (
+                  <div className="p-3.5 rounded-xl border border-border bg-background">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Calibration Confidence</p>
+                    <div className="flex flex-wrap items-start gap-3">
+                      {(() => {
+                        const lvl = traceData.calibrationConfidence.level;
+                        const cls = lvl === "high"
+                          ? "bg-success/10 text-success border-success/30"
+                          : lvl === "medium"
+                          ? "bg-blue-500/10 text-blue-500 border-blue-500/30"
+                          : "bg-amber-400/10 text-amber-600 border-amber-400/30";
+                        return (
+                          <span className={cn("text-sm font-bold px-2 py-1 rounded border uppercase tracking-wider shrink-0", cls)}>
+                            {lvl}
+                          </span>
+                        );
+                      })()}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-foreground leading-relaxed">{traceData.calibrationConfidence.reason}</p>
+                        <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                          <span>Local segment n={traceData.calibrationConfidence.localSegmentN}</span>
+                          <span>Global bucket n={traceData.calibrationConfidence.globalBucketN}</span>
+                          <span>Stable: {traceData.calibrationConfidence.correctionStable ? "yes" : "⚠ no"}</span>
+                          {traceData.calibrationConfidence.caseProfileSimilarity > 0 && (
+                            <span>Profile similarity: {Math.round(traceData.calibrationConfidence.caseProfileSimilarity * 100)}%</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Nearest Calibrated Segment */}
+                {traceData.nearestCalibratedSegment && traceData.hierarchicalCalibration?.fallbackLevel !== "local_segment" && (
+                  <div className="p-3.5 rounded-xl border border-primary/15 bg-primary/3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1.5">Nearest Calibrated Segment</p>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                      <span className="font-semibold">{traceData.nearestCalibratedSegment.therapyArea}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="font-mono text-muted-foreground">bucket {traceData.nearestCalibratedSegment.bucket}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-muted-foreground">n={traceData.nearestCalibratedSegment.n}</span>
+                      {traceData.nearestCalibratedSegment.meanError !== 0 && (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          <span className={cn("font-mono text-[11px]",
+                            traceData.nearestCalibratedSegment.meanError > 0 ? "text-blue-500" : "text-amber-600"
+                          )}>
+                            meanErr {traceData.nearestCalibratedSegment.meanError > 0 ? "+" : ""}{traceData.nearestCalibratedSegment.meanError}pp
+                          </span>
+                        </>
+                      )}
+                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded border",
+                        traceData.nearestCalibratedSegment.relation === "same_therapy_area"
+                          ? "bg-success/10 text-success border-success/30"
+                          : "bg-muted/10 text-muted-foreground border-border"
+                      )}>
+                        {traceData.nearestCalibratedSegment.relation.replace(/_/g, " ")}
+                      </span>
                     </div>
                   </div>
                 )}
