@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import CasesList from "@/pages/cases/index";
 import SignalsRegister from "@/pages/cases/signals";
+import SignalDiscover from "@/pages/cases/discover";
 import ForecastResults from "@/pages/cases/forecast";
 import AnalogRetrieval from "@/pages/cases/analogs";
 import CaseLibrary from "@/pages/case-library/index";
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
       <Route path="/cases/:caseId/signals" component={SignalsRegister} />
+      <Route path="/cases/:caseId/discover" component={SignalDiscover} />
       <Route path="/cases/:caseId/forecast" component={ForecastResults} />
       <Route path="/cases/:caseId/analogs" component={AnalogRetrieval} />
       <Route path="/case-library" component={CaseLibrary} />

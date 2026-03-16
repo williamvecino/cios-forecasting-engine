@@ -1,0 +1,104 @@
+Add a Signal Discovery Layer to CIOS.
+
+Current problem:
+The system depends too much on the analyst to manually identify signals. That risks missing important signals and makes forecast quality depend on expert judgment alone.
+
+Goal:
+CIOS should not only score signals. It should first detect and propose them automatically, then let the analyst confirm, edit, or reject them.
+
+Build the following:
+
+1. Signal Discovery Layer
+Create a module that automatically proposes candidate signals from:
+- pasted text
+- uploaded reports
+- press releases
+- trial summaries
+- conference summaries
+- regulatory updates
+- competitive intelligence notes
+
+2. Candidate Signal Extraction
+When the user pastes a document or summary, the system should extract possible signals such as:
+- clinical evidence
+- safety findings
+- delivery / formulation advantage
+- adherence / convenience advantage
+- physician perception barriers
+- access / payer barriers
+- guideline influence
+- KOL influence
+- competitor actions
+- market concentration / specialist concentration
+- real-world evidence
+- operational / workflow friction
+
+3. Signal Review Workflow
+Create two sections:
+- Detected Signals
+- Confirmed Signals
+
+For each detected signal, the user must be able to:
+- Approve
+- Edit
+- Reject
+
+Only confirmed signals should feed the forecast.
+
+4. Signal Completeness Check
+Before running a forecast, the system should evaluate whether important signal domains are missing.
+
+Example output:
+- Clinical evidence: present
+- Competitive signals: present
+- Access / payer signals: missing
+- Physician perception signals: present
+
+Add a warning such as:
+“Forecast may be incomplete. Important signal domains are missing.”
+
+5. Structural Signal Library
+Build an internal signal library for pharmaceutical / medtech adoption forecasting so the system knows what kinds of signals to look for.
+
+At minimum include:
+- clinical efficacy
+- safety / tolerability
+- delivery / convenience
+- adherence impact
+- physician perception / belief barriers
+- specialist concentration
+- guideline / society endorsement
+- payer / reimbursement
+- hospital / workflow barriers
+- competitor pressure
+- KOL endorsement
+- real-world evidence
+- regulatory status
+- patient segmentation / severity fit
+
+6. Auto-Classification
+When a candidate signal is extracted, the system should automatically classify it into one of the signal categories, but keep it editable by the user.
+
+7. User Experience
+The signal workflow should feel like this:
+
+Case created
+→ user pastes text or uploads a summary
+→ system detects candidate signals
+→ user approves / edits / rejects
+→ signal completeness check runs
+→ confirmed signals feed the forecast
+
+8. Important design rule
+Do not require the analyst to invent all signals manually.
+The system should surface likely signals first, and the analyst should validate them.
+
+9. Output
+After implementation, show me:
+- module architecture
+- signal library categories
+- candidate extraction logic
+- UI flow for detected vs confirmed signals
+- how completeness checks work
+
+This should make CIOS behave more like a true intelligence engine rather than only a manual scoring tool.

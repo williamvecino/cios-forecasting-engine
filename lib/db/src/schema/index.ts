@@ -7,3 +7,4 @@ export * from "./scenarios";
 export * from "./guidance";
 export * from "./field-intelligence";
 export * from "./watchlist";
+export * from "./candidate-signals";

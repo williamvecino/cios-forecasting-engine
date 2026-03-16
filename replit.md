@@ -5,6 +5,15 @@ Disease-agnostic, asset-agnostic, specialty-flexible Bayesian HCP adoption forec
 
 **ARIKAYCE, CardioAsset X, and OncoDevice Y are demo seed cases only — the engine has no brand identity.**
 
+## Key Features
+- **Signal Discovery Layer** — AI-powered extraction of candidate signals from pasted documents (press releases, trial summaries, conference notes, regulatory updates, etc.)
+- **Signal Review Workflow** — Detected → Confirm / Edit / Reject → Confirmed signals auto-feed forecast
+- **Signal Completeness Check** — 14-domain coverage analysis with high-priority warnings before forecast runs
+- **Bayesian Forecast Engine** — Prior × Signal LR Product × Stakeholder Response → Posterior
+- **Actor Behavioral Model** — 6-actor adjustment (KOL, HCP, Payer, Patient, Administrator, Competitor)
+- **Signal Register** — Full CRUD with inline edit (pencil icon) and delete confirm
+- **Calibration** — Outcome tracking with Brier score / mean forecast error
+
 ## Core Formula (from workbook ProbabilityEngine sheet)
 ```
 posterior_odds = prior_odds × signal_LR_product × EXP(net_actor_translation / 2)

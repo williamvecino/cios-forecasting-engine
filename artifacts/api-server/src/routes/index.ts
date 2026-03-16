@@ -11,6 +11,7 @@ import guidanceRouter from "./guidance.js";
 import fieldRouter from "./field.js";
 import watchlistRouter from "./watchlist.js";
 import seedRouter from "./seed.js";
+import discoverRouter from "./discover.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(guidanceRouter);
 router.use(fieldRouter);
 router.use(watchlistRouter);
 router.use(seedRouter);
+router.use(discoverRouter);
 
 export default router;
