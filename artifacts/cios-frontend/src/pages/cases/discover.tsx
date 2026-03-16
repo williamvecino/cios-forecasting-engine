@@ -2,15 +2,28 @@ import { useState, useCallback } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout";
-import { Card, Badge, Button, Label } from "@/components/ui-components";
+import { Card, Badge, Button, Input, Label, Select } from "@/components/ui-components";
 import { cn } from "@/lib/cn";
 import {
-  Sparkles, CheckCircle2, XCircle, Pencil, ChevronDown, ChevronUp,
-  AlertTriangle, BarChart3, Lightbulb, FileText, RotateCcw, Info,
-  TrendingUp, TrendingDown, ShieldCheck, Zap,
+  CheckCircle2, XCircle, Pencil, AlertTriangle, Sparkles,
+  TrendingUp, TrendingDown, Check, X, ChevronRight,
 } from "lucide-react";
 import { useGetCase } from "@workspace/api-client-react";
 import { SIGNAL_TYPES } from "@/lib/lr-config";
+import { lrToStrengthLabel } from "@/lib/lr-config";
+
+const DOCUMENT_TYPES = [
+  "Press release / news",
+  "Phase II / III trial summary",
+  "Conference abstract / presentation",
+  "Payer / formulary update",
+  "Field intelligence report",
+  "Regulatory communication",
+  "Competitive intelligence note",
+  "Real-world evidence summary",
+  "KOL interview / transcript",
+  "Other",
+] as const;
 
 const DOMAIN_LABELS: Record<string, string> = {
   clinical_efficacy: "Clinical Efficacy",
@@ -19,7 +32,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   adherence_impact: "Adherence & Persistence",
   physician_perception: "Physician Perception",
   specialist_concentration: "Specialist Concentration",
-  guideline_endorsement: "Guideline & Society Endorsement",
+  guideline_endorsement: "Guideline Endorsement",
   payer_reimbursement: "Payer & Reimbursement",
   hospital_workflow: "Hospital & Workflow",
   competitor_pressure: "Competitor Pressure",
@@ -28,56 +41,6 @@ const DOMAIN_LABELS: Record<string, string> = {
   regulatory_status: "Regulatory Status",
   patient_segmentation: "Patient Segmentation",
 };
-
-const DOMAIN_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  clinical_efficacy: BarChart3,
-  safety_tolerability: ShieldCheck,
-  delivery_convenience: Zap,
-  adherence_impact: CheckCircle2,
-  physician_perception: Lightbulb,
-  specialist_concentration: BarChart3,
-  guideline_endorsement: FileText,
-  payer_reimbursement: CheckCircle2,
-  hospital_workflow: RotateCcw,
-  competitor_pressure: TrendingDown,
-  kol_endorsement: Sparkles,
-  real_world_evidence: BarChart3,
-  regulatory_status: ShieldCheck,
-  patient_segmentation: Lightbulb,
-};
-
-const DIRECTION_COLORS = {
-  Positive: "bg-success/10 text-success border-success/30",
-  Negative: "bg-destructive/10 text-destructive border-destructive/30",
-};
-
-const STRENGTH_LABELS = ["", "Weak", "Mild", "Moderate", "Strong", "Very Strong"];
-
-function ScoreRow({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-muted-foreground w-20 shrink-0">{label}</span>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => onChange(v)}
-            className={cn(
-              "w-7 h-7 rounded-lg text-xs font-semibold border transition-all",
-              value === v
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-background border-border text-muted-foreground hover:border-primary/50"
-            )}
-          >
-            {v}
-          </button>
-        ))}
-      </div>
-      <span className="text-xs text-muted-foreground">{STRENGTH_LABELS[value]}</span>
-    </div>
-  );
-}
 
 type Candidate = {
   id: string;
@@ -101,196 +64,316 @@ type CoverageItem = {
   priority: string;
 };
 
-function CandidateCard({
+function ScorePills({ value, onChange }: { value: number; onChange?: (v: number) => void }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange?.(v)}
+          disabled={!onChange}
+          className={cn(
+            "w-5 h-5 rounded text-[9px] font-bold border transition-all",
+            v <= value
+              ? "bg-primary/20 border-primary/40 text-primary"
+              : "bg-muted/20 border-border text-muted-foreground/40",
+            onChange && "cursor-pointer hover:border-primary/60"
+          )}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function InlineEditRow({
   candidate,
-  onApprove,
-  onReject,
-  onUpdate,
+  onSave,
+  onCancel,
 }: {
   candidate: Candidate;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  onUpdate: (id: string, patch: Partial<Candidate>) => void;
+  onSave: (patch: Partial<Candidate>) => void;
+  onCancel: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<Partial<Candidate>>({});
-
-  const current = { ...candidate, ...draft };
-  const DomainIcon = DOMAIN_ICONS[current.domain] ?? Lightbulb;
-
-  const commitEdit = () => {
-    if (Object.keys(draft).length > 0) onUpdate(candidate.id, draft);
-    setEditing(false);
-    setDraft({});
-  };
-
-  if (candidate.status === "approved") {
-    return (
-      <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-success/20 bg-success/5">
-        <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-        <p className="text-sm text-muted-foreground flex-1 line-clamp-1">{candidate.signalDescription}</p>
-        <Badge variant="success" className="text-[10px] shrink-0">Confirmed → {candidate.promotedSignalId}</Badge>
-      </div>
-    );
-  }
-
-  if (candidate.status === "rejected") {
-    return (
-      <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-muted/10 opacity-50">
-        <XCircle className="w-4 h-4 text-muted-foreground shrink-0" />
-        <p className="text-sm text-muted-foreground flex-1 line-clamp-1 line-through">{candidate.signalDescription}</p>
-        <Badge variant="secondary" className="text-[10px] shrink-0">Rejected</Badge>
-      </div>
-    );
-  }
+  const [desc, setDesc] = useState(candidate.signalDescription);
+  const [type, setType] = useState(candidate.signalType);
+  const [dir, setDir] = useState(candidate.direction);
+  const [strength, setStrength] = useState(candidate.strengthScore);
+  const [reliability, setReliability] = useState(candidate.reliabilityScore);
 
   return (
-    <div className={cn(
-      "border rounded-2xl transition-all",
-      editing ? "border-primary/30 bg-primary/3" : "border-border bg-card hover:border-border/80"
-    )}>
-      <div className="px-5 py-4">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 p-1.5 rounded-lg bg-muted/30 shrink-0">
-            <DomainIcon className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <span className={cn(
-                "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                DIRECTION_COLORS[current.direction as "Positive" | "Negative"] ?? "bg-muted text-muted-foreground border-border"
-              )}>
-                {current.direction === "Positive" ? "▲" : "▼"} {current.direction}
-              </span>
-              <span className="text-[10px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full">
-                {DOMAIN_LABELS[current.domain] ?? current.domain}
-              </span>
-              <span className="text-[10px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full">
-                {current.signalType}
-              </span>
-            </div>
-            {editing ? (
+    <tr className="bg-primary/3 border-primary/20">
+      <td colSpan={7} className="px-5 py-4">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <Label className="text-xs">Signal intelligence</Label>
               <textarea
-                className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="w-full mt-1 text-sm bg-background border border-border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
                 rows={2}
-                value={draft.signalDescription ?? candidate.signalDescription}
-                onChange={(e) => setDraft((d) => ({ ...d, signalDescription: e.target.value }))}
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
               />
-            ) : (
-              <p className="text-sm leading-relaxed">{current.signalDescription}</p>
-            )}
+            </div>
           </div>
-        </div>
-
-        {editing && (
-          <div className="mt-4 space-y-4 pl-8">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <Label className="text-xs">Classification</Label>
-              <div className="flex flex-wrap gap-1 mt-1.5">
+              <Select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="mt-1 text-xs w-full"
+              >
                 {SIGNAL_TYPES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setDraft((d) => ({ ...d, signalType: t }))}
-                    className={cn(
-                      "px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all",
-                      (draft.signalType ?? candidate.signalType) === t
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background border-border text-muted-foreground hover:border-primary/40"
-                    )}
-                  >
-                    {t}
-                  </button>
+                  <option key={t} value={t}>{t}</option>
                 ))}
-              </div>
+              </Select>
             </div>
-
             <div>
-              <Label className="text-xs">Effect direction</Label>
+              <Label className="text-xs">Direction</Label>
               <div className="flex gap-2 mt-1.5">
-                {["Positive", "Negative"].map((dir) => (
+                {["Positive", "Negative"].map((d) => (
                   <button
-                    key={dir}
+                    key={d}
                     type="button"
-                    onClick={() => setDraft((d) => ({ ...d, direction: dir }))}
+                    onClick={() => setDir(d)}
                     className={cn(
-                      "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border transition-all",
-                      (draft.direction ?? candidate.direction) === dir
-                        ? dir === "Positive"
+                      "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                      dir === d
+                        ? d === "Positive"
                           ? "bg-success/10 border-success/40 text-success"
                           : "bg-destructive/10 border-destructive/40 text-destructive"
                         : "bg-background border-border text-muted-foreground"
                     )}
                   >
-                    {dir === "Positive" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                    {dir}
+                    {d === "Positive" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {d}
                   </button>
                 ))}
               </div>
             </div>
-
-            <ScoreRow
-              label="Impact"
-              value={Number(draft.strengthScore ?? candidate.strengthScore)}
-              onChange={(v) => setDraft((d) => ({ ...d, strengthScore: v }))}
-            />
-            <ScoreRow
-              label="Reliability"
-              value={Number(draft.reliabilityScore ?? candidate.reliabilityScore)}
-              onChange={(v) => setDraft((d) => ({ ...d, reliabilityScore: v }))}
-            />
-
-            <div className="flex gap-3 pt-2">
-              <Button size="sm" onClick={commitEdit}>Save changes</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setDraft({}); }}>Cancel</Button>
+            <div className="space-y-2">
+              <div>
+                <Label className="text-xs">Impact</Label>
+                <div className="mt-1"><ScorePills value={strength} onChange={setStrength} /></div>
+              </div>
+              <div>
+                <Label className="text-xs">Reliability</Label>
+                <div className="mt-1"><ScorePills value={reliability} onChange={setReliability} /></div>
+              </div>
             </div>
           </div>
-        )}
-
-        {!editing && (
-          <div className="flex items-center gap-2 mt-3 pl-8">
-            <span className="text-[10px] text-muted-foreground">
-              Impact {current.strengthScore}/5 · Reliability {current.reliabilityScore}/5 · LR {current.likelihoodRatio?.toFixed(2)}
-            </span>
+          <div className="flex gap-2 pt-1 border-t border-border">
+            <Button
+              size="sm"
+              onClick={() => onSave({ signalDescription: desc, signalType: type, direction: dir, strengthScore: strength, reliabilityScore: reliability })}
+              className="h-7 px-3 text-xs gap-1"
+            >
+              <Check className="w-3 h-3" /> Save
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onCancel} className="h-7 px-3 text-xs gap-1">
+              <X className="w-3 h-3" /> Cancel
+            </Button>
           </div>
-        )}
-      </div>
-
-      {!editing && (
-        <div className="px-5 pb-4 flex items-center gap-2 pl-14">
-          <Button
-            size="sm"
-            onClick={() => onApprove(candidate.id)}
-            className="bg-success/10 text-success border border-success/30 hover:bg-success/20 h-8 px-3 text-xs font-semibold"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Confirm
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setEditing(true)}
-            className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Pencil className="w-3 h-3 mr-1" /> Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onReject(candidate.id)}
-            className="h-8 px-3 text-xs text-destructive/70 hover:text-destructive"
-          >
-            <XCircle className="w-3 h-3 mr-1" /> Reject
-          </Button>
         </div>
-      )}
+      </td>
+    </tr>
+  );
+}
+
+function CandidateTableSection({
+  title,
+  candidates,
+  onApprove,
+  onReject,
+  onUpdate,
+  showActions,
+  emptyMessage,
+}: {
+  title: string;
+  candidates: Candidate[];
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  onUpdate?: (id: string, patch: Partial<Candidate>) => void;
+  showActions: boolean;
+  emptyMessage?: string;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
+
+  if (candidates.length === 0 && !emptyMessage) return null;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2 px-1">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+        <span className="text-xs text-muted-foreground">({candidates.length})</span>
+      </div>
+      <Card noPadding>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/20 border-b border-border">
+              <tr>
+                <th className="px-5 py-3 font-semibold">Domain</th>
+                <th className="px-5 py-3 font-semibold">Intelligence</th>
+                <th className="px-5 py-3 font-semibold">Classification</th>
+                <th className="px-5 py-3 font-semibold text-center">Direction</th>
+                <th className="px-5 py-3 font-semibold text-center">Impact / Reliability</th>
+                <th className="px-5 py-3 font-semibold text-right">Suggested weight</th>
+                {showActions && <th className="px-4 py-3 w-28" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {candidates.length === 0 && emptyMessage && (
+                <tr>
+                  <td colSpan={showActions ? 7 : 6} className="px-5 py-8 text-center text-muted-foreground text-xs">
+                    {emptyMessage}
+                  </td>
+                </tr>
+              )}
+              {candidates.map((c) => (
+                editingId === c.id ? (
+                  <InlineEditRow
+                    key={c.id}
+                    candidate={c}
+                    onSave={(patch) => {
+                      onUpdate?.(c.id, patch);
+                      setEditingId(null);
+                    }}
+                    onCancel={() => setEditingId(null)}
+                  />
+                ) : (
+                  <tr key={c.id} className={cn(
+                    "group transition-colors",
+                    c.status === "pending" && "hover:bg-muted/20",
+                    c.status === "rejected" && "opacity-50"
+                  )}>
+                    <td className="px-5 py-3">
+                      <span className="text-xs font-medium text-muted-foreground bg-muted/40 px-2 py-1 rounded-full whitespace-nowrap">
+                        {DOMAIN_LABELS[c.domain] ?? c.domain}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 max-w-xs">
+                      <p className={cn("text-sm leading-snug line-clamp-2", c.status === "rejected" && "line-through")}>
+                        {c.signalDescription}
+                      </p>
+                      {c.status === "approved" && c.promotedSignalId && (
+                        <span className="text-[10px] text-success font-mono mt-0.5 block">→ {c.promotedSignalId}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="text-xs text-muted-foreground">{c.signalType}</span>
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      <span className={cn(
+                        "inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full",
+                        c.direction === "Positive"
+                          ? "bg-success/10 text-success"
+                          : "bg-destructive/10 text-destructive"
+                      )}>
+                        {c.direction === "Positive"
+                          ? <TrendingUp className="w-3 h-3" />
+                          : <TrendingDown className="w-3 h-3" />}
+                        {c.direction}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <ScorePills value={c.strengthScore} />
+                        <ScorePills value={c.reliabilityScore} />
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <span className={cn(
+                        "text-xs font-semibold",
+                        lrToStrengthLabel(c.likelihoodRatio, c.direction).color
+                      )}>
+                        {lrToStrengthLabel(c.likelihoodRatio, c.direction).label.split(" — ")[0]}
+                      </span>
+                    </td>
+                    {showActions && (
+                      <td className="px-4 py-3 text-right">
+                        {c.status === "pending" && (
+                          confirmRejectId === c.id ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className="text-[10px] text-destructive font-medium whitespace-nowrap">Reject?</span>
+                              <button
+                                onClick={() => { onReject?.(c.id); setConfirmRejectId(null); }}
+                                className="text-[10px] font-semibold text-destructive hover:underline"
+                              >Yes</button>
+                              <button
+                                onClick={() => setConfirmRejectId(null)}
+                                className="text-[10px] text-muted-foreground hover:text-foreground"
+                              >Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => onApprove?.(c.id)}
+                                title="Confirm signal"
+                                className="opacity-30 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-success hover:bg-success/10 transition-all"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingId(c.id)}
+                                title="Edit before confirming"
+                                className="opacity-30 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmRejectId(c.id)}
+                                title="Reject signal"
+                                className="opacity-30 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )
+                        )}
+                        {c.status === "approved" && (
+                          <Badge variant="success" className="text-[10px]">Confirmed</Badge>
+                        )}
+                        {c.status === "rejected" && (
+                          <Badge variant="secondary" className="text-[10px]">Rejected</Badge>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                )
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }
 
-function CompletenessPanel({ caseId }: { caseId: string }) {
-  const [expanded, setExpanded] = useState(false);
+export default function SignalDiscover() {
+  const [, params] = useRoute("/cases/:caseId/discover");
+  const caseId = params?.caseId ?? "";
 
-  const { data } = useQuery<{
+  const [docType, setDocType] = useState<string>(DOCUMENT_TYPES[0]);
+  const [docSource, setDocSource] = useState("");
+  const [docContent, setDocContent] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [lastCount, setLastCount] = useState<number | null>(null);
+
+  const queryClient = useQueryClient();
+  const { data: caseData } = useGetCase(caseId);
+
+  const { data: candidates = [] } = useQuery<Candidate[]>({
+    queryKey: [`/api/cases/${caseId}/candidates`],
+    queryFn: () => fetch(`/api/cases/${caseId}/candidates`).then((r) => r.json()),
+    refetchInterval: false,
+  });
+
+  const { data: completeness } = useQuery<{
     coverage: CoverageItem[];
     totalDomains: number;
     coveredDomains: number;
@@ -300,129 +383,37 @@ function CompletenessPanel({ caseId }: { caseId: string }) {
   }>({
     queryKey: [`/api/cases/${caseId}/completeness`],
     queryFn: () => fetch(`/api/cases/${caseId}/completeness`).then((r) => r.json()),
-    refetchInterval: 5000,
-  });
-
-  if (!data) return null;
-
-  const pct = Math.round((data.coveredDomains / data.totalDomains) * 100);
-
-  return (
-    <Card className={cn(
-      "border transition-all",
-      data.isComplete ? "border-success/30 bg-success/3" : "border-amber-500/30 bg-amber-500/3"
-    )}>
-      <div
-        className="flex items-center gap-3 cursor-pointer"
-        onClick={() => setExpanded((e) => !e)}
-      >
-        <div className={cn(
-          "p-2 rounded-xl",
-          data.isComplete ? "bg-success/10" : "bg-amber-500/10"
-        )}>
-          {data.isComplete
-            ? <CheckCircle2 className="w-4 h-4 text-success" />
-            : <AlertTriangle className="w-4 h-4 text-amber-400" />
-          }
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">Signal Coverage</span>
-            <span className={cn(
-              "text-xs font-bold",
-              data.isComplete ? "text-success" : "text-amber-400"
-            )}>
-              {data.coveredDomains}/{data.totalDomains} domains · {pct}%
-            </span>
-          </div>
-          {data.warning && (
-            <p className="text-xs text-amber-400 mt-0.5">{data.warning}</p>
-          )}
-          {data.isComplete && (
-            <p className="text-xs text-success mt-0.5">All critical signal domains are covered.</p>
-          )}
-        </div>
-        <button className="p-1 text-muted-foreground">
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </div>
-
-      {expanded && (
-        <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          {data.coverage.map((item) => {
-            const Icon = DOMAIN_ICONS[item.domain] ?? Lightbulb;
-            return (
-              <div
-                key={item.domain}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs",
-                  item.present
-                    ? "border-success/20 bg-success/5 text-success"
-                    : item.priority === "high"
-                      ? "border-amber-500/30 bg-amber-500/5 text-amber-400"
-                      : "border-border text-muted-foreground"
-                )}
-              >
-                <Icon className="w-3 h-3 shrink-0" />
-                <span className="leading-tight">{item.label}</span>
-                {item.present
-                  ? <CheckCircle2 className="w-3 h-3 ml-auto shrink-0" />
-                  : item.priority === "high"
-                    ? <AlertTriangle className="w-3 h-3 ml-auto shrink-0" />
-                    : null
-                }
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-export default function SignalDiscover() {
-  const [, params] = useRoute("/cases/:caseId/discover");
-  const caseId = params?.caseId ?? "";
-
-  const [inputText, setInputText] = useState("");
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [extractError, setExtractError] = useState<string | null>(null);
-  const [lastCount, setLastCount] = useState<number | null>(null);
-
-  const queryClient = useQueryClient();
-  const { data: caseData } = useGetCase(caseId);
-
-  const { data: candidates = [] } = useQuery<Candidate[]>({
-    queryKey: [`/api/cases/${caseId}/candidates`],
-    queryFn: () => fetch(`/api/cases/${caseId}/candidates`).then((r) => r.json()),
+    refetchInterval: false,
   });
 
   const pending = candidates.filter((c) => c.status === "pending");
   const approved = candidates.filter((c) => c.status === "approved");
   const rejected = candidates.filter((c) => c.status === "rejected");
 
-  const extract = useCallback(async () => {
-    if (!inputText.trim() || inputText.trim().length < 20) return;
-    setIsExtracting(true);
-    setExtractError(null);
+  const analyze = useCallback(async () => {
+    if (docContent.trim().length < 20) return;
+    setIsAnalyzing(true);
+    setAnalyzeError(null);
+    const contextHint = docSource ? `Source: ${docSource}. Document type: ${docType}.\n\n` : `Document type: ${docType}.\n\n`;
     try {
       const res = await fetch(`/api/cases/${caseId}/discover`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: inputText }),
+        body: JSON.stringify({ text: contextHint + docContent }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Extraction failed");
+      if (!res.ok) throw new Error(data.error ?? "Analysis failed");
       setLastCount(data.extracted);
-      setInputText("");
+      setDocContent("");
+      setDocSource("");
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/candidates`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/completeness`] });
     } catch (err: any) {
-      setExtractError(err.message ?? "Extraction failed");
+      setAnalyzeError(err.message ?? "Analysis failed");
     } finally {
-      setIsExtracting(false);
+      setIsAnalyzing(false);
     }
-  }, [inputText, caseId, queryClient]);
+  }, [docContent, docType, docSource, caseId, queryClient]);
 
   const { mutate: approveMutation } = useMutation({
     mutationFn: (id: string) =>
@@ -456,233 +447,182 @@ export default function SignalDiscover() {
     },
   });
 
-  const handleApproveAll = () => {
-    pending.forEach((c) => approveMutation(c.id));
-  };
+  const approveAll = () => pending.forEach((c) => approveMutation(c.id));
+
+  const cd = caseData as any;
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-5 h-5 text-primary" />
-              <h1 className="text-2xl font-display font-bold">Signal Discovery</h1>
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="primary">{caseId}</Badge>
+              <span className="text-sm font-medium text-muted-foreground">
+                {cd?.assetName ?? cd?.primaryBrand}
+              </span>
             </div>
-            {caseData && (
-              <p className="text-sm text-muted-foreground">
-                {caseData.assetName ?? caseData.caseId} · Auto-extract adoption signals from any document
-              </p>
-            )}
+            <h1 className="text-3xl font-bold">Signal Detection</h1>
+            <p className="text-muted-foreground mt-1">
+              Analyze documents to extract candidate signals. Review each candidate before it enters the forecast.
+            </p>
           </div>
-          {approved.length > 0 && (
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-success/10 border border-success/20">
-              <CheckCircle2 className="w-4 h-4 text-success" />
-              <span className="text-sm font-semibold text-success">{approved.length} confirmed</span>
+          {/* Coverage strip */}
+          {completeness && (
+            <div className={cn(
+              "flex items-center gap-3 px-4 py-3 rounded-xl border shrink-0",
+              completeness.isComplete
+                ? "border-success/30 bg-success/5"
+                : "border-amber-500/30 bg-amber-500/5"
+            )}>
+              {completeness.isComplete
+                ? <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                : <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              }
+              <div>
+                <div className="text-xs font-semibold">
+                  Signal coverage: {completeness.coveredDomains}/{completeness.totalDomains} domains
+                </div>
+                {!completeness.isComplete && completeness.missingHighPriority.length > 0 && (
+                  <div className="text-[10px] text-amber-400 mt-0.5">
+                    Missing: {completeness.missingHighPriority.map((d) => d.label).join(" · ")}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Coverage check */}
-        <CompletenessPanel caseId={caseId} />
-
-        {/* Input area */}
+        {/* Document Intake Form */}
         <Card>
-          <div className="flex items-center gap-2 mb-1">
-            <FileText className="w-4 h-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Paste a document for analysis</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-sm font-semibold">Document Intake</h3>
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Specify the document type and paste its content below</span>
           </div>
-          <p className="text-xs text-muted-foreground mb-4">
-            Paste any text — press releases, trial summaries, conference abstracts, competitive intelligence notes, payer updates, field reports, or regulatory communications. The AI will extract candidate signals automatically.
-          </p>
-          <textarea
-            className="w-full h-44 text-sm bg-background border border-border rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/50"
-            placeholder="Paste text here… e.g. 'Phase III CLARITY trial showed 62% reduction in primary endpoint vs. standard of care (p<0.001). KOL Dr. Chen presented at ASH endorsing first-line use. Payer Blue Shield denied prior auth in 40% of cases due to step therapy requirements. Competitor NOVA launched a once-weekly formulation…'"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-          />
-          {extractError && (
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <Label>Document type</Label>
+              <Select
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+                className="mt-1"
+              >
+                {DOCUMENT_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>Source / author <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Input
+                value={docSource}
+                onChange={(e) => setDocSource(e.target.value)}
+                placeholder="e.g. NEJM, internal MSL report, congress abstract ID"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Document content</Label>
+            <textarea
+              className="w-full mt-1 h-36 text-sm bg-background border border-border rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/50"
+              placeholder="Paste the document text here. The system will extract adoption-relevant signals automatically."
+              value={docContent}
+              onChange={(e) => setDocContent(e.target.value)}
+            />
+          </div>
+          {analyzeError && (
             <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-lg">
               <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />
-              <p className="text-xs text-destructive">{extractError}</p>
+              <p className="text-xs text-destructive">{analyzeError}</p>
             </div>
           )}
-          {lastCount !== null && !extractError && (
-            <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-success/10 border border-success/20 rounded-lg">
-              <Sparkles className="w-3.5 h-3.5 text-success shrink-0" />
-              <p className="text-xs text-success">
+          {lastCount !== null && !analyzeError && (
+            <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-muted/30 border border-border rounded-lg">
+              <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
+              <p className="text-xs text-muted-foreground">
                 {lastCount === 0
-                  ? "No signals detected in that text. Try pasting more specific clinical or market intelligence content."
-                  : `${lastCount} candidate signal${lastCount !== 1 ? "s" : ""} detected. Review them below.`}
+                  ? "No adoption-relevant signals detected in this document."
+                  : `${lastCount} candidate signal${lastCount !== 1 ? "s" : ""} extracted and queued for review below.`}
               </p>
             </div>
           )}
-          <div className="flex items-center justify-between mt-4">
-            <span className="text-xs text-muted-foreground">{inputText.length.toLocaleString()} chars</span>
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-xs text-muted-foreground">{docContent.length.toLocaleString()} characters</span>
             <Button
-              onClick={extract}
-              disabled={isExtracting || inputText.trim().length < 20}
+              onClick={analyze}
+              disabled={isAnalyzing || docContent.trim().length < 20}
               className="gap-2"
             >
-              {isExtracting ? (
-                <>
-                  <Sparkles className="w-4 h-4 animate-spin" />
-                  Detecting signals…
-                </>
+              {isAnalyzing ? (
+                <><Sparkles className="w-4 h-4 animate-spin" /> Analyzing…</>
               ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Detect Signals
-                </>
+                <><Sparkles className="w-4 h-4" /> Analyze Document</>
               )}
             </Button>
           </div>
         </Card>
 
-        {/* Detected signals */}
+        {/* Review queue — pending candidates */}
         {pending.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2 px-1">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                <h2 className="text-sm font-semibold">
-                  Detected Signals
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    {pending.length} awaiting review
-                  </span>
-                </h2>
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Review Queue — {pending.length} awaiting decision
+                </span>
               </div>
               {pending.length > 1 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleApproveAll}
-                  className="text-xs h-8 gap-1.5 text-success border border-success/30 hover:bg-success/10"
+                <button
+                  onClick={approveAll}
+                  className="text-xs font-medium text-success hover:underline"
                 >
-                  <CheckCircle2 className="w-3 h-3" />
                   Confirm all ({pending.length})
-                </Button>
+                </button>
               )}
             </div>
-            <div className="space-y-3">
-              {pending.map((c) => (
-                <CandidateCard
-                  key={c.id}
-                  candidate={c}
-                  onApprove={(id) => approveMutation(id)}
-                  onReject={(id) => rejectMutation(id)}
-                  onUpdate={(id, patch) => updateMutation({ id, patch })}
-                />
-              ))}
-            </div>
+            <CandidateTableSection
+              title=""
+              candidates={pending}
+              onApprove={(id) => approveMutation(id)}
+              onReject={(id) => rejectMutation(id)}
+              onUpdate={(id, patch) => updateMutation({ id, patch })}
+              showActions
+            />
+          </div>
+        )}
+
+        {/* No candidates yet */}
+        {pending.length === 0 && approved.length === 0 && rejected.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-14 text-center border border-dashed border-border rounded-2xl bg-muted/10">
+            <Sparkles className="w-8 h-8 text-muted-foreground/40 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No candidates yet</p>
+            <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs">
+              Select a document type, paste its content above, and click Analyze Document to extract adoption signals.
+            </p>
           </div>
         )}
 
         {/* Confirmed signals */}
         {approved.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 className="w-4 h-4 text-success" />
-              <h2 className="text-sm font-semibold">
-                Confirmed Signals
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  {approved.length} added to forecast
-                </span>
-              </h2>
-            </div>
-            <div className="space-y-2">
-              {approved.map((c) => (
-                <CandidateCard
-                  key={c.id}
-                  candidate={c}
-                  onApprove={() => {}}
-                  onReject={() => {}}
-                  onUpdate={() => {}}
-                />
-              ))}
-            </div>
-          </div>
+          <CandidateTableSection
+            title="Confirmed Signals — added to forecast"
+            candidates={approved}
+            showActions={false}
+          />
         )}
 
-        {/* Rejected signals */}
+        {/* Rejected */}
         {rejected.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <XCircle className="w-4 h-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold text-muted-foreground">
-                Rejected
-                <span className="ml-2 text-xs font-normal">{rejected.length}</span>
-              </h2>
-            </div>
-            <div className="space-y-2">
-              {rejected.map((c) => (
-                <CandidateCard
-                  key={c.id}
-                  candidate={c}
-                  onApprove={() => {}}
-                  onReject={() => {}}
-                  onUpdate={() => {}}
-                />
-              ))}
-            </div>
-          </div>
+          <CandidateTableSection
+            title="Rejected"
+            candidates={rejected}
+            showActions={false}
+          />
         )}
-
-        {/* Empty state */}
-        {pending.length === 0 && approved.length === 0 && rejected.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="p-5 rounded-full bg-muted/30 mb-4">
-              <Sparkles className="w-8 h-8 text-muted-foreground/50" />
-            </div>
-            <h3 className="text-base font-semibold mb-1">No signals yet</h3>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Paste a document above and click "Detect Signals" to automatically extract adoption intelligence.
-            </p>
-            <div className="mt-6 flex flex-col gap-2 text-left max-w-sm">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Works with any of these:</p>
-              {[
-                "Clinical trial summaries or press releases",
-                "Conference abstracts or KOL presentations",
-                "Payer coverage or formulary updates",
-                "Competitive intelligence notes",
-                "Field force reports or MSL summaries",
-                "Regulatory communications or label updates",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <div className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* How it works */}
-        <Card className="bg-muted/10">
-          <div className="flex items-center gap-2 mb-3">
-            <Info className="w-4 h-4 text-muted-foreground" />
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">How signal discovery works</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            {[
-              { step: "1", label: "Paste text", desc: "Any document, report, or note" },
-              { step: "2", label: "AI extracts", desc: "Identifies 14 signal domains" },
-              { step: "3", label: "You validate", desc: "Approve, edit, or reject each" },
-              { step: "4", label: "Forecast updates", desc: "Confirmed signals feed the model" },
-            ].map((s) => (
-              <div key={s.step} className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                  {s.step}
-                </div>
-                <div>
-                  <p className="text-xs font-semibold">{s.label}</p>
-                  <p className="text-[11px] text-muted-foreground">{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
       </div>
     </AppLayout>
   );

@@ -120,3 +120,18 @@ export function computeLR(
 
   return Number(lr.toFixed(3));
 }
+
+export function lrToStrengthLabel(lr: number, direction: string): { label: string; color: string } {
+  if (direction === "Positive") {
+    if (lr >= 2.2) return { label: "Very strong evidence for adoption", color: "text-success" };
+    if (lr >= 1.7) return { label: "Strong evidence for adoption", color: "text-success" };
+    if (lr >= 1.3) return { label: "Moderate evidence for adoption", color: "text-success/70" };
+    if (lr >= 1.05) return { label: "Weak evidence for adoption", color: "text-muted-foreground" };
+    return { label: "Minimal signal strength", color: "text-muted-foreground" };
+  } else {
+    if (lr <= 0.65) return { label: "Significant headwind — major barrier", color: "text-destructive" };
+    if (lr <= 0.78) return { label: "Moderate headwind — active barrier", color: "text-destructive/80" };
+    if (lr <= 0.9) return { label: "Mild headwind — monitor closely", color: "text-warning" };
+    return { label: "Weak constraint — low urgency", color: "text-muted-foreground" };
+  }
+}

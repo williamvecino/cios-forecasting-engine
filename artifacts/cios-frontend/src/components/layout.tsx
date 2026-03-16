@@ -20,7 +20,7 @@ const navItems = [
   { name: "Overview", path: "/", icon: LayoutDashboard },
   { name: "Forecast Cases", path: "/cases", icon: FlaskConical },
   { name: "Run Forecast", path: "/cases/active/forecast", icon: TrendingUp, isSub: true },
-  { name: "Signal Discovery", path: "/cases/active/discover", icon: Sparkles, isSub: true },
+  { name: "Signal Detection", path: "/cases/active/discover", icon: Sparkles, isSub: true },
   { name: "Signal Register", path: "/cases/active/signals", icon: Radio, isSub: true },
   { name: "Analog Matches", path: "/cases/active/analogs", icon: Library, isSub: true },
   { name: "Case Library", path: "/case-library", icon: BookOpen },
