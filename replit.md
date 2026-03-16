@@ -138,6 +138,12 @@ net_actor_translation = sum(net_actor_effect[all actors])
 - **Routes**: `POST /api/cases/:caseId/simulation` (run), `GET /api/cases/:caseId/simulation` (fetch latest)
 - Simulation is deterministic — no AI/ML. Results are saved to `agent_simulations` table.
 
+## Architecture: Route File Layout
+- `routes/calibration.ts` (~530 lines) — correction logic, core calibration endpoints: log listing, outcome recording, stats, error-patterns, LR/bucket corrections listing, diagnostics, validation-report, coverage-map, compute-corrections trigger
+- `routes/learning.ts` (~660 lines) — learning infrastructure endpoints: expansion-targets, acquisition-plan, question-type-taxonomy, resolved-case ingestion, impact-simulation
+- `lib/calibration-utils.ts` (~200 lines) — shared calibration lib: BUCKETS, getBucket, getLrCorrections, getBucketCorrections, computeDecay, computeAndSaveCorrections (+ internal LR/bucket recomputation), correction thresholds
+- No route-to-route imports — shared logic lives in `lib/` modules
+
 ## Learning Layer (Concrete, not vague AI)
 1. **Case Memory**: `case_library` table stores completed cases with signal mix (JSONB), agent pattern, outcome notes, final probability
 2. **Analog Retrieval**: `analog-engine.ts` scores similarity on 7 weighted dimensions (therapy area, specialty, product type, evidence type, payer environment, lifecycle stage, brand)
