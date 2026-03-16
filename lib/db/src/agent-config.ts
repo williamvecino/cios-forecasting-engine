@@ -225,6 +225,85 @@ export const AGENT_MAP: Record<AgentId, AgentArchetype> = Object.fromEntries(
   AGENT_ARCHETYPES.map((a) => [a.id, a])
 ) as Record<AgentId, AgentArchetype>;
 
+// Cross-agent influence rules — how one stakeholder's stance shifts another's
+// "condition" is the triggering polarity of the influencer's stance
+// "direction" is whether the influence amplifies or dampens the influenced agent's score
+export interface AgentInfluenceRule {
+  from: AgentId;
+  to: AgentId;
+  strength: number;       // 0–1 multiplier applied to influencer's |reactionScore|
+  condition: "positive" | "negative" | "any";
+  direction: "amplify" | "dampen";
+  label: string;          // human-readable description shown in UI
+}
+
+export const CROSS_AGENT_INFLUENCE: AgentInfluenceRule[] = [
+  {
+    from: "academic_specialist",
+    to: "community_specialist",
+    strength: 0.35,
+    condition: "positive",
+    direction: "amplify",
+    label: "Academic KOL advocacy accelerates community specialist adoption",
+  },
+  {
+    from: "academic_specialist",
+    to: "guideline_body",
+    strength: 0.25,
+    condition: "positive",
+    direction: "amplify",
+    label: "Strong academic endorsement strengthens guideline committee review",
+  },
+  {
+    from: "guideline_body",
+    to: "community_specialist",
+    strength: 0.45,
+    condition: "positive",
+    direction: "amplify",
+    label: "Guideline inclusion is the primary trigger for community specialist adoption",
+  },
+  {
+    from: "guideline_body",
+    to: "inpatient_prescriber",
+    strength: 0.50,
+    condition: "positive",
+    direction: "amplify",
+    label: "Guideline endorsement drives P&T committee formulary acceptance",
+  },
+  {
+    from: "payer",
+    to: "community_specialist",
+    strength: 0.40,
+    condition: "negative",
+    direction: "dampen",
+    label: "Payer access restrictions slow community specialist prescribing",
+  },
+  {
+    from: "payer",
+    to: "inpatient_prescriber",
+    strength: 0.55,
+    condition: "negative",
+    direction: "dampen",
+    label: "Formulary barriers create significant obstacles for hospital prescribers",
+  },
+  {
+    from: "competitor",
+    to: "commercial_msl",
+    strength: 0.30,
+    condition: "positive",
+    direction: "dampen",
+    label: "Active competitor counter-messaging reduces field force HCP reach",
+  },
+  {
+    from: "commercial_msl",
+    to: "community_specialist",
+    strength: 0.25,
+    condition: "positive",
+    direction: "amplify",
+    label: "Strong field engagement accelerates community specialist awareness and trial",
+  },
+];
+
 // Signal-agent weight matrix
 // How much each signal type moves each agent (0 = no effect, 1 = full effect)
 export const SIGNAL_AGENT_WEIGHTS: Record<SignalTypeKey, Record<AgentId, number>> = {

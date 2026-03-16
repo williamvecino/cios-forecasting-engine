@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useRoute } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
@@ -22,6 +22,7 @@ import {
   BookMarked,
   Send,
   ChevronRight,
+  Library,
 } from "lucide-react";
 import {
   BarChart,
@@ -145,6 +146,20 @@ export default function ForecastResults() {
       fetch(`/api/cases/${caseId}/publish-to-library`, { method: "POST" }).then((r) => r.json()),
     onSuccess: () => setPublishMsg("Published to Case Library — this case is now available as an analog for future forecasts."),
     onError: () => setPublishMsg("Publish failed. Please try again."),
+  });
+
+  const { data: analogContext } = useQuery<any>({
+    queryKey: [`/api/cases/${caseId}/analog-context`],
+    queryFn: () => fetch(`/api/cases/${caseId}/analog-context`).then((r) => r.json()),
+    enabled: Boolean(caseId),
+    staleTime: 60_000,
+  });
+
+  const { data: simulation } = useQuery<any>({
+    queryKey: [`/api/cases/${caseId}/simulation`],
+    queryFn: () => fetch(`/api/cases/${caseId}/simulation`).then((r) => r.json()),
+    enabled: Boolean(caseId),
+    staleTime: 60_000,
   });
 
   if (isLoading) {
@@ -594,6 +609,197 @@ export default function ForecastResults() {
             )}
           </div>
         </Card>
+
+        {/* Analog Context */}
+        {analogContext && (analogContext.matchCount > 0 || analogContext.calibratedCount > 0) && (
+          <Card>
+            <div className="flex items-center gap-2 mb-1">
+              <BookMarked className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Analog Case Context</span>
+              <Badge variant="default" className="ml-auto text-[10px]">
+                {analogContext.matchCount} analog{analogContext.matchCount !== 1 ? "s" : ""} · {analogContext.derivedEvidenceType}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mb-5">
+              Historical cases matched on therapy area, specialty, product type, and evidence profile.
+              {analogContext.calibratedCount > 0
+                ? ` ${analogContext.calibratedCount} calibrated analog${analogContext.calibratedCount !== 1 ? "s" : ""} with observed outcomes inform the scenario range.`
+                : " No calibrated outcome data yet — scenario frames will populate as outcomes are recorded."}
+            </p>
+
+            {/* Scenario frames */}
+            {(analogContext.scenarios?.optimistic || analogContext.scenarios?.base || analogContext.scenarios?.pessimistic) && (
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                {[
+                  { key: "optimistic", label: "Optimistic", color: "text-success", bg: "bg-success/8 border-success/20" },
+                  { key: "base", label: "Base Case", color: "text-primary", bg: "bg-primary/5 border-primary/20" },
+                  { key: "pessimistic", label: "Pessimistic", color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/20" },
+                ].map(({ key, label, color, bg }) => {
+                  const frame = analogContext.scenarios[key];
+                  if (!frame) return (
+                    <div key={key} className={cn("border rounded-xl p-3.5", bg)}>
+                      <p className={cn("text-[10px] uppercase tracking-wider font-semibold mb-1", color)}>{label}</p>
+                      <p className="text-xs text-muted-foreground/60 italic">No calibrated data yet</p>
+                    </div>
+                  );
+                  return (
+                    <div key={key} className={cn("border rounded-xl p-3.5", bg)}>
+                      <p className={cn("text-[10px] uppercase tracking-wider font-semibold mb-1", color)}>{label}</p>
+                      <p className={cn("text-2xl font-display font-bold", color)}>
+                        {frame.probability?.toFixed(0) ?? "—"}%
+                      </p>
+                      {frame.analogCaseId && (
+                        <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                          from {frame.analogCaseId} · {frame.similarityScore?.toFixed(0)}pts match
+                        </p>
+                      )}
+                      {frame.sampleSize && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {frame.sampleSize} analog{frame.sampleSize !== 1 ? "s" : ""}
+                        </p>
+                      )}
+                      {frame.rationale && (
+                        <p className="text-[10px] text-muted-foreground leading-relaxed mt-2 line-clamp-3">
+                          {frame.rationale}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Top analog matches */}
+            {analogContext.topMatches?.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
+                  Top Matched Analogs
+                </p>
+                {analogContext.topMatches.map((m: any) => (
+                  <div key={m.caseId} className="flex items-start justify-between gap-3 p-3 bg-background border border-border rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-mono font-semibold">{m.caseId}</span>
+                        <Badge variant={m.confidenceBand === "High" ? "success" : m.confidenceBand === "Moderate" ? "warning" : "default"} className="text-[9px]">
+                          {m.confidenceBand}
+                        </Badge>
+                        {m.therapyArea && <span className="text-[10px] text-muted-foreground">{m.therapyArea}</span>}
+                      </div>
+                      {m.matchedDimensions?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {m.matchedDimensions.slice(0, 3).map((dim: string, i: number) => (
+                            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-success/8 text-success border border-success/15">
+                              ✓ {dim}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground leading-relaxed mt-1.5 line-clamp-2">
+                        {m.adoptionLesson}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-lg font-display font-bold text-primary">{m.similarityScore.toFixed(0)}</div>
+                      <div className="text-[10px] text-muted-foreground">/ 100 pts</div>
+                      {m.finalProbability !== null && m.finalProbability !== undefined && (
+                        <div className="text-xs font-semibold mt-1">{(Number(m.finalProbability) * 100).toFixed(0)}% final</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* Stakeholder Dynamics */}
+        {simulation && simulation.agentResults?.length > 0 && (
+          <Card>
+            <div className="flex items-center gap-2 mb-1">
+              <Users className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Stakeholder Dynamics</span>
+              {simulation.agentDerivedActorTranslation !== undefined && (
+                <Badge variant="default" className="ml-auto text-[10px]">
+                  Agent translation: ×{simulation.agentDerivedActorTranslation.toFixed(3)}
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Cross-stakeholder influence dynamics from the last agent simulation. Peer-stakeholder effects are applied on top of signal-driven stances.
+            </p>
+
+            {/* Bayesian vs Agent translation comparison */}
+            {simulation.agentDerivedActorTranslation !== undefined && forecast.actorTranslation !== undefined && (
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="border border-border rounded-xl p-3.5 bg-background">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Bayesian actor translation</p>
+                  <p className="text-2xl font-display font-bold">×{Number(forecast.actorTranslation).toFixed(3)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">From signal-weighted actor reactions</p>
+                </div>
+                <div className={cn(
+                  "border rounded-xl p-3.5",
+                  simulation.agentDerivedActorTranslation > Number(forecast.actorTranslation)
+                    ? "border-success/30 bg-success/5"
+                    : simulation.agentDerivedActorTranslation < Number(forecast.actorTranslation) * 0.95
+                    ? "border-amber-400/30 bg-amber-400/5"
+                    : "border-border bg-background"
+                )}>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Agent-derived translation</p>
+                  <p className="text-2xl font-display font-bold">×{simulation.agentDerivedActorTranslation.toFixed(3)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {simulation.agentDerivedActorTranslation > Number(forecast.actorTranslation) + 0.01
+                      ? "Agent dynamics suggest upward pressure on adoption"
+                      : simulation.agentDerivedActorTranslation < Number(forecast.actorTranslation) - 0.01
+                      ? "Agent dynamics suggest headwinds not captured by signals alone"
+                      : "Agent dynamics broadly confirm signal-based forecast"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Agent stances summary — prescribers only */}
+            <div className="space-y-2">
+              {simulation.agentResults
+                .filter((a: any) => ["academic_specialist", "community_specialist", "inpatient_prescriber"].includes(a.agentId))
+                .map((agent: any) => {
+                  const hasInfluence = (agent.influenceAnnotations ?? []).length > 0;
+                  const delta = agent.baseReactionScore !== undefined
+                    ? agent.reactionScore - agent.baseReactionScore
+                    : 0;
+                  return (
+                    <div key={agent.agentId} className="flex items-start justify-between gap-3 p-3 bg-background border border-border rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold">{agent.label}</span>
+                          {hasInfluence && Math.abs(delta) > 0.01 && (
+                            <span className={cn(
+                              "text-[10px] font-mono font-semibold",
+                              delta > 0 ? "text-success" : "text-amber-500"
+                            )}>
+                              {delta > 0 ? "↑" : "↓"} {delta > 0 ? "+" : ""}{delta.toFixed(2)} from peers
+                            </span>
+                          )}
+                        </div>
+                        {(agent.influenceAnnotations ?? []).slice(0, 2).map((ann: any, i: number) => (
+                          <p key={i} className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                            {ann.fromLabel}: {ann.label}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-mono font-semibold">
+                          {agent.reactionScore > 0 ? "+" : ""}{agent.reactionScore.toFixed(2)}
+                        </span>
+                        <p className="text-[10px] text-muted-foreground capitalize">
+                          {agent.stance.replace(/_/g, " ")}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </Card>
+        )}
 
         {/* Outcome Recording */}
         <Card>

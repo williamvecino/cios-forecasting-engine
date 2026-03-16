@@ -76,6 +76,83 @@ router.get("/calibration/stats", async (_req, res) => {
   });
 });
 
+// Error patterns — which signal types are associated with systematic forecast bias
+router.get("/calibration/error-patterns", async (_req, res) => {
+  const rows = await db.select().from(calibrationLogTable);
+  const calibrated = rows.filter((r) => r.observedOutcome !== null && r.snapshotJson);
+
+  // Accumulate errors per signal type by parsing the stored snapshot
+  const typeMap: Record<string, { errors: number[]; briers: number[] }> = {};
+
+  for (const row of calibrated) {
+    let snapshot: any;
+    try {
+      snapshot = JSON.parse(row.snapshotJson!);
+    } catch {
+      continue;
+    }
+
+    const signalDetails: any[] = snapshot.signalDetails ?? [];
+    const activeTypes = [...new Set(
+      signalDetails
+        .map((s: any) => s.signalType as string)
+        .filter((t): t is string => Boolean(t) && t !== "Unknown")
+    )];
+
+    for (const st of activeTypes) {
+      if (!typeMap[st]) typeMap[st] = { errors: [], briers: [] };
+      typeMap[st].errors.push(row.forecastError!);
+      typeMap[st].briers.push(row.brierComponent!);
+    }
+  }
+
+  // Also accumulate errors for actor-level patterns from actorAggregation
+  const actorMap: Record<string, { errors: number[]; briers: number[] }> = {};
+  for (const row of calibrated) {
+    let snapshot: any;
+    try { snapshot = JSON.parse(row.snapshotJson!); } catch { continue; }
+    const actors: any[] = snapshot.actorAggregation ?? [];
+    for (const a of actors) {
+      if (!a.actor) continue;
+      const effect: number = a.netActorEffect ?? 0;
+      const stance: string = a.stance ?? "";
+      // Only accumulate actors that had a meaningful opinion
+      if (Math.abs(effect) < 0.05) continue;
+      if (!actorMap[a.actor]) actorMap[a.actor] = { errors: [], briers: [] };
+      actorMap[a.actor].errors.push(row.forecastError!);
+      actorMap[a.actor].briers.push(row.brierComponent!);
+    }
+  }
+
+  const toPattern = (
+    name: string,
+    data: { errors: number[]; briers: number[] },
+    category: "signal_type" | "actor"
+  ) => {
+    const n = data.errors.length;
+    const meanError = data.errors.reduce((s, e) => s + e, 0) / n;
+    const meanBrier = data.briers.reduce((s, b) => s + b, 0) / n;
+    return {
+      name,
+      category,
+      sampleSize: n,
+      meanError: Number(meanError.toFixed(4)),
+      meanBrierScore: Number(meanBrier.toFixed(4)),
+      bias: meanError > 0.05 ? "under" as const : meanError < -0.05 ? "over" as const : "balanced" as const,
+    };
+  };
+
+  const signalPatterns = Object.entries(typeMap)
+    .map(([name, data]) => toPattern(name, data, "signal_type"))
+    .sort((a, b) => Math.abs(b.meanError) - Math.abs(a.meanError));
+
+  const actorPatterns = Object.entries(actorMap)
+    .map(([name, data]) => toPattern(name, data, "actor"))
+    .sort((a, b) => Math.abs(b.meanError) - Math.abs(a.meanError));
+
+  res.json({ signalPatterns, actorPatterns, calibratedCount: calibrated.length });
+});
+
 function mapEntry(r: typeof calibrationLogTable.$inferSelect) {
   return {
     id: r.id,
@@ -89,6 +166,7 @@ function mapEntry(r: typeof calibrationLogTable.$inferSelect) {
     notes: r.notes,
     userFeedback: r.userFeedback,
     reviewerComments: r.reviewerComments,
+    hasSnapshot: Boolean(r.snapshotJson),
   };
 }
 

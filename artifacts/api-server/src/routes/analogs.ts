@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { caseLibraryTable, casesTable } from "@workspace/db";
+import { caseLibraryTable, casesTable, signalsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { retrieveAnalogs } from "../lib/analog-engine.js";
@@ -63,16 +63,28 @@ router.delete("/case-library/:analogId", async (req, res) => {
   res.status(204).send();
 });
 
+// Derive evidenceType from the active signal types on this case
+function deriveEvidenceType(signalTypes: string[]): string {
+  if (signalTypes.includes("Phase III clinical")) return "Phase III RCT";
+  if (signalTypes.includes("Regulatory / clinical")) return "Regulatory/Clinical Evidence";
+  if (signalTypes.includes("Guideline inclusion")) return "Guideline-Backed Evidence";
+  if (signalTypes.includes("KOL endorsement")) return "KOL/Expert Evidence";
+  return "Real-World Evidence";
+}
+
 router.get("/cases/:caseId/analogs", async (req, res) => {
-  const caseRow = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
+  const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
+  const signals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, req.params.caseId));
   const library = await db.select().from(caseLibraryTable);
 
-  const row = caseRow[0] as any;
+  const row = caseRow as any;
+  const signalTypes = signals.map((s) => s.signalType).filter(Boolean) as string[];
+
   const query = {
     therapyArea: row?.therapeuticArea || row?.primaryBrand,
     specialty: row?.specialty || row?.primarySpecialtyProfile,
     productType: row?.assetType || "Medication",
-    evidenceType: "Phase 3 RCT",
+    evidenceType: deriveEvidenceType(signalTypes),
     specialtyProfile: row?.primarySpecialtyProfile,
     payerEnvironment: row?.payerEnvironment ?? undefined,
     primaryBrand: (row?.assetName || row?.primaryBrand) ?? undefined,
@@ -80,6 +92,107 @@ router.get("/cases/:caseId/analogs", async (req, res) => {
 
   const matches = retrieveAnalogs(query, library, 5);
   res.json(matches);
+});
+
+// Analog Context — enriched response with scenario frames derived from matched analogs
+router.get("/cases/:caseId/analog-context", async (req, res) => {
+  const { caseId } = req.params;
+
+  const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
+  if (!caseRow) return res.status(404).json({ error: "Case not found" });
+
+  const [signals, library] = await Promise.all([
+    db.select().from(signalsTable).where(eq(signalsTable.caseId, caseId)),
+    db.select().from(caseLibraryTable),
+  ]);
+
+  const signalTypes = signals.map((s) => s.signalType).filter(Boolean) as string[];
+  const derivedEvidenceType = deriveEvidenceType(signalTypes);
+
+  const row = caseRow as any;
+  const query = {
+    therapyArea: row.therapeuticArea || row.primaryBrand,
+    specialty: row.specialty || row.primarySpecialtyProfile,
+    productType: row.assetType || "Medication",
+    evidenceType: derivedEvidenceType,
+    specialtyProfile: row.primarySpecialtyProfile,
+    payerEnvironment: row.payerEnvironment ?? undefined,
+    primaryBrand: row.assetName || row.primaryBrand,
+  };
+
+  const matches = retrieveAnalogs(query, library, 5);
+
+  // Compute scenario frames from analogs that have a finalProbability
+  const calibrated = matches.filter(
+    (m) => m.analogCase.finalProbability !== null && m.similarityScore >= 15
+  );
+
+  let optimistic: object | null = null;
+  let pessimistic: object | null = null;
+  let base: object | null = null;
+
+  if (calibrated.length > 0) {
+    const sorted = [...calibrated].sort(
+      (a, b) => Number(b.analogCase.finalProbability) - Number(a.analogCase.finalProbability)
+    );
+    const best = sorted[0];
+    const worst = sorted[sorted.length - 1];
+
+    // Weighted-average base probability
+    const weightedSum = calibrated.reduce(
+      (s, m) => s + Number(m.analogCase.finalProbability) * m.similarityScore,
+      0
+    );
+    const weightSum = calibrated.reduce((s, m) => s + m.similarityScore, 0);
+    const baseProbability = weightSum > 0 ? weightedSum / weightSum : null;
+
+    optimistic = {
+      probability: Number((Number(best.analogCase.finalProbability) * 100).toFixed(1)),
+      analogCaseId: best.analogCase.caseId,
+      similarityScore: best.similarityScore,
+      rationale: best.analogCase.adoptionTrajectory
+        ?? best.analogCase.outcomePattern
+        ?? "Strongest analog achieved high adoption via favourable market conditions.",
+      keyDifferences: best.keyDifferences,
+    };
+    pessimistic = {
+      probability: Number((Number(worst.analogCase.finalProbability) * 100).toFixed(1)),
+      analogCaseId: worst.analogCase.caseId,
+      similarityScore: worst.similarityScore,
+      rationale: worst.analogCase.adoptionTrajectory
+        ?? worst.analogCase.outcomePattern
+        ?? "Weaker analog showed constrained adoption due to access or competitive headwinds.",
+      keyDifferences: worst.keyDifferences,
+    };
+    if (baseProbability !== null) {
+      base = {
+        probability: Number((baseProbability * 100).toFixed(1)),
+        rationale: `Similarity-weighted average across ${calibrated.length} calibrated analog${calibrated.length !== 1 ? "s" : ""}.`,
+        sampleSize: calibrated.length,
+      };
+    }
+  }
+
+  res.json({
+    derivedEvidenceType,
+    signalTypes,
+    matchCount: matches.length,
+    calibratedCount: calibrated.length,
+    topMatches: matches.slice(0, 3).map((m) => ({
+      caseId: m.analogCase.caseId,
+      therapyArea: m.analogCase.therapyArea,
+      specialty: m.analogCase.specialty,
+      productType: m.analogCase.productType,
+      evidenceType: m.analogCase.evidenceType,
+      similarityScore: m.similarityScore,
+      confidenceBand: m.confidenceBand,
+      matchedDimensions: m.matchedDimensions,
+      keyDifferences: m.keyDifferences,
+      adoptionLesson: m.adoptionLesson,
+      finalProbability: m.analogCase.finalProbability,
+    })),
+    scenarios: { optimistic, base, pessimistic },
+  });
 });
 
 // Pattern summaries — concrete rule-based classification of recurring patterns

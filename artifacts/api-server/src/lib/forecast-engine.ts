@@ -23,6 +23,7 @@ export interface ActorReactionDetail {
 
 export interface SignalForecastDetail {
   signalId: string;
+  signalType: string;
   description: string;
   direction: string;
   strengthScore: number;
@@ -253,6 +254,7 @@ export function runForecastEngine(
 
     return {
       signalId: signal.signalId,
+      signalType: signal.signalType ?? "Unknown",
       description: signal.signalDescription,
       direction: signal.direction,
       strengthScore: signal.strengthScore ?? 0,

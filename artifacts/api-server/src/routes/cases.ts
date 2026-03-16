@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { casesTable, caseLibraryTable, signalsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { casesTable, caseLibraryTable, signalsTable, calibrationLogTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 const router = Router();
@@ -90,6 +90,27 @@ router.patch("/cases/:caseId/outcome", async (req, res) => {
     .where(eq(casesTable.caseId, req.params.caseId))
     .returning();
   if (!updated) return res.status(404).json({ error: "Not found" });
+
+  // Close the most recent open calibration entry for this case
+  if (actualAdoptionRate !== undefined && actualAdoptionRate !== null) {
+    const observedFrac = Number(actualAdoptionRate) / 100;
+    const [latestLog] = await db
+      .select()
+      .from(calibrationLogTable)
+      .where(eq(calibrationLogTable.caseId, req.params.caseId))
+      .orderBy(desc(calibrationLogTable.predictionDate))
+      .limit(1);
+
+    if (latestLog && latestLog.observedOutcome === null) {
+      const brierComponent = Math.pow(latestLog.predictedProbability - observedFrac, 2);
+      const forecastError = observedFrac - latestLog.predictedProbability;
+      await db
+        .update(calibrationLogTable)
+        .set({ observedOutcome: observedFrac, brierComponent, forecastError })
+        .where(eq(calibrationLogTable.id, latestLog.id));
+    }
+  }
+
   res.json(updated);
 });
 

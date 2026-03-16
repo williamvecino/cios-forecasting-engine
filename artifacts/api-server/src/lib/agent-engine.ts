@@ -1,6 +1,7 @@
 import {
   AGENT_ARCHETYPES,
   SIGNAL_AGENT_WEIGHTS,
+  CROSS_AGENT_INFLUENCE,
   type AgentId,
   type SignalTypeKey,
 } from "@workspace/db";
@@ -24,18 +25,36 @@ function baseEffect(signal: SignalInput): number {
   }
 }
 
-function mapStance(
-  score: number,
-  isAdversarial: boolean,
-  labels: AgentResult["stance"] extends string ? Record<string, string> : never
-): AgentResult["stance"] {
+const POSITIVE_STANCES = new Set([
+  "early_supporter",
+  "supportive",
+  "open_access",
+  "favorable",
+  "guideline_inclusion",
+  "positive_mention",
+  "high_engagement",
+  "engaged",
+]);
+
+const NEGATIVE_STANCES = new Set([
+  "cautious",
+  "resistant",
+  "restrictive",
+  "blocking",
+  "not_recommended",
+  "insufficient_evidence",
+  "low_engagement",
+  "challenged",
+]);
+
+const ADVERSARIAL_POSITIVE = new Set(["active_opposition", "increased_pressure"]);
+
+function mapStance(score: number, isAdversarial: boolean): AgentResult["stance"] {
   if (isAdversarial) {
-    // Adversarial: higher positive signals from market = more opposition from them
     const threat = -score;
     if (threat > 1.2) return "active_opposition";
     if (threat > 0.4) return "increased_pressure";
     if (threat > -0.3) return "monitoring";
-    if (threat > -0.9) return "complacent";
     return "complacent";
   }
   if (score > 1.5) return "early_supporter";
@@ -49,14 +68,12 @@ function responsePhase(
   stance: AgentResult["stance"],
   responseSpeed: "fast" | "medium" | "slow"
 ): "early" | "mainstream" | "lagging" {
-  const positive = ["early_supporter", "supportive", "high_engagement", "engaged", "open_access", "favorable", "guideline_inclusion", "positive_mention", "active_opposition", "increased_pressure"];
-  const isPositive = positive.includes(stance);
-  const isNeutral = stance === "neutral" || stance === "monitoring" || stance === "under_review" || stance === "moderate_engagement" || stance === "neutral";
+  const isPositive = POSITIVE_STANCES.has(stance as string);
+  const isNeutral = stance === "neutral" || stance === "monitoring" || stance === "moderate_engagement";
 
   if (isPositive && responseSpeed === "fast") return "early";
-  if (isPositive && responseSpeed === "medium") return "early";
+  if (isPositive && responseSpeed === "medium") return "mainstream";
   if (isPositive && responseSpeed === "slow") return "mainstream";
-  if (isNeutral && responseSpeed === "fast") return "mainstream";
   if (isNeutral) return "mainstream";
   return "lagging";
 }
@@ -101,7 +118,6 @@ function buildReasoning(
   };
 
   const desc = stanceDescriptions[stance] ?? "has a mixed reaction";
-
   let reasoning = `${archetype.label} ${desc}. `;
 
   if (positiveSignals.length > 0 && negativeSignals.length === 0) {
@@ -125,10 +141,12 @@ export interface SimulationOutput {
   agentResults: AgentResult[];
   adoptionSequence: AdoptionPhase[];
   overallReadiness: string;
+  agentDerivedActorTranslation: number;
 }
 
 export function simulateAgents(signals: SignalInput[]): SimulationOutput {
-  const agentResults: AgentResult[] = AGENT_ARCHETYPES.map((archetype) => {
+  // ── First pass: signal-driven base scores ──────────────────────────────────
+  const firstPass: AgentResult[] = AGENT_ARCHETYPES.map((archetype) => {
     const signalContributions: Array<{
       description: string;
       signalType: string;
@@ -154,18 +172,14 @@ export function simulateAgents(signals: SignalInput[]): SimulationOutput {
     }
 
     const reactionScore = signalContributions.reduce((sum, s) => sum + s.contribution, 0);
-
-    // For adversarial agent, negate the score for stance computation
     const effectiveScore = archetype.isAdversarial ? -reactionScore : reactionScore;
-
-    const stance = mapStance(effectiveScore, archetype.isAdversarial, {} as any);
+    const stance = mapStance(effectiveScore, archetype.isAdversarial);
 
     const topSignals = [...signalContributions]
       .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
       .slice(0, 3);
 
     const phase = responsePhase(stance, archetype.responseSpeed);
-
     const reasoning = buildReasoning(archetype.id, reactionScore, stance, topSignals, archetype.isAdversarial);
 
     return {
@@ -174,39 +188,84 @@ export function simulateAgents(signals: SignalInput[]): SimulationOutput {
       role: archetype.role,
       stance,
       reactionScore: Number(reactionScore.toFixed(3)),
+      baseReactionScore: Number(reactionScore.toFixed(3)),
       topSignals,
       reasoning,
       responsePhase: phase,
     };
   });
 
-  // Build adoption sequence
-  const earlyAgents = agentResults.filter((a) => a.responsePhase === "early" && !AGENT_ARCHETYPES.find((ar) => ar.id === a.agentId)?.isAdversarial);
-  const mainstreamAgents = agentResults.filter((a) => a.responsePhase === "mainstream" && !AGENT_ARCHETYPES.find((ar) => ar.id === a.agentId)?.isAdversarial);
-  const laggingAgents = agentResults.filter((a) => a.responsePhase === "lagging" && !AGENT_ARCHETYPES.find((ar) => ar.id === a.agentId)?.isAdversarial);
+  // ── Second pass: cross-agent influence adjustment ──────────────────────────
+  const agentResults: AgentResult[] = firstPass.map((result) => {
+    const archetype = AGENT_ARCHETYPES.find((a) => a.id === result.agentId)!;
+    const influenceAnnotations: AgentResult["influenceAnnotations"] = [];
+    let influenceAdjustment = 0;
+
+    for (const rule of CROSS_AGENT_INFLUENCE) {
+      if (rule.to !== result.agentId) continue;
+
+      const influencer = firstPass.find((r) => r.agentId === rule.from);
+      if (!influencer) continue;
+
+      const influencerArchetype = AGENT_ARCHETYPES.find((a) => a.id === rule.from)!;
+
+      // Determine if the condition is met
+      const influencerStance = influencer.stance as string;
+      const isPositive = POSITIVE_STANCES.has(influencerStance)
+        || (influencerArchetype.isAdversarial && ADVERSARIAL_POSITIVE.has(influencerStance));
+      const isNegative = NEGATIVE_STANCES.has(influencerStance);
+
+      let conditionMet = false;
+      if (rule.condition === "positive" && isPositive) conditionMet = true;
+      if (rule.condition === "negative" && isNegative) conditionMet = true;
+      if (rule.condition === "any") conditionMet = true;
+
+      if (!conditionMet) continue;
+
+      // Magnitude is scaled by the influencer's absolute reaction score
+      const magnitude = Math.abs(influencer.reactionScore) * rule.strength;
+      const delta = rule.direction === "amplify" ? magnitude : -magnitude;
+
+      influenceAdjustment += delta;
+      influenceAnnotations.push({
+        fromLabel: influencer.label,
+        label: rule.label,
+        delta: Number(delta.toFixed(3)),
+      });
+    }
+
+    const adjustedScore = result.reactionScore + influenceAdjustment;
+    const effectiveScore = archetype.isAdversarial ? -adjustedScore : adjustedScore;
+    const newStance = mapStance(effectiveScore, archetype.isAdversarial);
+    const newPhase = responsePhase(newStance, archetype.responseSpeed);
+
+    return {
+      ...result,
+      reactionScore: Number(adjustedScore.toFixed(3)),
+      stance: newStance,
+      responsePhase: newPhase,
+      influenceAnnotations,
+    };
+  });
+
+  // ── Adoption sequence ──────────────────────────────────────────────────────
+  const earlyAgents = agentResults.filter(
+    (a) => a.responsePhase === "early" && !AGENT_ARCHETYPES.find((ar) => ar.id === a.agentId)?.isAdversarial
+  );
+  const mainstreamAgents = agentResults.filter(
+    (a) => a.responsePhase === "mainstream" && !AGENT_ARCHETYPES.find((ar) => ar.id === a.agentId)?.isAdversarial
+  );
+  const laggingAgents = agentResults.filter(
+    (a) => a.responsePhase === "lagging" && !AGENT_ARCHETYPES.find((ar) => ar.id === a.agentId)?.isAdversarial
+  );
 
   const adoptionSequence: AdoptionPhase[] = [
-    {
-      phase: "early",
-      label: "Early movers",
-      timeframe: "0 – 6 months",
-      agents: earlyAgents.map((a) => a.label),
-    },
-    {
-      phase: "mainstream",
-      label: "Mainstream",
-      timeframe: "6 – 18 months",
-      agents: mainstreamAgents.map((a) => a.label),
-    },
-    {
-      phase: "lagging",
-      label: "Lagging",
-      timeframe: "18 – 36 months",
-      agents: laggingAgents.map((a) => a.label),
-    },
+    { phase: "early", label: "Early movers", timeframe: "0 – 6 months", agents: earlyAgents.map((a) => a.label) },
+    { phase: "mainstream", label: "Mainstream", timeframe: "6 – 18 months", agents: mainstreamAgents.map((a) => a.label) },
+    { phase: "lagging", label: "Lagging", timeframe: "18 – 36 months", agents: laggingAgents.map((a) => a.label) },
   ];
 
-  // Overall readiness
+  // ── Overall readiness from second-pass prescriber scores ──────────────────
   const prescribers = agentResults.filter((a) =>
     ["academic_specialist", "community_specialist", "inpatient_prescriber"].includes(a.agentId)
   );
@@ -218,5 +277,21 @@ export function simulateAgents(signals: SignalInput[]): SimulationOutput {
   else if (avgScore > -0.3) overallReadiness = "Mixed — early adoption likely concentrated in specialist centres; community lag expected";
   else overallReadiness = "Challenging — significant barriers exist across prescriber groups; access and evidence gaps must be addressed first";
 
-  return { agentResults, adoptionSequence, overallReadiness };
+  // ── Agent-derived actor translation factor ─────────────────────────────────
+  // Weighted prescriber net score → exp(netScore / 4) mirrors the Bayesian engine's actor formula
+  const prescriberIds = ["academic_specialist", "community_specialist", "inpatient_prescriber"] as AgentId[];
+  let weightedNetScore = 0;
+  let totalInfluenceWeight = 0;
+  for (const id of prescriberIds) {
+    const result = agentResults.find((r) => r.agentId === id);
+    const archetype = AGENT_ARCHETYPES.find((a) => a.id === id);
+    if (result && archetype) {
+      weightedNetScore += result.reactionScore * archetype.influenceScore;
+      totalInfluenceWeight += archetype.influenceScore;
+    }
+  }
+  const normalizedNetScore = totalInfluenceWeight > 0 ? weightedNetScore / totalInfluenceWeight : 0;
+  const agentDerivedActorTranslation = Math.exp(normalizedNetScore / 4);
+
+  return { agentResults, adoptionSequence, overallReadiness, agentDerivedActorTranslation };
 }

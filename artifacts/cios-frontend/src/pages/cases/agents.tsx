@@ -22,9 +22,11 @@ interface AgentResult {
   role: string;
   stance: Stance;
   reactionScore: number;
+  baseReactionScore?: number;
   topSignals: Array<{ description: string; signalType: string; contribution: number }>;
   reasoning: string;
   responsePhase: "early" | "mainstream" | "lagging";
+  influenceAnnotations?: Array<{ fromLabel: string; label: string; delta: number }>;
 }
 
 interface AdoptionPhase {
@@ -43,6 +45,7 @@ interface SimulationResult {
   overallReadiness: string;
   signalCount: string;
   simulatedAt: string;
+  agentDerivedActorTranslation?: number;
 }
 
 // ─── Stance config ──────────────────────────────────────────────────────────
@@ -206,11 +209,17 @@ function AgentRow({ agent, isExpanded, onToggle }: {
       </tr>
       {isExpanded && (
         <tr className="bg-muted/5 border-b border-border/40">
-          <td colSpan={6} className="px-5 pb-4 pt-2">
-            <div className="grid grid-cols-2 gap-6">
+          <td colSpan={6} className="px-5 pb-5 pt-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Reasoning</p>
                 <p className="text-sm text-muted-foreground leading-relaxed">{agent.reasoning}</p>
+                {agent.baseReactionScore !== undefined && agent.baseReactionScore !== agent.reactionScore && (
+                  <p className="text-[10px] text-muted-foreground/60 mt-2">
+                    Base score (signal-only): {agent.baseReactionScore > 0 ? "+" : ""}{agent.baseReactionScore.toFixed(2)} →
+                    After peer influence: {agent.reactionScore > 0 ? "+" : ""}{agent.reactionScore.toFixed(2)}
+                  </p>
+                )}
               </div>
               {agent.topSignals.length > 0 && (
                 <div>
@@ -225,6 +234,31 @@ function AgentRow({ agent, isExpanded, onToggle }: {
                           {s.contribution > 0 ? "+" : ""}{s.contribution.toFixed(2)}
                         </span>
                         <p className="text-xs text-muted-foreground leading-snug line-clamp-2">{s.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(agent.influenceAnnotations ?? []).length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
+                    Peer-stakeholder influence
+                  </p>
+                  <div className="space-y-2">
+                    {agent.influenceAnnotations!.map((ann, i) => (
+                      <div key={i} className={cn(
+                        "flex items-start gap-2 p-2 rounded-lg border text-xs",
+                        ann.delta > 0
+                          ? "bg-success/5 border-success/20 text-success"
+                          : "bg-destructive/5 border-destructive/20 text-destructive"
+                      )}>
+                        <span className="font-bold shrink-0 mt-0.5">
+                          {ann.delta > 0 ? "+" : ""}{ann.delta.toFixed(2)}
+                        </span>
+                        <span className="text-muted-foreground leading-snug">
+                          <span className="font-medium text-foreground">{ann.fromLabel}:</span>{" "}
+                          {ann.label}
+                        </span>
                       </div>
                     ))}
                   </div>
