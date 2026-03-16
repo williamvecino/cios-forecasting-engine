@@ -21,6 +21,11 @@ export const caseLibraryTable = pgTable("case_library", {
   signalMix: jsonb("signal_mix").$type<Record<string, number>>(),
   agentPattern: jsonb("agent_pattern").$type<Record<string, string>>(),
   sourceCaseId: text("source_case_id"),
+  assetName: text("asset_name"),
+  diseaseState: text("disease_state"),
+  formulation: text("formulation"),
+  keyBarrier: text("key_barrier"),
+  keyEnabler: text("key_enabler"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

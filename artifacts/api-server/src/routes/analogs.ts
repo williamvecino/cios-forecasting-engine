@@ -83,6 +83,7 @@ router.get("/cases/:caseId/analogs", async (req, res) => {
   const query = {
     therapyArea: row?.therapeuticArea || row?.primaryBrand,
     specialty: row?.specialty || row?.primarySpecialtyProfile,
+    diseaseState: row?.diseaseState ?? undefined,
     productType: row?.assetType || "Medication",
     evidenceType: deriveEvidenceType(signalTypes),
     specialtyProfile: row?.primarySpecialtyProfile,
@@ -113,6 +114,7 @@ router.get("/cases/:caseId/analog-context", async (req, res) => {
   const query = {
     therapyArea: row.therapeuticArea || row.primaryBrand,
     specialty: row.specialty || row.primarySpecialtyProfile,
+    diseaseState: row.diseaseState ?? undefined,
     productType: row.assetType || "Medication",
     evidenceType: derivedEvidenceType,
     specialtyProfile: row.primarySpecialtyProfile,

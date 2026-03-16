@@ -11,12 +11,14 @@ Disease-agnostic, asset-agnostic, specialty-flexible Bayesian HCP adoption forec
 - **Signal Completeness Check** — 14-domain coverage analysis with high-priority warnings before forecast runs
 - **Bayesian Forecast Engine** — Prior × Signal LR Product × Stakeholder Response → Posterior
 - **Actor Behavioral Model** — 6-actor adjustment (KOL, HCP, Payer, Patient, Administrator, Competitor)
-- **Agent Simulation Layer** — 7-archetype stakeholder reaction model (Academic KOL, Community Specialist, Inpatient/Hospital, Payer, Guideline Body, Competitor, Commercial MSL). Deterministic reaction computation from signal mix → stance → adoption sequence
-- **Analog Retrieval** — Top-5 historical analog matches with similarity scoring and adoption lessons
+- **Agent Simulation Layer** — 7-archetype stakeholder reaction model with cross-agent influence (8 peer-influence rules). Agent-derived actor translation now feeds directly into the Bayesian posterior when signals are present; static Bayesian remains available as a comparison baseline
+- **Analog Retrieval** — 30-case calibrated analog library across 7 therapy areas (CNS/Psychiatry, Cardiology, Immunology/Derm, Rare Disease, Endocrinology, Oncology, Infectious Disease). Matching on therapy area + specialty + diseaseState + product type + evidence type via Jaccard token scoring
+- **Analog Context** — Analog-context endpoint derives optimistic/base/pessimistic scenario frames from calibrated analog outcomes for the current case
 - **Pattern Intelligence** — Rule-based classification of 5 recurring adoption patterns from Case Library
 - **Outcome Recording** — Record actual adoption rate + notes on forecast page → Publish to Case Library closes the learning loop
 - **Signal Register** — Full CRUD with inline edit (pencil icon) and delete confirm
-- **Calibration** — Outcome tracking with Brier score / mean forecast error
+- **Calibration Learning Loop** — Outcome tracking with Brier score / mean forecast error; `lr_corrections` table captures signal-type-level bias; auto-triggers correction recomputation after each recorded outcome (≥5 cases, |meanError| > 10pp threshold, ±20% cap)
+- **Signal Freshness Decay** — `exp(−λ × ageMonths)` applied per signal type at forecast time (λ = 0.06 for Phase III clinical evidence → 0.35 for field intelligence)
 
 ## Core Formula (from workbook ProbabilityEngine sheet)
 ```

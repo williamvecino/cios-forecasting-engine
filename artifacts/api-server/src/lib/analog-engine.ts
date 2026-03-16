@@ -18,6 +18,7 @@ interface QueryContext {
   specialtyProfile?: string;
   payerEnvironment?: string;
   primaryBrand?: string;
+  diseaseState?: string;
 }
 
 // Tokenise a field value: split on whitespace, slashes, dashes, pipes, commas — lowercase
@@ -95,8 +96,9 @@ export function scoreAnalogSimilarity(
   let score = 0;
 
   const weights = {
-    therapyArea: 25,
-    specialty: 20,
+    therapyArea: 20,
+    specialty: 15,
+    diseaseState: 15,
     productType: 15,
     evidenceType: 15,
     payerEnvironment: 10,
@@ -130,6 +132,20 @@ export function scoreAnalogSimilarity(
     dimensions.push("Partial specialty overlap");
   } else if (query.specialty && analog.specialty) {
     differences.push(`Specialty: ${query.specialty} vs. analog ${analog.specialty}`);
+  }
+
+  // Disease state — Jaccard on the specific disease/indication label
+  const analogDiseaseState = (analog as any).diseaseState as string | undefined;
+  if (query.diseaseState && analogDiseaseState) {
+    if (fullMatch(query.diseaseState, analogDiseaseState)) {
+      score += weights.diseaseState;
+      dimensions.push("Disease state match");
+    } else if (partialMatch(query.diseaseState, analogDiseaseState)) {
+      score += weights.diseaseState * 0.5;
+      dimensions.push("Partial disease state overlap");
+    } else {
+      differences.push(`Disease state: ${query.diseaseState} vs. analog ${analogDiseaseState}`);
+    }
   }
 
   // Product type

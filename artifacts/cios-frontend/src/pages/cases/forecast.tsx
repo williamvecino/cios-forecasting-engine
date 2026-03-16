@@ -729,30 +729,40 @@ export default function ForecastResults() {
             </p>
 
             {/* Bayesian vs Agent translation comparison */}
-            {simulation.agentDerivedActorTranslation !== undefined && forecast.actorTranslation !== undefined && (
+            {simulation.agentDerivedActorTranslation !== undefined && forecast.bayesianActorFactor !== undefined && (
               <div className="grid grid-cols-2 gap-3 mb-5">
                 <div className="border border-border rounded-xl p-3.5 bg-background">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Bayesian actor translation</p>
-                  <p className="text-2xl font-display font-bold">×{Number(forecast.actorTranslation).toFixed(3)}</p>
+                  <p className="text-2xl font-display font-bold">×{Number(forecast.bayesianActorFactor).toFixed(3)}</p>
                   <p className="text-[10px] text-muted-foreground mt-1">From signal-weighted actor reactions</p>
+                  {forecast.actorSource === "bayesian-static" && (
+                    <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
+                      ← Used in posterior
+                    </span>
+                  )}
                 </div>
                 <div className={cn(
                   "border rounded-xl p-3.5",
-                  simulation.agentDerivedActorTranslation > Number(forecast.actorTranslation)
+                  simulation.agentDerivedActorTranslation > Number(forecast.bayesianActorFactor)
                     ? "border-success/30 bg-success/5"
-                    : simulation.agentDerivedActorTranslation < Number(forecast.actorTranslation) * 0.95
+                    : simulation.agentDerivedActorTranslation < Number(forecast.bayesianActorFactor) * 0.95
                     ? "border-amber-400/30 bg-amber-400/5"
                     : "border-border bg-background"
                 )}>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Agent-derived translation</p>
                   <p className="text-2xl font-display font-bold">×{simulation.agentDerivedActorTranslation.toFixed(3)}</p>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {simulation.agentDerivedActorTranslation > Number(forecast.actorTranslation) + 0.01
+                    {simulation.agentDerivedActorTranslation > Number(forecast.bayesianActorFactor) + 0.01
                       ? "Agent dynamics suggest upward pressure on adoption"
-                      : simulation.agentDerivedActorTranslation < Number(forecast.actorTranslation) - 0.01
+                      : simulation.agentDerivedActorTranslation < Number(forecast.bayesianActorFactor) - 0.01
                       ? "Agent dynamics suggest headwinds not captured by signals alone"
                       : "Agent dynamics broadly confirm signal-based forecast"}
                   </p>
+                  {forecast.actorSource === "agent-simulation" && (
+                    <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/20 font-semibold">
+                      ← Used in posterior
+                    </span>
+                  )}
                 </div>
               </div>
             )}

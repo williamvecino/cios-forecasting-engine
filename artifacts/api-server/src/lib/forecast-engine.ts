@@ -71,12 +71,26 @@ export interface SensitivityAnalysis {
   stabilityNote: string;
 }
 
+export interface AgentActorSummary {
+  agentId: string;
+  label: string;
+  baseScore: number;
+  finalScore: number;
+  stance: string;
+  influenceAnnotations: Array<{ fromLabel: string; label: string; delta: number }>;
+  contributionToTranslation: number;
+}
+
 export interface ForecastOutput {
   caseId: string;
   priorProbability: number;
   priorOdds: number;
   signalLrProduct: number;
+  bayesianActorFactor: number;
+  agentActorFactor: number | null;
   actorAdjustmentFactor: number;
+  actorSource: "agent-simulation" | "bayesian-static";
+  agentActorSummary: AgentActorSummary[];
   posteriorOdds: number;
   currentProbability: number;
   confidenceLevel: string;
@@ -202,7 +216,19 @@ export function runForecastEngine(
   specialtyProfile: string,
   _payerEnvironment: string,
   _guidelineLeverage: string,
-  _competitorProfile: string
+  _competitorProfile: string,
+  agentSimulationResult?: {
+    agentDerivedActorTranslation: number;
+    agentResults: Array<{
+      agentId: string;
+      label: string;
+      reactionScore: number;
+      baseReactionScore?: number;
+      stance: string;
+      influenceAnnotations?: Array<{ fromLabel: string; label: string; delta: number }>;
+      influenceScore?: number;
+    }>;
+  }
 ): ForecastOutput {
   const activeSignals = signals.filter(
     (s) => s.signalId && s.signalDescription && s.likelihoodRatio !== null
@@ -285,7 +311,32 @@ export function runForecastEngine(
     0
   );
 
-  const actorAdjustmentFactor = Math.exp(netActorTranslation / 4);
+  const bayesianActorFactor = Math.exp(netActorTranslation / 4);
+
+  // Use agent-derived translation when simulation is available (signals exist and were simulated)
+  const agentActorFactor = agentSimulationResult?.agentDerivedActorTranslation ?? null;
+  const actorAdjustmentFactor = agentActorFactor ?? bayesianActorFactor;
+  const actorSource: "agent-simulation" | "bayesian-static" = agentActorFactor !== null ? "agent-simulation" : "bayesian-static";
+
+  // Build per-agent summary for UI decomposition
+  const PRESCRIBER_IDS = ["academic_specialist", "community_specialist", "inpatient_prescriber"];
+  const agentActorSummary: AgentActorSummary[] = (agentSimulationResult?.agentResults ?? [])
+    .filter((r) => PRESCRIBER_IDS.includes(r.agentId))
+    .map((r) => {
+      const base = r.baseReactionScore ?? r.reactionScore;
+      const final = r.reactionScore;
+      const weight = r.influenceScore ?? 1;
+      return {
+        agentId: r.agentId,
+        label: r.label,
+        baseScore: Number(base.toFixed(3)),
+        finalScore: Number(final.toFixed(3)),
+        stance: r.stance,
+        influenceAnnotations: r.influenceAnnotations ?? [],
+        contributionToTranslation: Number((final * weight).toFixed(3)),
+      };
+    });
+
   const posteriorOdds = priorOdds * signalLrProduct * actorAdjustmentFactor;
   const currentProbability = posteriorOdds / (1 + posteriorOdds);
 
@@ -413,7 +464,11 @@ export function runForecastEngine(
     priorProbability,
     priorOdds,
     signalLrProduct,
+    bayesianActorFactor,
+    agentActorFactor,
     actorAdjustmentFactor,
+    actorSource,
+    agentActorSummary,
     posteriorOdds,
     currentProbability,
     confidenceLevel,

@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { casesTable, signalsTable, actorsTable, calibrationLogTable } from "@workspace/db";
+import { casesTable, signalsTable, actorsTable, calibrationLogTable, AGENT_ARCHETYPES } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runForecastEngine } from "../lib/forecast-engine.js";
+import { simulateAgents } from "../lib/agent-engine.js";
+import { getLrCorrections } from "./calibration.js";
 
 const router = Router();
 
@@ -19,10 +21,35 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     return res.status(400).json({ error: "No actors configured. Please seed the database first." });
   }
 
+  // Apply LR corrections and freshness decay to signal likelihood ratios
+  const corrections = await getLrCorrections();
+  const now = Date.now();
+  const signalsWithAdjustedLR = signals.map((s) => {
+    const correction = corrections[s.signalType ?? ""] ?? 1.0;
+    const ageMonths = s.createdAt
+      ? (now - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30)
+      : 0;
+    const decayFactor = computeDecay(s.signalType ?? "", ageMonths);
+    const adjusted = (s.likelihoodRatio ?? 1) * correction * decayFactor;
+    return { ...s, likelihoodRatio: Number(adjusted.toFixed(4)) };
+  });
+
+  // Run agent simulation inline when signals exist — this drives the actor factor
+  let agentSimulationResult: Parameters<typeof runForecastEngine>[8] = undefined;
+  if (signalsWithAdjustedLR.length > 0) {
+    const { agentResults, agentDerivedActorTranslation } = simulateAgents(signalsWithAdjustedLR);
+    // Attach influenceScore from archetype for contribution weighting
+    const enrichedResults = agentResults.map((r) => {
+      const arch = AGENT_ARCHETYPES.find((a) => a.id === r.agentId);
+      return { ...r, influenceScore: arch?.influenceScore ?? 1 };
+    });
+    agentSimulationResult = { agentDerivedActorTranslation, agentResults: enrichedResults };
+  }
+
   const result = runForecastEngine(
     req.params.caseId,
     caseData.priorProbability,
-    signals,
+    signalsWithAdjustedLR,
     actors.map((a) => ({
       actorName: a.actorName,
       influenceWeight: a.influenceWeight,
@@ -34,7 +61,8 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     caseData.primarySpecialtyProfile ?? "General",
     caseData.payerEnvironment ?? "Balanced",
     caseData.guidelineLeverage ?? "Medium",
-    caseData.competitorProfile ?? "Entrenched standard of care"
+    caseData.competitorProfile ?? "Entrenched standard of care",
+    agentSimulationResult
   );
 
   await db.update(casesTable).set({
@@ -58,5 +86,23 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
 
   res.json({ ...result, forecastId, savedAt: new Date().toISOString() });
 });
+
+// Freshness decay factor: exp(-λ × ageMonths)
+// Clinical evidence decays slowly; field intelligence decays fast
+const DECAY_LAMBDA: Record<string, number> = {
+  "Phase III clinical":       0.06,
+  "Guideline inclusion":      0.05,
+  "Regulatory / clinical":    0.08,
+  "KOL endorsement":          0.18,
+  "Access / commercial":      0.22,
+  "Competitor counteraction": 0.25,
+  "Operational friction":     0.20,
+  "Field intelligence":       0.35,
+};
+
+function computeDecay(signalType: string, ageMonths: number): number {
+  const lambda = DECAY_LAMBDA[signalType] ?? 0.15;
+  return Math.exp(-lambda * ageMonths);
+}
 
 export default router;
