@@ -283,7 +283,7 @@ export function runForecastEngine(
     0
   );
 
-  const actorAdjustmentFactor = Math.exp(netActorTranslation / 2);
+  const actorAdjustmentFactor = Math.exp(netActorTranslation / 4);
   const posteriorOdds = priorOdds * signalLrProduct * actorAdjustmentFactor;
   const currentProbability = posteriorOdds / (1 + posteriorOdds);
 
