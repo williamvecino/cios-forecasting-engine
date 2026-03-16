@@ -11,8 +11,8 @@ function deriveDirectionSafeLR(body: Record<string, any>): number {
   const signalType = body.signalType ?? "";
   const strength = Number(body.strengthScore ?? 3);
   const credibility = Number(body.reliabilityScore ?? 3);
-  const scope = (body.scope ?? "national") as Scope;
-  const timing = (body.timing ?? "current") as Timing;
+  const scope = ((body.scope ?? "national") as string).toLowerCase() as Scope;
+  const timing = ((body.timing ?? "current") as string).toLowerCase() as Timing;
   const direction = (body.direction ?? "Positive") as "Positive" | "Negative";
   return computeLR(signalType, strength, credibility, scope, timing, direction);
 }
