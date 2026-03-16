@@ -8,3 +8,4 @@ export * from "./guidance";
 export * from "./field-intelligence";
 export * from "./watchlist";
 export * from "./candidate-signals";
+export * from "./agent-simulations";

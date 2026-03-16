@@ -82,4 +82,73 @@ router.get("/cases/:caseId/analogs", async (req, res) => {
   res.json(matches);
 });
 
+// Pattern summaries — concrete rule-based classification of recurring patterns
+router.get("/patterns", async (_req, res) => {
+  const library = await db.select().from(caseLibraryTable);
+
+  const PATTERNS = [
+    {
+      id: "strong_evidence_slow_payer",
+      label: "Strong clinical evidence — slow payer uptake",
+      description: "Robust Phase III data drove strong specialist enthusiasm, but restrictive payer policies created 12–18 month access lag before broad community uptake.",
+      keywords: ["payer", "prior auth", "formulary", "access", "denied", "restriction"],
+      signalTypes: ["Phase III clinical", "Access / commercial"],
+    },
+    {
+      id: "kol_enthusiasm_community_lag",
+      label: "KOL enthusiasm — community specialist lag",
+      description: "Academic KOLs and congress presentations generated early buzz, but community specialists waited for real-world evidence and guideline endorsement before broad adoption.",
+      keywords: ["community", "lag", "guideline", "kol", "conference", "congress"],
+      signalTypes: ["KOL endorsement", "Guideline inclusion"],
+    },
+    {
+      id: "efficacy_offset_safety",
+      label: "Positive efficacy offset by safety narrative",
+      description: "Strong efficacy signal was partially neutralised by an evolving safety narrative, creating a risk–benefit calculation that slowed initial prescribing.",
+      keywords: ["safety", "adverse", "black box", "warning", "risk", "toxicity"],
+      signalTypes: ["Phase III clinical", "Regulatory / clinical"],
+    },
+    {
+      id: "convenience_specialist",
+      label: "Convenience advantage driving specialist uptake",
+      description: "Once-daily, subcutaneous, or oral formulation created a convenience differentiation that accelerated prescribing in specialist-heavy markets with high treatment burden.",
+      keywords: ["convenience", "oral", "once-daily", "administration", "formulation", "burden"],
+      signalTypes: ["Field intelligence", "Operational friction"],
+    },
+    {
+      id: "competitor_delay",
+      label: "Competitive counter-messaging delaying adoption",
+      description: "Incumbent product and competitor field force created doubt about comparative value, requiring additional real-world evidence to overcome prescriber hesitancy.",
+      keywords: ["competitor", "incumbent", "counter", "messaging", "market share", "challenge"],
+      signalTypes: ["Competitor counteraction", "Field intelligence"],
+    },
+  ];
+
+  const patternResults = PATTERNS.map((pattern) => {
+    const matchingCases = library.filter((c) => {
+      const text = [c.outcomePattern, c.finalObservedOutcome, c.keyInflectionSignals, c.adoptionTrajectory, c.notes]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return pattern.keywords.some((kw) => text.includes(kw));
+    });
+
+    return {
+      id: pattern.id,
+      label: pattern.label,
+      description: pattern.description,
+      signalTypes: pattern.signalTypes,
+      caseCount: matchingCases.length,
+      exampleCases: matchingCases.slice(0, 2).map((c) => ({
+        caseId: c.caseId,
+        therapyArea: c.therapyArea,
+        finalOutcome: c.finalObservedOutcome ?? c.outcomePattern ?? null,
+        finalProbability: c.finalProbability,
+      })),
+    };
+  }).sort((a, b) => b.caseCount - a.caseCount);
+
+  res.json(patternResults);
+});
+
 export default router;

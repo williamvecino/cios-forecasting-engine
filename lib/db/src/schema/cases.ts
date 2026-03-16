@@ -1,4 +1,4 @@
-import { pgTable, text, real, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, real, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -42,6 +42,12 @@ export const casesTable = pgTable("cases", {
   lastUpdate: timestamp("last_update").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   isDemo: text("is_demo").default("false"),
+
+  // Outcome recording (filled in after the fact)
+  actualAdoptionRate: real("actual_adoption_rate"),
+  actualOutcomeNotes: text("actual_outcome_notes"),
+  outcomeRecordedAt: timestamp("outcome_recorded_at"),
+  outcomePublishedToLibrary: text("outcome_published_to_library").default("false"),
 });
 
 export const insertCaseSchema = createInsertSchema(casesTable).omit({

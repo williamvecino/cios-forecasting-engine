@@ -13,6 +13,7 @@ import {
   Cpu,
   ChevronRight,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -23,6 +24,7 @@ const navItems = [
   { name: "Signal Detection", path: "/cases/active/discover", icon: Sparkles, isSub: true },
   { name: "Signal Register", path: "/cases/active/signals", icon: Radio, isSub: true },
   { name: "Analog Matches", path: "/cases/active/analogs", icon: Library, isSub: true },
+  { name: "Agent Simulation", path: "/cases/active/agents", icon: Users, isSub: true },
   { name: "Case Library", path: "/case-library", icon: BookOpen },
   { name: "Calibration", path: "/calibration", icon: BarChart3 },
   { name: "Field Intelligence", path: "/field-intelligence", icon: Rss },

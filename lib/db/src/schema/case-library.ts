@@ -1,4 +1,4 @@
-import { pgTable, text, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, real, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,9 @@ export const caseLibraryTable = pgTable("case_library", {
   finalObservedOutcome: text("final_observed_outcome"),
   finalProbability: real("final_probability"),
   notes: text("notes"),
+  signalMix: jsonb("signal_mix").$type<Record<string, number>>(),
+  agentPattern: jsonb("agent_pattern").$type<Record<string, string>>(),
+  sourceCaseId: text("source_case_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

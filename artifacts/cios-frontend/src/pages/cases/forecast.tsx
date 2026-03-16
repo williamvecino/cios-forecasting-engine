@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useRoute } from "wouter";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
@@ -17,6 +19,9 @@ import {
   ChevronUp,
   ChevronDown,
   Minus,
+  BookMarked,
+  Send,
+  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -117,6 +122,30 @@ export default function ForecastResults() {
 
   const { data: caseData } = useGetCase(caseId);
   const { data: forecast, isLoading } = useRunForecast(caseId);
+  const queryClient = useQueryClient();
+
+  const [showOutcome, setShowOutcome] = useState(false);
+  const [outcomeRate, setOutcomeRate] = useState("");
+  const [outcomeNotes, setOutcomeNotes] = useState("");
+  const [outcomeSaved, setOutcomeSaved] = useState(false);
+  const [publishMsg, setPublishMsg] = useState<string | null>(null);
+
+  const { mutate: saveOutcome, isPending: savingOutcome } = useMutation({
+    mutationFn: () =>
+      fetch(`/api/cases/${caseId}/outcome`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actualAdoptionRate: outcomeRate ? Number(outcomeRate) : undefined, actualOutcomeNotes: outcomeNotes }),
+      }).then((r) => r.json()),
+    onSuccess: () => { setOutcomeSaved(true); queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] }); },
+  });
+
+  const { mutate: publishToLibrary, isPending: publishing } = useMutation({
+    mutationFn: () =>
+      fetch(`/api/cases/${caseId}/publish-to-library`, { method: "POST" }).then((r) => r.json()),
+    onSuccess: () => setPublishMsg("Published to Case Library — this case is now available as an analog for future forecasts."),
+    onError: () => setPublishMsg("Publish failed. Please try again."),
+  });
 
   if (isLoading) {
     return (
@@ -564,6 +593,87 @@ export default function ForecastResults() {
               </div>
             )}
           </div>
+        </Card>
+
+        {/* Outcome Recording */}
+        <Card>
+          <button
+            onClick={() => setShowOutcome((v) => !v)}
+            className="w-full flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-2">
+              <BookMarked className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              <span className="text-sm font-semibold">Record Outcome</span>
+              <span className="text-xs text-muted-foreground">Log actual results and publish to Case Library</span>
+            </div>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showOutcome && "rotate-90")} />
+          </button>
+
+          {showOutcome && (
+            <div className="mt-4 pt-4 border-t border-border space-y-4">
+              {publishMsg && (
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs border",
+                  publishMsg.includes("failed")
+                    ? "bg-destructive/10 border-destructive/30 text-destructive"
+                    : "bg-success/10 border-success/30 text-success"
+                )}>
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  {publishMsg}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Actual adoption rate (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="e.g. 62"
+                    value={outcomeRate}
+                    onChange={(e) => setOutcomeRate(e.target.value)}
+                    className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Forecast accuracy note</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Faster uptake than expected in community"
+                    value={outcomeNotes}
+                    onChange={(e) => setOutcomeNotes(e.target.value)}
+                    className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  onClick={() => saveOutcome()}
+                  disabled={savingOutcome || (!outcomeRate && !outcomeNotes)}
+                  className="gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {outcomeSaved ? "Outcome saved" : savingOutcome ? "Saving…" : "Save Outcome"}
+                </Button>
+                {outcomeSaved && !publishMsg && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => publishToLibrary()}
+                    disabled={publishing}
+                    className="gap-1.5"
+                  >
+                    <BookMarked className="w-3.5 h-3.5" />
+                    {publishing ? "Publishing…" : "Publish to Case Library"}
+                  </Button>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  Publishing saves this case as an analog for future forecasts.
+                </span>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </AppLayout>

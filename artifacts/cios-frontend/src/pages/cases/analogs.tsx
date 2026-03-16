@@ -1,9 +1,10 @@
 import { useRoute } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useGetAnalogs, useGetCase } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
 import { Card, Badge, Button } from "@/components/ui-components";
-import { Library, CheckCircle2, RefreshCcw, AlertTriangle, BookOpen, Minus } from "lucide-react";
+import { Library, CheckCircle2, RefreshCcw, AlertTriangle, BookOpen, Minus, Repeat2 } from "lucide-react";
 
 function ConfidenceBand({ band }: { band: string }) {
   const styles: Record<string, string> = {
@@ -55,6 +56,20 @@ export default function AnalogRetrieval() {
 
   const { data: caseData } = useGetCase(caseId);
   const { data: analogs, isLoading, refetch } = useGetAnalogs(caseId);
+
+  interface PatternSummary {
+    id: string;
+    label: string;
+    description: string;
+    signalTypes: string[];
+    caseCount: number;
+    exampleCases: Array<{ caseId: string; therapyArea: string; finalOutcome: string | null; finalProbability: number | null }>;
+  }
+  const { data: patterns = [] } = useQuery<PatternSummary[]>({
+    queryKey: ["/api/patterns"],
+    queryFn: () => fetch("/api/patterns").then((r) => r.json()),
+    staleTime: 1000 * 60 * 10,
+  });
 
   return (
     <AppLayout>
@@ -255,6 +270,59 @@ export default function AnalogRetrieval() {
                 </p>
               </Card>
             )}
+          </div>
+        )}
+
+        {/* Pattern Intelligence */}
+        {patterns.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Repeat2 className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pattern Intelligence</span>
+              <span className="text-xs text-muted-foreground">Recurring adoption patterns from the Case Library</span>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {patterns.map((p) => (
+                <Card key={p.id}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Repeat2 className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-sm font-semibold leading-snug">{p.label}</p>
+                        {p.caseCount > 0 && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
+                            {p.caseCount} {p.caseCount === 1 ? "case" : "cases"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed mb-2">{p.description}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {p.signalTypes.map((st) => (
+                          <span key={st} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-medium">
+                            {st}
+                          </span>
+                        ))}
+                      </div>
+                      {p.exampleCases.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-border/50">
+                          {p.exampleCases.map((ec) => (
+                            <div key={ec.caseId} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                              <span className="font-mono">{ec.caseId}</span>
+                              {ec.therapyArea && <span>· {ec.therapyArea}</span>}
+                              {ec.finalProbability !== null && ec.finalProbability !== undefined && (
+                                <span className="font-semibold text-primary">{(Number(ec.finalProbability) * 100).toFixed(0)}% final</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
       </div>

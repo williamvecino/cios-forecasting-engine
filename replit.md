@@ -6,11 +6,15 @@ Disease-agnostic, asset-agnostic, specialty-flexible Bayesian HCP adoption forec
 **ARIKAYCE, CardioAsset X, and OncoDevice Y are demo seed cases only — the engine has no brand identity.**
 
 ## Key Features
-- **Signal Discovery Layer** — AI-powered extraction of candidate signals from pasted documents (press releases, trial summaries, conference notes, regulatory updates, etc.)
-- **Signal Review Workflow** — Detected → Confirm / Edit / Reject → Confirmed signals auto-feed forecast
+- **Signal Detection Layer** — AI-powered extraction of candidate signals from pasted documents (press releases, trial summaries, conference notes, regulatory updates, etc.)
+- **Signal Review Workflow** — Detected → Confirm / Edit / Reject (with inline edit on all three states) → Confirmed signals auto-feed forecast
 - **Signal Completeness Check** — 14-domain coverage analysis with high-priority warnings before forecast runs
 - **Bayesian Forecast Engine** — Prior × Signal LR Product × Stakeholder Response → Posterior
 - **Actor Behavioral Model** — 6-actor adjustment (KOL, HCP, Payer, Patient, Administrator, Competitor)
+- **Agent Simulation Layer** — 7-archetype stakeholder reaction model (Academic KOL, Community Specialist, Inpatient/Hospital, Payer, Guideline Body, Competitor, Commercial MSL). Deterministic reaction computation from signal mix → stance → adoption sequence
+- **Analog Retrieval** — Top-5 historical analog matches with similarity scoring and adoption lessons
+- **Pattern Intelligence** — Rule-based classification of 5 recurring adoption patterns from Case Library
+- **Outcome Recording** — Record actual adoption rate + notes on forecast page → Publish to Case Library closes the learning loop
 - **Signal Register** — Full CRUD with inline edit (pencil icon) and delete confirm
 - **Calibration** — Outcome tracking with Brier score / mean forecast error
 
@@ -46,11 +50,13 @@ net_actor_translation = sum(net_actor_effect[all actors])
   - `seed-data.ts` — Workbook sample data (ARIKAYCE/NTM)
 
 ## Database Tables
-- `cases` — Forecast case headers
+- `cases` — Forecast case headers (+ actualAdoptionRate, actualOutcomeNotes, outcomeRecordedAt, outcomePublishedToLibrary)
 - `signals` — Signal register per case
 - `actors` — Actor configuration (6 canonical actors)
 - `specialty_actor_sets` — Per-specialty actor profiles
-- `case_library` — Historical analog cases
+- `case_library` — Historical analog cases (+ signalMix JSONB, agentPattern JSONB, sourceCaseId)
+- `agent_simulations` — Per-case agent reaction simulation results (agentResults JSONB, adoptionSequence JSONB)
+- `candidate_signals` — Signal Detection staging table (pending/approved/rejected workflow)
 - `calibration_log` — Forecast prediction/outcome ledger
 - `scenarios` — Hypothetical signal scenarios
 - `guidance` — Strategic guidance items
@@ -79,13 +85,32 @@ net_actor_translation = sum(net_actor_effect[all actors])
 ## Frontend Pages
 - `/` — Executive Dashboard (probability gauge, active cases, calibration health)
 - `/cases` — Question Engine (case list + create new case)
-- `/cases/:id/signals` — Signal Register (add/view signals per case)
-- `/cases/:id/forecast` — Forecast Engine (Bayesian chain, actor profile, signal drivers)
-- `/cases/:id/analogs` — Analog Retrieval (top matching historical cases)
+- `/cases/:id/signals` — Signal Register (full CRUD with inline edit + delete confirm)
+- `/cases/:id/discover` — Signal Detection (Document Intake → AI extraction → Review Queue → Confirm/Edit/Reject)
+- `/cases/:id/forecast` — Forecast Engine (Bayesian chain, actor profile, signal drivers, + Outcome Recording section)
+- `/cases/:id/analogs` — Analog Retrieval (top-5 matches + Pattern Intelligence section)
+- `/cases/:id/agents` — Agent Simulation (7-archetype reaction model + Adoption Sequence + Influence Matrix)
 - `/case-library` — Case Library (manage analog cases)
 - `/calibration` — Calibration (prediction log, Brier scores, outcome recording)
 - `/field-intelligence` — Field Intelligence (MSL/field submissions)
 - `/watchlist` — Signal Watchlist (upcoming signal monitoring)
+
+## Agent Simulation Architecture
+- **Config**: `lib/db/src/agent-config.ts` — 7 archetypes (id, label, role, motivations, decisionDrivers, inertia, responseSpeed, influenceScore, isAdversarial, stanceLabels) + 8×7 signal-agent weight matrix
+- **Engine**: `artifacts/api-server/src/lib/agent-engine.ts` — `simulateAgents(signals[]) → SimulationOutput`
+  - Computes `baseEffect` per signal (LR-based signed effect)
+  - Weights by `SIGNAL_AGENT_WEIGHTS[signalType][agentId]` and `(1 - inertia * 0.5)`
+  - Maps reaction score to stance (adversarial agents use inverted score)
+  - Derives responsePhase (early/mainstream/lagging) from stance + responseSpeed
+  - Computes adoption sequence and overall readiness narrative
+- **Routes**: `POST /api/cases/:caseId/simulation` (run), `GET /api/cases/:caseId/simulation` (fetch latest)
+- Simulation is deterministic — no AI/ML. Results are saved to `agent_simulations` table.
+
+## Learning Layer (Concrete, not vague AI)
+1. **Case Memory**: `case_library` table stores completed cases with signal mix (JSONB), agent pattern, outcome notes, final probability
+2. **Analog Retrieval**: `analog-engine.ts` scores similarity on 7 weighted dimensions (therapy area, specialty, product type, evidence type, payer environment, lifecycle stage, brand)
+3. **Pattern Summaries**: `GET /api/patterns` — 5 rule-based patterns detected by keyword matching against case library text fields
+4. **Outcome Recording**: Forecast page → "Record Outcome" → PATCH /api/cases/:id/outcome → "Publish to Case Library" → POST /api/cases/:id/publish-to-library (assembles case into library entry including signal mix JSONB)
 
 ## Signal LR Configuration
 - **LR config module**: `lib/db/src/lr-config.ts` (backend) and `artifacts/cios-frontend/src/lib/lr-config.ts` (frontend)

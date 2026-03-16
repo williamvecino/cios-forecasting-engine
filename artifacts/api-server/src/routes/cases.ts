@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { casesTable } from "@workspace/db";
+import { casesTable, caseLibraryTable, signalsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -76,6 +76,67 @@ router.put("/cases/:caseId", async (req, res) => {
 router.delete("/cases/:caseId", async (req, res) => {
   await db.delete(casesTable).where(eq(casesTable.caseId, req.params.caseId));
   res.status(204).send();
+});
+
+router.patch("/cases/:caseId/outcome", async (req, res) => {
+  const { actualAdoptionRate, actualOutcomeNotes } = req.body;
+  const [updated] = await db
+    .update(casesTable)
+    .set({
+      actualAdoptionRate: actualAdoptionRate !== undefined ? Number(actualAdoptionRate) : undefined,
+      actualOutcomeNotes: actualOutcomeNotes ?? undefined,
+      outcomeRecordedAt: new Date(),
+    })
+    .where(eq(casesTable.caseId, req.params.caseId))
+    .returning();
+  if (!updated) return res.status(404).json({ error: "Not found" });
+  res.json(updated);
+});
+
+router.post("/cases/:caseId/publish-to-library", async (req, res) => {
+  const { caseId } = req.params;
+  const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId));
+  if (!caseRow) return res.status(404).json({ error: "Case not found" });
+
+  const signals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, caseId));
+
+  // Build signal mix: count signal types
+  const signalMix: Record<string, number> = {};
+  for (const s of signals) {
+    signalMix[s.signalType] = (signalMix[s.signalType] ?? 0) + 1;
+  }
+
+  const adoptionRate = caseRow.actualAdoptionRate;
+  const adoptionTrajectory = caseRow.outcomeDefinition ?? null;
+  const finalProb = adoptionRate !== null && adoptionRate !== undefined
+    ? adoptionRate / 100
+    : caseRow.currentProbability ?? null;
+
+  const [library] = await db.insert(caseLibraryTable).values({
+    id: randomUUID(),
+    caseId: caseRow.caseId,
+    therapyArea: caseRow.therapeuticArea ?? "Unknown",
+    productType: caseRow.assetType ?? "Medication",
+    specialty: caseRow.specialty ?? "General",
+    evidenceType: signals.some((s) => s.signalType === "Phase III clinical") ? "Phase 3 RCT" : "Mixed evidence",
+    lifecycleStage: "Commercial",
+    actorMix: [caseRow.primarySpecialtyProfile, caseRow.payerEnvironment].filter(Boolean).join(" / ") || null,
+    marketAccessConditions: caseRow.payerEnvironment ?? null,
+    outcomePattern: caseRow.actualOutcomeNotes ?? null,
+    adoptionTrajectory: adoptionTrajectory,
+    keyInflectionSignals: signals.slice(0, 3).map((s) => `${s.signalType}: ${s.signalDescription}`).join("; ") || null,
+    finalObservedOutcome: caseRow.actualOutcomeNotes ?? null,
+    finalProbability: finalProb,
+    notes: `Published from active case ${caseRow.caseId}. Asset: ${caseRow.assetName ?? caseRow.primaryBrand}.`,
+    signalMix,
+    sourceCaseId: caseId,
+  }).returning();
+
+  await db.update(casesTable)
+    .set({ outcomePublishedToLibrary: "true" })
+    .where(eq(casesTable.caseId, caseId));
+
+  res.status(201).json(library);
 });
 
 function mapCase(c: typeof casesTable.$inferSelect) {
