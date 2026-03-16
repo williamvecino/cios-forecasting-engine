@@ -80,6 +80,23 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     bucketCorrectionApplied: bucketCorrectionPp !== 0
       ? { bucket, correctionPp: bucketCorrectionPp }
       : null,
+    // ── Case context metadata (embedded for validation + trace integrity) ───
+    _caseContext: {
+      caseId: req.params.caseId,
+      therapeuticArea: caseData.therapeuticArea ?? null,
+      diseaseState: caseData.diseaseState ?? null,
+      specialty: caseData.specialty ?? null,
+      strategicQuestion: caseData.strategicQuestion ?? null,
+      timeHorizon: caseData.timeHorizon ?? "12 months",
+      caseMode: caseData.isDemo === "true" ? "demo" : "live",
+      actorContext: {
+        payerEnvironment: caseData.payerEnvironment ?? "Balanced",
+        guidelineLeverage: caseData.guidelineLeverage ?? "Medium",
+        competitorProfile: caseData.competitorProfile ?? "Entrenched standard of care",
+        primarySpecialtyProfile: caseData.primarySpecialtyProfile ?? "General",
+      },
+      forecastDate: new Date().toISOString(),
+    },
   };
 
   await db.update(casesTable).set({

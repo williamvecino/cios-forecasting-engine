@@ -5,6 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { generateStrategicQuestions } from "../lib/question-engine.js";
 import { generateForecastChallenge } from "../lib/challenge-engine.js";
 import { getBucket } from "./calibration.js";
+import { deriveQuestionType, getCoverageNote } from "../lib/case-context.js";
 
 const router = Router();
 
@@ -249,9 +250,23 @@ router.get("/cases/:caseId/trace", async (req, res) => {
     caseRow.therapeuticArea ?? "Unknown"
   );
 
+  // ── Case context + coverage note ─────────────────────────────────────────
+  const questionType = deriveQuestionType(caseRow.strategicQuestion);
+  const coverageNote = await getCoverageNote(rawProb, caseRow.therapeuticArea ?? null);
+  const caseContext = {
+    therapeuticArea: caseRow.therapeuticArea ?? null,
+    diseaseState: caseRow.diseaseState ?? null,
+    specialty: caseRow.specialty ?? null,
+    timeHorizon: caseRow.timeHorizon ?? "12 months",
+    questionType,
+    caseMode: caseRow.isDemo === "true" ? "demo" : "live",
+  };
+
   res.json({
     caseId: req.params.caseId,
     forecastProbability: Number((calibProb * 100).toFixed(1)),
+    caseContext,
+    coverageNote,
     topPositiveDrivers,
     topNegativeDrivers,
     actorBottleneck,

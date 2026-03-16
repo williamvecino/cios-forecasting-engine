@@ -1,0 +1,87 @@
+CIOS NEXT HARDENING PHASE — CASE CONTEXT INTEGRITY
+
+The latest hardening phase is good.
+Do not shift to article or simulation work yet.
+The next priority is case-context integrity so validation and trace outputs can be interpreted by specialty and question type.
+
+Build in this order:
+
+1. CASE METADATA INTEGRITY
+Ensure every forecast snapshot and validation-relevant record preserves:
+- caseId
+- therapyArea
+- diseaseArea if available
+- questionType
+- forecastDate
+- caseMode
+- actor context if available
+
+Goal:
+Every forecast, trace, and validation output must remain linked to interpretable case context.
+
+2. THERAPY-AREA-AWARE VALIDATION
+Upgrade validation reporting so results can be broken out by:
+- therapy area
+- question type
+- confidence bucket
+
+Show:
+- case count
+- mean raw error
+- mean calibrated error
+- improvement percentage
+- whether correction behavior differs meaningfully across therapy areas
+
+Goal:
+Determine whether calibration is globally improving but locally unstable.
+
+3. CALIBRATION COVERAGE MAP
+Add a coverage view showing where the system has enough data to trust itself:
+- by confidence bucket
+- by therapy area
+- by question type
+
+Each cell should show:
+- number of resolved cases
+- active/inactive correction
+- low-sample warning if applicable
+
+Goal:
+Make system maturity visible and prevent overclaiming.
+
+4. TRACE MODE ENRICHMENT
+Add to trace mode:
+- question type
+- therapy area
+- case mode
+- coverage note indicating whether this case sits in a well-calibrated or sparse region of the system
+
+Goal:
+Allow the analyst to know not only why the forecast is what it is, but how much to trust the calibration context around it.
+
+5. VALIDATION ROUND 3
+Re-run validation after metadata integrity is fixed and show:
+- global results
+- therapy-area-specific results
+- bucket-specific results
+- whether any region is improving while another is unstable
+- explicit verdict: broadly improving / mixed / insufficient segmented data
+
+Important rules:
+- do not redesign platform
+- do not add article workflows
+- keep logic modular
+- preserve current calibration behavior unless metadata gaps require small route/schema fixes
+
+Before building, show:
+1. architecture changes
+2. files/modules to modify
+3. data model changes
+4. validation plan
+
+Then proceed in this order:
+1. metadata integrity
+2. therapy-aware validation
+3. coverage map
+4. trace enrichment
+5. validation round 3

@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { calibrationLogTable, lrCorrectionsTable, bucketCorrectionsTable } from "@workspace/db";
+import { calibrationLogTable, lrCorrectionsTable, bucketCorrectionsTable, casesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { enrichCalibrationWithMetadata, deriveQuestionType } from "../lib/case-context.js";
 
 const router = Router();
 
@@ -473,15 +474,14 @@ router.get("/calibration/validation-report", async (_req, res) => {
     db.select().from(calibrationLogTable),
     db.select().from(bucketCorrectionsTable),
   ]);
-  const calibrated = calRows.filter((r) => r.observedOutcome !== null && r.snapshotJson);
+  const calibratedRaw = calRows.filter((r) => r.observedOutcome !== null);
+  // Enrich every row with case metadata (joins cases table for historical rows)
+  const enriched = await enrichCalibrationWithMetadata(calibratedRaw);
 
   const bucketByLabel: Record<string, typeof bucketRows[0]> = {};
   for (const r of bucketRows) bucketByLabel[r.bucket] = r;
 
-  const cases = calibrated.map((r) => {
-    let snapshot: any = {};
-    try { snapshot = JSON.parse(r.snapshotJson!); } catch {}
-
+  const cases = enriched.map((r) => {
     const bucket = getBucket(r.predictedProbability);
     const bucketCorrPp = bucket ? (bucketByLabel[bucket]?.correctionPp ?? 0) : 0;
     const calibratedProb = Math.max(0.01, Math.min(0.99, r.predictedProbability + bucketCorrPp));
@@ -492,8 +492,11 @@ router.get("/calibration/validation-report", async (_req, res) => {
 
     return {
       caseId: r.caseId,
-      therapyArea: snapshot.therapyArea ?? null,
-      specialty: snapshot.specialty ?? null,
+      therapyArea: r.therapeuticArea ?? null,
+      diseaseState: r.diseaseState ?? null,
+      specialty: r.specialty ?? null,
+      questionType: r.questionType,
+      caseMode: r.caseMode,
       bucket,
       rawProbability: r.predictedProbability,
       calibratedProbability: Number(calibratedProb.toFixed(4)),
@@ -506,59 +509,93 @@ router.get("/calibration/validation-report", async (_req, res) => {
     };
   });
 
+  // Helper: summary stats for a group of cases
+  function groupStats(group: typeof cases) {
+    if (group.length === 0) return null;
+    const meanRaw = group.reduce((s, c) => s + c.rawError, 0) / group.length;
+    const meanCalib = group.reduce((s, c) => s + c.calibratedError, 0) / group.length;
+    const meanAbsRaw = group.reduce((s, c) => s + Math.abs(c.rawError), 0) / group.length;
+    const meanAbsCalib = group.reduce((s, c) => s + Math.abs(c.calibratedError), 0) / group.length;
+    const improvementCount = group.filter((c) => c.improved).length;
+    const improvePct = improvementCount / group.length;
+    const improvementPp = (meanAbsRaw - meanAbsCalib) * 100;
+    return {
+      n: group.length,
+      meanRawError: Number(meanRaw.toFixed(4)),
+      meanCalibratedError: Number(meanCalib.toFixed(4)),
+      meanAbsRawError: Number(meanAbsRaw.toFixed(4)),
+      meanAbsCalibratedError: Number(meanAbsCalib.toFixed(4)),
+      improvementRate: Number(improvePct.toFixed(3)),
+      improvementPp: Number(improvementPp.toFixed(2)),
+      verdict: Math.abs(meanCalib) < Math.abs(meanRaw) ? "improving" : "degrading",
+    };
+  }
+
   // Bucket-level summary
   const bucketSummary = BUCKETS.map((bk) => {
     const inBucket = cases.filter((c) => c.bucket === bk.label);
     if (inBucket.length === 0) return { bucket: bk.label, n: 0 };
-    const meanRaw = inBucket.reduce((s, c) => s + c.rawError, 0) / inBucket.length;
-    const meanCalib = inBucket.reduce((s, c) => s + c.calibratedError, 0) / inBucket.length;
-    const improvementCount = inBucket.filter((c) => c.improved).length;
-    return {
-      bucket: bk.label,
-      n: inBucket.length,
-      meanRawError: Number(meanRaw.toFixed(4)),
-      meanCalibratedError: Number(meanCalib.toFixed(4)),
-      improvementRate: Number((improvementCount / inBucket.length).toFixed(3)),
-      verdict: Math.abs(meanCalib) < Math.abs(meanRaw) ? "improving" : "degrading",
-    };
+    return { bucket: bk.label, ...groupStats(inBucket) };
   });
 
-  // Therapy area breakouts
+  // Therapy area breakout (now real data from metadata join)
   const taMap: Record<string, typeof cases> = {};
   for (const c of cases) {
     const ta = c.therapyArea ?? "Unknown";
     if (!taMap[ta]) taMap[ta] = [];
     taMap[ta].push(c);
   }
-  const therapyAreaBreakout = Object.entries(taMap).map(([ta, taCases]) => {
-    const meanRaw = taCases.reduce((s, c) => s + c.rawError, 0) / taCases.length;
-    const meanCalib = taCases.reduce((s, c) => s + c.calibratedError, 0) / taCases.length;
-    return {
-      therapyArea: ta,
-      n: taCases.length,
-      meanRawError: Number(meanRaw.toFixed(4)),
-      meanCalibratedError: Number(meanCalib.toFixed(4)),
-      verdict: Math.abs(meanCalib) < Math.abs(meanRaw) ? "improving" : "degrading",
-    };
-  }).sort((a, b) => b.n - a.n);
+  const therapyAreaBreakout = Object.entries(taMap).map(([ta, taCases]) => ({
+    therapyArea: ta,
+    ...groupStats(taCases),
+  })).sort((a: any, b: any) => b.n - a.n);
 
-  // Overall verdict
-  const totalRaw = cases.reduce((s, c) => s + Math.abs(c.rawError), 0);
-  const totalCalib = cases.reduce((s, c) => s + Math.abs(c.calibratedError), 0);
+  // Question type breakout
+  const qtMap: Record<string, typeof cases> = {};
+  for (const c of cases) {
+    const qt = c.questionType ?? "other";
+    if (!qtMap[qt]) qtMap[qt] = [];
+    qtMap[qt].push(c);
+  }
+  const questionTypeBreakout = Object.entries(qtMap).map(([qt, qtCases]) => ({
+    questionType: qt,
+    ...groupStats(qtCases),
+  })).sort((a: any, b: any) => b.n - a.n);
+
+  // Overall verdict with segmentation analysis
+  const totalAbsRaw = cases.reduce((s, c) => s + Math.abs(c.rawError), 0);
+  const totalAbsCalib = cases.reduce((s, c) => s + Math.abs(c.calibratedError), 0);
   const overallVerdict = cases.length < 4
     ? "insufficient_data"
-    : totalCalib < totalRaw ? "improving" : "degrading";
+    : totalAbsCalib < totalAbsRaw ? "improving" : "degrading";
+
+  // Detect mixed behavior: some therapy areas improving, some degrading
+  const taVerdicts = therapyAreaBreakout.filter((t: any) => (t.n ?? 0) >= 2).map((t: any) => t.verdict);
+  const hasMixedBehavior = taVerdicts.includes("improving") && taVerdicts.includes("degrading");
+  const segmentedVerdict = cases.length < 4
+    ? "insufficient_segmented_data"
+    : hasMixedBehavior
+    ? "mixed"
+    : overallVerdict === "improving" ? "broadly_improving" : "broadly_degrading";
 
   // Coverage check
   const moderateCases = cases.filter((c) => c.bucket === "0.60-0.75" || c.bucket === "0.40-0.60");
   const highConfCases = cases.filter((c) => c.bucket === "0.75-0.90" || c.bucket === "0.90+");
-  const psychiatryCases = cases.filter((c) => (c.therapyArea ?? "").toLowerCase().includes("psychiatry") || (c.specialty ?? "").toLowerCase().includes("psychiatry"));
-  const cardiologyCases = cases.filter((c) => (c.therapyArea ?? "").toLowerCase().includes("cardio") || (c.specialty ?? "").toLowerCase().includes("cardio"));
+  const psychiatryCases = cases.filter((c) =>
+    (c.therapyArea ?? "").toLowerCase().includes("psychiatry") ||
+    (c.specialty ?? "").toLowerCase().includes("psychiatry") ||
+    (c.diseaseState ?? "").toLowerCase().includes("psychiatry")
+  );
+  const cardiologyCases = cases.filter((c) =>
+    (c.therapyArea ?? "").toLowerCase().includes("cardio") ||
+    (c.specialty ?? "").toLowerCase().includes("cardio")
+  );
 
   res.json({
     cases,
     bucketSummary,
     therapyAreaBreakout,
+    questionTypeBreakout,
     coverageCheck: {
       moderateCases: moderateCases.length,
       highConfCases: highConfCases.length,
@@ -568,10 +605,91 @@ router.get("/calibration/validation-report", async (_req, res) => {
     },
     overall: {
       n: cases.length,
-      meanAbsRawError: cases.length > 0 ? Number((totalRaw / cases.length).toFixed(4)) : null,
-      meanAbsCalibratedError: cases.length > 0 ? Number((totalCalib / cases.length).toFixed(4)) : null,
+      meanAbsRawError: cases.length > 0 ? Number((totalAbsRaw / cases.length).toFixed(4)) : null,
+      meanAbsCalibratedError: cases.length > 0 ? Number((totalAbsCalib / cases.length).toFixed(4)) : null,
       verdict: overallVerdict,
+      segmentedVerdict,
+      mixedBehaviorDetected: hasMixedBehavior,
     },
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+// ── Coverage Map: system maturity grid by bucket × therapy area ──────────────
+router.get("/calibration/coverage-map", async (_req, res) => {
+  const [calRows, bucketRows] = await Promise.all([
+    db.select().from(calibrationLogTable),
+    db.select().from(bucketCorrectionsTable),
+  ]);
+  const calibratedRaw = calRows.filter((r) => r.observedOutcome !== null);
+  const enriched = await enrichCalibrationWithMetadata(calibratedRaw);
+  const allCases = await enrichCalibrationWithMetadata(calRows); // includes unresolved
+
+  const bucketByLabel: Record<string, typeof bucketRows[0]> = {};
+  for (const r of bucketRows) bucketByLabel[r.bucket] = r;
+
+  // Unique therapy areas (resolved cases only)
+  const therapyAreas = [...new Set(enriched.map((r) => r.therapeuticArea ?? "Unknown"))].sort();
+
+  // Unique question types (resolved)
+  const questionTypes = [...new Set(enriched.map((r) => r.questionType))].sort();
+
+  // Build grid: rows = therapyAreas, cols = buckets
+  function cellStats(rows: typeof enriched, bucketLabel: string) {
+    const bk = BUCKETS.find((b) => b.label === bucketLabel)!;
+    const inCell = rows.filter(
+      (r) => r.predictedProbability >= bk.min && r.predictedProbability < bk.max
+    );
+    const resolvedCount = inCell.filter((r) => r.observedOutcome !== null).length;
+    const storedBucket = bucketByLabel[bucketLabel];
+    const correctionActive = storedBucket && Math.abs(storedBucket.correctionPp ?? 0) > 0;
+    const lowSampleWarning = storedBucket?.lowSampleWarning ?? (resolvedCount > 0 && resolvedCount < 5);
+    return {
+      n: resolvedCount,
+      correctionActive: correctionActive ?? false,
+      lowSampleWarning: lowSampleWarning ?? false,
+      bucketThresholdMet: resolvedCount >= 3,
+      maturity: resolvedCount >= 10 ? "high" : resolvedCount >= 5 ? "medium" : resolvedCount >= 3 ? "low" : "none" as string,
+    };
+  }
+
+  const byTherapyArea = therapyAreas.map((ta) => {
+    const taRows = enriched.filter((r) => (r.therapeuticArea ?? "Unknown") === ta);
+    return {
+      therapyArea: ta,
+      buckets: BUCKETS.reduce((acc, bk) => {
+        acc[bk.label] = cellStats(taRows, bk.label);
+        return acc;
+      }, {} as Record<string, ReturnType<typeof cellStats>>),
+      totalResolved: taRows.length,
+    };
+  });
+
+  const byQuestionType = questionTypes.map((qt) => {
+    const qtRows = enriched.filter((r) => r.questionType === qt);
+    return {
+      questionType: qt,
+      buckets: BUCKETS.reduce((acc, bk) => {
+        acc[bk.label] = cellStats(qtRows, bk.label);
+        return acc;
+      }, {} as Record<string, ReturnType<typeof cellStats>>),
+      totalResolved: qtRows.length,
+    };
+  });
+
+  // Global row (all cases)
+  const globalBuckets = BUCKETS.reduce((acc, bk) => {
+    acc[bk.label] = cellStats(enriched, bk.label);
+    return acc;
+  }, {} as Record<string, ReturnType<typeof cellStats>>);
+
+  res.json({
+    buckets: BUCKETS.map((b) => b.label),
+    globalRow: { label: "All cases", buckets: globalBuckets, totalResolved: enriched.length },
+    byTherapyArea,
+    byQuestionType,
+    totalResolvedCases: enriched.length,
+    totalForecasts: calRows.length,
     generatedAt: new Date().toISOString(),
   });
 });
