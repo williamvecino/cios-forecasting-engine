@@ -289,6 +289,24 @@ export interface WeeklyStrategicBrief {
   }[];
 }
 
+export interface CompetitorBehaviorEntry {
+  id: string;
+  behaviorId: string;
+  competitorName: string;
+  assetName: string;
+  behaviorType: string;
+  behaviorDescription: string | null;
+  likelihoodEstimate: number | null;
+  strategicImpact: string | null;
+  expectedTiming: string | null;
+  relatedCaseId: string | null;
+  sourceBasis: string | null;
+  status: "Proposed" | "Monitoring" | "Confirmed" | "Closed";
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SignalWatchlistEntry {
   id: string;
   watchEventId: string;

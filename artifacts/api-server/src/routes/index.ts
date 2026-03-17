@@ -22,6 +22,7 @@ import forecastLedgerRouter from "./forecast-ledger.js";
 import narrativeRouter from "./narrative.js";
 import signalWatchlistRouter from "./signal-watchlist.js";
 import weeklyBriefRouter from "./weekly-brief.js";
+import competitorBehaviorsRouter from "./competitor-behaviors.js";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(forecastLedgerRouter);
 router.use(narrativeRouter);
 router.use(signalWatchlistRouter);
 router.use(weeklyBriefRouter);
+router.use(competitorBehaviorsRouter);
 
 export default router;

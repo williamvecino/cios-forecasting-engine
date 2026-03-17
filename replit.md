@@ -131,6 +131,24 @@ API endpoint: `GET /api/weekly-brief`
 
 Output sections: systemOverview (active/resolved/calibration/signals/watchlist counts), keyForecasts (top 10 by probability), majorDrivers (top 8 positive signals across all cases), keyRisks (top 6 negative signals), upcomingWatchlist (Upcoming/Monitoring events). Pure aggregation — no engine modifications.
 
+## Competitor Behavior Register
+Structured upstream intelligence layer for tracking competitor strategic behaviors. Independent from the forecasting engine — behaviors do NOT auto-convert into signals.
+- **Schema**: `lib/db/src/schema/competitor-behaviors.ts` (`competitor_behaviors` table)
+- **Route**: `artifacts/api-server/src/routes/competitor-behaviors.ts`
+- **Contract**: `CompetitorBehaviorEntry` in `@workspace/contracts`
+
+API endpoints:
+- `GET /api/competitor-behaviors` — list all
+- `GET /api/competitor-behaviors/:behaviorId` — single record
+- `GET /api/cases/:caseId/competitor-behaviors` — per-case
+- `POST /api/competitor-behaviors` — create (requires competitorName, assetName, behaviorType)
+- `PATCH /api/competitor-behaviors/:behaviorId` — update fields/status
+- `DELETE /api/competitor-behaviors/:behaviorId` — remove
+
+Behavior types: TrialAcceleration, RegulatoryDelay, PricingShift, ContractingExpansion, LabelExpansion, ManufacturingConstraint, CommercialScaleUp, SupportProgramExpansion, EvidenceStrategyShift.
+Statuses: Proposed, Monitoring, Confirmed, Closed.
+LikelihoodEstimate is a tracking field only (0–1) — not connected to Bayesian engine.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database for all persistent data.
 - **Express 5:** Backend web framework.

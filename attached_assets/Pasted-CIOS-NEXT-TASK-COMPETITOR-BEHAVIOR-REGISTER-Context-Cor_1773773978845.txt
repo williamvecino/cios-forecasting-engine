@@ -1,0 +1,132 @@
+CIOS NEXT TASK — COMPETITOR BEHAVIOR REGISTER
+
+Context:
+Core engine, Forecast Ledger, Strategic Narrative Generator, and Signal Watchlist are complete.
+
+Objective:
+Add a Competitor Behavior Register layer that tracks likely competitor strategic behaviors as structured upstream intelligence inputs.
+
+This is NOT a new forecasting engine.
+This is NOT game theory.
+This is a structured behavior-tracking layer that can later feed candidate signals into the existing signal workflow.
+
+Purpose:
+Represent competitors as strategic actors, not just isolated events.
+
+Examples of competitor behaviors:
+- trial acceleration
+- regulatory delay
+- pricing strategy shift
+- payer contracting expansion
+- label expansion attempt
+- field-force expansion
+- manufacturing constraint
+- launch readiness scale-up
+- patient support program expansion
+- evidence-generation strategy shift
+
+Required schema/model:
+Create a CompetitorBehaviorRegister with these fields:
+
+- BehaviorID
+- CompetitorName
+- AssetName
+- BehaviorType
+- BehaviorDescription
+- LikelihoodEstimate
+- StrategicImpact
+- ExpectedTiming
+- RelatedCaseID
+- SourceBasis
+- Status
+- Notes
+
+Field guidance:
+
+BehaviorID
+- unique identifier
+
+CompetitorName
+- company name
+
+AssetName
+- competitor asset / product
+
+BehaviorType
+- structured category such as:
+  - TrialAcceleration
+  - RegulatoryDelay
+  - PricingShift
+  - ContractingExpansion
+  - LabelExpansion
+  - ManufacturingConstraint
+  - CommercialScaleUp
+  - SupportProgramExpansion
+  - EvidenceStrategyShift
+
+BehaviorDescription
+- plain-language summary of the expected behavior
+
+LikelihoodEstimate
+- numeric estimate from 0 to 1
+- tracking field only
+- do not connect this to the Bayesian engine
+
+StrategicImpact
+- short text for expected market effect if behavior occurs
+
+ExpectedTiming
+- estimated time window/date
+
+RelatedCaseID
+- nullable link to a case/question
+
+SourceBasis
+- short summary of evidence basis or rationale
+
+Status
+- Proposed
+- Monitoring
+- Confirmed
+- Closed
+
+Notes
+- optional free text
+
+Implementation requirements:
+
+1. Create the CompetitorBehaviorRegister schema/model/table.
+2. Add CRUD API endpoints:
+   - create behavior record
+   - read behavior records
+   - update behavior record
+   - close behavior record
+3. Keep this layer independent from the engine.
+4. Do NOT auto-convert behaviors into signals yet.
+5. Do NOT change the watchlist, Forecast Ledger, Narrative Generator, or signal engine behavior.
+6. If useful, allow RelatedCaseID linkage to existing cases.
+
+Strict constraints:
+Do NOT modify:
+- Bayesian engine
+- posterior probability calculations
+- signal likelihood ratio logic
+- calibration logic
+- scenario simulation behavior
+- Forecast Ledger behavior
+- Strategic Narrative Generator behavior
+- Signal Watchlist behavior
+- UI unless needed for minimal display support
+
+Design rule:
+This is a structured upstream intelligence register only.
+Competitor behaviors may later become candidate signals, but not in this task.
+
+Deliverable:
+Return:
+1. exact files created or modified
+2. CompetitorBehaviorRegister schema
+3. API endpoints added
+4. 3 sample behavior records for one existing case
+5. confirmation that no core logic changed
+6. confirmation that no behavior automatically enters the signal engine
