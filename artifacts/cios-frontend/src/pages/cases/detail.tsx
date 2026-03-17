@@ -12,12 +12,9 @@ import {
   Radio,
   Users,
   Compass,
-  Layers,
   Target,
-  ArrowRight,
   ArrowLeft,
   ChevronRight,
-  AlertTriangle,
   CheckCircle2,
   ToggleLeft,
   ToggleRight,
@@ -25,20 +22,18 @@ import {
   Lightbulb,
   ShieldAlert,
   Zap,
+  BookOpen,
+  Clock,
+  Eye,
 } from "lucide-react";
-
-type PanelId = "forecast" | "drivers" | "signals" | "scenario" | "recommendation";
-
-const PANELS: { id: PanelId; label: string; icon: React.FC<any> }[] = [
-  { id: "forecast", label: "Probability Forecast", icon: TrendingUp },
-  { id: "drivers", label: "Key Drivers", icon: Users },
-  { id: "signals", label: "Signals", icon: Radio },
-  { id: "scenario", label: "Scenario Simulation", icon: Compass },
-  { id: "recommendation", label: "Strategic Recommendation", icon: Layers },
-];
 
 function formatPct(v: number) {
   return (v * 100).toFixed(1) + "%";
+}
+
+function formatPts(v: number) {
+  const pts = (v * 100).toFixed(1);
+  return v >= 0 ? `+${pts}` : pts;
 }
 
 function DirectionIcon({ dir }: { dir: string }) {
@@ -47,10 +42,22 @@ function DirectionIcon({ dir }: { dir: string }) {
   return <Minus className="w-3.5 h-3.5 text-muted-foreground" />;
 }
 
+function impactLabel(lr: number): string {
+  const abs = Math.abs(lr - 1);
+  if (abs >= 0.4) return "High";
+  if (abs >= 0.15) return "Medium";
+  return "Low";
+}
+
+function impactBadgeVariant(label: string): "success" | "warning" | "default" {
+  if (label === "High") return "success";
+  if (label === "Medium") return "warning";
+  return "default";
+}
+
 export default function QuestionDetail() {
   const [, params] = useRoute("/cases/:caseId");
   const caseId = params?.caseId ?? "";
-  const [activePanel, setActivePanel] = useState<PanelId>("forecast");
 
   const { data: caseData, isLoading: loadingCase } = useGetCase(caseId);
   const { data: forecast, isLoading: loadingForecast } = useRunForecast(caseId);
@@ -83,67 +90,102 @@ export default function QuestionDetail() {
     scenarioMutation.mutate(Array.from(excludedIds));
   };
 
+  const runPreset = (preset: "best" | "base" | "risk") => {
+    const sigs = allSignals;
+    if (preset === "base") {
+      setExcludedIds(new Set());
+      scenarioMutation.mutate([]);
+    } else if (preset === "best") {
+      const negIds = sigs.filter((s: any) => s.direction === "Negative").map((s: any) => s.signalId);
+      setExcludedIds(new Set(negIds));
+      scenarioMutation.mutate(negIds);
+    } else {
+      const posIds = sigs.filter((s: any) => s.direction === "Positive").map((s: any) => s.signalId);
+      setExcludedIds(new Set(posIds));
+      scenarioMutation.mutate(posIds);
+    }
+  };
+
   const fc = forecast as any;
   const cd = caseData as any;
   const allSignals = (signals || []) as any[];
 
   const drivers = useMemo(() => {
-    if (!fc?.signalDetails) return [];
-    return (fc.signalDetails as any[])
+    if (!fc?.signalDetails) return { positive: [], negative: [] };
+    const all = (fc.signalDetails as any[])
       .map((s: any) => ({
         name: s.signalDescription || s.signalType || "Unknown",
         direction: s.direction,
         lr: s.likelihoodRatio ?? 1,
-        actorReaction: s.weightedActorReaction ?? 0,
+        signalType: s.signalType ?? "",
       }))
       .sort((a: any, b: any) => Math.abs(b.lr - 1) - Math.abs(a.lr - 1));
+    return {
+      positive: all.filter((d) => d.direction === "Positive").slice(0, 5),
+      negative: all.filter((d) => d.direction === "Negative").slice(0, 4),
+    };
   }, [fc]);
 
   const recommendation = useMemo(() => {
     if (!fc || !cd) return null;
     const prob = fc.currentProbability ?? 0;
     const confidence = fc.confidenceLevel ?? "Low";
-    const question = cd.strategicQuestion ?? "";
+    const priorProb = cd.priorProbability ?? 0;
+    const change = prob - priorProb;
 
-    let outlook: string;
-    let actionItems: string[];
+    let headline: string;
+    let rationale: string;
+    let riskNote: string;
+    let monitorNext: string[];
 
     if (prob >= 0.7) {
-      outlook = "The evidence strongly supports a positive outcome. Current probability is well above baseline.";
-      actionItems = [
-        "Continue monitoring for disconfirming signals that could shift the trajectory.",
-        "Consider expanding stakeholder engagement to lock in momentum.",
-        "Document the evidence chain for internal alignment.",
+      headline = "Accelerate execution. Evidence supports forward momentum.";
+      rationale = `The forecast is currently at ${formatPct(prob)} (${formatPts(change)} pts from prior), supported by favorable signals. This advantage window may compress if competitive dynamics shift or key evidence is contradicted.`;
+      riskNote = "Primary risk: complacency. High-probability outcomes can reverse quickly if disconfirming evidence emerges.";
+      monitorNext = [
+        "Competitor clinical or regulatory readouts",
+        "Payer policy changes in priority accounts",
+        "New guideline commentary or society updates",
       ];
     } else if (prob >= 0.5) {
-      outlook = "Evidence is moderately supportive. The question is trending favorably but key uncertainties remain.";
-      actionItems = [
-        "Identify the 1-2 signals that would move probability above 70% and prioritize acquisition.",
-        "Engage key opinion leaders to validate the current signal pattern.",
-        "Prepare contingency plans for downside scenarios.",
+      headline = "Selectively invest. Evidence is favorable but not yet decisive.";
+      rationale = `At ${formatPct(prob)}, the forecast is above baseline but not yet in the high-conviction zone. The 1-2 signals that would push probability above 70% should be the primary acquisition targets.`;
+      riskNote = "Moderate uncertainty remains. Avoid over-committing resources until confidence strengthens.";
+      monitorNext = [
+        "Pending evidence that could shift probability above 70%",
+        "KOL validation of the current signal pattern",
+        "Competitive landscape evolution",
       ];
     } else if (prob >= 0.3) {
-      outlook = "Evidence is mixed. The outcome is uncertain and could go either way.";
-      actionItems = [
-        "Focus signal collection on the highest-leverage evidence gaps.",
-        "Re-examine the strategic question framing — are we asking the right question?",
-        "Consider whether the prior probability reflects current market reality.",
+      headline = "Reassess assumptions. Evidence is mixed and outcome uncertain.";
+      rationale = `The forecast at ${formatPct(prob)} reflects a balanced evidence base. Neither supporting nor opposing signals are dominant. Focus on identifying the highest-leverage gaps.`;
+      riskNote = "The question may need reframing. Consider whether the strategic question itself is well-calibrated.";
+      monitorNext = [
+        "Highest-leverage evidence gaps",
+        "Whether the prior probability still reflects market reality",
+        "Stakeholder sentiment shifts",
       ];
     } else {
-      outlook = "Evidence suggests a challenging path forward. Current signals do not support a positive outcome.";
-      actionItems = [
-        "Assess whether the strategic question should be reformulated.",
-        "Identify what would need to change for the probability to meaningfully shift.",
-        "Consider pivoting strategy based on the current evidence pattern.",
+      headline = "Consider strategic pivot. Current evidence does not support a positive outcome.";
+      rationale = `At ${formatPct(prob)}, signals are predominantly opposing. Continuing the current strategy without new supporting evidence is unlikely to change the trajectory.`;
+      riskNote = "Continued investment without evidence reversal carries significant opportunity cost.";
+      monitorNext = [
+        "What would need to change for probability to meaningfully shift",
+        "Alternative strategic framings",
+        "Exit or pivot timing considerations",
       ];
     }
 
     if (confidence === "Low" || confidence === "Developing") {
-      actionItems.push("Confidence is limited — adding more validated signals will improve forecast reliability.");
+      riskNote += " Note: confidence is limited — forecast reliability will improve with more validated signals.";
     }
 
-    return { outlook, actionItems, prob, confidence, question };
+    return { headline, rationale, riskNote, monitorNext, prob, confidence };
   }, [fc, cd]);
+
+  const currentProb = fc?.currentProbability ?? 0;
+  const priorProb = cd?.priorProbability ?? 0;
+  const changePts = currentProb - priorProb;
 
   if (loadingCase || loadingForecast) {
     return (
@@ -171,334 +213,374 @@ export default function QuestionDetail() {
     );
   }
 
+  const interpretation = currentProb >= 0.6
+    ? "Current signals support a favorable outcome within the forecast window."
+    : currentProb >= 0.4
+    ? "Signals are mixed. The outcome is within a zone of genuine uncertainty."
+    : "Current signals suggest the outcome faces material headwinds.";
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <header>
-          <Link href="/">
-            <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3">
-              <ArrowLeft className="w-3 h-3" /> Back to Questions
-            </button>
-          </Link>
-          <div className="flex items-center gap-2 mb-1">
-            <Target className="w-4 h-4 text-primary" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Question Detail</span>
-          </div>
-          <h1 className="text-xl font-bold text-foreground leading-snug">{cd.strategicQuestion}</h1>
-          <div className="flex items-center gap-3 mt-2">
-            <Badge variant="primary">{(cd as any).therapeuticArea || "General"}</Badge>
-            <span className="text-xs text-muted-foreground">{(cd as any).assetName || cd.primaryBrand}</span>
-            {fc && (
-              <Badge variant={fc.confidenceLevel === "High" ? "success" : fc.confidenceLevel === "Moderate" ? "warning" : "default"}>
-                {fc.confidenceLevel}
-              </Badge>
-            )}
-          </div>
-        </header>
 
-        <div className="flex gap-1 bg-card/50 border border-border rounded-xl p-1">
-          {PANELS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setActivePanel(p.id)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all flex-1 justify-center",
-                activePanel === p.id
-                  ? "bg-primary/15 text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+        {/* ── Panel 1: Question Header ──────────────────────────────────────── */}
+        <Card>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <Link href="/">
+                <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors mb-3">
+                  <ArrowLeft className="w-3 h-3" /> Back to Questions
+                </button>
+              </Link>
+              <h1 className="text-xl font-bold text-foreground leading-snug mb-3">{cd.strategicQuestion}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="primary">{cd.therapeuticArea || "General"}</Badge>
+                {cd.questionType && <Badge variant="default">{cd.questionType}</Badge>}
+                <span className="text-xs text-muted-foreground">{cd.assetName || cd.primaryBrand}</span>
+                <span className="text-xs text-muted-foreground/50">|</span>
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> {cd.timeHorizon || "12 months"}
+                </span>
+                <span className="text-xs text-muted-foreground/50">|</span>
+                <Badge variant={fc?.confidenceLevel === "High" ? "success" : fc?.confidenceLevel === "Moderate" ? "warning" : "default"}>
+                  {fc?.confidenceLevel || "Pending"} confidence
+                </Badge>
+              </div>
+              {cd.lastUpdate && (
+                <div className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
+                  <Activity className="w-3 h-3" />
+                  Last updated: {new Date(cd.lastUpdate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </div>
               )}
-            >
-              <p.icon className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">{p.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {activePanel === "forecast" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="flex flex-col items-center justify-center py-8 relative overflow-hidden">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-semibold">Current Probability</div>
-                <ProbabilityGauge value={fc?.currentProbability ?? 0} label="" />
-                <div className="text-2xl font-bold text-primary mt-2">{formatPct(fc?.currentProbability ?? 0)}</div>
-              </Card>
-              <Card className="flex flex-col items-center justify-center py-8">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-semibold">Prior Probability</div>
-                <div className="text-4xl font-bold text-foreground/70">{formatPct(cd.priorProbability ?? 0)}</div>
-                <div className="text-xs text-muted-foreground mt-2">Starting point before evidence</div>
-              </Card>
-              <Card className="flex flex-col items-center justify-center py-8">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 font-semibold">Confidence Level</div>
-                <div className={cn(
-                  "text-3xl font-bold",
-                  fc?.confidenceLevel === "High" ? "text-success" : fc?.confidenceLevel === "Moderate" ? "text-warning" : "text-muted-foreground"
-                )}>
-                  {fc?.confidenceLevel ?? "—"}
-                </div>
-                <div className="text-xs text-muted-foreground mt-2">
-                  {fc?.confidenceLevel === "High" ? "Strong evidence coverage" : fc?.confidenceLevel === "Moderate" ? "Adequate evidence" : "More signals needed"}
-                </div>
-              </Card>
             </div>
-            {fc?.rawProbability != null && fc.rawProbability !== fc.currentProbability && (
-              <Card>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Activity className="w-3.5 h-3.5" />
-                  <span>Calibration applied: raw {formatPct(fc.rawProbability)} → calibrated {formatPct(fc.currentProbability)}</span>
-                </div>
-              </Card>
-            )}
+            <div className="flex gap-2 shrink-0">
+              <Link href={`/cases/${caseId}/signals`}>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Radio className="w-3.5 h-3.5" /> Add Signals
+                </Button>
+              </Link>
+              <Link href="/case-library">
+                <Button variant="ghost" size="sm" className="gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5" /> View Ledger
+                </Button>
+              </Link>
+            </div>
           </div>
-        )}
+        </Card>
 
-        {activePanel === "drivers" && (
+        {/* ── Panel 2 + 3: Forecast Card + Key Drivers ─────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Panel 2: Primary Forecast Card */}
+          <Card className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" />
+              Primary Forecast
+            </div>
+            <div className="flex items-center gap-8">
+              <div className="shrink-0">
+                <ProbabilityGauge value={currentProb} label="" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <div className="text-4xl font-bold text-primary tracking-tight">{formatPct(currentProb)}</div>
+                  <div className="text-xs text-muted-foreground mt-1">Current probability</div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Prior</div>
+                    <div className="text-sm font-semibold text-foreground/70">{formatPct(priorProb)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Change</div>
+                    <div className={cn("text-sm font-semibold", changePts >= 0 ? "text-success" : "text-destructive")}>
+                      {formatPts(changePts)} pts
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Confidence</div>
+                    <div className={cn(
+                      "text-sm font-semibold",
+                      fc?.confidenceLevel === "High" ? "text-success" : fc?.confidenceLevel === "Moderate" ? "text-warning" : "text-muted-foreground"
+                    )}>
+                      {fc?.confidenceLevel ?? "—"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <p className="text-xs text-muted-foreground leading-relaxed italic">{interpretation}</p>
+            </div>
+          </Card>
+
+          {/* Panel 3: Key Drivers */}
           <Card>
-            <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
-              <Users className="w-4 h-4 text-primary" />
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
+              <Users className="w-3.5 h-3.5 text-primary" />
               Key Drivers
-            </h3>
-            {drivers.length === 0 ? (
+            </div>
+            {drivers.positive.length === 0 && drivers.negative.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">
                 No signals registered yet. Add signals to see key drivers.
               </div>
             ) : (
-              <div className="space-y-3">
-                {drivers.map((d: any, i: number) => {
-                  const impact = Math.abs(d.lr - 1);
-                  const isPositive = d.direction === "Positive";
-                  return (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-muted/10 border border-border/30">
-                      <DirectionIcon dir={d.direction} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium line-clamp-1">{d.name}</div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          Evidence weight: {d.lr.toFixed(2)}x
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className={cn(
-                          "h-2 rounded-full",
-                          isPositive ? "bg-success" : "bg-destructive"
-                        )} style={{ width: `${Math.min(impact * 60, 120)}px` }} />
-                        <Badge variant={isPositive ? "success" : "danger"}>
-                          {isPositive ? "Supporting" : "Opposing"}
-                        </Badge>
-                      </div>
+              <div className="space-y-4">
+                {drivers.positive.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-semibold text-success uppercase tracking-wider mb-2">Positive</div>
+                    <div className="space-y-1.5">
+                      {drivers.positive.map((d, i) => {
+                        const impact = impactLabel(d.lr);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1.5">
+                            <TrendingUp className="w-3 h-3 text-success shrink-0" />
+                            <span className="text-sm flex-1 line-clamp-1">{d.name}</span>
+                            <Badge variant={impactBadgeVariant(impact)} className="text-[10px]">{impact}</Badge>
+                            {d.signalType && <span className="text-[10px] text-muted-foreground/50">{d.signalType.split(" ")[0]}</span>}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+                {drivers.negative.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-semibold text-destructive uppercase tracking-wider mb-2">Negative</div>
+                    <div className="space-y-1.5">
+                      {drivers.negative.map((d, i) => {
+                        const impact = impactLabel(d.lr);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1.5">
+                            <TrendingDown className="w-3 h-3 text-destructive shrink-0" />
+                            <span className="text-sm flex-1 line-clamp-1">{d.name}</span>
+                            <Badge variant={impactBadgeVariant(impact)} className="text-[10px]">{impact}</Badge>
+                            {d.signalType && <span className="text-[10px] text-muted-foreground/50">{d.signalType.split(" ")[0]}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </Card>
-        )}
+        </div>
 
-        {activePanel === "signals" && (
-          <Card noPadding>
-            <div className="p-6 pb-3">
-              <h3 className="text-base font-semibold flex items-center gap-2 mb-1">
-                <Radio className="w-4 h-4 text-primary" />
-                Validated Signals
-              </h3>
-              <p className="text-xs text-muted-foreground">{allSignals.length} signal{allSignals.length !== 1 ? "s" : ""} registered</p>
+        {/* ── Panel 4: Signal Stack ────────────────────────────────────────── */}
+        <Card noPadding>
+          <div className="p-6 pb-3 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-2">
+                <Radio className="w-3.5 h-3.5 text-primary" />
+                Signal Stack
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">{allSignals.length} validated signal{allSignals.length !== 1 ? "s" : ""}</p>
             </div>
+            <Link href={`/cases/${caseId}/signals`}>
+              <Button variant="ghost" size="sm" className="text-xs gap-1">
+                <Eye className="w-3 h-3" /> Manage Signals
+              </Button>
+            </Link>
+          </div>
+          {allSignals.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8 px-6">
+              No signals yet. <Link href={`/cases/${caseId}/signals`}><span className="text-primary underline cursor-pointer">Add signals</span></Link> to begin building the evidence base.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-t border-b border-border text-[11px] text-muted-foreground uppercase tracking-wider">
+                    <th className="text-left py-2.5 px-6 font-semibold w-12">ID</th>
+                    <th className="text-left py-2.5 px-3 font-semibold">Signal</th>
+                    <th className="text-left py-2.5 px-3 font-semibold w-24">Direction</th>
+                    <th className="text-left py-2.5 px-3 font-semibold w-24">Strength</th>
+                    <th className="text-left py-2.5 px-3 font-semibold w-24">Reliability</th>
+                    <th className="text-left py-2.5 px-3 font-semibold w-20">Status</th>
+                    <th className="text-left py-2.5 px-3 font-semibold w-28">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allSignals.map((s: any, idx: number) => (
+                    <tr key={s.signalId} className="border-b border-border/30 hover:bg-muted/10 transition-colors">
+                      <td className="py-2.5 px-6 text-[11px] text-muted-foreground font-mono">
+                        {s.signalId?.slice(0, 8) || `SIG-${String(idx + 1).padStart(3, "0")}`}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-medium line-clamp-1 text-sm">{s.signalDescription || s.signalType}</div>
+                        <div className="text-[10px] text-muted-foreground">{s.signalType}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <DirectionIcon dir={s.direction} />
+                          <span className={cn(
+                            "text-xs font-medium",
+                            s.direction === "Positive" ? "text-success" : s.direction === "Negative" ? "text-destructive" : "text-muted-foreground"
+                          )}>{s.direction}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-primary rounded-full" style={{ width: `${(s.strengthScore ?? 0) * 20}%` }} />
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{s.strengthScore ?? 0}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-accent rounded-full" style={{ width: `${(s.reliabilityScore ?? 0) * 20}%` }} />
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{s.reliabilityScore ?? 0}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <Badge variant="success" className="text-[10px]">Validated</Badge>
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] text-muted-foreground whitespace-nowrap">
+                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        {/* ── Panel 5 + 6: Scenario Simulator + Recommended Action ─────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Panel 5: Scenario Simulator */}
+          <Card>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
+              <Compass className="w-3.5 h-3.5 text-primary" />
+              Scenario Simulator
+            </div>
+
             {allSignals.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8 px-6">
-                No signals yet. <Link href={`/cases/${caseId}/signals`}><span className="text-primary underline cursor-pointer">Add signals</span></Link> to begin building the evidence base.
+              <div className="text-sm text-muted-foreground text-center py-8">
+                Add signals first to run scenario simulations.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-t border-b border-border text-[11px] text-muted-foreground uppercase tracking-wider">
-                      <th className="text-left py-2.5 px-6 font-semibold">Signal</th>
-                      <th className="text-left py-2.5 px-3 font-semibold">Direction</th>
-                      <th className="text-left py-2.5 px-3 font-semibold">Strength</th>
-                      <th className="text-left py-2.5 px-3 font-semibold">Reliability</th>
-                      <th className="text-left py-2.5 px-3 font-semibold">Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allSignals.map((s: any) => (
-                      <tr key={s.signalId} className="border-b border-border/30 hover:bg-muted/10 transition-colors">
-                        <td className="py-3 px-6">
-                          <div className="font-medium line-clamp-1">{s.signalDescription || s.signalType}</div>
-                          <div className="text-[11px] text-muted-foreground">{s.signalType}</div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <DirectionIcon dir={s.direction} />
-                            <span className={cn(
-                              "text-xs font-medium",
-                              s.direction === "Positive" ? "text-success" : s.direction === "Negative" ? "text-destructive" : "text-muted-foreground"
-                            )}>{s.direction}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-primary rounded-full" style={{ width: `${(s.strengthScore ?? 0) * 20}%` }} />
-                            </div>
-                            <span className="text-xs text-muted-foreground">{s.strengthScore ?? 0}/5</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-accent rounded-full" style={{ width: `${(s.reliabilityScore ?? 0) * 20}%` }} />
-                            </div>
-                            <span className="text-xs text-muted-foreground">{s.reliabilityScore ?? 0}/5</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-xs text-muted-foreground whitespace-nowrap">
-                          {s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => runPreset("best")} disabled={scenarioMutation.isPending} className="flex-1 text-xs">
+                    Best case
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => runPreset("base")} disabled={scenarioMutation.isPending} className="flex-1 text-xs">
+                    Base case
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => runPreset("risk")} disabled={scenarioMutation.isPending} className="flex-1 text-xs">
+                    Risk case
+                  </Button>
+                </div>
+
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {allSignals.map((s: any) => {
+                    const isExcluded = excludedIds.has(s.signalId);
+                    return (
+                      <button
+                        key={s.signalId}
+                        onClick={() => toggleSignal(s.signalId)}
+                        className={cn(
+                          "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all text-left text-xs",
+                          isExcluded
+                            ? "bg-muted/5 border-border/20 opacity-40"
+                            : "bg-muted/10 border-border/30 hover:bg-muted/20"
+                        )}
+                      >
+                        {isExcluded ? (
+                          <ToggleLeft className="w-4 h-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ToggleRight className="w-4 h-4 text-primary shrink-0" />
+                        )}
+                        <DirectionIcon dir={s.direction} />
+                        <span className="flex-1 line-clamp-1">{s.signalDescription || s.signalType}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Button onClick={runScenario} disabled={scenarioMutation.isPending} className="w-full gap-2" size="sm">
+                  {scenarioMutation.isPending ? (
+                    <><Activity className="w-3.5 h-3.5 animate-spin" /> Computing…</>
+                  ) : (
+                    <><Zap className="w-3.5 h-3.5" /> Run Scenario</>
+                  )}
+                </Button>
+
+                {scenarioMutation.data && (
+                  <div className="pt-3 border-t border-border/30 space-y-3">
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Base</div>
+                        <div className="text-lg font-bold text-foreground">{formatPct(scenarioMutation.data.baseProbability)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Scenario</div>
+                        <div className="text-lg font-bold text-primary">{formatPct(scenarioMutation.data.scenarioProbability)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Delta</div>
+                        <div className={cn(
+                          "text-lg font-bold",
+                          scenarioMutation.data.delta > 0 ? "text-success" : scenarioMutation.data.delta < 0 ? "text-destructive" : "text-muted-foreground"
+                        )}>
+                          {formatPts(scenarioMutation.data.delta)} pts
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground text-center">
+                      {scenarioMutation.data.scenarioSignals} of {scenarioMutation.data.totalSignals} signals active
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-warning/80">
+                      <ShieldAlert className="w-3 h-3" />
+                      <span>Scenario only — does not affect the live forecast.</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </Card>
-        )}
 
-        {activePanel === "scenario" && (
-          <div className="space-y-6">
-            <Card>
-              <h3 className="text-base font-semibold flex items-center gap-2 mb-1">
-                <Compass className="w-4 h-4 text-primary" />
-                Scenario Simulation
-              </h3>
-              <p className="text-xs text-muted-foreground mb-4">
-                Toggle signals on/off to see how probability changes. The recomputation runs through the full engine on the backend.
-              </p>
-
-              {allSignals.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  Add signals first to run scenario simulations.
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
-                    {allSignals.map((s: any) => {
-                      const isExcluded = excludedIds.has(s.signalId);
-                      return (
-                        <button
-                          key={s.signalId}
-                          onClick={() => toggleSignal(s.signalId)}
-                          className={cn(
-                            "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
-                            isExcluded
-                              ? "bg-muted/5 border-border/20 opacity-50"
-                              : "bg-muted/10 border-border/40 hover:bg-muted/20"
-                          )}
-                        >
-                          {isExcluded ? (
-                            <ToggleLeft className="w-5 h-5 text-muted-foreground shrink-0" />
-                          ) : (
-                            <ToggleRight className="w-5 h-5 text-primary shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium line-clamp-1">{s.signalDescription || s.signalType}</div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <DirectionIcon dir={s.direction} />
-                              <span className="text-[11px] text-muted-foreground">{s.direction} · LR {(s.likelihoodRatio ?? 1).toFixed(2)}</span>
-                            </div>
-                          </div>
-                          <span className={cn("text-[10px] font-medium", isExcluded ? "text-destructive" : "text-success")}>
-                            {isExcluded ? "EXCLUDED" : "INCLUDED"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <Button onClick={runScenario} disabled={scenarioMutation.isPending} className="w-full gap-2">
-                    {scenarioMutation.isPending ? (
-                      <>
-                        <Activity className="w-4 h-4 animate-spin" />
-                        Computing scenario…
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4" />
-                        Run Scenario ({excludedIds.size} signal{excludedIds.size !== 1 ? "s" : ""} excluded)
-                      </>
-                    )}
-                  </Button>
-                </>
-              )}
-            </Card>
-
-            {scenarioMutation.data && (
-              <Card>
-                <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
-                  <Activity className="w-4 h-4 text-primary" />
-                  Scenario Result
-                </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 bg-muted/10 rounded-xl border border-border/30 text-center">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Base Probability</div>
-                    <div className="text-2xl font-bold text-foreground">{formatPct(scenarioMutation.data.baseProbability)}</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">All {scenarioMutation.data.totalSignals} signals</div>
-                  </div>
-                  <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 text-center">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Scenario Probability</div>
-                    <div className="text-2xl font-bold text-primary">{formatPct(scenarioMutation.data.scenarioProbability)}</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">{scenarioMutation.data.scenarioSignals} signals active</div>
-                  </div>
-                  <div className="p-4 bg-muted/10 rounded-xl border border-border/30 text-center">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Delta</div>
-                    <div className={cn(
-                      "text-2xl font-bold",
-                      scenarioMutation.data.delta > 0 ? "text-success" : scenarioMutation.data.delta < 0 ? "text-destructive" : "text-muted-foreground"
-                    )}>
-                      {scenarioMutation.data.delta > 0 ? "+" : ""}{(scenarioMutation.data.delta * 100).toFixed(1)}pp
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-1">
-                      {scenarioMutation.data.excludedCount} excluded
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {activePanel === "recommendation" && (
+          {/* Panel 6: Recommended Action */}
           <Card>
-            <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
-              <Lightbulb className="w-4 h-4 text-primary" />
-              Strategic Recommendation
-            </h3>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
+              <Lightbulb className="w-3.5 h-3.5 text-primary" />
+              Recommended Action
+            </div>
             {recommendation ? (
               <div className="space-y-4">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/15">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Target className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-semibold text-foreground">Outlook</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{recommendation.outlook}</p>
+                  <p className="text-sm font-semibold text-foreground leading-snug">{recommendation.headline}</p>
                 </div>
 
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle2 className="w-4 h-4 text-success" />
-                    <span className="text-sm font-semibold text-foreground">Recommended Actions</span>
-                  </div>
-                  <div className="space-y-2">
-                    {recommendation.actionItems.map((item, i) => (
-                      <div key={i} className="flex gap-3 p-3 rounded-lg bg-muted/10 border border-border/30">
-                        <ChevronRight className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                        <p className="text-sm text-muted-foreground">{item}</p>
-                      </div>
-                    ))}
+                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5">Rationale</div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{recommendation.rationale}</p>
+                </div>
+
+                <div className="p-3 rounded-lg bg-warning/5 border border-warning/15">
+                  <div className="flex items-start gap-2">
+                    <ShieldAlert className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
+                    <p className="text-xs text-muted-foreground leading-relaxed">{recommendation.riskNote}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/5 border border-warning/15 text-xs text-muted-foreground">
-                  <ShieldAlert className="w-4 h-4 text-warning shrink-0" />
-                  Recommendations are system-generated based on current probability ({formatPct(recommendation.prob)}),
-                  confidence level ({recommendation.confidence}), and active evidence patterns.
+                <div>
+                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Monitor Next</div>
+                  <div className="space-y-1.5">
+                    {recommendation.monitorNext.map((item, i) => (
+                      <div key={i} className="flex gap-2 items-start">
+                        <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+                        <p className="text-xs text-muted-foreground">{item}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -507,7 +589,8 @@ export default function QuestionDetail() {
               </div>
             )}
           </Card>
-        )}
+        </div>
+
       </div>
     </AppLayout>
   );

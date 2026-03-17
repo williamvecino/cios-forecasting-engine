@@ -30,11 +30,15 @@ API specifications are defined using OpenAPI 3.1, with `orval` codegen generatin
   - Dashboard: "Your Strategic Questions" with question-first presentation, portfolio gauge, track record, system status
   - Forecast page: "Likelihood Assessment" (not "Posterior Probability"), "Baseline/Shift" (not "Prior/Delta"), "Starting Point → Evidence Strength → Stakeholder Response → Overall Outlook" computation chain, "Key Evidence Drivers", "Assessment Trace/Challenge"
   - Signals page: "Evidence Register" with "Evidence weight" column
-  - Sidebar navigation restructured to match decision-oriented hierarchy:
-    - **Platform**: Strategic Questions (dashboard/cases)
-    - **Question Detail** (per-case, greyed out when no case selected): Probability Forecast → `/forecast`, Key Drivers → `/agents`, Signals → `/signals`, Scenario Simulation → `/analogs`, Strategic Recommendation → `/portfolio`
-    - **Intelligence**: Signal Monitor → `/watchlist`, Forecast Ledger → `/case-library`
-    - **System**: Calibration → `/calibration`
+  - Sidebar nav: Dashboard, Questions, Signals, Forecast Ledger, Calibration
+  - **Question Detail page** (`/cases/:caseId`) — 6-panel enterprise decision layout:
+    1. **Question Header** — strategic question, tags, time horizon, confidence, last updated, action buttons
+    2. **Primary Forecast Card** — probability gauge, prior/change/confidence, interpretation line
+    3. **Key Drivers** — positive + negative drivers with High/Medium/Low impact badges and source type tags
+    4. **Signal Stack** — full table: ID, signal, direction, strength, reliability, validation status, timestamp
+    5. **Scenario Simulator** — Best/Base/Risk presets, signal toggles, backend recomputation, base vs scenario delta
+    6. **Recommended Action** — headline, rationale, risk note, monitor-next items
+  - Backend adapter: `POST /api/cases/:caseId/scenario-simulate` (no engine changes)
   - "Engine ready / All systems operational" footer
 - Information is presented with clarity, using structured tables, collapsible sections, and color-coded indicators for warnings and priorities.
 - All backend APIs and engine behavior remain completely unchanged — this is a UI-only transformation.
