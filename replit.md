@@ -31,13 +31,16 @@ API specifications are defined using OpenAPI 3.1, with `orval` codegen generatin
   - Forecast page: "Likelihood Assessment" (not "Posterior Probability"), "Baseline/Shift" (not "Prior/Delta"), "Starting Point → Evidence Strength → Stakeholder Response → Overall Outlook" computation chain, "Key Evidence Drivers", "Assessment Trace/Challenge"
   - Signals page: "Evidence Register" with "Evidence weight" column
   - Sidebar nav: Dashboard, Questions, Signals, Forecast Ledger, Calibration
-  - **Question Detail page** (`/cases/:caseId`) — 6-panel enterprise decision layout:
-    1. **Question Header** — strategic question, tags, time horizon, confidence, last updated, action buttons
-    2. **Primary Forecast Card** — probability gauge, prior/change/confidence, interpretation line
-    3. **Key Drivers** — positive + negative drivers with High/Medium/Low impact badges and source type tags
-    4. **Signal Stack** — full table: ID, signal, direction, strength, reliability, validation status, timestamp
-    5. **Scenario Simulator** — Best/Base/Risk presets, signal toggles, backend recomputation, base vs scenario delta
-    6. **Recommended Action** — headline, rationale, risk note, monitor-next items
+  - **Question Detail page** (`/cases/:caseId`) — 6-panel enterprise decision layout with visual hierarchy:
+    1. **Question Header** (compact, un-carded) — breadcrumb nav (Dashboard > Questions > Detail), strategic question, tags, time horizon, confidence badge, last updated timestamp
+    2. **Primary Forecast Card** (HERO, biggest) — scaled gauge, 5xl probability, prior/change/confidence, interpretation line, "Engine v1 · Bayesian" provenance
+    3. **Key Drivers** (compact sidebar, 2/5 width) — positive + negative drivers with High/Medium/Low impact badges, "Ranked by likelihood ratio impact" provenance
+    4. **Signal Stack** (dense, operational) — compressed table with direction/strength/reliability bars, "Validated" status, signal count provenance
+    5. **Scenario Simulator** (second biggest, 3/5 width) — Best/Base/Risk presets, 2-column signal toggles, backend-only recomputation, Base→Scenario→Delta results, "Scenario output · backend computed" label
+    6. **Recommended Action** (compact, decisive) — headline, rationale, Monitor/Risk split, "Derived from probability band · adapter v1" provenance
+  - Recommendation logic isolated in `src/lib/recommendation-adapter.ts` (swappable for real API)
+  - Per-panel loading, error, and empty states (PanelLoading/PanelError)
+  - Cases index question rows link to detail page via "View Detail" CTA + clickable question title
   - Backend adapter: `POST /api/cases/:caseId/scenario-simulate` (no engine changes)
   - "Engine ready / All systems operational" footer
 - Information is presented with clarity, using structured tables, collapsible sections, and color-coded indicators for warnings and priorities.

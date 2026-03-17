@@ -368,7 +368,9 @@ export default function CasesList() {
                   )}
 
                   {/* Strategic question */}
-                  <h3 className="text-base font-semibold text-foreground leading-snug">{c.strategicQuestion}</h3>
+                  <Link href={`/cases/${c.caseId}`}>
+                    <h3 className="text-base font-semibold text-foreground leading-snug hover:text-primary transition-colors cursor-pointer">{c.strategicQuestion}</h3>
+                  </Link>
 
                   {/* Probability row */}
                   <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground flex-wrap">
@@ -395,19 +397,14 @@ export default function CasesList() {
 
                 {/* Action buttons */}
                 <div className="flex flex-col gap-2 min-w-[160px] shrink-0">
-                  <Link href={`/cases/${c.caseId}/forecast`}>
+                  <Link href={`/cases/${c.caseId}`}>
                     <Button className="w-full gap-1">
-                      Run Forecast <ChevronRight className="w-4 h-4" />
+                      View Detail <ChevronRight className="w-4 h-4" />
                     </Button>
                   </Link>
                   <Link href={`/cases/${c.caseId}/signals`}>
                     <Button variant="secondary" className="w-full">
                       Signals ({c.signalCount || 0})
-                    </Button>
-                  </Link>
-                  <Link href={`/cases/${c.caseId}/analogs`}>
-                    <Button variant="ghost" className="w-full text-xs">
-                      View Analogs
                     </Button>
                   </Link>
                 </div>

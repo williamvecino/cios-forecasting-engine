@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
 import { Card, Badge, ProbabilityGauge, Button } from "@/components/ui-components";
+import { deriveRecommendation, deriveInterpretation } from "@/lib/recommendation-adapter";
 import {
   TrendingUp,
   TrendingDown,
@@ -15,7 +16,6 @@ import {
   Target,
   ArrowLeft,
   ChevronRight,
-  CheckCircle2,
   ToggleLeft,
   ToggleRight,
   Activity,
@@ -25,6 +25,8 @@ import {
   BookOpen,
   Clock,
   Eye,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 function formatPct(v: number) {
@@ -55,13 +57,34 @@ function impactBadgeVariant(label: string): "success" | "warning" | "default" {
   return "default";
 }
 
+function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="flex items-center gap-2 py-4 justify-center text-xs text-destructive/80">
+      <AlertCircle className="w-3.5 h-3.5" />
+      <span>{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="underline hover:text-destructive transition-colors">Retry</button>
+      )}
+    </div>
+  );
+}
+
+function PanelLoading({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 py-6 justify-center text-xs text-muted-foreground">
+      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export default function QuestionDetail() {
   const [, params] = useRoute("/cases/:caseId");
   const caseId = params?.caseId ?? "";
 
-  const { data: caseData, isLoading: loadingCase } = useGetCase(caseId);
-  const { data: forecast, isLoading: loadingForecast } = useRunForecast(caseId);
-  const { data: signals, isLoading: loadingSignals } = useListSignals(caseId);
+  const { data: caseData, isLoading: loadingCase, isError: errorCase, refetch: refetchCase } = useGetCase(caseId);
+  const { data: forecast, isLoading: loadingForecast, isError: errorForecast, refetch: refetchForecast } = useRunForecast(caseId);
+  const { data: signals, isLoading: loadingSignals, isError: errorSignals, refetch: refetchSignals } = useListSignals(caseId);
 
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
   const scenarioMutation = useMutation({
@@ -126,73 +149,36 @@ export default function QuestionDetail() {
     };
   }, [fc]);
 
-  const recommendation = useMemo(() => {
-    if (!fc || !cd) return null;
-    const prob = fc.currentProbability ?? 0;
-    const confidence = fc.confidenceLevel ?? "Low";
-    const priorProb = cd.priorProbability ?? 0;
-    const change = prob - priorProb;
-
-    let headline: string;
-    let rationale: string;
-    let riskNote: string;
-    let monitorNext: string[];
-
-    if (prob >= 0.7) {
-      headline = "Accelerate execution. Evidence supports forward momentum.";
-      rationale = `The forecast is currently at ${formatPct(prob)} (${formatPts(change)} pts from prior), supported by favorable signals. This advantage window may compress if competitive dynamics shift or key evidence is contradicted.`;
-      riskNote = "Primary risk: complacency. High-probability outcomes can reverse quickly if disconfirming evidence emerges.";
-      monitorNext = [
-        "Competitor clinical or regulatory readouts",
-        "Payer policy changes in priority accounts",
-        "New guideline commentary or society updates",
-      ];
-    } else if (prob >= 0.5) {
-      headline = "Selectively invest. Evidence is favorable but not yet decisive.";
-      rationale = `At ${formatPct(prob)}, the forecast is above baseline but not yet in the high-conviction zone. The 1-2 signals that would push probability above 70% should be the primary acquisition targets.`;
-      riskNote = "Moderate uncertainty remains. Avoid over-committing resources until confidence strengthens.";
-      monitorNext = [
-        "Pending evidence that could shift probability above 70%",
-        "KOL validation of the current signal pattern",
-        "Competitive landscape evolution",
-      ];
-    } else if (prob >= 0.3) {
-      headline = "Reassess assumptions. Evidence is mixed and outcome uncertain.";
-      rationale = `The forecast at ${formatPct(prob)} reflects a balanced evidence base. Neither supporting nor opposing signals are dominant. Focus on identifying the highest-leverage gaps.`;
-      riskNote = "The question may need reframing. Consider whether the strategic question itself is well-calibrated.";
-      monitorNext = [
-        "Highest-leverage evidence gaps",
-        "Whether the prior probability still reflects market reality",
-        "Stakeholder sentiment shifts",
-      ];
-    } else {
-      headline = "Consider strategic pivot. Current evidence does not support a positive outcome.";
-      rationale = `At ${formatPct(prob)}, signals are predominantly opposing. Continuing the current strategy without new supporting evidence is unlikely to change the trajectory.`;
-      riskNote = "Continued investment without evidence reversal carries significant opportunity cost.";
-      monitorNext = [
-        "What would need to change for probability to meaningfully shift",
-        "Alternative strategic framings",
-        "Exit or pivot timing considerations",
-      ];
-    }
-
-    if (confidence === "Low" || confidence === "Developing") {
-      riskNote += " Note: confidence is limited — forecast reliability will improve with more validated signals.";
-    }
-
-    return { headline, rationale, riskNote, monitorNext, prob, confidence };
-  }, [fc, cd]);
-
   const currentProb = fc?.currentProbability ?? 0;
   const priorProb = cd?.priorProbability ?? 0;
   const changePts = currentProb - priorProb;
+  const confidenceLevel = fc?.confidenceLevel ?? "Pending";
 
-  if (loadingCase || loadingForecast) {
+  const recommendation = useMemo(() => {
+    if (!fc || !cd) return null;
+    return deriveRecommendation(currentProb, priorProb, confidenceLevel);
+  }, [fc, cd, currentProb, priorProb, confidenceLevel]);
+
+  const interpretation = useMemo(() => deriveInterpretation(currentProb), [currentProb]);
+
+  if (loadingCase) {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
           <Target className="w-10 h-10 text-primary animate-pulse" />
-          <div className="text-muted-foreground">Loading question detail…</div>
+          <div className="text-muted-foreground">Loading question…</div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (errorCase && !cd) {
+    return (
+      <AppLayout>
+        <div className="text-center py-20 space-y-3">
+          <AlertCircle className="w-8 h-8 text-destructive mx-auto" />
+          <p className="text-muted-foreground">Failed to load question.</p>
+          <Button variant="ghost" onClick={() => refetchCase()}>Retry</Button>
         </div>
       </AppLayout>
     );
@@ -213,11 +199,7 @@ export default function QuestionDetail() {
     );
   }
 
-  const interpretation = currentProb >= 0.6
-    ? "Current signals support a favorable outcome within the forecast window."
-    : currentProb >= 0.4
-    ? "Signals are mixed. The outcome is within a zone of genuine uncertainty."
-    : "Current signals suggest the outcome faces material headwinds.";
+  const lastUpdated = cd.lastUpdate || cd.updatedAt || cd.createdAt;
 
   return (
     <AppLayout>
@@ -226,11 +208,17 @@ export default function QuestionDetail() {
         {/* ── Panel 1: Question Header — compact, anchoring ─────────────────── */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <Link href="/">
-              <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors mb-2">
-                <ArrowLeft className="w-3 h-3" /> Back to Questions
-              </button>
-            </Link>
+            <nav className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-2">
+              <Link href="/">
+                <button className="hover:text-foreground transition-colors">Dashboard</button>
+              </Link>
+              <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/40" />
+              <Link href="/cases">
+                <button className="hover:text-foreground transition-colors">Questions</button>
+              </Link>
+              <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/40" />
+              <span className="text-foreground/60 line-clamp-1 max-w-[200px]">Detail</span>
+            </nav>
             <h1 className="text-lg font-bold text-foreground leading-snug">{cd.strategicQuestion}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <Badge variant="primary">{cd.therapeuticArea || "General"}</Badge>
@@ -240,14 +228,14 @@ export default function QuestionDetail() {
                 <Clock className="w-3 h-3" /> {cd.timeHorizon || "12 months"}
               </span>
               <span className="text-xs text-muted-foreground/40">|</span>
-              <Badge variant={fc?.confidenceLevel === "High" ? "success" : fc?.confidenceLevel === "Moderate" ? "warning" : "default"}>
-                {fc?.confidenceLevel || "Pending"}
+              <Badge variant={confidenceLevel === "High" ? "success" : confidenceLevel === "Moderate" ? "warning" : "default"}>
+                {confidenceLevel}
               </Badge>
-              {cd.lastUpdate && (
+              {lastUpdated && (
                 <>
                   <span className="text-xs text-muted-foreground/40">|</span>
                   <span className="text-[11px] text-muted-foreground">
-                    Updated {new Date(cd.lastUpdate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    Updated {new Date(lastUpdated).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </span>
                 </>
               )}
@@ -271,44 +259,53 @@ export default function QuestionDetail() {
         <Card className="relative overflow-hidden">
           <div className="absolute top-0 right-0 w-72 h-72 bg-primary/6 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/4 pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/4 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/4 pointer-events-none" />
-          <div className="relative flex items-center gap-10 py-4">
-            <div className="shrink-0 scale-125 origin-center">
-              <ProbabilityGauge value={currentProb} label="" />
-            </div>
-            <div className="flex-1 space-y-4 min-w-0">
-              <div>
-                <div className="text-5xl font-bold text-primary tracking-tight leading-none">{formatPct(currentProb)}</div>
-                <div className="text-sm text-muted-foreground mt-1.5">Current probability</div>
+          {errorForecast ? (
+            <PanelError message="Failed to load forecast" onRetry={() => refetchForecast()} />
+          ) : !fc ? (
+            <PanelLoading label="Computing forecast…" />
+          ) : (
+            <div className="relative flex items-center gap-10 py-4">
+              <div className="shrink-0 scale-125 origin-center">
+                <ProbabilityGauge value={currentProb} label="" />
               </div>
-              <div className="flex gap-8">
+              <div className="flex-1 space-y-4 min-w-0">
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Prior</div>
-                  <div className="text-lg font-semibold text-foreground/70 mt-0.5">{formatPct(priorProb)}</div>
+                  <div className="text-5xl font-bold text-primary tracking-tight leading-none">{formatPct(currentProb)}</div>
+                  <div className="text-sm text-muted-foreground mt-1.5">Current probability</div>
                 </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Change</div>
-                  <div className={cn("text-lg font-semibold mt-0.5", changePts >= 0 ? "text-success" : "text-destructive")}>
-                    {formatPts(changePts)} pts
+                <div className="flex gap-8">
+                  <div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Prior</div>
+                    <div className="text-lg font-semibold text-foreground/70 mt-0.5">{formatPct(priorProb)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Change</div>
+                    <div className={cn("text-lg font-semibold mt-0.5", changePts >= 0 ? "text-success" : "text-destructive")}>
+                      {formatPts(changePts)} pts
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Confidence</div>
+                    <div className={cn(
+                      "text-lg font-semibold mt-0.5",
+                      confidenceLevel === "High" ? "text-success" : confidenceLevel === "Moderate" ? "text-warning" : "text-muted-foreground"
+                    )}>
+                      {confidenceLevel}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Confidence</div>
-                  <div className={cn(
-                    "text-lg font-semibold mt-0.5",
-                    fc?.confidenceLevel === "High" ? "text-success" : fc?.confidenceLevel === "Moderate" ? "text-warning" : "text-muted-foreground"
-                  )}>
-                    {fc?.confidenceLevel ?? "—"}
-                  </div>
+                <div className="pt-3 border-t border-border/20 flex items-start justify-between gap-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">{interpretation}</p>
+                  <span className="text-[10px] text-muted-foreground/40 whitespace-nowrap shrink-0">
+                    Engine v1 · Bayesian
+                  </span>
                 </div>
               </div>
-              <div className="pt-3 border-t border-border/20">
-                <p className="text-sm text-muted-foreground leading-relaxed">{interpretation}</p>
-              </div>
             </div>
-          </div>
+          )}
         </Card>
 
-        {/* ── Panel 3: Key Drivers — sidebar companion, compact ─────────────── */}
+        {/* ── Panel 3 + 5: Key Drivers (compact) + Scenario Simulator (strategic) */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           <div className="lg:col-span-2">
             <Card className="h-full">
@@ -316,7 +313,11 @@ export default function QuestionDetail() {
                 <Users className="w-3.5 h-3.5 text-primary" />
                 Key Drivers
               </div>
-              {drivers.positive.length === 0 && drivers.negative.length === 0 ? (
+              {errorForecast ? (
+                <PanelError message="Could not load drivers" onRetry={() => refetchForecast()} />
+              ) : !fc ? (
+                <PanelLoading label="Loading drivers…" />
+              ) : drivers.positive.length === 0 && drivers.negative.length === 0 ? (
                 <div className="text-xs text-muted-foreground text-center py-6">
                   Add signals to see key drivers.
                 </div>
@@ -356,6 +357,11 @@ export default function QuestionDetail() {
                       </div>
                     </div>
                   )}
+                  <div className="pt-2 border-t border-border/20">
+                    <span className="text-[10px] text-muted-foreground/40">
+                      Ranked by likelihood ratio impact · {drivers.positive.length + drivers.negative.length} drivers shown
+                    </span>
+                  </div>
                 </div>
               )}
             </Card>
@@ -373,11 +379,15 @@ export default function QuestionDetail() {
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-warning/70">
                     <ShieldAlert className="w-3 h-3" />
-                    <span>Scenario only</span>
+                    <span>Scenario output · backend computed</span>
                   </div>
                 </div>
 
-                {allSignals.length === 0 ? (
+                {loadingSignals ? (
+                  <PanelLoading label="Loading signals…" />
+                ) : errorSignals ? (
+                  <PanelError message="Could not load signals" onRetry={() => refetchSignals()} />
+                ) : allSignals.length === 0 ? (
                   <div className="text-xs text-muted-foreground text-center py-8">
                     Add signals first to run scenario simulations.
                   </div>
@@ -423,13 +433,19 @@ export default function QuestionDetail() {
 
                     <Button onClick={runScenario} disabled={scenarioMutation.isPending} className="w-full gap-2 h-9 text-sm">
                       {scenarioMutation.isPending ? (
-                        <><Activity className="w-3.5 h-3.5 animate-spin" /> Computing…</>
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Computing…</>
                       ) : (
                         <><Zap className="w-3.5 h-3.5" /> Run Scenario</>
                       )}
                     </Button>
 
-                    {scenarioMutation.data && (
+                    {scenarioMutation.isError && (
+                      <div className="mt-3">
+                        <PanelError message="Scenario computation failed" onRetry={runScenario} />
+                      </div>
+                    )}
+
+                    {scenarioMutation.data && !scenarioMutation.isError && (
                       <div className="mt-4 pt-4 border-t border-border/30">
                         <div className="flex items-stretch gap-4">
                           <div className="flex-1 text-center p-3 rounded-xl bg-muted/10 border border-border/20">
@@ -476,7 +492,9 @@ export default function QuestionDetail() {
                 <Radio className="w-3 h-3 text-primary" />
                 Signal Stack
               </div>
-              <span className="text-[10px] text-muted-foreground/60">{allSignals.length} validated</span>
+              <span className="text-[10px] text-muted-foreground/60">
+                {loadingSignals ? "…" : `${allSignals.length} validated`}
+              </span>
             </div>
             <Link href={`/cases/${caseId}/signals`}>
               <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
@@ -484,7 +502,11 @@ export default function QuestionDetail() {
               </button>
             </Link>
           </div>
-          {allSignals.length === 0 ? (
+          {loadingSignals ? (
+            <PanelLoading label="Loading signals…" />
+          ) : errorSignals ? (
+            <PanelError message="Failed to load signals" onRetry={() => refetchSignals()} />
+          ) : allSignals.length === 0 ? (
             <div className="text-xs text-muted-foreground text-center py-6 px-5">
               No signals yet. <Link href={`/cases/${caseId}/signals`}><span className="text-primary underline cursor-pointer">Add signals</span></Link> to begin.
             </div>
@@ -502,7 +524,7 @@ export default function QuestionDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {allSignals.map((s: any, idx: number) => (
+                  {allSignals.map((s: any) => (
                     <tr key={s.signalId} className="border-t border-border/15 hover:bg-muted/5 transition-colors">
                       <td className="py-1.5 px-5">
                         <div className="text-[12px] font-medium line-clamp-1">{s.signalDescription || s.signalType}</div>
@@ -533,7 +555,7 @@ export default function QuestionDetail() {
                         </div>
                       </td>
                       <td className="py-1.5 px-3">
-                        <span className="text-[10px] text-success">Valid</span>
+                        <span className="text-[10px] text-success">Validated</span>
                       </td>
                       <td className="py-1.5 px-5 text-right">
                         <span className="text-[10px] text-muted-foreground/60">
@@ -554,7 +576,11 @@ export default function QuestionDetail() {
             <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
               <Lightbulb className="w-4 h-4 text-primary" />
             </div>
-            {recommendation ? (
+            {errorForecast ? (
+              <PanelError message="Cannot generate recommendation without forecast" onRetry={() => refetchForecast()} />
+            ) : !recommendation ? (
+              <PanelLoading label="Generating recommendation…" />
+            ) : (
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Recommended Action</div>
                 <div className="text-sm font-semibold text-foreground leading-snug">{recommendation.headline}</div>
@@ -577,10 +603,11 @@ export default function QuestionDetail() {
                     <p className="text-[11px] text-warning/80 leading-relaxed">{recommendation.riskNote}</p>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground py-2">
-                Run a forecast first to generate recommendations.
+                <div className="mt-3 pt-2 border-t border-border/15">
+                  <span className="text-[10px] text-muted-foreground/40">
+                    Derived from probability band · {confidenceLevel} confidence · adapter v1
+                  </span>
+                </div>
               </div>
             )}
           </div>
