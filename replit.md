@@ -80,6 +80,21 @@ Frontend copy: `artifacts/cios-frontend/src/lib/lr-config.ts`. Discovery prompt:
 
 **REMS taxonomy mapping**: REMS burden/certification/documentation/monitoring → Access friction. REMS simplification/integrated support/digital workflow → Experience infrastructure. No separate REMS or AI signal type.
 
+## Forecast Ledger
+Tracking and evaluation layer — records predictions and compares them with real outcomes for calibration measurement.
+- **Schema**: `lib/db/src/schema/forecast-ledger.ts` → `forecast_ledger` table
+- **Routes**: `artifacts/api-server/src/routes/forecast-ledger.ts`
+- **Contract**: `ForecastLedgerEntry`, `ResolveOutcomeRequest` in `@workspace/contracts`
+
+API endpoints:
+- `GET /api/forecast-ledger` — list all ledger entries
+- `GET /api/forecast-ledger/:predictionId` — single entry
+- `GET /api/cases/:caseId/forecast-ledger` — entries for a specific case
+- `POST /api/cases/:caseId/record-forecast` — snapshot current probability into ledger (body: `{ timeHorizon, expectedResolutionDate? }`)
+- `PATCH /api/forecast-ledger/:predictionId/resolve` — resolve with outcome (body: `{ actualOutcome: 0|1, resolutionDate? }`); auto-computes `predictionError`
+
+Calibration bucketing: probabilities bucketed into 10% ranges (0–10%, 10–20%, …, 90–100%) on record. Does NOT modify the forecasting engine — purely a tracking layer.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database for all persistent data.
 - **Express 5:** Backend web framework.

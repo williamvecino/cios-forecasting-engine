@@ -204,3 +204,25 @@ export interface CalibrationSummary {
   meanForecastError: number | null;
   bandStats: CalibrationBandStat[];
 }
+
+export interface ForecastLedgerEntry {
+  id: string;
+  predictionId: string;
+  caseId: string;
+  strategicQuestion: string;
+  forecastProbability: number;
+  forecastDate: string;
+  timeHorizon: string;
+  expectedResolutionDate: string | null;
+  actualOutcome: number | null;
+  resolutionDate: string | null;
+  predictionError: number | null;
+  calibrationBucket: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResolveOutcomeRequest {
+  actualOutcome: 0 | 1;
+  resolutionDate?: string;
+}

@@ -18,6 +18,7 @@ import intelligenceRouter from "./intelligence.js";
 import portfolioRouter from "./portfolio.js";
 import decisionPathRouter from "./decision-paths.js";
 import scenarioAdapterRouter from "./scenario-adapter.js";
+import forecastLedgerRouter from "./forecast-ledger.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(intelligenceRouter);
 router.use(portfolioRouter);
 router.use(decisionPathRouter);
 router.use(scenarioAdapterRouter);
+router.use(forecastLedgerRouter);
 
 export default router;

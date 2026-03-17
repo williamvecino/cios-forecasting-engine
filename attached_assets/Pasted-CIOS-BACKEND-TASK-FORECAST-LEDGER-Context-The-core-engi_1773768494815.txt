@@ -1,0 +1,114 @@
+CIOS BACKEND TASK — FORECAST LEDGER
+
+Context
+The core engine, UI, and signal taxonomy are complete.
+We are now implementing the Forecast Ledger component.
+
+Objective
+Create a Forecast Ledger system that records predictions and later compares them with real outcomes in order to measure calibration.
+
+This feature must NOT change the forecasting engine or probability calculations.
+
+The ledger is only a tracking and evaluation layer.
+
+Scope
+Add a new module called ForecastLedger.
+
+Forecast Ledger structure
+
+Each ledger entry must include:
+
+PredictionID
+CaseID
+StrategicQuestion
+ForecastProbability
+ForecastDate
+TimeHorizon
+ExpectedResolutionDate
+ActualOutcome
+ResolutionDate
+PredictionError
+CalibrationBucket
+
+Definitions
+
+PredictionID
+Unique ID for each recorded forecast.
+
+CaseID
+Link to the original CaseHeader entry.
+
+StrategicQuestion
+Copy of the question stored in CaseHeader.
+
+ForecastProbability
+Probability produced by the forecast engine at the time of prediction.
+
+ForecastDate
+Date when the prediction was recorded.
+
+TimeHorizon
+Prediction horizon (e.g. 6 months, 12 months, 3 years).
+
+ExpectedResolutionDate
+Estimated date when the outcome should be known.
+
+ActualOutcome
+Binary value once resolved:
+1 = event occurred
+0 = event did not occur
+
+ResolutionDate
+Date when the outcome was confirmed.
+
+PredictionError
+Absolute difference between predicted probability and outcome.
+
+Example:
+forecast = 0.70
+outcome = 1
+error = 0.30
+
+CalibrationBucket
+Bucket forecast probability into ranges:
+0–10%
+10–20%
+20–30%
+...
+90–100%
+
+Purpose
+This allows the system to later calculate:
+
+- Brier score
+- calibration curves
+- forecast accuracy
+- reliability by probability range
+
+Implementation rules
+
+Do NOT modify:
+Bayesian engine
+posterior probability calculations
+signal processing
+scenario simulation
+calibration logic
+UI layout
+
+The ledger must simply store outputs from the engine.
+
+Suggested implementation steps
+
+1. Create a ForecastLedger table or sheet.
+2. Create a function that records forecasts when a prediction is generated.
+3. Add a mechanism to manually update ActualOutcome and ResolutionDate.
+4. Automatically compute PredictionError when outcome is entered.
+5. Generate calibration bucket values automatically.
+
+Deliverable
+
+Return:
+
+1. the ForecastLedger schema
+2. files created or modified
+3. confirmation that the forecasting engine was not changed
