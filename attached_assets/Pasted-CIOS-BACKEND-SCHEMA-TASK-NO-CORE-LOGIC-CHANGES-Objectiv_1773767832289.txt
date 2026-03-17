@@ -1,0 +1,77 @@
+CIOS BACKEND SCHEMA TASK — NO CORE LOGIC CHANGES
+
+Objective:
+Make 3 architecture-level signal taxonomy updates without changing the forecasting engine, calibration logic, or UI behavior.
+
+Scope:
+This is a schema / taxonomy extension only.
+
+Modifications to implement:
+
+1) Add a new SignalType: AccessFriction
+Definition:
+Operational barriers that reduce prescribing ease, treatment initiation, or adoption velocity.
+
+Examples:
+- prior authorization complexity
+- step therapy requirements
+- REMS administrative burden
+- specialty pharmacy restrictions
+- diagnostic workflow complexity
+- site certification burden
+- infusion/logistics complexity
+
+2) Add a new SignalType: ExperienceInfrastructure
+Definition:
+Operational support systems that reduce friction between diagnosis, access, initiation, adherence, and persistence.
+
+Examples:
+- patient navigation programs
+- adherence support programs
+- onboarding services
+- digital companion tools
+- call center / hub support
+- workflow integration tools
+- care coordination infrastructure
+
+3) Explicitly support REMS-related signals through the taxonomy, without creating a separate REMS signal class
+Implementation rule:
+- REMS burden / certification / documentation / monitoring complexity should map to AccessFriction
+- REMS simplification / integrated support / digital workflow / call-center enablement should map to ExperienceInfrastructure
+
+This means:
+- do NOT add a separate SignalType called REMS
+- do NOT add a separate SignalType called AI
+- do NOT change the engine
+- only make the taxonomy capable of representing REMS-related operational signals cleanly
+
+Strict constraints:
+Do NOT modify:
+- BayesianEngine
+- posterior probability calculations
+- likelihood ratio computation
+- calibration logic
+- learning logic
+- forecast routes
+- scenario simulation logic
+- database behavior unless required only for enum/schema acceptance
+- UI layout or UI features
+
+Implementation steps:
+1. Locate the SignalType enum / schema definition used by SignalRegister.
+2. Add these two new values:
+   - AccessFriction
+   - ExperienceInfrastructure
+3. Update any validation logic, type definitions, or form/schema validators so these new values are accepted everywhere signals are created/read/edited.
+4. Add a short developer comment or documentation note stating:
+   - REMS burden maps to AccessFriction
+   - REMS support simplification maps to ExperienceInfrastructure
+5. Confirm all existing signals continue to work unchanged.
+6. Do not refactor unrelated files.
+
+Deliverable:
+Return:
+1. the exact files changed
+2. the exact code changes
+3. confirmation that no forecasting or calibration logic changed
+4. confirmation that existing signal behavior remains unchanged

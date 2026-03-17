@@ -7,6 +7,8 @@ export const SIGNAL_TYPES = [
   "Competitor counteraction",
   "Access / commercial",
   "Regulatory / clinical",
+  "Access friction",
+  "Experience infrastructure",
 ] as const;
 
 export type SignalType = (typeof SIGNAL_TYPES)[number];
@@ -33,15 +35,22 @@ export interface LRRange {
  * For types that can go either way (Regulatory/clinical, Phase III
  * clinical, etc.), computeLR inverts the result for negative signals.
  */
+/**
+ * REMS taxonomy mapping:
+ *   - REMS burden / certification / documentation / monitoring complexity → "Access friction"
+ *   - REMS simplification / integrated support / digital workflow / call-center enablement → "Experience infrastructure"
+ */
 export const LR_RANGES: Record<SignalType, LRRange> = {
-  "Phase III clinical":       { min: 1.8, max: 2.5 },
-  "Guideline inclusion":      { min: 1.7, max: 2.2 },
-  "KOL endorsement":          { min: 1.2, max: 1.4 },
-  "Field intelligence":       { min: 0.8, max: 1.3 },
-  "Operational friction":     { min: 0.6, max: 0.9 },
-  "Competitor counteraction": { min: 0.7, max: 0.9 },
-  "Access / commercial":      { min: 1.1, max: 1.6 },
-  "Regulatory / clinical":    { min: 1.3, max: 2.0 },
+  "Phase III clinical":          { min: 1.8, max: 2.5 },
+  "Guideline inclusion":         { min: 1.7, max: 2.2 },
+  "KOL endorsement":             { min: 1.2, max: 1.4 },
+  "Field intelligence":          { min: 0.8, max: 1.3 },
+  "Operational friction":        { min: 0.6, max: 0.9 },
+  "Competitor counteraction":    { min: 0.7, max: 0.9 },
+  "Access / commercial":         { min: 1.1, max: 1.6 },
+  "Regulatory / clinical":       { min: 1.3, max: 2.0 },
+  "Access friction":             { min: 0.5, max: 0.85 },
+  "Experience infrastructure":   { min: 1.1, max: 1.5 },
 };
 
 const ATTRIBUTE_WEIGHTS = {

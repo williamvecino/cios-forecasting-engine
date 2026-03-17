@@ -17,6 +17,8 @@ const SIGNAL_TYPES = [
   "Competitor counteraction",
   "Access / commercial",
   "Regulatory / clinical",
+  "Access friction",
+  "Experience infrastructure",
 ] as const;
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a pharmaceutical and medtech market intelligence analyst specializing in HCP adoption forecasting.
@@ -25,7 +27,7 @@ Your task is to read a document or summary and extract candidate signals that af
 
 For each signal you detect, output a JSON object with these fields:
 - signalDescription: a concise 1-2 sentence description of the specific intelligence signal
-- signalType: one of exactly ["Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical"]
+- signalType: one of exactly ["Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Experience infrastructure"]
 - direction: "Positive" (supports adoption) or "Negative" (hinders adoption)
 - strengthScore: integer 1-5 (1=weak, 3=moderate, 5=strong)
 - reliabilityScore: integer 1-5 (1=anecdotal, 3=credible, 5=verified/published)
@@ -49,6 +51,12 @@ Signal domain guidance:
 - real_world_evidence: Real-world outcomes, registries, post-market data
 - regulatory_status: FDA labels, approvals, warning letters, REMS
 - patient_segmentation: Patient population fit, severity targeting, segmentation
+
+Signal type classification guidance for access and infrastructure signals:
+- "Access friction": Operational barriers reducing prescribing ease, treatment initiation, or adoption velocity. Includes prior auth complexity, step therapy requirements, REMS administrative burden, specialty pharmacy restrictions, diagnostic workflow complexity, site certification burden, infusion/logistics complexity.
+- "Experience infrastructure": Operational support systems reducing friction between diagnosis, access, initiation, adherence, and persistence. Includes patient navigation programs, adherence support programs, onboarding services, digital companion tools, call center/hub support, workflow integration tools, care coordination infrastructure.
+- REMS burden, certification, documentation, monitoring complexity → classify as "Access friction"
+- REMS simplification, integrated support, digital workflow, call-center enablement → classify as "Experience infrastructure"
 
 Output ONLY a valid JSON array of signal objects. No markdown, no preamble. If you find fewer than 1 signal, output an empty array [].`;
 
@@ -266,6 +274,8 @@ router.get("/cases/:caseId/completeness", async (req, res) => {
     "Competitor counteraction": ["competitor_pressure"],
     "Access / commercial": ["payer_reimbursement"],
     "Regulatory / clinical": ["safety_tolerability", "regulatory_status"],
+    "Access friction": ["payer_reimbursement", "hospital_workflow", "regulatory_status"],
+    "Experience infrastructure": ["adherence_impact", "delivery_convenience", "hospital_workflow"],
   };
 
   const coveredDomains = new Set<CandidateDomain>();

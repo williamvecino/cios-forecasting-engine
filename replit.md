@@ -61,6 +61,25 @@ The detail page (`cases/detail.tsx`) imports and casts to these contracts — ze
 
 **UI freeze rule**: Layout, hierarchy, navigation, and page purpose are structurally frozen. Only cosmetic refinements or state handling changes are allowed in the UI going forward.
 
+## Signal Taxonomy (10 types)
+Canonical source: `lib/db/src/lr-config.ts` (SIGNAL_TYPES, LR_RANGES), `lib/db/src/agent-config.ts` (SignalTypeKey, SIGNAL_AGENT_WEIGHTS).
+Frontend copy: `artifacts/cios-frontend/src/lib/lr-config.ts`. Discovery prompt: `artifacts/api-server/src/routes/discover.ts`.
+
+| Signal Type | LR Range | Direction |
+|---|---|---|
+| Phase III clinical | 1.8–2.5 | Supports adoption |
+| Guideline inclusion | 1.7–2.2 | Supports adoption |
+| KOL endorsement | 1.2–1.4 | Supports adoption |
+| Field intelligence | 0.8–1.3 | Bidirectional |
+| Operational friction | 0.6–0.9 | Constraining |
+| Competitor counteraction | 0.7–0.9 | Constraining |
+| Access / commercial | 1.1–1.6 | Supports adoption |
+| Regulatory / clinical | 1.3–2.0 | Supports adoption |
+| **Access friction** | 0.5–0.85 | Constraining |
+| **Experience infrastructure** | 1.1–1.5 | Supports adoption |
+
+**REMS taxonomy mapping**: REMS burden/certification/documentation/monitoring → Access friction. REMS simplification/integrated support/digital workflow → Experience infrastructure. No separate REMS or AI signal type.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database for all persistent data.
 - **Express 5:** Backend web framework.

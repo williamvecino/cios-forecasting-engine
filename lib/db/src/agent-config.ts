@@ -15,7 +15,9 @@ export type SignalTypeKey =
   | "Operational friction"
   | "Competitor counteraction"
   | "Access / commercial"
-  | "Regulatory / clinical";
+  | "Regulatory / clinical"
+  | "Access friction"
+  | "Experience infrastructure";
 
 export interface AgentArchetype {
   id: AgentId;
@@ -378,5 +380,23 @@ export const SIGNAL_AGENT_WEIGHTS: Record<SignalTypeKey, Record<AgentId, number>
     guideline_body: 0.90,
     competitor: 0.25,
     commercial_msl: 0.40,
+  },
+  "Access friction": {
+    academic_specialist: 0.15,
+    community_specialist: 0.70,
+    inpatient_prescriber: 0.90,
+    payer: 0.60,
+    guideline_body: 0.25,
+    competitor: 0.20,
+    commercial_msl: 0.80,
+  },
+  "Experience infrastructure": {
+    academic_specialist: 0.20,
+    community_specialist: 0.75,
+    inpatient_prescriber: 0.85,
+    payer: 0.50,
+    guideline_body: 0.20,
+    competitor: 0.15,
+    commercial_msl: 0.85,
   },
 };
