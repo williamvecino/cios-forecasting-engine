@@ -30,7 +30,12 @@ API specifications are defined using OpenAPI 3.1, with `orval` codegen generatin
   - Dashboard: "Your Strategic Questions" with question-first presentation, portfolio gauge, track record, system status
   - Forecast page: "Likelihood Assessment" (not "Posterior Probability"), "Baseline/Shift" (not "Prior/Delta"), "Starting Point → Evidence Strength → Stakeholder Response → Overall Outlook" computation chain, "Key Evidence Drivers", "Assessment Trace/Challenge"
   - Signals page: "Evidence Register" with "Evidence weight" column
-  - Sidebar: "CIOS / Strategic Intelligence Engine", renamed nav items (Signal Discovery, Evidence Register, Historical Matches, Stakeholder Model, System Calibration), "Engine ready / All systems operational" footer
+  - Sidebar navigation restructured to match decision-oriented hierarchy:
+    - **Platform**: Strategic Questions (dashboard/cases)
+    - **Question Detail** (per-case, greyed out when no case selected): Probability Forecast → `/forecast`, Key Drivers → `/agents`, Signals → `/signals`, Scenario Simulation → `/analogs`, Strategic Recommendation → `/portfolio`
+    - **Intelligence**: Signal Monitor → `/watchlist`, Forecast Ledger → `/case-library`
+    - **System**: Calibration → `/calibration`
+  - "Engine ready / All systems operational" footer
 - Information is presented with clarity, using structured tables, collapsible sections, and color-coded indicators for warnings and priorities.
 - All backend APIs and engine behavior remain completely unchanged — this is a UI-only transformation.
 
