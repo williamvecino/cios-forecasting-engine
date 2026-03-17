@@ -1,20 +1,23 @@
+import { useState } from "react";
 import { useListCases, useGetCalibrationStats } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button, ProbabilityGauge } from "@/components/ui-components";
-import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle } from "lucide-react";
-import { Link } from "wouter";
+import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle, MessageSquare, Send } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/cn";
 
 export default function Dashboard() {
   const { data: cases, isLoading: loadingCases } = useListCases();
   const { data: stats, isLoading: loadingStats } = useGetCalibrationStats();
+  const [questionDraft, setQuestionDraft] = useState("");
+  const [, navigate] = useLocation();
 
   if (loadingCases || loadingStats) {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
           <Target className="w-10 h-10 text-primary animate-pulse" />
-          <div className="text-muted-foreground">Loading your strategic questions…</div>
+          <div className="text-muted-foreground">Loading strategic forecasts…</div>
         </div>
       </AppLayout>
     );
@@ -44,33 +47,74 @@ export default function Dashboard() {
     alerts.push({ level: "ok", text: "Platform ready. Ask a strategic question to begin." });
   }
 
+  const handleAsk = () => {
+    if (questionDraft.trim()) {
+      navigate(`/cases?q=${encodeURIComponent(questionDraft.trim())}`);
+    } else {
+      navigate("/cases");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleAsk();
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <header className="flex justify-between items-end">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="w-5 h-5 text-primary" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Strategic Intelligence Engine
-              </span>
-            </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
-              Your Strategic Questions
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Ask a question, receive a probability-backed assessment with key drivers and recommended actions.{" "}
-              <span className="text-foreground font-medium">{allCases.length}</span> active question{allCases.length !== 1 ? "s" : ""}.
-            </p>
+        <header>
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="w-5 h-5 text-primary" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Strategic Intelligence Engine
+            </span>
           </div>
-          <Link href="/cases">
-            <Button className="gap-2 group">
-              <HelpCircle className="w-4 h-4" />
-              New Question
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </Link>
+          <h1 className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
+            Strategic Forecasts
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            <span className="text-foreground font-medium">{allCases.length}</span> active forecast{allCases.length !== 1 ? "s" : ""} across {new Set(allCases.map((c: any) => c.therapeuticArea).filter(Boolean)).size || 0} therapeutic areas.
+          </p>
         </header>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-60 h-60 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-3">
+              <MessageSquare className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Ask a Strategic Question</span>
+            </div>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={questionDraft}
+                onChange={(e) => setQuestionDraft(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Will therapy X achieve first-line adoption within 12 months?"
+                className="flex-1 bg-input border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              />
+              <Button onClick={handleAsk} className="gap-2 shrink-0 px-5">
+                <Send className="w-4 h-4" />
+                Ask
+              </Button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+              <span className="text-[11px] text-muted-foreground/60 font-medium">Examples:</span>
+              <button onClick={() => setQuestionDraft("Will competitor X launch before 2027?")} className="text-[11px] text-muted-foreground hover:text-primary transition-colors cursor-pointer">
+                Will competitor X launch before 2027?
+              </button>
+              <button onClick={() => setQuestionDraft("Will therapy Y achieve first-line adoption?")} className="text-[11px] text-muted-foreground hover:text-primary transition-colors cursor-pointer">
+                Will therapy Y achieve first-line adoption?
+              </button>
+              <button onClick={() => setQuestionDraft("Will payer coverage expand to 80% of target accounts?")} className="text-[11px] text-muted-foreground hover:text-primary transition-colors cursor-pointer">
+                Will payer coverage expand to 80% of target accounts?
+              </button>
+            </div>
+          </div>
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="flex flex-col items-center justify-center py-10 relative overflow-hidden group">

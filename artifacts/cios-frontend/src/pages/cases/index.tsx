@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useListCases, useCreateCase } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button, Input, Select, Label } from "@/components/ui-components";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Plus, FlaskConical, ArrowRight, ChevronRight, Layers } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -48,6 +48,7 @@ const CONFIDENCE_COLOR: Record<string, string> = {
 };
 
 export default function CasesList() {
+  const searchString = useSearch();
   const [isCreating, setIsCreating] = useState(false);
   const { data: cases, isLoading } = useListCases();
   const { mutate: createCase, isPending } = useCreateCase();
@@ -67,6 +68,15 @@ export default function CasesList() {
       competitorProfile: "Entrenched standard of care",
     },
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const q = params.get("q");
+    if (q) {
+      form.setValue("strategicQuestion", q);
+      setIsCreating(true);
+    }
+  }, []);
 
   const priorVal = form.watch("priorProbability");
 
