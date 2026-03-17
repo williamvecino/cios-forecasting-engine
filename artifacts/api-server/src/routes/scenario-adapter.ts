@@ -7,11 +7,12 @@ import { simulateAgents } from "../lib/agent-engine.js";
 import { getLrCorrections, computeDecay } from "../lib/calibration-utils.js";
 import { computeHierarchicalCalibration } from "../lib/calibration-fallback.js";
 import { deriveQuestionType } from "../lib/case-context.js";
+import type { ScenarioSimulationRequest, ScenarioSimulationResponse } from "@workspace/contracts";
 
 const router = Router();
 
 router.post("/cases/:caseId/scenario-simulate", async (req, res) => {
-  const { excludeSignalIds = [] } = req.body as { excludeSignalIds?: string[] };
+  const { excludeSignalIds = [] } = req.body as ScenarioSimulationRequest;
 
   const caseRow = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
   if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
@@ -79,14 +80,16 @@ router.post("/cases/:caseId/scenario-simulate", async (req, res) => {
   const scenarioSignals = allSignals.filter((s) => !excludeSignalIds.includes(s.signalId));
   const scenarioProbability = await runScenario(scenarioSignals);
 
-  res.json({
+  const response: ScenarioSimulationResponse = {
     baseProbability,
     scenarioProbability,
     delta: scenarioProbability - baseProbability,
     excludedCount: excludeSignalIds.length,
     totalSignals: allSignals.length,
     scenarioSignals: scenarioSignals.length,
-  });
+  };
+
+  res.json(response);
 });
 
 export default router;

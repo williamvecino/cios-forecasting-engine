@@ -46,6 +46,21 @@ API specifications are defined using OpenAPI 3.1, with `orval` codegen generatin
 - Information is presented with clarity, using structured tables, collapsible sections, and color-coded indicators for warnings and priorities.
 - All backend APIs and engine behavior remain completely unchanged — this is a UI-only transformation.
 
+## API/UI Contract Layer
+The `@workspace/contracts` package (`lib/contracts/src/index.ts`) defines the canonical typed interfaces shared between backend and frontend:
+- **CaseSummary** — GET /api/cases, GET /api/cases/:id
+- **ForecastDetailResponse** — GET /api/cases/:id/forecast (includes signalDetails, actorAggregation, hierarchicalCalibration, interpretation, sensitivityAnalysis)
+- **ForecastSignalDetail** — individual signal within forecast response
+- **SignalDetail** — GET /api/cases/:id/signals
+- **ScenarioSimulationRequest/Response** — POST /api/cases/:id/scenario-simulate
+- **Recommendation** — frontend adapter output (isolated in recommendation-adapter.ts, swappable for backend endpoint)
+- **CalibrationSummary** — GET /api/calibration/stats
+- **HierarchicalCalibration, CalibrationConfidence, ForecastActorAggregation, ForecastAgentSummary** — nested forecast sub-types
+
+The detail page (`cases/detail.tsx`) imports and casts to these contracts — zero `any` types in the component.
+
+**UI freeze rule**: Layout, hierarchy, navigation, and page purpose are structurally frozen. Only cosmetic refinements or state handling changes are allowed in the UI going forward.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database for all persistent data.
 - **Express 5:** Backend web framework.

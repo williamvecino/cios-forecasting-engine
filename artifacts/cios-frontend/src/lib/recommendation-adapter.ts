@@ -1,9 +1,6 @@
-export interface Recommendation {
-  headline: string;
-  rationale: string;
-  riskNote: string;
-  monitorNext: string[];
-}
+import type { Recommendation } from "@workspace/contracts";
+
+export type { Recommendation };
 
 function formatPct(v: number) {
   return (v * 100).toFixed(1) + "%";

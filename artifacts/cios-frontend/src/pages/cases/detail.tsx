@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useRoute, Link } from "wouter";
 import { useRunForecast, useGetCase, useListSignals } from "@workspace/api-client-react";
 import { useMutation } from "@tanstack/react-query";
+import type { CaseSummary, ForecastDetailResponse, SignalDetail, ScenarioSimulationResponse, ScenarioSimulationRequest } from "@workspace/contracts";
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
 import { Card, Badge, ProbabilityGauge, Button } from "@/components/ui-components";
@@ -87,16 +88,17 @@ export default function QuestionDetail() {
   const { data: signals, isLoading: loadingSignals, isError: errorSignals, refetch: refetchSignals } = useListSignals(caseId);
 
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
-  const scenarioMutation = useMutation({
-    mutationFn: async (excluded: string[]) => {
+  const scenarioMutation = useMutation<ScenarioSimulationResponse, Error, string[]>({
+    mutationFn: async (excluded) => {
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const body: ScenarioSimulationRequest = { excludeSignalIds: excluded };
       const res = await fetch(`${base}/api/cases/${caseId}/scenario-simulate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ excludeSignalIds: excluded }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Scenario simulation failed");
-      return res.json();
+      return res.json() as Promise<ScenarioSimulationResponse>;
     },
   });
 
@@ -114,35 +116,34 @@ export default function QuestionDetail() {
   };
 
   const runPreset = (preset: "best" | "base" | "risk") => {
-    const sigs = allSignals;
     if (preset === "base") {
       setExcludedIds(new Set());
       scenarioMutation.mutate([]);
     } else if (preset === "best") {
-      const negIds = sigs.filter((s: any) => s.direction === "Negative").map((s: any) => s.signalId);
+      const negIds = allSignals.filter((s) => s.direction === "Negative").map((s) => s.signalId);
       setExcludedIds(new Set(negIds));
       scenarioMutation.mutate(negIds);
     } else {
-      const posIds = sigs.filter((s: any) => s.direction === "Positive").map((s: any) => s.signalId);
+      const posIds = allSignals.filter((s) => s.direction === "Positive").map((s) => s.signalId);
       setExcludedIds(new Set(posIds));
       scenarioMutation.mutate(posIds);
     }
   };
 
-  const fc = forecast as any;
-  const cd = caseData as any;
-  const allSignals = (signals || []) as any[];
+  const fc = forecast as ForecastDetailResponse | undefined;
+  const cd = caseData as CaseSummary | undefined;
+  const allSignals = (signals || []) as SignalDetail[];
 
   const drivers = useMemo(() => {
-    if (!fc?.signalDetails) return { positive: [], negative: [] };
-    const all = (fc.signalDetails as any[])
-      .map((s: any) => ({
+    if (!fc?.signalDetails) return { positive: [] as { name: string; direction: string; lr: number; signalType: string }[], negative: [] as { name: string; direction: string; lr: number; signalType: string }[] };
+    const all = fc.signalDetails
+      .map((s) => ({
         name: s.signalDescription || s.signalType || "Unknown",
         direction: s.direction,
         lr: s.likelihoodRatio ?? 1,
         signalType: s.signalType ?? "",
       }))
-      .sort((a: any, b: any) => Math.abs(b.lr - 1) - Math.abs(a.lr - 1));
+      .sort((a, b) => Math.abs(b.lr - 1) - Math.abs(a.lr - 1));
     return {
       positive: all.filter((d) => d.direction === "Positive").slice(0, 5),
       negative: all.filter((d) => d.direction === "Negative").slice(0, 4),

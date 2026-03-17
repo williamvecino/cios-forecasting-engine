@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@workspace/contracts": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/api-zod": "workspace:*",
     "@workspace/integrations-openai-ai-server": "workspace:*",
