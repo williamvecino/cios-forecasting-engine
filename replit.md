@@ -105,6 +105,23 @@ API endpoint: `GET /api/cases/:caseId/narrative`
 
 Output sections: headline, coreForecastStatement, supportingDrivers, risksAndCounterSignals, interpretation, strategicImplication, whatWouldChangeTheForecast. Links to Forecast Ledger predictionId if available. Does NOT modify any engine outputs — read-only formatter.
 
+## Signal Watchlist
+Anticipation/monitoring layer that tracks upcoming external events likely to generate meaningful forecast signals.
+- **Schema**: `lib/db/src/schema/signal-watchlist.ts` → `signal_watchlist` table
+- **Routes**: `artifacts/api-server/src/routes/signal-watchlist.ts`
+- **Contract**: `SignalWatchlistEntry` in `@workspace/contracts`
+- **Status values**: Upcoming, Monitoring, Occurred, Closed
+
+API endpoints:
+- `GET /api/signal-watchlist` — list all watchlist entries
+- `GET /api/signal-watchlist/:watchEventId` — single entry
+- `GET /api/cases/:caseId/signal-watchlist` — entries for a specific case
+- `POST /api/signal-watchlist` — create new event (body: `{ eventType, eventName, caseId?, ... }`)
+- `PATCH /api/signal-watchlist/:watchEventId` — update event fields/status
+- `DELETE /api/signal-watchlist/:watchEventId` — remove event
+
+Event types supported: trial readouts, congress presentations, guideline updates, regulatory decisions, advisory committees, competitor launches, payer decisions, publications. Does NOT auto-generate signals — tracking only.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database for all persistent data.
 - **Express 5:** Backend web framework.

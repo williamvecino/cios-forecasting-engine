@@ -12,3 +12,4 @@ export * from "./agent-simulations";
 export * from "./lr-corrections";
 export * from "./bucket-corrections";
 export * from "./forecast-ledger";
+export * from "./signal-watchlist";

@@ -242,3 +242,21 @@ export interface StrategicNarrative {
     whatWouldChangeTheForecast: string;
   };
 }
+
+export interface SignalWatchlistEntry {
+  id: string;
+  watchEventId: string;
+  caseId: string | null;
+  eventType: string;
+  eventName: string;
+  eventDescription: string | null;
+  targetAssetOrCompetitor: string | null;
+  expectedDate: string | null;
+  status: "Upcoming" | "Monitoring" | "Occurred" | "Closed";
+  potentialSignalCategory: string | null;
+  expectedDirection: string | null;
+  sourceLink: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
