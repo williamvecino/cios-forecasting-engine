@@ -226,3 +226,19 @@ export interface ResolveOutcomeRequest {
   actualOutcome: 0 | 1;
   resolutionDate?: string;
 }
+
+export interface StrategicNarrative {
+  caseId: string;
+  predictionId: string | null;
+  forecastDate: string;
+  generatedAt: string;
+  sections: {
+    headline: string;
+    coreForecastStatement: string;
+    supportingDrivers: string;
+    risksAndCounterSignals: string;
+    interpretation: string;
+    strategicImplication: string;
+    whatWouldChangeTheForecast: string;
+  };
+}

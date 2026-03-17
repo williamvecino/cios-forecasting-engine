@@ -1,0 +1,95 @@
+CIOS BACKEND/OUTPUT TASK — STRATEGIC NARRATIVE GENERATOR
+
+Context:
+The core engine, UI, signal taxonomy, scenario simulation, and Forecast Ledger are complete.
+We are now implementing the Strategic Narrative Generator.
+
+Objective:
+Create a read-only narrative output layer that converts an existing forecast package into a coherent analytical narrative suitable for executive briefs, forecast writeups, and article drafting.
+
+This layer must not modify forecast probabilities or engine outputs.
+It must only translate structured outputs into narrative form.
+
+Output inputs
+Use existing forecast/output fields only, including where available:
+
+- StrategicQuestion
+- ForecastProbability
+- KeyDrivers
+- RiskSignals
+- SignalInterpretation
+- StrategicImplication
+- ScenarioSensitivity (if available)
+- TimeHorizon
+- ForecastDate
+- CaseID
+- PredictionID (if linked to Forecast Ledger)
+
+Required output structure
+
+Create a narrative object/template with these sections:
+
+1. Headline
+Short forecast headline summarizing the question and probability.
+
+2. Core Forecast Statement
+One paragraph stating:
+- the question
+- the current probability
+- the directional conclusion
+
+3. Supporting Drivers
+Bullet or paragraph summary of the main positive drivers.
+
+4. Risks and Counter-Signals
+Bullet or paragraph summary of the main negative drivers or uncertainties.
+
+5. Interpretation
+Short analytical explanation of why the forecast currently sits where it does.
+
+6. Strategic Implication
+Short paragraph on what this means strategically if the forecast is correct.
+
+7. What Would Change the Forecast
+Short section describing which types of future signals would materially move the probability.
+
+Formatting goals
+The output should be:
+- coherent
+- analytical
+- publication-friendly
+- readable enough to use as the backbone of an article or executive brief
+
+Implementation requirements
+
+1. Create a StrategicNarrativeGenerator module/service.
+2. It should consume existing forecast output objects and produce a structured narrative response.
+3. Add an API endpoint to generate the narrative for a given case or forecast record.
+4. If Forecast Ledger linkage exists, include PredictionID and ForecastDate in the response metadata.
+5. Keep the narrative generator deterministic and template-based.
+6. Do not use it to invent new signals or change forecast logic.
+
+Strict constraints
+Do NOT modify:
+- Bayesian engine
+- posterior probability calculations
+- likelihood ratio computation
+- calibration logic
+- signal processing
+- scenario simulation behavior
+- Forecast Ledger calculations
+- UI layout unless absolutely necessary to display the new output
+- existing forecast outputs
+
+Design rule
+This is not a freeform AI-writing system.
+It is a structured narrative formatter built on existing forecast outputs.
+
+Deliverable
+Return:
+1. exact files created or modified
+2. the narrative template structure
+3. the new endpoint or invocation path
+4. a sample narrative output from one existing case
+5. confirmation that no core logic changed
+6. confirmation that forecast probabilities and ledger behavior remain unchanged

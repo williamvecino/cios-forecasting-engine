@@ -95,6 +95,16 @@ API endpoints:
 
 Calibration bucketing: probabilities bucketed into 10% ranges (0–10%, 10–20%, …, 90–100%) on record. Does NOT modify the forecasting engine — purely a tracking layer.
 
+## Strategic Narrative Generator
+Deterministic template-based narrative formatter — converts forecast outputs into publication-ready analytical narratives.
+- **Generator**: `artifacts/api-server/src/lib/narrative-generator.ts` (pure function, no side effects)
+- **Route**: `artifacts/api-server/src/routes/narrative.ts`
+- **Contract**: `StrategicNarrative` in `@workspace/contracts`
+
+API endpoint: `GET /api/cases/:caseId/narrative`
+
+Output sections: headline, coreForecastStatement, supportingDrivers, risksAndCounterSignals, interpretation, strategicImplication, whatWouldChangeTheForecast. Links to Forecast Ledger predictionId if available. Does NOT modify any engine outputs — read-only formatter.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database for all persistent data.
 - **Express 5:** Backend web framework.

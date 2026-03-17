@@ -19,6 +19,7 @@ import portfolioRouter from "./portfolio.js";
 import decisionPathRouter from "./decision-paths.js";
 import scenarioAdapterRouter from "./scenario-adapter.js";
 import forecastLedgerRouter from "./forecast-ledger.js";
+import narrativeRouter from "./narrative.js";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(portfolioRouter);
 router.use(decisionPathRouter);
 router.use(scenarioAdapterRouter);
 router.use(forecastLedgerRouter);
+router.use(narrativeRouter);
 
 export default router;
