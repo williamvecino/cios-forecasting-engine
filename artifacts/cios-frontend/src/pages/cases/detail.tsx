@@ -221,227 +221,324 @@ export default function QuestionDetail() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-        {/* ── Panel 1: Question Header ──────────────────────────────────────── */}
-        <Card>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <Link href="/">
-                <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors mb-3">
-                  <ArrowLeft className="w-3 h-3" /> Back to Questions
-                </button>
-              </Link>
-              <h1 className="text-xl font-bold text-foreground leading-snug mb-3">{cd.strategicQuestion}</h1>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="primary">{cd.therapeuticArea || "General"}</Badge>
-                {cd.questionType && <Badge variant="default">{cd.questionType}</Badge>}
-                <span className="text-xs text-muted-foreground">{cd.assetName || cd.primaryBrand}</span>
-                <span className="text-xs text-muted-foreground/50">|</span>
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> {cd.timeHorizon || "12 months"}
-                </span>
-                <span className="text-xs text-muted-foreground/50">|</span>
-                <Badge variant={fc?.confidenceLevel === "High" ? "success" : fc?.confidenceLevel === "Moderate" ? "warning" : "default"}>
-                  {fc?.confidenceLevel || "Pending"} confidence
-                </Badge>
-              </div>
+        {/* ── Panel 1: Question Header — compact, anchoring ─────────────────── */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <Link href="/">
+              <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors mb-2">
+                <ArrowLeft className="w-3 h-3" /> Back to Questions
+              </button>
+            </Link>
+            <h1 className="text-lg font-bold text-foreground leading-snug">{cd.strategicQuestion}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+              <Badge variant="primary">{cd.therapeuticArea || "General"}</Badge>
+              <span className="text-xs text-muted-foreground">{cd.assetName || cd.primaryBrand}</span>
+              <span className="text-xs text-muted-foreground/40">|</span>
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3" /> {cd.timeHorizon || "12 months"}
+              </span>
+              <span className="text-xs text-muted-foreground/40">|</span>
+              <Badge variant={fc?.confidenceLevel === "High" ? "success" : fc?.confidenceLevel === "Moderate" ? "warning" : "default"}>
+                {fc?.confidenceLevel || "Pending"}
+              </Badge>
               {cd.lastUpdate && (
-                <div className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-                  <Activity className="w-3 h-3" />
-                  Last updated: {new Date(cd.lastUpdate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </div>
+                <>
+                  <span className="text-xs text-muted-foreground/40">|</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Updated {new Date(cd.lastUpdate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </>
               )}
             </div>
-            <div className="flex gap-2 shrink-0">
-              <Link href={`/cases/${caseId}/signals`}>
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Radio className="w-3.5 h-3.5" /> Add Signals
-                </Button>
-              </Link>
-              <Link href="/case-library">
-                <Button variant="ghost" size="sm" className="gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5" /> View Ledger
-                </Button>
-              </Link>
+          </div>
+          <div className="flex gap-2 shrink-0 pt-5">
+            <Link href={`/cases/${caseId}/signals`}>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Radio className="w-3.5 h-3.5" /> Add Signals
+              </Button>
+            </Link>
+            <Link href="/case-library">
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                <BookOpen className="w-3.5 h-3.5" /> Ledger
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* ── Panel 2: Primary Forecast Card — HERO, biggest panel ──────────── */}
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-72 h-72 bg-primary/6 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/4 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/4 pointer-events-none" />
+          <div className="relative flex items-center gap-10 py-4">
+            <div className="shrink-0 scale-125 origin-center">
+              <ProbabilityGauge value={currentProb} label="" />
+            </div>
+            <div className="flex-1 space-y-4 min-w-0">
+              <div>
+                <div className="text-5xl font-bold text-primary tracking-tight leading-none">{formatPct(currentProb)}</div>
+                <div className="text-sm text-muted-foreground mt-1.5">Current probability</div>
+              </div>
+              <div className="flex gap-8">
+                <div>
+                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Prior</div>
+                  <div className="text-lg font-semibold text-foreground/70 mt-0.5">{formatPct(priorProb)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Change</div>
+                  <div className={cn("text-lg font-semibold mt-0.5", changePts >= 0 ? "text-success" : "text-destructive")}>
+                    {formatPts(changePts)} pts
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Confidence</div>
+                  <div className={cn(
+                    "text-lg font-semibold mt-0.5",
+                    fc?.confidenceLevel === "High" ? "text-success" : fc?.confidenceLevel === "Moderate" ? "text-warning" : "text-muted-foreground"
+                  )}>
+                    {fc?.confidenceLevel ?? "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-border/20">
+                <p className="text-sm text-muted-foreground leading-relaxed">{interpretation}</p>
+              </div>
             </div>
           </div>
         </Card>
 
-        {/* ── Panel 2 + 3: Forecast Card + Key Drivers ─────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* Panel 2: Primary Forecast Card */}
-          <Card className="relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5 text-primary" />
-              Primary Forecast
-            </div>
-            <div className="flex items-center gap-8">
-              <div className="shrink-0">
-                <ProbabilityGauge value={currentProb} label="" />
+        {/* ── Panel 3: Key Drivers — sidebar companion, compact ─────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          <div className="lg:col-span-2">
+            <Card className="h-full">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-3 flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-primary" />
+                Key Drivers
               </div>
-              <div className="flex-1 space-y-3">
-                <div>
-                  <div className="text-4xl font-bold text-primary tracking-tight">{formatPct(currentProb)}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Current probability</div>
+              {drivers.positive.length === 0 && drivers.negative.length === 0 ? (
+                <div className="text-xs text-muted-foreground text-center py-6">
+                  Add signals to see key drivers.
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Prior</div>
-                    <div className="text-sm font-semibold text-foreground/70">{formatPct(priorProb)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Change</div>
-                    <div className={cn("text-sm font-semibold", changePts >= 0 ? "text-success" : "text-destructive")}>
-                      {formatPts(changePts)} pts
+              ) : (
+                <div className="space-y-3">
+                  {drivers.positive.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-success uppercase tracking-wider mb-1.5">Positive</div>
+                      <div className="space-y-1">
+                        {drivers.positive.map((d, i) => {
+                          const impact = impactLabel(d.lr);
+                          return (
+                            <div key={i} className="flex items-center gap-1.5 py-1">
+                              <TrendingUp className="w-3 h-3 text-success shrink-0" />
+                              <span className="text-[12px] flex-1 line-clamp-1">{d.name}</span>
+                              <Badge variant={impactBadgeVariant(impact)} className="text-[9px] px-1.5 py-0">{impact}</Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Confidence</div>
-                    <div className={cn(
-                      "text-sm font-semibold",
-                      fc?.confidenceLevel === "High" ? "text-success" : fc?.confidenceLevel === "Moderate" ? "text-warning" : "text-muted-foreground"
-                    )}>
-                      {fc?.confidenceLevel ?? "—"}
+                  )}
+                  {drivers.negative.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-destructive uppercase tracking-wider mb-1.5">Negative</div>
+                      <div className="space-y-1">
+                        {drivers.negative.map((d, i) => {
+                          const impact = impactLabel(d.lr);
+                          return (
+                            <div key={i} className="flex items-center gap-1.5 py-1">
+                              <TrendingDown className="w-3 h-3 text-destructive shrink-0" />
+                              <span className="text-[12px] flex-1 line-clamp-1">{d.name}</span>
+                              <Badge variant={impactBadgeVariant(impact)} className="text-[9px] px-1.5 py-0">{impact}</Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
+                  )}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* ── Panel 5: Scenario Simulator — SECOND BIGGEST, strategic ─────── */}
+          <div className="lg:col-span-3">
+            <Card className="h-full relative overflow-hidden">
+              <div className="absolute bottom-0 right-0 w-40 h-40 bg-accent/5 rounded-full blur-[60px] translate-y-1/3 translate-x-1/4 pointer-events-none" />
+              <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-2">
+                    <Compass className="w-3.5 h-3.5 text-primary" />
+                    Scenario Simulator
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-warning/70">
+                    <ShieldAlert className="w-3 h-3" />
+                    <span>Scenario only</span>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-border/30">
-              <p className="text-xs text-muted-foreground leading-relaxed italic">{interpretation}</p>
-            </div>
-          </Card>
 
-          {/* Panel 3: Key Drivers */}
-          <Card>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
-              <Users className="w-3.5 h-3.5 text-primary" />
-              Key Drivers
-            </div>
-            {drivers.positive.length === 0 && drivers.negative.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8">
-                No signals registered yet. Add signals to see key drivers.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {drivers.positive.length > 0 && (
-                  <div>
-                    <div className="text-[11px] font-semibold text-success uppercase tracking-wider mb-2">Positive</div>
-                    <div className="space-y-1.5">
-                      {drivers.positive.map((d, i) => {
-                        const impact = impactLabel(d.lr);
+                {allSignals.length === 0 ? (
+                  <div className="text-xs text-muted-foreground text-center py-8">
+                    Add signals first to run scenario simulations.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2 mb-4">
+                      <Button variant="outline" size="sm" onClick={() => runPreset("best")} disabled={scenarioMutation.isPending} className="flex-1 text-[11px] h-8">
+                        Best case
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => runPreset("base")} disabled={scenarioMutation.isPending} className="flex-1 text-[11px] h-8">
+                        Base case
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => runPreset("risk")} disabled={scenarioMutation.isPending} className="flex-1 text-[11px] h-8">
+                        Risk case
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mb-4 max-h-36 overflow-y-auto pr-1">
+                      {allSignals.map((s: any) => {
+                        const isExcluded = excludedIds.has(s.signalId);
                         return (
-                          <div key={i} className="flex items-center gap-2 py-1.5">
-                            <TrendingUp className="w-3 h-3 text-success shrink-0" />
-                            <span className="text-sm flex-1 line-clamp-1">{d.name}</span>
-                            <Badge variant={impactBadgeVariant(impact)} className="text-[10px]">{impact}</Badge>
-                            {d.signalType && <span className="text-[10px] text-muted-foreground/50">{d.signalType.split(" ")[0]}</span>}
-                          </div>
+                          <button
+                            key={s.signalId}
+                            onClick={() => toggleSignal(s.signalId)}
+                            className={cn(
+                              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all text-left text-[11px]",
+                              isExcluded
+                                ? "bg-muted/5 border-border/15 opacity-35"
+                                : "bg-muted/10 border-border/25 hover:bg-muted/20"
+                            )}
+                          >
+                            {isExcluded ? (
+                              <ToggleLeft className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            ) : (
+                              <ToggleRight className="w-3.5 h-3.5 text-primary shrink-0" />
+                            )}
+                            <DirectionIcon dir={s.direction} />
+                            <span className="flex-1 line-clamp-1">{s.signalDescription || s.signalType}</span>
+                          </button>
                         );
                       })}
                     </div>
-                  </div>
-                )}
-                {drivers.negative.length > 0 && (
-                  <div>
-                    <div className="text-[11px] font-semibold text-destructive uppercase tracking-wider mb-2">Negative</div>
-                    <div className="space-y-1.5">
-                      {drivers.negative.map((d, i) => {
-                        const impact = impactLabel(d.lr);
-                        return (
-                          <div key={i} className="flex items-center gap-2 py-1.5">
-                            <TrendingDown className="w-3 h-3 text-destructive shrink-0" />
-                            <span className="text-sm flex-1 line-clamp-1">{d.name}</span>
-                            <Badge variant={impactBadgeVariant(impact)} className="text-[10px]">{impact}</Badge>
-                            {d.signalType && <span className="text-[10px] text-muted-foreground/50">{d.signalType.split(" ")[0]}</span>}
+
+                    <Button onClick={runScenario} disabled={scenarioMutation.isPending} className="w-full gap-2 h-9 text-sm">
+                      {scenarioMutation.isPending ? (
+                        <><Activity className="w-3.5 h-3.5 animate-spin" /> Computing…</>
+                      ) : (
+                        <><Zap className="w-3.5 h-3.5" /> Run Scenario</>
+                      )}
+                    </Button>
+
+                    {scenarioMutation.data && (
+                      <div className="mt-4 pt-4 border-t border-border/30">
+                        <div className="flex items-stretch gap-4">
+                          <div className="flex-1 text-center p-3 rounded-xl bg-muted/10 border border-border/20">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Base</div>
+                            <div className="text-xl font-bold text-foreground">{formatPct(scenarioMutation.data.baseProbability)}</div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                          <div className="flex items-center text-muted-foreground/30">
+                            <ChevronRight className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 text-center p-3 rounded-xl bg-primary/8 border border-primary/20">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Scenario</div>
+                            <div className="text-xl font-bold text-primary">{formatPct(scenarioMutation.data.scenarioProbability)}</div>
+                          </div>
+                          <div className="flex items-center text-muted-foreground/30">
+                            <ChevronRight className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 text-center p-3 rounded-xl bg-muted/10 border border-border/20">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Delta</div>
+                            <div className={cn(
+                              "text-xl font-bold",
+                              scenarioMutation.data.delta > 0 ? "text-success" : scenarioMutation.data.delta < 0 ? "text-destructive" : "text-muted-foreground"
+                            )}>
+                              {formatPts(scenarioMutation.data.delta)} pts
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground text-center mt-2">
+                          {scenarioMutation.data.scenarioSignals} of {scenarioMutation.data.totalSignals} signals active
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-            )}
-          </Card>
+            </Card>
+          </div>
         </div>
 
-        {/* ── Panel 4: Signal Stack ────────────────────────────────────────── */}
+        {/* ── Panel 4: Signal Stack — dense, operational, compressed rows ───── */}
         <Card noPadding>
-          <div className="p-6 pb-3 flex items-center justify-between">
-            <div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-2">
-                <Radio className="w-3.5 h-3.5 text-primary" />
+          <div className="px-5 py-3 flex items-center justify-between border-b border-border/30">
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-1.5">
+                <Radio className="w-3 h-3 text-primary" />
                 Signal Stack
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{allSignals.length} validated signal{allSignals.length !== 1 ? "s" : ""}</p>
+              <span className="text-[10px] text-muted-foreground/60">{allSignals.length} validated</span>
             </div>
             <Link href={`/cases/${caseId}/signals`}>
-              <Button variant="ghost" size="sm" className="text-xs gap-1">
-                <Eye className="w-3 h-3" /> Manage Signals
-              </Button>
+              <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+                <Eye className="w-3 h-3" /> Manage
+              </button>
             </Link>
           </div>
           {allSignals.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-8 px-6">
-              No signals yet. <Link href={`/cases/${caseId}/signals`}><span className="text-primary underline cursor-pointer">Add signals</span></Link> to begin building the evidence base.
+            <div className="text-xs text-muted-foreground text-center py-6 px-5">
+              No signals yet. <Link href={`/cases/${caseId}/signals`}><span className="text-primary underline cursor-pointer">Add signals</span></Link> to begin.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full">
                 <thead>
-                  <tr className="border-t border-b border-border text-[11px] text-muted-foreground uppercase tracking-wider">
-                    <th className="text-left py-2.5 px-6 font-semibold w-12">ID</th>
-                    <th className="text-left py-2.5 px-3 font-semibold">Signal</th>
-                    <th className="text-left py-2.5 px-3 font-semibold w-24">Direction</th>
-                    <th className="text-left py-2.5 px-3 font-semibold w-24">Strength</th>
-                    <th className="text-left py-2.5 px-3 font-semibold w-24">Reliability</th>
-                    <th className="text-left py-2.5 px-3 font-semibold w-20">Status</th>
-                    <th className="text-left py-2.5 px-3 font-semibold w-28">Timestamp</th>
+                  <tr className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                    <th className="text-left py-2 px-5 font-medium">Signal</th>
+                    <th className="text-left py-2 px-3 font-medium w-20">Dir</th>
+                    <th className="text-left py-2 px-3 font-medium w-16">Str</th>
+                    <th className="text-left py-2 px-3 font-medium w-16">Rel</th>
+                    <th className="text-left py-2 px-3 font-medium w-16">Status</th>
+                    <th className="text-right py-2 px-5 font-medium w-24">Date</th>
                   </tr>
                 </thead>
                 <tbody>
                   {allSignals.map((s: any, idx: number) => (
-                    <tr key={s.signalId} className="border-b border-border/30 hover:bg-muted/10 transition-colors">
-                      <td className="py-2.5 px-6 text-[11px] text-muted-foreground font-mono">
-                        {s.signalId?.slice(0, 8) || `SIG-${String(idx + 1).padStart(3, "0")}`}
+                    <tr key={s.signalId} className="border-t border-border/15 hover:bg-muted/5 transition-colors">
+                      <td className="py-1.5 px-5">
+                        <div className="text-[12px] font-medium line-clamp-1">{s.signalDescription || s.signalType}</div>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-medium line-clamp-1 text-sm">{s.signalDescription || s.signalType}</div>
-                        <div className="text-[10px] text-muted-foreground">{s.signalType}</div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5">
+                      <td className="py-1.5 px-3">
+                        <div className="flex items-center gap-1">
                           <DirectionIcon dir={s.direction} />
                           <span className={cn(
-                            "text-xs font-medium",
+                            "text-[11px]",
                             s.direction === "Positive" ? "text-success" : s.direction === "Negative" ? "text-destructive" : "text-muted-foreground"
-                          )}>{s.direction}</span>
+                          )}>{s.direction === "Positive" ? "+" : s.direction === "Negative" ? "−" : "~"}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <td className="py-1.5 px-3">
+                        <div className="flex items-center gap-1">
+                          <div className="w-8 h-1 bg-muted rounded-full overflow-hidden">
                             <div className="h-full bg-primary rounded-full" style={{ width: `${(s.strengthScore ?? 0) * 20}%` }} />
                           </div>
-                          <span className="text-[11px] text-muted-foreground">{s.strengthScore ?? 0}</span>
+                          <span className="text-[10px] text-muted-foreground">{s.strengthScore ?? 0}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <td className="py-1.5 px-3">
+                        <div className="flex items-center gap-1">
+                          <div className="w-8 h-1 bg-muted rounded-full overflow-hidden">
                             <div className="h-full bg-accent rounded-full" style={{ width: `${(s.reliabilityScore ?? 0) * 20}%` }} />
                           </div>
-                          <span className="text-[11px] text-muted-foreground">{s.reliabilityScore ?? 0}</span>
+                          <span className="text-[10px] text-muted-foreground">{s.reliabilityScore ?? 0}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <Badge variant="success" className="text-[10px]">Validated</Badge>
+                      <td className="py-1.5 px-3">
+                        <span className="text-[10px] text-success">Valid</span>
                       </td>
-                      <td className="py-2.5 px-3 text-[11px] text-muted-foreground whitespace-nowrap">
-                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      <td className="py-1.5 px-5 text-right">
+                        <span className="text-[10px] text-muted-foreground/60">
+                          {s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -451,145 +548,43 @@ export default function QuestionDetail() {
           )}
         </Card>
 
-        {/* ── Panel 5 + 6: Scenario Simulator + Recommended Action ─────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* Panel 5: Scenario Simulator */}
-          <Card>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
-              <Compass className="w-3.5 h-3.5 text-primary" />
-              Scenario Simulator
-            </div>
-
-            {allSignals.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8">
-                Add signals first to run scenario simulations.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => runPreset("best")} disabled={scenarioMutation.isPending} className="flex-1 text-xs">
-                    Best case
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => runPreset("base")} disabled={scenarioMutation.isPending} className="flex-1 text-xs">
-                    Base case
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => runPreset("risk")} disabled={scenarioMutation.isPending} className="flex-1 text-xs">
-                    Risk case
-                  </Button>
-                </div>
-
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {allSignals.map((s: any) => {
-                    const isExcluded = excludedIds.has(s.signalId);
-                    return (
-                      <button
-                        key={s.signalId}
-                        onClick={() => toggleSignal(s.signalId)}
-                        className={cn(
-                          "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all text-left text-xs",
-                          isExcluded
-                            ? "bg-muted/5 border-border/20 opacity-40"
-                            : "bg-muted/10 border-border/30 hover:bg-muted/20"
-                        )}
-                      >
-                        {isExcluded ? (
-                          <ToggleLeft className="w-4 h-4 text-muted-foreground shrink-0" />
-                        ) : (
-                          <ToggleRight className="w-4 h-4 text-primary shrink-0" />
-                        )}
-                        <DirectionIcon dir={s.direction} />
-                        <span className="flex-1 line-clamp-1">{s.signalDescription || s.signalType}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <Button onClick={runScenario} disabled={scenarioMutation.isPending} className="w-full gap-2" size="sm">
-                  {scenarioMutation.isPending ? (
-                    <><Activity className="w-3.5 h-3.5 animate-spin" /> Computing…</>
-                  ) : (
-                    <><Zap className="w-3.5 h-3.5" /> Run Scenario</>
-                  )}
-                </Button>
-
-                {scenarioMutation.data && (
-                  <div className="pt-3 border-t border-border/30 space-y-3">
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Base</div>
-                        <div className="text-lg font-bold text-foreground">{formatPct(scenarioMutation.data.baseProbability)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Scenario</div>
-                        <div className="text-lg font-bold text-primary">{formatPct(scenarioMutation.data.scenarioProbability)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Delta</div>
-                        <div className={cn(
-                          "text-lg font-bold",
-                          scenarioMutation.data.delta > 0 ? "text-success" : scenarioMutation.data.delta < 0 ? "text-destructive" : "text-muted-foreground"
-                        )}>
-                          {formatPts(scenarioMutation.data.delta)} pts
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground text-center">
-                      {scenarioMutation.data.scenarioSignals} of {scenarioMutation.data.totalSignals} signals active
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[10px] text-warning/80">
-                      <ShieldAlert className="w-3 h-3" />
-                      <span>Scenario only — does not affect the live forecast.</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </Card>
-
-          {/* Panel 6: Recommended Action */}
-          <Card>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4 flex items-center gap-2">
-              <Lightbulb className="w-3.5 h-3.5 text-primary" />
-              Recommended Action
+        {/* ── Panel 6: Recommended Action — compact, decisive ──────────────── */}
+        <Card>
+          <div className="flex items-start gap-4">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+              <Lightbulb className="w-4 h-4 text-primary" />
             </div>
             {recommendation ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-primary/5 rounded-xl border border-primary/15">
-                  <p className="text-sm font-semibold text-foreground leading-snug">{recommendation.headline}</p>
-                </div>
-
-                <div>
-                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5">Rationale</div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{recommendation.rationale}</p>
-                </div>
-
-                <div className="p-3 rounded-lg bg-warning/5 border border-warning/15">
-                  <div className="flex items-start gap-2">
-                    <ShieldAlert className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
-                    <p className="text-xs text-muted-foreground leading-relaxed">{recommendation.riskNote}</p>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Recommended Action</div>
+                <div className="text-sm font-semibold text-foreground leading-snug">{recommendation.headline}</div>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">{recommendation.rationale}</p>
+                <div className="flex items-start gap-4 mt-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Monitor</div>
+                    <div className="space-y-0.5">
+                      {recommendation.monitorNext.map((item, i) => (
+                        <div key={i} className="flex gap-1.5 items-start">
+                          <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+                          <span className="text-[11px] text-muted-foreground">{item}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <div className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Monitor Next</div>
-                  <div className="space-y-1.5">
-                    {recommendation.monitorNext.map((item, i) => (
-                      <div key={i} className="flex gap-2 items-start">
-                        <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
-                        <p className="text-xs text-muted-foreground">{item}</p>
-                      </div>
-                    ))}
+                  <div className="w-px bg-border/30 self-stretch mx-2" />
+                  <div className="shrink-0 max-w-[200px]">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Risk</div>
+                    <p className="text-[11px] text-warning/80 leading-relaxed">{recommendation.riskNote}</p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground text-center py-8">
+              <div className="text-xs text-muted-foreground py-2">
                 Run a forecast first to generate recommendations.
               </div>
             )}
-          </Card>
-        </div>
+          </div>
+        </Card>
 
       </div>
     </AppLayout>
