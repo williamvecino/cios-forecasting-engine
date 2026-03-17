@@ -380,10 +380,10 @@ export default function SignalsRegister() {
                 {cd?.assetName || caseData?.primaryBrand}
               </span>
             </div>
-            <h1 className="text-3xl font-bold">Signal Register</h1>
+            <h1 className="text-3xl font-bold">Evidence Register</h1>
             <p className="text-muted-foreground mt-1">
               Log strategic intelligence about this asset. The engine derives its
-              forecast weight automatically.
+              assessment weight automatically.
             </p>
           </div>
           <Button onClick={() => setIsCreating(!isCreating)} className="gap-2">
@@ -397,7 +397,7 @@ export default function SignalsRegister() {
             <h3 className="text-base font-semibold mb-1">New Strategic Intelligence Entry</h3>
             <p className="text-xs text-muted-foreground mb-5">
               Describe what you've observed or received. The system will classify it and
-              calculate its forecast weight automatically.
+              calculate its assessment weight automatically.
             </p>
 
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
@@ -584,7 +584,7 @@ export default function SignalsRegister() {
               <div className="flex items-center gap-3 px-4 py-3 bg-muted/20 border border-border rounded-xl">
                 <Info className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div className="flex-1">
-                  <span className="text-xs text-muted-foreground">Estimated forecast contribution: </span>
+                  <span className="text-xs text-muted-foreground">Estimated assessment contribution: </span>
                   <span className={cn("text-xs font-semibold", strengthLabel.color)}>
                     {strengthLabel.label}
                   </span>
@@ -620,7 +620,7 @@ export default function SignalsRegister() {
               <h3 className="text-base font-semibold">Edit Signal — {editingSignal.signalId}</h3>
             </div>
             <p className="text-xs text-muted-foreground mb-5">
-              Update the details below. The forecast weight will recalculate automatically.
+              Update the details below. The evidence weight will recalculate automatically.
             </p>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
               <div>
@@ -721,7 +721,7 @@ export default function SignalsRegister() {
               <div className="flex items-center gap-3 px-4 py-3 bg-muted/20 border border-border rounded-xl">
                 <Info className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div className="flex-1">
-                  <span className="text-xs text-muted-foreground">Estimated forecast contribution: </span>
+                  <span className="text-xs text-muted-foreground">Estimated assessment contribution: </span>
                   <span className={cn("text-xs font-semibold", editStrengthLabel.color)}>{editStrengthLabel.label}</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground shrink-0">[{editWatched.signalType}]</div>
@@ -747,7 +747,7 @@ export default function SignalsRegister() {
                   <th className="px-5 py-4 font-semibold">Classification</th>
                   <th className="px-5 py-4 font-semibold text-center">Effect</th>
                   <th className="px-5 py-4 font-semibold text-center">Impact&thinsp;/&thinsp;Reliability</th>
-                  <th className="px-5 py-4 font-semibold text-right">Forecast weight</th>
+                  <th className="px-5 py-4 font-semibold text-right">Evidence weight</th>
                   <th className="px-5 py-4 w-16" />
                 </tr>
               </thead>
@@ -767,7 +767,7 @@ export default function SignalsRegister() {
                           No intelligence logged yet.
                         </span>
                         <span className="text-xs text-muted-foreground/60">
-                          Log a signal above to start feeding the forecast engine.
+                          Log a signal above to start building your assessment.
                         </span>
                       </div>
                     </td>

@@ -1,0 +1,205 @@
+You are working on CIOS, a strategic intelligence engine with a stable existing architecture. Do not redesign the engine. Do not change any forecast math, calibration logic, signal scoring, validation rules, or learning behavior. The goal is to add an Aaru-like product UI on top of the current system without hurting architecture.
+
+OBJECTIVE
+Transform CIOS from an internal system into a question-driven decision interface:
+Ask a strategic question -> receive probability, key drivers, scenario simulations, and recommended action.
+
+CRITICAL ARCHITECTURE RULES
+1. UI must be presentation/orchestration only.
+2. Core engine logic must remain in backend/shared modules.
+3. No forecast logic inside frontend components.
+4. No likelihood-ratio math, calibration arithmetic, decay rules, bucket logic, or signal weighting in UI code.
+5. Existing deterministic update behavior must remain unchanged.
+6. Automation can propose signals but cannot update probabilities without analyst validation.
+7. MIOS and OHOS may receive outputs but must not modify the CIOS engine.
+8. Externally describe CIOS as a Strategic Intelligence Engine. Do not expose Bayesian terminology in user-facing UI copy.
+
+WHAT I WANT BUILT NOW
+Build the first Aaru-like UI shell for CIOS without changing the core architecture.
+
+PRODUCT DESIGN PRINCIPLE
+The interface must feel question-first, simple, decision-oriented, and hide complexity.
+The user should experience:
+- Enter question
+- View probability
+- See key drivers
+- Run what-if scenarios
+- Review strategic recommendation
+- Inspect calibration/diagnostics if needed
+
+SAFE SYSTEM BOUNDARY
+Keep these layers separate:
+
+1. CORE ENGINE
+- case logic
+- signal register logic
+- deterministic probability update logic
+- validation logic
+- calibration/correction logic
+- diagnostics
+- scenario recomputation logic
+
+2. APPLICATION/API LAYER
+- accepts question and inputs
+- calls engine functions
+- returns structured response objects for the UI
+
+3. UI LAYER
+- forms
+- cards
+- charts
+- scenario toggles
+- tables
+- decision panels
+
+DO NOT MOVE ENGINE LOGIC INTO UI.
+
+DELIVERABLE
+Create an Aaru-like frontend structure with these tabs/pages:
+
+1. Forecast
+- question entry
+- case summary
+- main probability card
+- prior vs current probability
+- confidence/support label
+- top drivers
+- recommended action
+
+2. Signals
+- validated signal table
+- signal direction
+- strength
+- reliability
+- linked statement
+- source/type
+- timestamp/status
+
+3. Scenarios
+- toggle or select hypothetical signals
+- recompute via backend only
+- compare base probability vs scenario probability
+- display delta clearly
+- label these outputs as scenario, not live forecast
+
+4. Calibration
+- Brier score
+- mean signed error
+- local correction if applicable
+- sparse-region warning
+- similar/resolved cases
+
+5. Case Library
+- searchable prior cases
+- therapy area filter
+- question type filter
+- status filter
+- click into case details
+
+UI PRIORITY
+Do this in phases and do not overbuild.
+
+PHASE 1 — MUST BUILD NOW
+- Forecast page
+- Signals page
+- app shell/navigation
+- API response models wired to backend
+
+PHASE 2
+- Scenarios page
+- base vs scenario comparison cards/charts
+
+PHASE 3
+- Calibration page
+- Case Library page
+
+DESIGN STYLE
+Use a clean, executive, productized interface:
+- minimal
+- high signal-to-noise
+- not spreadsheet-like
+- card-based layout
+- simple typography hierarchy
+- restrained color use
+- clear labels
+- decision-first presentation
+
+The visual feel should be closer to a modern decision platform than an internal ops dashboard.
+
+REQUIRED RESPONSE SHAPES
+Create or standardize structured response objects from the backend so the UI only renders data.
+
+Example forecast response:
+{
+  "caseId": "ARK-FL-001",
+  "question": "Will therapy X achieve first-line adoption within 3 years?",
+  "timeHorizon": "3 years",
+  "priorProbability": 0.42,
+  "currentProbability": 0.61,
+  "calibratedProbability": 0.56,
+  "confidenceLabel": "moderate",
+  "topDrivers": [
+    {
+      "signalId": "SIG-008",
+      "label": "Fatigue PRO not statistically significant",
+      "direction": "negative",
+      "impact": "medium"
+    }
+  ],
+  "recommendedAction": {
+    "summary": "Hold aggressive field expansion until next evidence update",
+    "rationale": "Current upside remains real, but confidence is constrained by unresolved clinical uncertainty."
+  }
+}
+
+Example scenario response:
+{
+  "baseProbability": 0.61,
+  "scenarioProbability": 0.48,
+  "delta": -0.13,
+  "scenarioLabel": "Competitor trial succeeds",
+  "driversApplied": ["SIG-HYP-001"]
+}
+
+Example signal row:
+{
+  "signalId": "SIG-008",
+  "description": "ENCORE fatigue endpoint not significant",
+  "direction": "negative",
+  "strength": 3,
+  "reliability": 5,
+  "status": "validated",
+  "sourceType": "clinical outcome",
+  "linkedStatementId": "ST-004",
+  "timestamp": "2026-03-17"
+}
+
+TECHNICAL INSTRUCTIONS
+1. Inspect the current repo and preserve the existing architecture.
+2. Identify current backend modules and route boundaries before adding UI.
+3. If needed, create clean shared types/interfaces for:
+   - forecast response
+   - signal row
+   - scenario response
+   - calibration summary
+   - case summary
+4. Add frontend pages/components without rewriting engine internals.
+5. If a route currently returns raw internal objects, add adapter/formatter layers rather than changing engine behavior.
+6. Keep calibration utilities and forecast logic in shared backend/lib modules, not route-to-route imports and not frontend.
+7. Prepare the app for a product UI, not a spreadsheet replacement.
+
+EXPECTED OUTPUT FROM YOU
+I want you to:
+1. Inspect the existing codebase and tell me the safest insertion point for the UI.
+2. Propose the file/folder structure for this UI layer.
+3. Build Phase 1 now:
+   - app shell
+   - Forecast page
+   - Signals page
+   - typed API integration
+4. Show me exactly which existing files you will touch.
+5. Avoid any architecture changes unless absolutely necessary, and explain them clearly if needed.
+
+IMPORTANT
+This is a UI/productization task, not an engine redesign task.
+Preserve the current CIOS architecture.

@@ -21,14 +21,14 @@ import { cn } from "@/lib/cn";
 const navItems = [
   { name: "Overview", path: "/", icon: LayoutDashboard },
   { name: "Forecast Cases", path: "/cases", icon: FlaskConical },
-  { name: "Run Forecast", path: "/cases/active/forecast", icon: TrendingUp, isSub: true },
-  { name: "Signal Detection", path: "/cases/active/discover", icon: Sparkles, isSub: true },
-  { name: "Signal Register", path: "/cases/active/signals", icon: Radio, isSub: true },
-  { name: "Analog Matches", path: "/cases/active/analogs", icon: Library, isSub: true },
-  { name: "Agent Simulation", path: "/cases/active/agents", icon: Users, isSub: true },
+  { name: "Assessment", path: "/cases/active/forecast", icon: TrendingUp, isSub: true },
+  { name: "Signal Discovery", path: "/cases/active/discover", icon: Sparkles, isSub: true },
+  { name: "Evidence Register", path: "/cases/active/signals", icon: Radio, isSub: true },
+  { name: "Historical Matches", path: "/cases/active/analogs", icon: Library, isSub: true },
+  { name: "Stakeholder Model", path: "/cases/active/agents", icon: Users, isSub: true },
   { name: "Portfolio", path: "/cases/active/portfolio", icon: Layers, isSub: true },
   { name: "Case Library", path: "/case-library", icon: BookOpen },
-  { name: "Calibration", path: "/calibration", icon: BarChart3 },
+  { name: "System Calibration", path: "/calibration", icon: BarChart3 },
   { name: "Field Intelligence", path: "/field-intelligence", icon: Rss },
   { name: "Signal Watchlist", path: "/watchlist", icon: ListChecks },
 ];
@@ -47,20 +47,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden text-foreground selection:bg-primary/30">
-      {/* Sidebar */}
       <aside className="w-64 flex-shrink-0 border-r border-border bg-card/50 backdrop-blur-xl flex flex-col z-20 shadow-2xl">
-        {/* Logo */}
         <div className="h-16 flex items-center px-5 border-b border-border/50 gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
             <Cpu className="w-4 h-4 text-primary" />
           </div>
           <div>
             <div className="font-bold text-sm text-foreground tracking-wide">CIOS</div>
-            <div className="text-[10px] text-muted-foreground leading-none">HCP Adoption Forecast Engine</div>
+            <div className="text-[10px] text-muted-foreground leading-none">Strategic Intelligence Engine</div>
           </div>
         </div>
 
-        {/* Nav */}
         <div className="flex-1 overflow-y-auto py-5 px-3 space-y-0.5">
           <div className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-3 px-2">
             Platform
@@ -99,19 +96,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
           })}
         </div>
 
-        {/* Footer status */}
         <div className="p-3 border-t border-border/50">
           <div className="bg-muted/20 px-3 py-2.5 rounded-lg border border-border/30 flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse shrink-0" />
             <div>
               <div className="text-[11px] font-medium text-foreground">Engine ready</div>
-              <div className="text-[10px] text-muted-foreground">Bayesian core active</div>
+              <div className="text-[10px] text-muted-foreground">All systems operational</div>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl h-[400px] bg-primary/4 blur-[120px] rounded-full pointer-events-none -z-10" />
         <div className="flex-1 overflow-y-auto p-8 relative z-10">

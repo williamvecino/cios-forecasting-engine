@@ -1,8 +1,9 @@
 import { useListCases, useGetCalibrationStats } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button, ProbabilityGauge } from "@/components/ui-components";
-import { Activity, TrendingUp, AlertTriangle, ArrowRight, BrainCircuit, BarChart3, CheckCircle2, FlaskConical } from "lucide-react";
+import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
+import { cn } from "@/lib/cn";
 
 export default function Dashboard() {
   const { data: cases, isLoading: loadingCases } = useListCases();
@@ -11,8 +12,9 @@ export default function Dashboard() {
   if (loadingCases || loadingStats) {
     return (
       <AppLayout>
-        <div className="p-8 text-center text-muted-foreground animate-pulse">
-          Initializing CIOS platform…
+        <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+          <Target className="w-10 h-10 text-primary animate-pulse" />
+          <div className="text-muted-foreground">Loading your strategic questions…</div>
         </div>
       </AppLayout>
     );
@@ -21,138 +23,126 @@ export default function Dashboard() {
   const allCases = cases || [];
   const activeCases = allCases.filter(c => c.currentProbability != null);
   const pendingCases = allCases.filter(c => c.currentProbability == null);
-  const demoCases = allCases.filter(c => (c as any).isDemo === "true");
   const avgProb = activeCases.length > 0
     ? activeCases.reduce((acc, c) => acc + (c.currentProbability || 0), 0) / activeCases.length
     : 0;
 
-  // Dynamic system alerts derived from data
   const alerts: { level: "warn" | "info" | "ok"; text: string }[] = [];
   if (pendingCases.length > 0) {
-    alerts.push({ level: "warn", text: `${pendingCases.length} case${pendingCases.length > 1 ? "s" : ""} initialized but not yet forecast — open each case and run the engine.` });
+    alerts.push({ level: "warn", text: `${pendingCases.length} question${pendingCases.length > 1 ? "s" : ""} pending — open each to generate an assessment.` });
   }
   if (activeCases.some(c => c.confidenceLevel === "Low" || c.confidenceLevel === "Developing")) {
-    alerts.push({ level: "warn", text: "One or more cases have low signal coverage. Add more signals to improve confidence." });
+    alerts.push({ level: "warn", text: "Some assessments have limited evidence coverage. Adding more signals will improve confidence." });
   }
   if (stats && stats.calibratedForecasts === 0) {
-    alerts.push({ level: "info", text: "No resolved forecasts yet. Calibration metrics will appear once outcomes are recorded." });
+    alerts.push({ level: "info", text: "No resolved outcomes yet. Track record metrics will appear once outcomes are recorded." });
   }
   if (activeCases.length > 0 && allCases.length >= 3) {
-    alerts.push({ level: "ok", text: `${activeCases.length} forecast${activeCases.length > 1 ? "s" : ""} computed across ${new Set(allCases.map((c: any) => c.therapeuticArea).filter(Boolean)).size || "multiple"} therapeutic areas.` });
+    alerts.push({ level: "ok", text: `${activeCases.length} assessment${activeCases.length > 1 ? "s" : ""} computed across ${new Set(allCases.map((c: any) => c.therapeuticArea).filter(Boolean)).size || "multiple"} therapeutic areas.` });
   }
   if (alerts.length === 0) {
-    alerts.push({ level: "ok", text: "Platform ready. Create a forecast case to begin." });
+    alerts.push({ level: "ok", text: "Platform ready. Ask a strategic question to begin." });
   }
 
   return (
     <AppLayout>
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        {/* Header */}
         <header className="flex justify-between items-end">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <BrainCircuit className="w-5 h-5 text-primary" />
+              <Target className="w-5 h-5 text-primary" />
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Clinical Intelligence &amp; Outcome System
+                Strategic Intelligence Engine
               </span>
             </div>
             <h1 className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
-              Platform Overview
+              Your Strategic Questions
             </h1>
             <p className="text-muted-foreground mt-1">
-              Bayesian HCP adoption forecasting — any asset, any specialty, any geography.{" "}
-              <span className="text-foreground font-medium">{allCases.length}</span> active case{allCases.length !== 1 ? "s" : ""}.
-              {demoCases.length > 0 && (
-                <span className="text-muted-foreground/60 text-xs ml-2">({demoCases.length} demo)</span>
-              )}
+              Ask a question, receive a probability-backed assessment with key drivers and recommended actions.{" "}
+              <span className="text-foreground font-medium">{allCases.length}</span> active question{allCases.length !== 1 ? "s" : ""}.
             </p>
           </div>
           <Link href="/cases">
             <Button className="gap-2 group">
-              <FlaskConical className="w-4 h-4" />
-              New Forecast Case
+              <HelpCircle className="w-4 h-4" />
+              New Question
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Button>
           </Link>
         </header>
 
-        {/* Top KPI row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Global probability gauge */}
           <Card className="flex flex-col items-center justify-center py-10 relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <ProbabilityGauge value={avgProb} label="Portfolio Avg." />
+            <ProbabilityGauge value={avgProb} label="Portfolio avg." />
             <p className="text-xs text-muted-foreground mt-3 text-center">
               {activeCases.length > 0
-                ? `Across ${activeCases.length} computed forecast${activeCases.length > 1 ? "s" : ""}`
-                : "No computed forecasts yet"}
+                ? `Across ${activeCases.length} assessed question${activeCases.length > 1 ? "s" : ""}`
+                : "No assessments yet"}
             </p>
           </Card>
 
-          {/* Active cases */}
           <Card className="col-span-2">
             <h3 className="text-base font-semibold flex items-center gap-2 mb-5">
               <TrendingUp className="w-4 h-4 text-primary" />
-              Active Forecast Cases
+              Active Questions
             </h3>
             <div className="space-y-3">
-              {activeCases.slice(0, 3).map(c => (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-muted/20 border border-border/50 hover:bg-muted/40 transition-colors"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="font-semibold text-sm">{(c as any).assetName || c.primaryBrand}</span>
-                      {(c as any).therapeuticArea && (
-                        <Badge variant="default" className="text-[10px]">{(c as any).therapeuticArea}</Badge>
-                      )}
-                      {(c as any).isDemo === "true" && (
-                        <Badge variant="default" className="text-[10px]">Demo</Badge>
-                      )}
+              {activeCases.slice(0, 4).map(c => {
+                const cd = c as any;
+                return (
+                  <Link key={c.id} href={`/cases/${c.caseId}/forecast`}>
+                    <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/20 border border-border/50 hover:bg-muted/40 hover:border-primary/20 transition-all cursor-pointer group">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium leading-snug line-clamp-1 group-hover:text-primary transition-colors">
+                          {c.strategicQuestion}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] text-muted-foreground">{cd?.assetName || c.primaryBrand}</span>
+                          {cd?.therapeuticArea && (
+                            <Badge variant="default" className="text-[9px] py-0">{cd.therapeuticArea}</Badge>
+                          )}
+                          {cd?.isDemo === "true" && (
+                            <Badge variant="default" className="text-[9px] py-0">Demo</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-4">
+                        <Badge variant={c.confidenceLevel === "High" ? "success" : c.confidenceLevel === "Moderate" ? "warning" : "default"}>
+                          {c.confidenceLevel}
+                        </Badge>
+                        <div className="font-bold text-lg text-primary font-display w-14 text-right">
+                          {((c.currentProbability || 0) * 100).toFixed(1)}%
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground line-clamp-1">{c.strategicQuestion}</div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0 ml-4">
-                    <Badge variant={c.confidenceLevel === "High" ? "success" : c.confidenceLevel === "Moderate" ? "warning" : "default"}>
-                      {c.confidenceLevel}
-                    </Badge>
-                    <div className="font-bold text-lg text-primary font-display w-14 text-right">
-                      {((c.currentProbability || 0) * 100).toFixed(1)}%
+                  </Link>
+                );
+              })}
+              {pendingCases.slice(0, Math.max(0, 4 - activeCases.slice(0, 4).length)).map(c => {
+                const cd = c as any;
+                return (
+                  <Link key={c.id} href={`/cases/${c.caseId}/forecast`}>
+                    <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/10 border border-border/30 opacity-60 hover:opacity-80 transition-opacity cursor-pointer">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium leading-snug line-clamp-1">
+                          {c.strategicQuestion}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-1">{cd?.assetName || c.primaryBrand}</div>
+                      </div>
+                      <Badge variant="default">Pending</Badge>
                     </div>
-                    <Link href={`/cases/${c.caseId}/forecast`}>
-                      <Button variant="ghost" size="sm">View</Button>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-              {pendingCases.slice(0, 3 - activeCases.slice(0, 3).length).map(c => (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-muted/10 border border-border/30 opacity-60 hover:opacity-80 transition-opacity"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-semibold text-sm">{(c as any).assetName || c.primaryBrand}</span>
-                      {(c as any).isDemo === "true" && (
-                        <Badge variant="default" className="text-[10px]">Demo</Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground line-clamp-1">{c.strategicQuestion}</div>
-                  </div>
-                  <div className="shrink-0 ml-4">
-                    <Link href={`/cases/${c.caseId}/forecast`}>
-                      <Button variant="ghost" size="sm">Run</Button>
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                  </Link>
+                );
+              })}
               {allCases.length === 0 && (
                 <div className="text-center py-10 text-muted-foreground flex flex-col items-center">
-                  <Activity className="w-8 h-8 mb-3 opacity-20" />
-                  <p>No cases yet.</p>
+                  <HelpCircle className="w-8 h-8 mb-3 opacity-20" />
+                  <p>No strategic questions yet.</p>
                   <Link href="/cases">
-                    <Button variant="ghost" className="mt-2 text-sm">Create your first case</Button>
+                    <Button variant="ghost" className="mt-2 text-sm">Ask your first question</Button>
                   </Link>
                 </div>
               )}
@@ -160,44 +150,41 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Bottom row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Calibration */}
           <Card>
             <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
               <BarChart3 className="w-4 h-4 text-accent" />
-              Calibration Health
+              Track Record
             </h3>
             {stats && stats.totalForecasts > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3.5 bg-background rounded-xl border border-border">
-                  <div className="text-xs text-muted-foreground">Brier Score</div>
+                  <div className="text-xs text-muted-foreground">Accuracy Score</div>
                   <div className="text-2xl font-bold mt-1">{stats.meanBrierScore?.toFixed(3) ?? "—"}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">lower = better</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">lower = more accurate</div>
                 </div>
                 <div className="p-3.5 bg-background rounded-xl border border-border">
                   <div className="text-xs text-muted-foreground">Mean Error</div>
-                  <div className="text-2xl font-bold mt-1 text-success">
+                  <div className={cn("text-2xl font-bold mt-1", stats.meanForecastError != null && stats.meanForecastError < 0 ? "text-success" : "text-warning")}>
                     {stats.meanForecastError != null ? (stats.meanForecastError * 100).toFixed(1) + "%" : "—"}
                   </div>
                 </div>
                 <div className="col-span-2 p-3.5 bg-background rounded-xl border border-border flex justify-between items-center">
-                  <div className="text-sm font-medium">Resolved forecasts</div>
+                  <div className="text-sm font-medium">Resolved outcomes</div>
                   <Badge variant="primary">{stats.calibratedForecasts} / {stats.totalForecasts}</Badge>
                 </div>
               </div>
             ) : (
               <div className="text-muted-foreground text-sm py-4 text-center">
-                Calibration metrics appear after forecast outcomes are recorded.
+                Track record metrics appear after outcomes are recorded.
               </div>
             )}
           </Card>
 
-          {/* System alerts — dynamic */}
           <Card>
             <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
               <AlertTriangle className="w-4 h-4 text-warning" />
-              Platform Alerts
+              System Status
             </h3>
             <div className="space-y-2.5">
               {alerts.map((alert, i) => (

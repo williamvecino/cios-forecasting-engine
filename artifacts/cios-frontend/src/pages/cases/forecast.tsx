@@ -59,10 +59,10 @@ function BayesianChain({
     <div className="flex items-center justify-between bg-background border border-border rounded-2xl p-6 relative overflow-x-auto gap-4">
       <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-border via-primary/20 to-border -translate-y-1/2 z-0" />
       {[
-        { label: "Starting Point", val: prior.toFixed(3), desc: "Prior probability", highlight: false },
+        { label: "Starting Point", val: prior.toFixed(3), desc: "Baseline odds", highlight: false },
         { label: "Evidence Strength", val: `× ${lr.toFixed(3)}`, desc: "Signal weight", highlight: true },
         { label: "Stakeholder Response", val: `× ${actors.toFixed(3)}`, desc: "Behavioral influence", highlight: true },
-        { label: "Overall Outlook", val: posterior.toFixed(3), desc: "Posterior odds", highlight: false },
+        { label: "Overall Outlook", val: posterior.toFixed(3), desc: "Final odds", highlight: false },
       ].map((step, i) => (
         <div
           key={i}
@@ -153,7 +153,7 @@ export default function ForecastResults() {
   const { mutate: publishToLibrary, isPending: publishing } = useMutation({
     mutationFn: () =>
       fetch(`/api/cases/${caseId}/publish-to-library`, { method: "POST" }).then((r) => r.json()),
-    onSuccess: () => setPublishMsg("Published to Case Library — this case is now available as an analog for future forecasts."),
+    onSuccess: () => setPublishMsg("Published to Case Library — this case is now available as an analog for future assessments."),
     onError: () => setPublishMsg("Publish failed. Please try again."),
   });
 
@@ -211,10 +211,10 @@ export default function ForecastResults() {
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
           <BrainCircuit className="w-12 h-12 text-primary animate-pulse" />
           <div className="text-lg font-display text-muted-foreground">
-            Calculating your forecast…
+            Building your assessment…
           </div>
           <div className="text-xs text-muted-foreground/60">
-            Weighing evidence and stakeholder signals
+            Weighing evidence and stakeholder dynamics
           </div>
         </div>
       </AppLayout>
@@ -224,7 +224,7 @@ export default function ForecastResults() {
     return (
       <AppLayout>
         <div className="p-8 text-destructive">
-          Failed to generate forecast. Ensure the case has at least one active signal.
+          Unable to build assessment. Ensure the case has at least one registered signal.
         </div>
       </AppLayout>
     );
@@ -296,19 +296,19 @@ export default function ForecastResults() {
             </div>
             <ProbabilityGauge
               value={forecast.currentProbability}
-              label="Posterior Probability"
+              label="Likelihood Assessment"
               size={220}
             />
             <div className="flex items-center gap-4 mt-6 text-sm">
               <div className="text-muted-foreground">
-                Prior:{" "}
+                Baseline:{" "}
                 <span className="text-foreground font-medium">
                   {(forecast.priorProbability * 100).toFixed(0)}%
                 </span>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground/40" />
               <div className="text-muted-foreground">
-                Delta:{" "}
+                Shift:{" "}
                 <span
                   className={
                     delta >= 0 ? "text-success font-bold" : "text-destructive font-bold"
@@ -365,10 +365,10 @@ export default function ForecastResults() {
           </Card>
         </div>
 
-        {/* Bayesian computation chain */}
+        {/* Computation chain */}
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-            How this forecast was built — Evidence × Stakeholder Response
+            How this assessment was built — Evidence × Stakeholder Response
           </h3>
           <BayesianChain
             prior={forecast.priorOdds || 0}
@@ -469,7 +469,7 @@ export default function ForecastResults() {
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1 flex items-center gap-2">
               <Zap className="w-3.5 h-3.5" />
-              Forecast Sensitivity Analysis
+              Sensitivity Analysis
             </h3>
 
             {/* Stability note */}
@@ -482,7 +482,7 @@ export default function ForecastResults() {
               <Card className="border-success/20">
                 <h4 className="text-sm font-semibold text-success flex items-center gap-2 mb-4">
                   <TrendingUp className="w-4 h-4" />
-                  Signals Pushing Forecast Up
+                  Signals Pushing Assessment Up
                 </h4>
                 <div className="space-y-2">
                   {sa.upwardSignals.length === 0 && (
@@ -516,7 +516,7 @@ export default function ForecastResults() {
               <Card className="border-destructive/20">
                 <h4 className="text-sm font-semibold text-destructive flex items-center gap-2 mb-4">
                   <TrendingDown className="w-4 h-4" />
-                  Signals Pushing Forecast Down
+                  Signals Pushing Assessment Down
                 </h4>
                 <div className="space-y-2">
                   {sa.downwardSignals.length === 0 && (
@@ -570,7 +570,7 @@ export default function ForecastResults() {
                   <div className="flex items-center gap-6">
                     <div>
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
-                        Current forecast
+                        Current assessment
                       </div>
                       <div className="text-lg font-bold">
                         {(forecast.currentProbability * 100).toFixed(1)}%
@@ -617,7 +617,7 @@ export default function ForecastResults() {
 
         {/* Driving signals */}
         <Card>
-          <h3 className="text-base font-semibold mb-4">All Driving Signals</h3>
+          <h3 className="text-base font-semibold mb-4">Key Evidence Drivers</h3>
           <div className="space-y-2.5">
             {forecast.signalDetails?.slice(0, 6).map((sig) => (
               <div
@@ -647,7 +647,7 @@ export default function ForecastResults() {
             ))}
             {(!forecast.signalDetails || forecast.signalDetails.length === 0) && (
               <div className="text-center py-6 text-muted-foreground text-sm">
-                No signals yet — add signals via the Signal Register.
+                No signals yet — add evidence via the Evidence Register.
               </div>
             )}
           </div>
@@ -771,16 +771,16 @@ export default function ForecastResults() {
               Cross-stakeholder influence dynamics from the last agent simulation. Peer-stakeholder effects are applied on top of signal-driven stances.
             </p>
 
-            {/* Bayesian vs Agent translation comparison */}
+            {/* Signal vs Agent translation comparison */}
             {simulation.agentDerivedActorTranslation !== undefined && forecast.bayesianActorFactor !== undefined && (
               <div className="grid grid-cols-2 gap-3 mb-5">
                 <div className="border border-border rounded-xl p-3.5 bg-background">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Bayesian actor translation</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Signal-weighted actor response</p>
                   <p className="text-2xl font-display font-bold">×{Number(forecast.bayesianActorFactor).toFixed(3)}</p>
                   <p className="text-[10px] text-muted-foreground mt-1">From signal-weighted actor reactions</p>
                   {forecast.actorSource === "bayesian-static" && (
                     <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
-                      ← Used in posterior
+                      ← Active method
                     </span>
                   )}
                 </div>
@@ -799,11 +799,11 @@ export default function ForecastResults() {
                       ? "Agent dynamics suggest upward pressure on adoption"
                       : simulation.agentDerivedActorTranslation < Number(forecast.bayesianActorFactor) - 0.01
                       ? "Agent dynamics suggest headwinds not captured by signals alone"
-                      : "Agent dynamics broadly confirm signal-based forecast"}
+                      : "Agent dynamics broadly confirm signal-based assessment"}
                   </p>
                   {forecast.actorSource === "agent-simulation" && (
                     <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/20 font-semibold">
-                      ← Used in posterior
+                      ← Active method
                     </span>
                   )}
                 </div>
@@ -933,8 +933,8 @@ export default function ForecastResults() {
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <Crosshair className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                <span className="text-sm font-semibold">Forecast Trace</span>
-                <span className="text-xs text-muted-foreground">Structured audit — exactly why this forecast is {traceData.forecastProbability}%</span>
+                <span className="text-sm font-semibold">Assessment Trace</span>
+                <span className="text-xs text-muted-foreground">Structured audit — exactly why this assessment is {traceData.forecastProbability}%</span>
                 {traceData.calibrationConfidence && (() => {
                   const lvl = traceData.calibrationConfidence.level;
                   const cls = lvl === "high"
@@ -1239,7 +1239,7 @@ export default function ForecastResults() {
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
-              Next-step intelligence questions derived from this forecast. Each is generated from a specific pattern in the model — not general prompts.
+              Next-step intelligence questions derived from this assessment. Each is generated from a specific pattern in the model — not general prompts.
             </p>
             <div className="space-y-3">
               {questions.questions.map((q: any, i: number) => (
@@ -1272,13 +1272,13 @@ export default function ForecastResults() {
           <Card>
             <div className="flex items-center gap-2 mb-1">
               <ShieldAlert className="w-4 h-4 text-destructive" />
-              <span className="text-sm font-semibold">Forecast Challenge</span>
+              <span className="text-sm font-semibold">Assessment Challenge</span>
               <Badge variant="outline" className="ml-auto text-[10px]">
                 {(challenge.forecastProbability * 100).toFixed(0)}% challenged
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
-              Structured challenge of the current forecast. Read both sides before acting on the number.
+              Structured challenge of the current assessment. Read both sides before acting on the number.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1396,7 +1396,7 @@ export default function ForecastResults() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Forecast accuracy note</label>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">Accuracy note</label>
                   <input
                     type="text"
                     placeholder="e.g. Faster uptake than expected in community"
@@ -1429,7 +1429,7 @@ export default function ForecastResults() {
                   </Button>
                 )}
                 <span className="text-xs text-muted-foreground">
-                  Publishing saves this case as an analog for future forecasts.
+                  Publishing saves this case as an analog for future assessments.
                 </span>
               </div>
             </div>
