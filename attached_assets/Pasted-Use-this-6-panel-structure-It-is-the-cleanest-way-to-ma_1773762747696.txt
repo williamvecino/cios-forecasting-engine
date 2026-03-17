@@ -1,0 +1,263 @@
+Use this 6-panel structure.
+
+It is the cleanest way to make CIOS feel like a real decision-intelligence product without touching the engine.
+
+The 6-panel enterprise decision layout
+Panel 1 — Question Header
+
+Top of page. Large and clean.
+
+Purpose:
+anchor the entire screen to one decision question.
+
+Contents:
+
+strategic question
+
+asset / market / therapy area tags
+
+time horizon
+
+status
+
+last updated timestamp
+
+button for new scenario
+
+button for view ledger
+
+Example:
+
+Will ARIKAYCE achieve target specialist adoption (≥4 Rx/quarter) within 12 months?
+
+Rare disease / Orphan | Adoption | 12-month horizon | High confidence
+Last updated: Mar 17, 2026
+
+This is what makes the interface feel question-first rather than dashboard-first.
+
+Panel 2 — Primary Forecast Card
+
+This is the centerpiece.
+
+Purpose:
+show the current answer immediately.
+
+Contents:
+
+current probability
+
+prior probability
+
+change from prior
+
+confidence label
+
+optional forecast band
+
+one-line interpretation
+
+Example:
+
+Current probability
+72.2%
+
+Prior: 61.0%
+Change: +11.2 pts
+Confidence: High
+
+Interpretation:
+Current signals support above-threshold specialist adoption within the forecast window.
+
+This should be visually dominant.
+
+Panel 3 — Key Drivers
+
+Right below or beside the forecast card.
+
+Purpose:
+explain why the probability is what it is.
+
+Contents:
+
+top 3 to 5 positive drivers
+
+top 2 to 4 negative drivers
+
+simple impact labels: high / medium / low
+
+optional source type tags: clinical, payer, field, competitor, guideline
+
+Example:
+
+Top Drivers
+
+Positive
++ Expanded payer coverage (High)
++ Positive real-world evidence trend (Medium)
++ Strong specialist concentration in target accounts (Medium)
+
+Negative
+− Workflow friction in community settings (Medium)
+− Competing narrative around watchful waiting (Low)
+
+This is one of the most important panels. It turns the system from a number machine into an interpretable engine.
+
+Panel 4 — Signal Stack
+
+This is the operational evidence layer.
+
+Purpose:
+show the validated signals feeding the current forecast.
+
+Contents:
+
+signal ID
+
+signal description
+
+direction
+
+strength
+
+reliability
+
+validation status
+
+timestamp
+
+linked statement or category
+
+Example table:
+
+SIG-021 | Positive RWE expansion in target subgroup | Positive | Strength 4 | Reliability 4 | Validated
+SIG-019 | Payer coverage widened in priority accounts | Positive | Strength 5 | Reliability 5 | Validated
+SIG-017 | Competitor launch discussion increasing | Negative | Strength 3 | Reliability 3 | Validated
+
+Design note:
+Do not show raw math here. Show structured signals only.
+
+Panel 5 — Scenario Simulator
+
+This is the panel that makes it feel Aaru-like.
+
+Purpose:
+allow strategic exploration without changing the live forecast.
+
+Contents:
+
+selectable hypothetical signals
+
+scenario presets
+
+recompute button
+
+base probability vs scenario probability
+
+delta
+
+applied scenario assumptions
+
+label clearly as scenario
+
+Example:
+
+Scenario: Competitor trial succeeds
+
+Base probability: 72.2%
+Scenario probability: 49.5%
+Delta: −22.7 pts
+
+Applied assumptions:
+- Positive competitor efficacy readout
+- Increased KOL attention to competitor
+- Delayed guideline influence for ARIKAYCE
+
+Best UX pattern:
+use cards or toggles, not giant forms.
+
+Three preset scenario buttons work well:
+
+Best case
+
+Base case
+
+Risk case
+
+Then allow custom signal toggles below.
+
+This panel is what moves CIOS from dashboard to strategic planning platform.
+
+Panel 6 — Recommended Action
+
+Bottom-right or full-width summary block.
+
+Purpose:
+translate forecast into decision guidance.
+
+Contents:
+
+short recommendation headline
+
+rationale
+
+risk note
+
+next signals to watch
+
+Example:
+
+Recommended Action
+
+Accelerate specialist-focused field deployment over the next 90 days.
+
+Rationale:
+The forecast is currently supported by favorable payer and evidence signals, but this advantage could compress quickly if competitive clinical momentum increases.
+
+Monitor next:
+- competitor trial readout
+- payer restrictions in top 20 accounts
+- new guideline commentary
+
+This is critical. Executives do not want only a probability. They want “what now?”
+
+Best page layout
+
+Use this wireframe:
+
+┌────────────────────────────────────────────────────────────────────┐
+│ 1. Question Header                                                 │
+└────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────┬────────────────────────────────────┐
+│ 2. Primary Forecast Card      │ 3. Key Drivers                    │
+│                               │                                    │
+└───────────────────────────────┴────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ 4. Signal Stack                                                    │
+└────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────┬────────────────────────────────────┐
+│ 5. Scenario Simulator         │ 6. Recommended Action             │
+│                               │                                    │
+└───────────────────────────────┴────────────────────────────────────┘
+
+That is the core layout.
+
+Why this works
+
+This layout mirrors how senior decision-makers think:
+
+What is the question?
+
+What is the answer?
+
+Why do we think that?
+
+What evidence supports it?
+
+What happens if conditions change?
+
+What should we do now?
+
+That sequence is exactly why these systems feel expensive and useful.

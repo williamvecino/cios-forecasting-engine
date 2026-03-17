@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Dashboard from "@/pages/dashboard";
 import CasesList from "@/pages/cases/index";
+import QuestionDetail from "@/pages/cases/detail";
 import SignalsRegister from "@/pages/cases/signals";
 import SignalDiscover from "@/pages/cases/discover";
 import ForecastResults from "@/pages/cases/forecast";
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/cases/:caseId/analogs" component={AnalogRetrieval} />
       <Route path="/cases/:caseId/agents" component={AgentSimulation} />
       <Route path="/cases/:caseId/portfolio" component={Portfolio} />
+      <Route path="/cases/:caseId" component={QuestionDetail} />
       <Route path="/case-library" component={CaseLibrary} />
       <Route path="/calibration" component={Calibration} />
       <Route path="/field-intelligence" component={FieldIntelligence} />

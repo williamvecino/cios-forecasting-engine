@@ -92,7 +92,7 @@ export default function Dashboard() {
               {activeCases.slice(0, 4).map(c => {
                 const cd = c as any;
                 return (
-                  <Link key={c.id} href={`/cases/${c.caseId}/forecast`}>
+                  <Link key={c.id} href={`/cases/${c.caseId}`}>
                     <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/20 border border-border/50 hover:bg-muted/40 hover:border-primary/20 transition-all cursor-pointer group">
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium leading-snug line-clamp-1 group-hover:text-primary transition-colors">
@@ -124,7 +124,7 @@ export default function Dashboard() {
               {pendingCases.slice(0, Math.max(0, 4 - activeCases.slice(0, 4).length)).map(c => {
                 const cd = c as any;
                 return (
-                  <Link key={c.id} href={`/cases/${c.caseId}/forecast`}>
+                  <Link key={c.id} href={`/cases/${c.caseId}`}>
                     <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/10 border border-border/30 opacity-60 hover:opacity-80 transition-opacity cursor-pointer">
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium leading-snug line-clamp-1">
