@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useListCases, useGetCalibrationStats } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
-import { Card, Badge, Button, ProbabilityGauge } from "@/components/ui-components";
+import { Card, Badge, Button } from "@/components/ui-components";
 import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle, MessageSquare, Send, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/cn";
@@ -26,9 +26,6 @@ export default function Dashboard() {
   const allCases = cases || [];
   const activeCases = allCases.filter(c => c.currentProbability != null);
   const pendingCases = allCases.filter(c => c.currentProbability == null);
-  const avgProb = activeCases.length > 0
-    ? activeCases.reduce((acc, c) => acc + (c.currentProbability || 0), 0) / activeCases.length
-    : 0;
 
   const alerts: { level: "warn" | "info" | "ok"; text: string }[] = [];
   if (pendingCases.length > 0) {
@@ -116,18 +113,46 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="flex flex-col items-center justify-center py-10 relative overflow-hidden group">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <Card className="flex flex-col items-center justify-center py-8 relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <ProbabilityGauge value={avgProb} label="Portfolio avg." />
-            <p className="text-xs text-muted-foreground mt-3 text-center">
-              {activeCases.length > 0
-                ? `Across ${activeCases.length} assessed question${activeCases.length > 1 ? "s" : ""}`
-                : "No assessments yet"}
-            </p>
+            <Activity className="w-5 h-5 text-primary mb-2" />
+            <div className="text-3xl font-bold font-display text-primary">{activeCases.length}</div>
+            <div className="text-xs text-muted-foreground mt-1">Active Strategic Questions</div>
+            {pendingCases.length > 0 && (
+              <div className="text-[10px] text-amber-400 mt-2">{pendingCases.length} pending assessment</div>
+            )}
           </Card>
 
-          <Card className="col-span-2">
+          <Card className="flex flex-col items-center justify-center py-8 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 mb-2" />
+            <div className="text-3xl font-bold font-display text-emerald-400">{stats?.calibratedForecasts ?? 0}</div>
+            <div className="text-xs text-muted-foreground mt-1">Resolved Forecasts</div>
+            <div className="text-[10px] text-muted-foreground mt-2">
+              {(stats?.calibratedForecasts ?? 0) > 0 ? `${stats?.totalForecasts ?? 0} total tracked` : "Awaiting outcomes"}
+            </div>
+          </Card>
+
+          <Card className="flex flex-col items-center justify-center py-8 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <BarChart3 className="w-5 h-5 text-blue-400 mb-2" />
+            <div className="text-3xl font-bold font-display text-blue-400">
+              {stats?.calibratedForecasts && stats.calibratedForecasts > 0
+                ? (stats.meanBrierScore ?? 0).toFixed(3)
+                : "—"}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Calibration Score (Brier)</div>
+            {stats?.calibratedForecasts && stats.calibratedForecasts > 0 ? (
+              <div className="text-[10px] text-muted-foreground mt-2">Lower is better · 0 = perfect</div>
+            ) : (
+              <div className="text-[10px] text-muted-foreground mt-2">Awaiting resolved outcomes</div>
+            )}
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          <Card>
             <h3 className="text-base font-semibold flex items-center gap-2 mb-5">
               <TrendingUp className="w-4 h-4 text-primary" />
               Active Questions
