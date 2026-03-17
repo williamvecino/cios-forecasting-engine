@@ -21,6 +21,7 @@ import scenarioAdapterRouter from "./scenario-adapter.js";
 import forecastLedgerRouter from "./forecast-ledger.js";
 import narrativeRouter from "./narrative.js";
 import signalWatchlistRouter from "./signal-watchlist.js";
+import weeklyBriefRouter from "./weekly-brief.js";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(scenarioAdapterRouter);
 router.use(forecastLedgerRouter);
 router.use(narrativeRouter);
 router.use(signalWatchlistRouter);
+router.use(weeklyBriefRouter);
 
 export default router;

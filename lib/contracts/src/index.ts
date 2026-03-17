@@ -243,6 +243,52 @@ export interface StrategicNarrative {
   };
 }
 
+export interface WeeklyStrategicBrief {
+  generatedAt: string;
+  briefDate: string;
+  systemOverview: {
+    activeForecasts: number;
+    pendingAssessments: number;
+    resolvedForecasts: number;
+    calibrationScore: number | null;
+    totalSignals: number;
+    watchlistEvents: number;
+  };
+  keyForecasts: {
+    caseId: string;
+    assetName: string;
+    therapeuticArea: string;
+    strategicQuestion: string;
+    currentProbability: number;
+    confidenceLevel: string;
+    timeHorizon: string;
+  }[];
+  majorDrivers: {
+    description: string;
+    signalType: string;
+    caseId: string;
+    assetName: string;
+    likelihoodRatio: number;
+  }[];
+  keyRisks: {
+    description: string;
+    signalType: string;
+    caseId: string;
+    assetName: string;
+    likelihoodRatio: number;
+  }[];
+  upcomingWatchlist: {
+    watchEventId: string;
+    eventType: string;
+    eventName: string;
+    targetAssetOrCompetitor: string | null;
+    expectedDate: string | null;
+    status: string;
+    potentialSignalCategory: string | null;
+    expectedDirection: string | null;
+  }[];
+}
+
 export interface SignalWatchlistEntry {
   id: string;
   watchEventId: string;

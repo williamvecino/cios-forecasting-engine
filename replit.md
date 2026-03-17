@@ -122,6 +122,15 @@ API endpoints:
 
 Event types supported: trial readouts, congress presentations, guideline updates, regulatory decisions, advisory committees, competitor launches, payer decisions, publications. Does NOT auto-generate signals — tracking only.
 
+## Weekly Strategic Brief
+Aggregated read-only summary of current system state — forecasts, drivers, risks, and upcoming events.
+- **Route**: `artifacts/api-server/src/routes/weekly-brief.ts`
+- **Contract**: `WeeklyStrategicBrief` in `@workspace/contracts`
+
+API endpoint: `GET /api/weekly-brief`
+
+Output sections: systemOverview (active/resolved/calibration/signals/watchlist counts), keyForecasts (top 10 by probability), majorDrivers (top 8 positive signals across all cases), keyRisks (top 6 negative signals), upcomingWatchlist (Upcoming/Monitoring events). Pure aggregation — no engine modifications.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database for all persistent data.
 - **Express 5:** Backend web framework.
