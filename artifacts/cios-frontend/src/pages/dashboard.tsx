@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useListCases, useGetCalibrationStats } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button, ProbabilityGauge } from "@/components/ui-components";
-import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle, MessageSquare, Send } from "lucide-react";
+import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle, MessageSquare, Send, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/cn";
 
@@ -194,38 +194,34 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
-              <BarChart3 className="w-4 h-4 text-accent" />
-              Track Record
-            </h3>
-            {stats && stats.totalForecasts > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 bg-background rounded-xl border border-border">
-                  <div className="text-xs text-muted-foreground">Accuracy Score</div>
-                  <div className="text-2xl font-bold mt-1">{stats.meanBrierScore?.toFixed(3) ?? "—"}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">lower = more accurate</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Link href="/case-library">
+            <Card className="group cursor-pointer hover:border-primary/30 transition-colors">
+              <h3 className="text-base font-semibold flex items-center gap-2 mb-5">
+                <BookOpen className="w-4 h-4 text-primary" />
+                Forecast Ledger
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm text-muted-foreground">Resolved predictions</span>
+                  <span className="text-xl font-bold text-foreground">{stats?.calibratedForecasts ?? 0}</span>
                 </div>
-                <div className="p-3.5 bg-background rounded-xl border border-border">
-                  <div className="text-xs text-muted-foreground">Mean Error</div>
-                  <div className={cn("text-2xl font-bold mt-1", stats.meanForecastError != null && stats.meanForecastError < 0 ? "text-success" : "text-warning")}>
-                    {stats.meanForecastError != null ? (stats.meanForecastError * 100).toFixed(1) + "%" : "—"}
-                  </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm text-muted-foreground">Calibration score</span>
+                  <span className="text-xl font-bold text-foreground">{stats?.meanBrierScore?.toFixed(3) ?? "—"}</span>
                 </div>
-                <div className="col-span-2 p-3.5 bg-background rounded-xl border border-border flex justify-between items-center">
-                  <div className="text-sm font-medium">Resolved outcomes</div>
-                  <Badge variant="primary">{stats.calibratedForecasts} / {stats.totalForecasts}</Badge>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm text-muted-foreground">Last evaluation</span>
+                  <span className="text-sm font-medium text-foreground">{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
                 </div>
               </div>
-            ) : (
-              <div className="text-muted-foreground text-sm py-4 text-center">
-                Track record metrics appear after outcomes are recorded.
+              <div className="mt-4 pt-3 border-t border-border/30 flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                View full ledger <ArrowRight className="w-3 h-3" />
               </div>
-            )}
-          </Card>
+            </Card>
+          </Link>
 
-          <Card>
+          <Card className="col-span-2">
             <h3 className="text-base font-semibold flex items-center gap-2 mb-4">
               <AlertTriangle className="w-4 h-4 text-warning" />
               System Status
