@@ -1,0 +1,228 @@
+I need a strict integrity audit of the current CIOS Replit build against the canonical Excel v17 logic.
+
+Goal:
+Determine whether the Replit system is a true production evolution of CIOS or just a UI/product wrapper that has drifted from the original forecasting engine.
+
+Do not give a vague summary. Run a hard audit with evidence from the actual codebase and actual runtime behavior.
+
+Audit standard:
+Score each section as:
+2 = strong pass
+1 = partial
+0 = fail
+
+Then provide:
+1. section-by-section score
+2. total score out of 22
+3. top 5 risks
+4. exact files/functions involved
+5. exact recommended fixes
+6. final verdict:
+   - production-grade
+   - strong but needs tightening
+   - still a prototype
+
+Use this audit framework:
+
+1) Core Engine Integrity
+Check whether the backend preserves:
+- likelihood ratio logic
+- posterior updating
+- reliability/strength weighting
+- independence control
+- gate constraints
+- evidence decay / half-life behavior
+
+Required:
+- identify the exact files/functions where this logic lives
+- compare current implementation to the canonical intended CIOS engine
+- state whether any UI or API layer can bypass or alter this logic
+- state whether same inputs would reproduce the same outputs consistently
+
+Fail conditions:
+- hidden heuristics
+- frontend influencing posterior logic
+- shortcuts replacing true recomputation
+- material drift from original engine principles
+
+2) Signal Discipline Layer
+Check whether forecasts are driven only by structured signals.
+For each signal, verify whether the system enforces:
+- signal type
+- direction
+- strength
+- reliability
+- independence-related handling
+- timestamp if applicable
+
+Required:
+- identify signal schema/model definitions
+- identify where validation occurs
+- state whether unstructured/free-text inputs can affect forecasts directly
+
+Fail conditions:
+- vague signals allowed into engine
+- missing fields silently defaulted
+- narrative text affecting probability directly
+
+3) Separation of Layers
+Check whether the architecture is cleanly separated as:
+Signal -> Engine -> Output -> Interpretation
+
+Required:
+- identify the forecast engine layer
+- identify interpretation/narrative layer
+- identify UI layer
+- prove whether interpretation is metadata-only or whether it feeds back into forecasts
+
+Fail conditions:
+- narrative or interpretation influences posterior
+- UI controls directly change probability without structured signal changes
+- scenario mode bypasses signal structure
+
+4) Scenario Simulation Validity
+Check whether scenario simulation is a true backend recomputation.
+
+Required:
+- identify endpoint(s), route(s), and function(s) used for scenario simulation
+- verify whether simulation reruns the full engine
+- verify whether scenarios are implemented as structured signal add/remove/modify operations
+- verify whether the output is recomputed, not approximated
+
+Fail conditions:
+- shortcut math
+- cached/precomputed scenario outputs pretending to be recomputation
+- partial engine bypass
+
+5) Traceability / Audit Trail
+Check whether any forecast can be traced back to its drivers.
+
+Required:
+For a forecast output, determine whether the system can show:
+- contributing signals
+- likelihood ratios
+- reliability/strength information
+- timestamps / decay effects
+- why posterior changed
+
+Fail conditions:
+- output cannot be fully explained
+- no signal-level attribution
+- no auditability of posterior movement
+
+6) Calibration Readiness
+Check whether the system supports real learning over time.
+
+Required:
+- identify whether predictions are logged
+- identify whether updates are timestamped
+- identify whether resolved outcomes can be attached
+- determine whether the system is ready for Brier score / calibration analysis
+
+Fail conditions:
+- no prediction log
+- no outcome tracking
+- no learning loop
+
+7) Uncertainty / Distribution Handling
+Check whether the system only outputs a point estimate or has a real path toward uncertainty representation.
+
+Required:
+- determine whether uncertainty intervals, distributions, or spread logic exist
+- identify files/functions related to uncertainty handling if present
+- state whether current outputs are over-sharpened single values
+
+Fail conditions:
+- only a single probability with no uncertainty context
+- no architectural place for distribution handling
+
+8) Competitive Forecasting Layer Readiness
+Check whether the current architecture can support a future competitive forecasting layer for Metaculus-like environments.
+
+This future layer should support:
+- crowd-modeling / consensus tracking
+- timing/update optimization
+- probability distribution shaping
+
+Required:
+- determine whether the current architecture has a modular place to add this without breaking the core engine
+- identify extension points and blockers
+
+Fail conditions:
+- no clean extension path
+- consensus/crowd inputs would have to be hacked into core engine
+
+9) Time Awareness / Update Velocity
+Check whether the system behaves like a live forecasting engine rather than a static calculator.
+
+Required:
+- verify signal timestamps
+- verify decay over time
+- verify easy forecast updating / versioning
+- identify whether forecasts evolve over time or are overwritten
+
+Fail conditions:
+- static forecasts
+- no version history
+- no dynamic time handling
+
+10) Failure Mode Protection
+Check whether the system protects against structural misuse.
+
+Required:
+- determine whether duplicate or correlated signals are detected or flagged
+- determine whether LR stacking can become inflated without warning
+- determine whether there are sanity checks, caps, or warnings
+
+Fail conditions:
+- correlated signal stacking unchecked
+- duplicate signals allowed
+- no anomaly detection
+
+11) Product Reality Test
+Judge whether the system would be trusted by a senior strategist using it for real decisions.
+
+Required:
+Assess:
+- clarity of forecast meaning
+- clarity of drivers
+- defensibility of outputs
+- stability under small input changes
+- whether the output feels like a real decision engine or only a polished dashboard
+
+Output format required:
+
+A. Executive Verdict
+- one paragraph
+- direct answer: Is Replit CIOS truly superior to Excel v17 as a system without losing forecasting integrity?
+
+B. Scorecard Table
+For each of the 11 sections:
+- score (0/1/2)
+- brief justification
+- files/functions examined
+
+C. Risk Register
+Top 5 integrity risks with:
+- severity (high/medium/low)
+- why it matters
+- exact fix
+
+D. Drift Analysis
+Explicitly answer:
+- Where has Replit improved on Excel?
+- Where might Replit have drifted from Excel?
+- What remains missing before it is unquestionably superior?
+
+E. Final classification
+Choose exactly one:
+- Production-grade system
+- Strong but needs tightening
+- Still a prototype
+
+Important constraints:
+- Do not assume. Inspect the code.
+- Do not give generic software audit commentary.
+- Use actual file names, functions, routes, and runtime behavior.
+- If something cannot be proven from the codebase, say “not proven.”
+- Be hard on this. I want an integrity audit, not encouragement.
