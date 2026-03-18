@@ -32,6 +32,9 @@ export interface SignalForecastDetail {
   strengthScore: number;
   reliabilityScore: number;
   likelihoodRatio: number;
+  effectiveLikelihoodRatio: number;
+  correlationGroup: string | null;
+  correlationDampened: boolean;
   weightedActorReaction: number;
   actorReactions: Record<string, number>;
   absoluteImpact: number;
@@ -113,6 +116,15 @@ export interface ForecastOutput {
     ohosRoutingCheck: string | null;
     behavioralSummary: string | null;
   };
+  _integrityMetrics: {
+    rawLrProduct: number;
+    effectiveLrProduct: number;
+    lrCompressionApplied: boolean;
+    correlationGroupsDetected: number;
+    signalsDampened: number;
+    independentSignalCount: number;
+    convergenceWarning: string | null;
+  };
 }
 
 function interpretProbability(prob: number): string {
@@ -149,16 +161,76 @@ export function runForecastEngine(
     }>;
   }
 ): ForecastOutput {
+  const MAX_LOG_LR = 5.0;
+
   const activeSignals = signals.filter(
     (s) => s.signalId && s.signalDescription && s.likelihoodRatio !== null
   );
 
   const priorOdds = priorProbability / (1 - priorProbability);
 
-  const signalLrProduct = activeSignals.reduce(
+  const correlationGroups = new Map<string, typeof activeSignals>();
+  const ungroupedSignals: typeof activeSignals = [];
+  for (const s of activeSignals) {
+    const group = (s as any).correlationGroup as string | null;
+    if (group) {
+      if (!correlationGroups.has(group)) correlationGroups.set(group, []);
+      correlationGroups.get(group)!.push(s);
+    } else {
+      ungroupedSignals.push(s);
+    }
+  }
+
+  const effectiveLrMap = new Map<string, number>();
+  let signalsDampened = 0;
+
+  for (const s of ungroupedSignals) {
+    effectiveLrMap.set(s.signalId, s.likelihoodRatio ?? 1);
+  }
+
+  for (const [_group, groupSignals] of correlationGroups) {
+    const sorted = [...groupSignals].sort(
+      (a, b) => Math.abs(Math.log(b.likelihoodRatio ?? 1)) - Math.abs(Math.log(a.likelihoodRatio ?? 1))
+    );
+    sorted.forEach((s, idx) => {
+      const rawLr = s.likelihoodRatio ?? 1;
+      if (idx === 0) {
+        effectiveLrMap.set(s.signalId, rawLr);
+      } else {
+        const logLr = Math.log(rawLr);
+        const dampenedLogLr = logLr / (idx + 1);
+        effectiveLrMap.set(s.signalId, Math.exp(dampenedLogLr));
+        signalsDampened++;
+      }
+    });
+  }
+
+  const rawLrProduct = activeSignals.reduce(
     (product, s) => product * (s.likelihoodRatio ?? 1),
     1
   );
+
+  let effectiveLrProduct = activeSignals.reduce(
+    (product, s) => product * (effectiveLrMap.get(s.signalId) ?? 1),
+    1
+  );
+
+  let lrCompressionApplied = false;
+  let convergenceWarning: string | null = null;
+  const logEffective = Math.log(effectiveLrProduct);
+  if (Math.abs(logEffective) > MAX_LOG_LR) {
+    const compressed = Math.exp(
+      Math.sign(logEffective) * (MAX_LOG_LR + Math.log(1 + Math.abs(logEffective) - MAX_LOG_LR))
+    );
+    effectiveLrProduct = compressed;
+    lrCompressionApplied = true;
+    convergenceWarning =
+      `LR product compressed: raw log(LR)=${logEffective.toFixed(2)} exceeded threshold of ±${MAX_LOG_LR}. ` +
+      `Effective product capped at ${effectiveLrProduct.toFixed(4)} to prevent runaway posterior. ` +
+      `Review signal independence — ${activeSignals.length} signals may include correlated evidence.`;
+  }
+
+  const signalLrProduct = effectiveLrProduct;
 
   const sortedActors = [...actors].sort((a, b) => a.slotIndex - b.slotIndex);
 
@@ -197,6 +269,10 @@ export function runForecastEngine(
       weightedActorReaction += rawReaction * actor.influenceWeight;
     });
 
+    const effLr = effectiveLrMap.get(signal.signalId) ?? (signal.likelihoodRatio ?? 1);
+    const rawLr = signal.likelihoodRatio ?? 1;
+    const corrGroup = (signal as any).correlationGroup as string | null ?? null;
+
     return {
       signalId: signal.signalId,
       signalType: signal.signalType ?? "Unknown",
@@ -204,7 +280,11 @@ export function runForecastEngine(
       direction: signal.direction,
       strengthScore: signal.strengthScore ?? 0,
       reliabilityScore: signal.reliabilityScore ?? 0,
-      likelihoodRatio: signal.likelihoodRatio ?? 1,
+      likelihoodRatio: rawLr,
+      effectiveLikelihoodRatio: Number(effLr.toFixed(4)),
+      _fullPrecisionEffLr: effLr,
+      correlationGroup: corrGroup,
+      correlationDampened: effLr !== rawLr,
       weightedActorReaction,
       actorReactions,
       absoluteImpact: Math.abs(weightedActorReaction),
@@ -266,13 +346,12 @@ export function runForecastEngine(
   let swingFactor: SwingFactor | null = null;
 
   for (const sig of signalDetails) {
-    const lr = sig.likelihoodRatio;
+    const lr = sig._fullPrecisionEffLr;
     const lrWithout = lr !== 0 ? signalLrProduct / lr : signalLrProduct;
     const oddsWithout = priorOdds * lrWithout * actorAdjustmentFactor;
     const probWithout = oddsToProb(oddsWithout);
     const deltaIfRemoved = Math.abs(currentProbability - probWithout);
 
-    // "What if this signal were reversed?" — flip LR across 1: reversed LR = 1/lr
     const reversedLr = lr !== 0 ? 1 / lr : 1;
     const lrReversed = (signalLrProduct / lr) * reversedLr;
     const oddsReversed = priorOdds * lrReversed * actorAdjustmentFactor;
@@ -284,7 +363,7 @@ export function runForecastEngine(
       description: sig.description,
       direction: sig.direction as "Positive" | "Negative",
       absoluteImpact: sig.absoluteImpact,
-      likelihoodRatio: lr,
+      likelihoodRatio: sig.likelihoodRatio,
       probabilityWithout: probWithout,
       deltaIfRemoved,
     };
@@ -406,6 +485,15 @@ export function runForecastEngine(
       miosRoutingCheck: hasMios ? "Yes" : "No",
       ohosRoutingCheck: hasOhos ? "Yes" : "No",
       behavioralSummary,
+    },
+    _integrityMetrics: {
+      rawLrProduct,
+      effectiveLrProduct: signalLrProduct,
+      lrCompressionApplied,
+      correlationGroupsDetected: correlationGroups.size,
+      signalsDampened,
+      independentSignalCount: ungroupedSignals.length + correlationGroups.size,
+      convergenceWarning,
     },
   };
 }

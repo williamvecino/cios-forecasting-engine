@@ -1,11 +1,80 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { signalsTable } from "@workspace/db";
+import { signalsTable, SIGNAL_TYPES } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { computeLR, type Scope, type Timing } from "@workspace/db";
 
 const router = Router();
+
+const VALID_SIGNAL_TYPES = new Set<string>(SIGNAL_TYPES);
+const VALID_DIRECTIONS = new Set(["Positive", "Negative"]);
+const VALID_SCOPES = new Set(["local", "regional", "national", "global"]);
+const VALID_TIMINGS = new Set(["early", "current", "late"]);
+
+interface ValidationError {
+  field: string;
+  message: string;
+}
+
+function validateSignalInput(body: Record<string, any>): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  if (!body.signalDescription || typeof body.signalDescription !== "string" || body.signalDescription.trim().length === 0) {
+    errors.push({ field: "signalDescription", message: "Required. Must be a non-empty string." });
+  }
+
+  if (!body.signalType || typeof body.signalType !== "string") {
+    errors.push({ field: "signalType", message: "Required. Must be a string." });
+  } else if (!VALID_SIGNAL_TYPES.has(body.signalType)) {
+    errors.push({
+      field: "signalType",
+      message: `Invalid signal type "${body.signalType}". Must be one of: ${[...VALID_SIGNAL_TYPES].join(", ")}`,
+    });
+  }
+
+  if (!body.direction || !VALID_DIRECTIONS.has(body.direction)) {
+    errors.push({ field: "direction", message: `Required. Must be "Positive" or "Negative".` });
+  }
+
+  const strength = Number(body.strengthScore);
+  if (body.strengthScore == null || isNaN(strength) || strength < 1 || strength > 5) {
+    errors.push({ field: "strengthScore", message: "Required. Must be a number between 1 and 5." });
+  }
+
+  const reliability = Number(body.reliabilityScore);
+  if (body.reliabilityScore == null || isNaN(reliability) || reliability < 1 || reliability > 5) {
+    errors.push({ field: "reliabilityScore", message: "Required. Must be a number between 1 and 5." });
+  }
+
+  if (body.scope && !VALID_SCOPES.has(String(body.scope).toLowerCase())) {
+    errors.push({ field: "scope", message: `Must be one of: ${[...VALID_SCOPES].join(", ")}` });
+  }
+
+  if (body.timing && !VALID_TIMINGS.has(String(body.timing).toLowerCase())) {
+    errors.push({ field: "timing", message: `Must be one of: ${[...VALID_TIMINGS].join(", ")}` });
+  }
+
+  if (body.correlationGroup != null && typeof body.correlationGroup !== "string") {
+    errors.push({ field: "correlationGroup", message: "Must be a string if provided." });
+  }
+
+  return errors;
+}
+
+function computeDescriptionSimilarity(a: string, b: string): number {
+  const tokenize = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean));
+  const setA = tokenize(a);
+  const setB = tokenize(b);
+  if (setA.size === 0 && setB.size === 0) return 1;
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const token of setA) {
+    if (setB.has(token)) intersection++;
+  }
+  const union = new Set([...setA, ...setB]).size;
+  return union > 0 ? intersection / union : 0;
+}
 
 function deriveDirectionSafeLR(body: Record<string, any>): number {
   const signalType = body.signalType ?? "";
@@ -26,12 +95,37 @@ router.get("/cases/:caseId/signals", async (req, res) => {
 
 router.post("/cases/:caseId/signals", async (req, res) => {
   const body = req.body;
+
+  const validationErrors = validateSignalInput(body);
+  if (validationErrors.length > 0) {
+    return res.status(400).json({
+      error: "Signal validation failed",
+      violations: validationErrors,
+      rule: "Signals must be structured and validated before entering the engine",
+    });
+  }
+
   const id = randomUUID();
   const signalId = body.signalId || `SIG-${Date.now()}`;
-  const weightedScore = (body.strengthScore ?? 0) * (body.reliabilityScore ?? 0);
-
-  // Always recompute LR server-side so direction is correctly applied.
+  const weightedScore = Number(body.strengthScore) * Number(body.reliabilityScore);
   const lr = deriveDirectionSafeLR(body);
+
+  const existingSignals = await db.select().from(signalsTable)
+    .where(eq(signalsTable.caseId, req.params.caseId));
+
+  const duplicateWarnings: Array<{ existingSignalId: string; similarity: number }> = [];
+  for (const existing of existingSignals) {
+    const similarity = computeDescriptionSimilarity(
+      body.signalDescription,
+      existing.signalDescription
+    );
+    if (similarity > 0.6) {
+      duplicateWarnings.push({
+        existingSignalId: existing.signalId,
+        similarity: Number(similarity.toFixed(2)),
+      });
+    }
+  }
 
   const [created] = await db.insert(signalsTable).values({
     id,
@@ -42,8 +136,8 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     signalDescription: body.signalDescription,
     signalType: body.signalType,
     direction: body.direction,
-    strengthScore: body.strengthScore,
-    reliabilityScore: body.reliabilityScore,
+    strengthScore: Number(body.strengthScore),
+    reliabilityScore: Number(body.reliabilityScore),
     likelihoodRatio: lr,
     scope: body.scope || "national",
     timing: body.timing || "current",
@@ -53,12 +147,32 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     ohosFlag: body.ohosFlag || (body.route?.includes("OHOS") ? "Yes" : "No"),
     weightedSignalScore: weightedScore,
     activeLikelihoodRatio: lr,
+    correlationGroup: body.correlationGroup || null,
   }).returning();
-  res.status(201).json(created);
+
+  const response: Record<string, any> = { ...created };
+  if (duplicateWarnings.length > 0) {
+    response._integrityWarnings = {
+      potentialDuplicates: duplicateWarnings,
+      recommendation: "Consider assigning a correlationGroup to correlated signals to prevent LR inflation.",
+    };
+  }
+
+  res.status(201).json(response);
 });
 
 router.put("/signals/:signalId", async (req, res) => {
   const body = req.body;
+
+  const validationErrors = validateSignalInput(body);
+  if (validationErrors.length > 0) {
+    return res.status(400).json({
+      error: "Signal validation failed",
+      violations: validationErrors,
+      rule: "Signals must be structured and validated before entering the engine",
+    });
+  }
+
   const lr = deriveDirectionSafeLR(body);
 
   const [updated] = await db.update(signalsTable)
@@ -66,8 +180,8 @@ router.put("/signals/:signalId", async (req, res) => {
       signalDescription: body.signalDescription,
       signalType: body.signalType,
       direction: body.direction,
-      strengthScore: body.strengthScore,
-      reliabilityScore: body.reliabilityScore,
+      strengthScore: Number(body.strengthScore),
+      reliabilityScore: Number(body.reliabilityScore),
       likelihoodRatio: lr,
       scope: body.scope,
       timing: body.timing,
@@ -75,7 +189,8 @@ router.put("/signals/:signalId", async (req, res) => {
       targetPopulation: body.targetPopulation,
       miosFlag: body.miosFlag,
       ohosFlag: body.ohosFlag,
-      weightedSignalScore: (body.strengthScore ?? 0) * (body.reliabilityScore ?? 0),
+      weightedSignalScore: Number(body.strengthScore) * Number(body.reliabilityScore),
+      correlationGroup: body.correlationGroup ?? null,
     })
     .where(eq(signalsTable.signalId, req.params.signalId))
     .returning();

@@ -230,21 +230,13 @@ export function getExpectedBehavior(actorName: string, effect: number): string {
 
 export function getPharmaMultiplier(
   signalType: string,
-  targetPopulation: string,
-  brand: string,
+  _targetPopulation: string,
+  _brand: string,
   actorIndex: ActorIndex
 ): number {
   const typeKey = signalType.toLowerCase().trim();
   const baseMultiplier =
     (SIGNAL_TYPE_MULTIPLIERS[typeKey] ?? SIGNAL_TYPE_MULTIPLIERS["unmapped"])[actorIndex];
 
-  const combinedText = ((targetPopulation ?? "") + " " + (brand ?? "")).toLowerCase();
-  let keywordAdj = 0;
-  for (const [keyword, multipliers] of Object.entries(KEYWORD_MULTIPLIERS)) {
-    if (combinedText.includes(keyword)) {
-      keywordAdj += multipliers[actorIndex] - 1.0;
-    }
-  }
-
-  return Math.min(1.6, baseMultiplier * (1 + keywordAdj));
+  return baseMultiplier;
 }

@@ -27,6 +27,7 @@ export const signalsTable = pgTable("signals", {
   actorAdjustedImpact: real("actor_adjusted_impact"),
   activeLikelihoodRatio: real("active_likelihood_ratio"),
   absoluteImpact: real("absolute_impact"),
+  correlationGroup: text("correlation_group"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
