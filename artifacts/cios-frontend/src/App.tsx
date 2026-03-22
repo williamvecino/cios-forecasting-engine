@@ -18,6 +18,7 @@ import FieldIntelligence from "@/pages/field-intelligence/index";
 import Watchlist from "@/pages/watchlist/index";
 import AdopterDiscovery from "@/pages/discovery/index";
 import SignalReview from "@/pages/review/index";
+import SignalDetection from "@/pages/signal-detection/index";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/watchlist" component={Watchlist} />
       <Route path="/discovery" component={AdopterDiscovery} />
       <Route path="/review" component={SignalReview} />
+      <Route path="/signal-detection" component={SignalDetection} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -26,6 +26,7 @@ import competitorBehaviorsRouter from "./competitor-behaviors.js";
 import targetEntitiesRouter from "./target-entities.js";
 import adopterDiscoveryRouter from "./adopter-discovery.js";
 import auditLogsRouter from "./audit-logs.js";
+import signalDetectionRouter from "./signal-detection.js";
 
 const router: IRouter = Router();
 
@@ -56,5 +57,6 @@ router.use(competitorBehaviorsRouter);
 router.use(targetEntitiesRouter);
 router.use(adopterDiscoveryRouter);
 router.use(auditLogsRouter);
+router.use(signalDetectionRouter);
 
 export default router;

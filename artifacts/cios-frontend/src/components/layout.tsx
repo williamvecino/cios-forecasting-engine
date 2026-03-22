@@ -10,6 +10,7 @@ import {
   FileText,
   Sparkles,
   ClipboardCheck,
+  Radar,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -36,6 +37,7 @@ const navSections: NavSection[] = [
   {
     title: "Evidence",
     items: [
+      { name: "Signal Detection", path: "/signal-detection", icon: Radar, tooltip: "Scan sources to extract candidate signals." },
       { name: "Signals", path: "/watchlist", icon: Radio, tooltip: "Evidence that influences predictions." },
       { name: "Signal Review", path: "/review", icon: ClipboardCheck, tooltip: "Approve signals before they affect forecasts." },
     ],
