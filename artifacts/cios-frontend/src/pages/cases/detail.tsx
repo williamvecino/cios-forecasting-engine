@@ -151,7 +151,7 @@ function ForecastInterpretationPanel({ interpretation }: { interpretation: Forec
 }
 
 export default function QuestionDetail() {
-  const [, params] = useRoute("/cases/:caseId");
+  const [, params] = useRoute("/case/:caseId/question");
   const caseId = params?.caseId ?? "";
 
   const { data: caseData, isLoading: loadingCase, isError: errorCase, refetch: refetchCase } = useGetCase(caseId);
@@ -279,7 +279,7 @@ export default function QuestionDetail() {
       <AppLayout>
         <div className="text-center py-20 text-muted-foreground">
           <p>Question not found.</p>
-          <Link href="/">
+          <Link href="/dashboard">
             <Button variant="ghost" className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
             </Button>
@@ -299,7 +299,7 @@ export default function QuestionDetail() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <nav className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-2">
-              <Link href="/">
+              <Link href="/dashboard">
                 <button className="hover:text-foreground transition-colors">Dashboard</button>
               </Link>
               <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/40" />
@@ -348,12 +348,12 @@ export default function QuestionDetail() {
             </div>
           </div>
           <div className="flex gap-2 shrink-0 pt-5">
-            <Link href={`/cases/${caseId}/signals`}>
+            <Link href={`/case/${caseId}/signals`}>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <Radio className="w-3.5 h-3.5" /> Add Signals
               </Button>
             </Link>
-            <Link href="/case-library">
+            <Link href={`/case/${caseId}/ledger`}>
               <Button variant="ghost" size="sm" className="gap-1.5">
                 <BookOpen className="w-3.5 h-3.5" /> Ledger
               </Button>
@@ -602,7 +602,7 @@ export default function QuestionDetail() {
                 {loadingSignals ? "…" : `${allSignals.length} validated`}
               </span>
             </div>
-            <Link href={`/cases/${caseId}/signals`}>
+            <Link href={`/case/${caseId}/signals`}>
               <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
                 <Eye className="w-3 h-3" /> Manage
               </button>
@@ -614,7 +614,7 @@ export default function QuestionDetail() {
             <PanelError message="Failed to load signals" onRetry={() => refetchSignals()} />
           ) : allSignals.length === 0 ? (
             <div className="text-xs text-muted-foreground text-center py-6 px-5">
-              No signals yet. <Link href={`/cases/${caseId}/signals`}><span className="text-primary underline cursor-pointer">Add signals</span></Link> to begin.
+              No signals yet. <Link href={`/case/${caseId}/signals`}><span className="text-primary underline cursor-pointer">Add signals</span></Link> to begin.
             </div>
           ) : (
             <div className="overflow-x-auto">

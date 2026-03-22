@@ -32,6 +32,28 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Signal Review Queue:** Frontend page at `/review` with sidebar item "Signal Review". Features: status filter pills with counts, search bar, signal type/question/source filters, signal table with status badges, detail drawer with full signal fields, inline editing (PATCH endpoint), lifecycle transition actions, validation issue warnings, and audit history timeline. Supports the full signal lifecycle workflow from candidate through activation.
 - **Signal Detection Agent:** Bounded agent that scans user-provided source text, extracts candidate signals using GPT-4o, classifies them (type, direction, strength, scope, confidence), and matches them to existing forecast cases. Does NOT update posterior probability or insert signals into active cases — all outputs are candidate signals for human review. DB tables: `detection_runs`, `detected_signals`, `signal_case_suggestions`. API routes at `/api/detection-runs`, `/api/detected-signals`. Frontend at `/signal-detection` under Evidence section. Supports: multi-source input, optional therapy area/geography/specialty filters, case matching with confidence levels, manual case linking, validate/reject/defer actions. Signal types: Clinical, Access, Regulatory, KOL, Operational, Competitor, Safety, InstitutionalReadiness, ReferralBehavior.
 
+**URL Structure (case-scoped routing):**
+- `/dashboard` — Strategic overview (redirected from `/`)
+- `/cases` — Forecast case list with ForecastActionsMenu per card
+- `/case/:caseId/question` — Case detail / question view
+- `/case/:caseId/signals` — Active signals for a case
+- `/case/:caseId/pending-signals` — Pending signals review for a case
+- `/case/:caseId/scenario` — Agent-based scenario simulation
+- `/case/:caseId/ledger` — Forecast results/ledger
+- `/case/:caseId/agents/detection` — Signal detection agent (case-scoped)
+- `/case/:caseId/agents/hygiene` — Signal hygiene audit
+- `/case/:caseId/agents/refinement` — Question refinement agent (stub)
+- `/case/:caseId/agents/message` — Message impact agent (stub)
+- `/case/:caseId/discover`, `/case/:caseId/analogs`, `/case/:caseId/portfolio` — Discovery, analogs, portfolio
+- `/review` — Global signal review queue
+- `/signal-detection` — Global signal detection console
+- `/discovery` — Adopter discovery
+- `/calibration` — Calibration learning
+- `/case-library` — Forecast ledger (global)
+- API routes remain at `/api/cases/...` (unchanged)
+
+**ForecastActionsMenu:** Dropdown on each case card with 11 actions in 4 sections (Question, Signals, Forecast, Intelligence), each navigating to the appropriate case-scoped route.
+
 **UI/UX Decisions:**
 The frontend employs an "Aaru-like Decision Interface" with question-driven, decision-oriented language, replacing Bayesian/forecast jargon with accessible terminology.
 - **Dashboard:** "Your Strategic Questions" with question-first presentation, portfolio gauge, track record, and system status.

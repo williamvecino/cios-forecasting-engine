@@ -51,7 +51,7 @@ function SimilarityMeter({ score }: { score: number }) {
 }
 
 export default function AnalogRetrieval() {
-  const [, params] = useRoute("/cases/:caseId/analogs");
+  const [, params] = useRoute("/case/:caseId/analogs");
   const caseId = params?.caseId || "";
 
   const { data: caseData } = useGetCase(caseId);

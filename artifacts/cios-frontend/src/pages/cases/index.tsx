@@ -65,32 +65,32 @@ const MENU_SECTIONS = [
   {
     label: "Question",
     items: [
-      { key: "view-question", label: "View Question", icon: Eye, getHref: (caseId: string) => `/cases/${caseId}` },
-      { key: "edit-question", label: "Edit Question", icon: Edit3, getHref: (caseId: string) => `/cases/${caseId}` },
+      { key: "view-question", label: "View Question", icon: Eye, getHref: (caseId: string) => `/case/${caseId}/question` },
+      { key: "edit-question", label: "Edit Question", icon: Edit3, getHref: (caseId: string) => `/case/${caseId}/question` },
     ],
   },
   {
     label: "Signals",
     items: [
-      { key: "view-active-signals", label: "View Active Signals", icon: Radio, getHref: (caseId: string) => `/cases/${caseId}/signals` },
-      { key: "review-pending-signals", label: "Review Pending Signals", icon: ClipboardCheck, getHref: () => `/review` },
-      { key: "detect-new-signals", label: "Detect New Signals", icon: Radar, getHref: () => `/signal-detection` },
-      { key: "run-signal-hygiene", label: "Run Signal Hygiene", icon: ShieldCheck, getHref: (caseId: string) => `/cases/${caseId}/signals` },
+      { key: "view-active-signals", label: "View Active Signals", icon: Radio, getHref: (caseId: string) => `/case/${caseId}/signals` },
+      { key: "review-pending-signals", label: "Review Pending Signals", icon: ClipboardCheck, getHref: (caseId: string) => `/case/${caseId}/pending-signals` },
+      { key: "detect-new-signals", label: "Detect New Signals", icon: Radar, getHref: (caseId: string) => `/case/${caseId}/agents/detection` },
+      { key: "run-signal-hygiene", label: "Run Signal Hygiene", icon: ShieldCheck, getHref: (caseId: string) => `/case/${caseId}/agents/hygiene` },
     ],
   },
   {
     label: "Forecast",
     items: [
-      { key: "run-scenario", label: "Run Scenario", icon: Zap, getHref: (caseId: string) => `/cases/${caseId}` },
-      { key: "recalculate-forecast", label: "Recalculate Forecast", icon: RefreshCw, getHref: (caseId: string) => `/cases/${caseId}/forecast` },
-      { key: "view-forecast-ledger", label: "View Forecast Ledger", icon: BookOpen, getHref: (caseId: string) => `/cases/${caseId}/forecast` },
+      { key: "run-scenario", label: "Run Scenario", icon: Zap, getHref: (caseId: string) => `/case/${caseId}/scenario` },
+      { key: "recalculate-forecast", label: "Recalculate Forecast", icon: RefreshCw, getHref: (caseId: string) => `/case/${caseId}/ledger` },
+      { key: "view-forecast-ledger", label: "View Forecast Ledger", icon: BookOpen, getHref: (caseId: string) => `/case/${caseId}/ledger` },
     ],
   },
   {
     label: "Intelligence",
     items: [
-      { key: "refine-question", label: "Refine Question", icon: FileText, getHref: (caseId: string) => `/cases/${caseId}` },
-      { key: "review-message-impact", label: "Review Message Impact", icon: MessageSquare, getHref: (caseId: string) => `/cases/${caseId}` },
+      { key: "refine-question", label: "Refine Question", icon: FileText, getHref: (caseId: string) => `/case/${caseId}/agents/refinement` },
+      { key: "review-message-impact", label: "Review Message Impact", icon: MessageSquare, getHref: (caseId: string) => `/case/${caseId}/agents/message` },
     ],
   },
 ];
@@ -534,7 +534,7 @@ export default function CasesList() {
                   )}
 
                   {/* Strategic question */}
-                  <Link href={`/cases/${c.caseId}`}>
+                  <Link href={`/case/${c.caseId}/question`}>
                     <h3 className="text-base font-semibold text-foreground leading-snug hover:text-primary transition-colors cursor-pointer">{c.strategicQuestion}</h3>
                   </Link>
 
@@ -563,7 +563,7 @@ export default function CasesList() {
 
                 <div className="flex flex-col items-end gap-2 min-w-[160px] shrink-0">
                   <ForecastActionsMenu caseId={c.caseId} />
-                  <Link href={`/cases/${c.caseId}`}>
+                  <Link href={`/case/${c.caseId}/question`}>
                     <Button size="sm" className="gap-1">
                       Open <ChevronRight className="w-3.5 h-3.5" />
                     </Button>

@@ -389,7 +389,7 @@ function InfluenceMatrix({ activeSignalTypes }: { activeSignalTypes: Set<string>
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function AgentSimulation() {
-  const [, params] = useRoute("/cases/:caseId/agents");
+  const [, params] = useRoute("/case/:caseId/scenario");
   const caseId = params?.caseId ?? "";
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showMatrix, setShowMatrix] = useState(false);

@@ -45,7 +45,7 @@ const navSections: NavSection[] = [
   {
     title: "Prediction",
     items: [
-      { name: "Dashboard", path: "/", icon: Target, tooltip: "Current probability forecasts." },
+      { name: "Dashboard", path: "/dashboard", icon: Target, tooltip: "Current probability forecasts." },
       { name: "Forecast Ledger", path: "/case-library", icon: BookOpen, tooltip: "History of forecast changes." },
     ],
   },
@@ -62,8 +62,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const isActive = (path: string) => {
-    if (path === "/") return location === "/";
-    if (path === "/cases") return location === "/cases" || location.startsWith("/cases/");
+    if (path === "/dashboard") return location === "/" || location === "/dashboard";
+    if (path === "/cases") return location === "/cases" || location.startsWith("/case/");
     return location.startsWith(path);
   };
 

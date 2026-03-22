@@ -127,7 +127,7 @@ function StanceChip({ stance }: { stance: string }) {
 }
 
 export default function ForecastResults() {
-  const [, params] = useRoute("/cases/:caseId/forecast");
+  const [, params] = useRoute("/case/:caseId/ledger");
   const caseId = params?.caseId || "";
 
   const { data: caseData } = useGetCase(caseId);

@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,6 +19,11 @@ import Watchlist from "@/pages/watchlist/index";
 import AdopterDiscovery from "@/pages/discovery/index";
 import SignalReview from "@/pages/review/index";
 import SignalDetection from "@/pages/signal-detection/index";
+import PendingSignals from "@/pages/cases/pending-signals";
+import AgentDetection from "@/pages/cases/agents/detection";
+import AgentHygiene from "@/pages/cases/agents/hygiene";
+import AgentRefinement from "@/pages/cases/agents/refinement";
+import AgentMessage from "@/pages/cases/agents/message";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -26,7 +31,7 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: false,
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
     },
   },
 });
@@ -34,15 +39,26 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
+      <Route path="/">
+        <Redirect to="/dashboard" />
+      </Route>
+      <Route path="/dashboard" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
-      <Route path="/cases/:caseId/signals" component={SignalsRegister} />
-      <Route path="/cases/:caseId/discover" component={SignalDiscover} />
-      <Route path="/cases/:caseId/forecast" component={ForecastResults} />
-      <Route path="/cases/:caseId/analogs" component={AnalogRetrieval} />
-      <Route path="/cases/:caseId/agents" component={AgentSimulation} />
-      <Route path="/cases/:caseId/portfolio" component={Portfolio} />
-      <Route path="/cases/:caseId" component={QuestionDetail} />
+
+      <Route path="/case/:caseId/question" component={QuestionDetail} />
+      <Route path="/case/:caseId/signals" component={SignalsRegister} />
+      <Route path="/case/:caseId/pending-signals" component={PendingSignals} />
+      <Route path="/case/:caseId/scenario" component={AgentSimulation} />
+      <Route path="/case/:caseId/ledger" component={ForecastResults} />
+      <Route path="/case/:caseId/agents/detection" component={AgentDetection} />
+      <Route path="/case/:caseId/agents/hygiene" component={AgentHygiene} />
+      <Route path="/case/:caseId/agents/refinement" component={AgentRefinement} />
+      <Route path="/case/:caseId/agents/message" component={AgentMessage} />
+
+      <Route path="/case/:caseId/discover" component={SignalDiscover} />
+      <Route path="/case/:caseId/analogs" component={AnalogRetrieval} />
+      <Route path="/case/:caseId/portfolio" component={Portfolio} />
+
       <Route path="/case-library" component={CaseLibrary} />
       <Route path="/calibration" component={Calibration} />
       <Route path="/field-intelligence" component={FieldIntelligence} />

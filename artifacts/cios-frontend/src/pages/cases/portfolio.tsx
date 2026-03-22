@@ -38,7 +38,7 @@ const DEFAULT_QUESTIONS: QuestionInput[] = [
 ];
 
 export default function PortfolioPage() {
-  const [, params] = useRoute("/cases/:caseId/portfolio");
+  const [, params] = useRoute("/case/:caseId/portfolio");
   const caseId = params?.caseId || "";
 
   const { data: caseData } = useGetCase(caseId);

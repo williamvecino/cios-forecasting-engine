@@ -416,7 +416,7 @@ function CandidateTableSection({
 }
 
 export default function SignalDiscover() {
-  const [, params] = useRoute("/cases/:caseId/discover");
+  const [, params] = useRoute("/case/:caseId/discover");
   const caseId = params?.caseId ?? "";
 
   const [docType, setDocType] = useState<string>(DOCUMENT_TYPES[0]);

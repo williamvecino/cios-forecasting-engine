@@ -188,7 +188,7 @@ function PillSelector({
 
 // ─── Main component ────────────────────────────────────────────────────────
 export default function SignalsRegister() {
-  const [, params] = useRoute("/cases/:caseId/signals");
+  const [, params] = useRoute("/case/:caseId/signals");
   const caseId = params?.caseId || "";
 
   const [isCreating, setIsCreating] = useState(false);
