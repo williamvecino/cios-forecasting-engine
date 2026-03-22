@@ -207,6 +207,8 @@ router.post("/candidates/:id/approve", async (req, res) => {
     scope: candidate.scope as any,
     timing: normalizedTiming as any,
     likelihoodRatio: safeLR,
+    status: "active",
+    createdByType: "human",
   }).returning();
 
   await db.update(candidateSignalsTable)

@@ -18,3 +18,4 @@ export * from "./target-entities";
 export * from "./discovery-runs";
 export * from "./discovery-candidates";
 export * from "./discovery-candidate-signals";
+export * from "./audit-logs";

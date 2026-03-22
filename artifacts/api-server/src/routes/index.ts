@@ -25,6 +25,7 @@ import weeklyBriefRouter from "./weekly-brief.js";
 import competitorBehaviorsRouter from "./competitor-behaviors.js";
 import targetEntitiesRouter from "./target-entities.js";
 import adopterDiscoveryRouter from "./adopter-discovery.js";
+import auditLogsRouter from "./audit-logs.js";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(weeklyBriefRouter);
 router.use(competitorBehaviorsRouter);
 router.use(targetEntitiesRouter);
 router.use(adopterDiscoveryRouter);
+router.use(auditLogsRouter);
 
 export default router;

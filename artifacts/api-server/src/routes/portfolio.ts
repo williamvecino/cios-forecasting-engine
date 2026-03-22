@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { casesTable, signalsTable, actorsTable, AGENT_ARCHETYPES } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { runForecastEngine } from "../lib/forecast-engine.js";
 import { simulateAgents } from "../lib/agent-engine.js";
 import { getLrCorrections, computeDecay } from "../lib/calibration-utils.js";
@@ -44,7 +44,9 @@ router.post("/cases/:caseId/portfolio", async (req, res) => {
   if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
   const caseData = caseRow[0];
 
-  const signals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, caseId));
+  const signals = await db.select().from(signalsTable).where(
+    and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
+  );
   const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
   if (actors.length === 0) {
     return res.status(400).json({ error: "No actors configured. Please seed the database first." });

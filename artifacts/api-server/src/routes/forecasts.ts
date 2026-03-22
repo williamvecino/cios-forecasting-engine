@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { casesTable, signalsTable, actorsTable, calibrationLogTable, AGENT_ARCHETYPES } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runForecastEngine } from "../lib/forecast-engine.js";
 import { simulateAgents } from "../lib/agent-engine.js";
@@ -17,7 +17,9 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
   const caseData = caseRow[0];
 
-  const allSignals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, req.params.caseId));
+  const allSignals = await db.select().from(signalsTable).where(
+    and(eq(signalsTable.caseId, req.params.caseId), eq(signalsTable.status, "active"))
+  );
   const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
 
   if (actors.length === 0) {

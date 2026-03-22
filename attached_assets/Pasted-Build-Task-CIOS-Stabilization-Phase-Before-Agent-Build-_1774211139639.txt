@@ -1,0 +1,328 @@
+Build Task — CIOS Stabilization Phase Before Agent Build
+
+Objective
+
+Stabilize the signal layer and governance workflow before building agents.
+
+This phase must improve:
+- signal consistency
+- review workflow
+- auditability
+- validation integrity
+
+This phase must NOT change:
+- posterior calculation
+- signal weights
+- scenario engine
+- recommendation logic
+
+Priority
+
+Do this BEFORE building:
+1) Signal Detection Agent
+2) Signal Hygiene Agent
+3) Question Refinement Agent
+
+Core goal
+
+Create the minimum stable foundation so future agents can safely propose signals without corrupting the forecast system.
+
+Scope of stabilization
+
+1) Lock signal schema
+2) Add signal lifecycle/status workflow
+3) Add audit logging
+4) Add required-field validation
+5) Add basic review UI support
+
+-----------------------------------
+1) LOCK SIGNAL SCHEMA
+-----------------------------------
+
+Standardize every signal object so all existing and future signals use the same required fields.
+
+Required fields for Signal model
+
+- id
+- signalType
+- direction ("positive" | "negative" | "neutral")
+- strength ("low" | "medium" | "high")
+- reliability ("low" | "medium" | "high")
+- signalScope ("market" | "specialty" | "subspecialty" | "institution" | "physician")
+- sourceLabel
+- sourceUrl
+- evidenceSnippet
+- observedAt
+- status ("candidate" | "reviewed" | "validated" | "active" | "archived" | "rejected")
+- createdByType ("human" | "agent" | "system")
+- createdById (nullable)
+- eventFamilyId (nullable)
+- caseId (nullable)
+- targetId (nullable)
+- createdAt
+- updatedAt
+
+Optional but recommended
+- therapyArea
+- geography
+- specialty
+- subspecialty
+- institutionName
+- physicianName
+- notes
+
+Requirements
+- migrate existing signals into this schema
+- add defaults only where safe
+- do not silently invent missing values that imply certainty
+
+-----------------------------------
+2) ADD SIGNAL LIFECYCLE / STATUS WORKFLOW
+-----------------------------------
+
+Implement the following signal states:
+
+- candidate
+- reviewed
+- validated
+- active
+- archived
+- rejected
+
+Rules
+
+- humans can create candidate, reviewed, validated, active, archived, rejected
+- agents can only create candidate
+- candidate signals do not affect forecasts
+- only active signals affect forecasts
+- validated signals are approved but not yet active unless explicitly activated
+- rejected signals never affect forecasts
+- archived signals are historical and inactive
+
+Required actions
+- mark reviewed
+- validate
+- activate
+- reject
+- archive
+- revert to candidate if needed
+
+Add clear transition rules
+Examples:
+- candidate → reviewed
+- reviewed → validated
+- validated → active
+- active → archived
+- candidate/reviewed/validated → rejected
+
+Block invalid transitions.
+
+-----------------------------------
+3) ADD AUDIT LOGGING
+-----------------------------------
+
+Create an audit log for signal actions.
+
+New model: AuditLog
+
+Fields
+- id
+- objectType ("signal" | "case" | "target" | "question")
+- objectId
+- action
+- performedByType ("human" | "agent" | "system")
+- performedById (nullable)
+- beforeStateJson (nullable)
+- afterStateJson (nullable)
+- timestamp
+
+Required audit actions for signals
+- created
+- edited
+- reviewed
+- validated
+- activated
+- rejected
+- archived
+- reclassified
+- linked_to_case
+- unlinked_from_case
+
+Requirements
+- every signal change must write an audit log
+- every future agent-created signal must log createdByType = "agent"
+- audit log must be viewable in UI at least in a basic table or drawer
+
+-----------------------------------
+4) ADD REQUIRED-FIELD VALIDATION
+-----------------------------------
+
+Before a signal can move to validated or active, enforce required-field validation.
+
+Validation rules
+
+Validation required for validated status:
+- signalType present
+- direction present
+- strength present
+- reliability present
+- signalScope present
+- sourceLabel present
+- observedAt present
+- status present
+
+Validation required for active status:
+- all validated requirements
+- evidenceSnippet present
+- sourceUrl present if applicable
+- caseId or targetId present
+- no unresolved critical errors
+
+Critical validation errors
+- missing signal type
+- missing scope
+- missing direction
+- missing source label
+- missing date
+- missing evidence snippet for active signal
+- invalid status transition
+
+Behavior
+- block status upgrade if validation fails
+- show user exact missing fields
+- do not silently pass incomplete signals into active use
+
+-----------------------------------
+5) ADD BASIC REVIEW UI SUPPORT
+-----------------------------------
+
+Add a simple Signal Review Queue page/panel.
+
+Page name
+- Signal Review Queue
+
+Sections
+
+1. Filter bar
+- status
+- signal type
+- scope
+- created by type
+- date range
+- case
+- therapy area
+
+2. Signal table
+Columns:
+- signalType
+- direction
+- strength
+- reliability
+- scope
+- sourceLabel
+- observedAt
+- status
+- createdByType
+- validation status
+
+3. Signal detail drawer
+Show:
+- full signal fields
+- evidence snippet
+- source URL
+- eventFamilyId
+- case/target linkage
+- audit history
+- validation issues
+
+4. Review actions
+- mark reviewed
+- validate
+- activate
+- reject
+- archive
+- edit metadata
+
+Requirements
+- only active signals feed forecast calculations
+- clearly display which signals are active vs inactive
+
+-----------------------------------
+6) FORECAST ENGINE SAFETY RULE
+-----------------------------------
+
+Update signal selection logic so active cases only use:
+status = "active"
+
+Do not use:
+- candidate
+- reviewed
+- validated
+- rejected
+- archived
+
+This is critical.
+
+-----------------------------------
+7) DELIVERABLES
+-----------------------------------
+
+Deliver:
+- updated Signal schema/model
+- migration for existing signals
+- status workflow / transition logic
+- AuditLog model
+- validation rules
+- Signal Review Queue UI
+- active-signal-only filter in forecast engine
+- basic audit history display
+
+-----------------------------------
+8) NON-GOALS
+-----------------------------------
+
+Do NOT build in this phase:
+- autonomous agents
+- unrestricted web scanning
+- automatic LR assignment
+- automatic posterior updates from candidate signals
+- advanced deduplication
+- event-family intelligence
+- question refinement logic
+
+Those are next phase items.
+
+-----------------------------------
+9) NEXT PHASE TO SAVE FOR AFTER THIS
+-----------------------------------
+
+After stabilization is complete, build these three agents in order:
+
+1. Signal Detection Agent
+Job:
+- scan specified sources
+- extract candidate signals
+- classify by type
+- classify by scope
+- suggest likely affected cases
+- present to human for approval
+
+2. Signal Hygiene Agent
+Job:
+- detect duplicates
+- detect correlated signals
+- suggest event-family grouping
+- flag low-quality signals
+- flag missing fields
+
+3. Question Refinement Agent
+Job:
+- propose narrower targets
+- recommend adding geography
+- move from market to specialty/subspecialty/physician question
+- suggest missing time horizon
+
+These must remain bounded agents:
+- no automatic forecast updates
+- no automatic activation of signals
+- no silent modifications to active cases

@@ -215,6 +215,10 @@ router.post("/discovery-candidates/:candidateId/send-to-cios", async (req, res) 
       signalScope: vs.signalScope === "physician" ? "physician"
         : vs.signalScope === "institution" ? "institution"
         : "market",
+      status: "candidate",
+      createdByType: "system",
+      sourceLabel: vs.sourceLabel || null,
+      evidenceSnippet: vs.evidenceSnippet || null,
     });
   }
 

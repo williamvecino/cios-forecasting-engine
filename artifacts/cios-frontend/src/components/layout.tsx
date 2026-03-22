@@ -10,6 +10,7 @@ import {
   BookOpen,
   FileText,
   Sparkles,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -23,6 +24,7 @@ const navItems: NavItem[] = [
   { name: "Dashboard", path: "/", icon: Target },
   { name: "Questions", path: "/cases", icon: FileText },
   { name: "Adopter Discovery", path: "/discovery", icon: Sparkles },
+  { name: "Signal Review", path: "/review", icon: ClipboardCheck },
   { name: "Signals", path: "/watchlist", icon: Radio },
   { name: "Forecast Ledger", path: "/case-library", icon: BookOpen },
   { name: "Calibration", path: "/calibration", icon: BarChart3 },

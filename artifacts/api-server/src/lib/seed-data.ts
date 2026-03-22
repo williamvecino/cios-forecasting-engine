@@ -146,6 +146,8 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         actorAdjustedImpact: null,
         activeLikelihoodRatio: 2.39,
         absoluteImpact: null,
+        status: "active",
+        createdByType: "human",
       },
       {
         id: randomUUID(),
@@ -170,6 +172,8 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         actorAdjustedImpact: null,
         activeLikelihoodRatio: 0.81,
         absoluteImpact: null,
+        status: "active",
+        createdByType: "human",
       },
       {
         id: randomUUID(),
@@ -194,6 +198,8 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         actorAdjustedImpact: null,
         activeLikelihoodRatio: 1.53,
         absoluteImpact: null,
+        status: "active",
+        createdByType: "human",
       },
     ]);
 
