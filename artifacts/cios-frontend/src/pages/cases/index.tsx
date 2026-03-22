@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useListCases, useCreateCase } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button, Input, Select, Label } from "@/components/ui-components";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Link, useSearch } from "wouter";
-import { Plus, FlaskConical, ArrowRight, ChevronRight, Layers } from "lucide-react";
+import { Link, useSearch, useLocation } from "wouter";
+import { Plus, FlaskConical, ArrowRight, ChevronRight, Layers, MoreHorizontal, Eye, Edit3, Radio, ClipboardCheck, Zap, RefreshCw, Radar, ShieldCheck, MessageSquare, BookOpen, FileText } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 const THERAPEUTIC_AREAS = [
@@ -60,6 +60,108 @@ const CONFIDENCE_COLOR: Record<string, string> = {
   Developing: "default",
   Low: "default",
 };
+
+const MENU_SECTIONS = [
+  {
+    label: "Question",
+    items: [
+      { key: "view-question", label: "View Question", icon: Eye, getHref: (caseId: string) => `/cases/${caseId}` },
+      { key: "edit-question", label: "Edit Question", icon: Edit3, getHref: (caseId: string) => `/cases/${caseId}` },
+    ],
+  },
+  {
+    label: "Signals",
+    items: [
+      { key: "view-active-signals", label: "View Active Signals", icon: Radio, getHref: (caseId: string) => `/cases/${caseId}/signals` },
+      { key: "review-pending-signals", label: "Review Pending Signals", icon: ClipboardCheck, getHref: () => `/review` },
+      { key: "detect-new-signals", label: "Detect New Signals", icon: Radar, getHref: () => `/signal-detection` },
+      { key: "run-signal-hygiene", label: "Run Signal Hygiene", icon: ShieldCheck, getHref: (caseId: string) => `/cases/${caseId}/signals` },
+    ],
+  },
+  {
+    label: "Forecast",
+    items: [
+      { key: "run-scenario", label: "Run Scenario", icon: Zap, getHref: (caseId: string) => `/cases/${caseId}` },
+      { key: "recalculate-forecast", label: "Recalculate Forecast", icon: RefreshCw, getHref: (caseId: string) => `/cases/${caseId}/forecast` },
+      { key: "view-forecast-ledger", label: "View Forecast Ledger", icon: BookOpen, getHref: (caseId: string) => `/cases/${caseId}/forecast` },
+    ],
+  },
+  {
+    label: "Intelligence",
+    items: [
+      { key: "refine-question", label: "Refine Question", icon: FileText, getHref: (caseId: string) => `/cases/${caseId}` },
+      { key: "review-message-impact", label: "Review Message Impact", icon: MessageSquare, getHref: (caseId: string) => `/cases/${caseId}` },
+    ],
+  },
+];
+
+function ForecastActionsMenu({ caseId }: { caseId: string }) {
+  const [open, setOpen] = useState(false);
+  const [, navigate] = useLocation();
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+      >
+        Actions <MoreHorizontal className="w-4 h-4" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-card border border-card-border rounded-xl shadow-2xl shadow-black/40 py-1 animate-in fade-in slide-in-from-top-2 duration-150">
+          {MENU_SECTIONS.map((section, si) => (
+            <div key={section.label}>
+              {si > 0 && <div className="border-t border-border/50 my-1" />}
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {section.label}
+              </div>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.key}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/60 hover:text-foreground transition-colors text-left"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpen(false);
+                      navigate(item.getHref(caseId));
+                    }}
+                  >
+                    <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CasesList() {
   const searchString = useSearch();
@@ -459,16 +561,11 @@ export default function CasesList() {
                   </div>
                 </div>
 
-                {/* Action buttons */}
-                <div className="flex flex-col gap-2 min-w-[160px] shrink-0">
+                <div className="flex flex-col items-end gap-2 min-w-[160px] shrink-0">
+                  <ForecastActionsMenu caseId={c.caseId} />
                   <Link href={`/cases/${c.caseId}`}>
-                    <Button className="w-full gap-1">
-                      View Detail <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                  <Link href={`/cases/${c.caseId}/signals`}>
-                    <Button variant="secondary" className="w-full">
-                      Signals ({c.signalCount || 0})
+                    <Button size="sm" className="gap-1">
+                      Open <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                   </Link>
                 </div>
