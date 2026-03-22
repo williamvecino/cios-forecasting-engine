@@ -1,0 +1,243 @@
+Build Task — Reorganize Left Navigation into Workflow-Based Sections
+
+Objective
+
+Reorganize the left sidebar into four functional workflow sections:
+
+1) Decision
+2) Evidence
+3) Prediction
+4) Learning
+
+This is a UI structure change only.
+
+Do NOT change:
+
+- routing
+- data models
+- APIs
+- forecast math
+- permissions
+- URLs
+- existing components
+
+Only change:
+
+- navigation grouping
+- order
+- section headers
+- short descriptions
+
+-----------------------------------
+NEW SIDEBAR STRUCTURE
+-----------------------------------
+
+SECTION 1 — Decision
+
+Header label:
+Decision
+
+Description:
+Define what the system is forecasting and who is involved.
+
+Items:
+
+Questions
+Description:
+Defines the strategic decision the system will forecast.
+
+Adopter Discovery
+Description:
+Identifies physicians or institutions to evaluate.
+
+-----------------------------------
+
+SECTION 2 — Evidence
+
+Header label:
+Evidence
+
+Description:
+Manage the events and signals that influence forecasts.
+
+Items:
+
+Signals
+Description:
+Stores the events and evidence that influence predictions.
+
+Signal Review
+Description:
+Validates signals before they affect forecasts.
+
+-----------------------------------
+
+SECTION 3 — Prediction
+
+Header label:
+Prediction
+
+Description:
+View forecast results and track probability changes.
+
+Items:
+
+Dashboard
+Description:
+Displays current probability forecasts and priorities.
+
+Forecast Ledger
+Description:
+Records how forecasts changed and why.
+
+-----------------------------------
+
+SECTION 4 — Learning
+
+Header label:
+Learning
+
+Description:
+Measure forecast accuracy and improve reliability over time.
+
+Items:
+
+Calibration
+Description:
+Tracks prediction accuracy and system reliability.
+
+-----------------------------------
+NAVIGATION ORDER
+-----------------------------------
+
+Decision
+- Questions
+- Adopter Discovery
+
+Evidence
+- Signals
+- Signal Review
+
+Prediction
+- Dashboard
+- Forecast Ledger
+
+Learning
+- Calibration
+
+-----------------------------------
+IMPLEMENTATION REQUIREMENTS
+-----------------------------------
+
+1) Add visual section headers
+
+Each section must have:
+
+- bold title
+- subtle divider
+- optional small description text
+
+2) Preserve existing routes
+
+Example:
+
+/questions
+/adopter-discovery
+/signals
+/signal-review
+/dashboard
+/forecast-ledger
+/calibration
+
+Do not rename routes.
+
+3) Preserve existing icons
+
+Keep current icons.
+
+Only move them under new headers.
+
+4) Maintain current permissions
+
+Do not change role access.
+
+5) Maintain current state behavior
+
+Navigation state must remain unchanged.
+
+-----------------------------------
+VISUAL STYLE REQUIREMENTS
+-----------------------------------
+
+Section headers:
+
+- slightly smaller than menu items
+- muted text color
+- uppercase or small caps
+- subtle spacing above and below
+
+Menu items:
+
+- unchanged styling
+- unchanged hover behavior
+- unchanged active highlight
+
+Spacing:
+
+Add:
+
+16–24 px vertical spacing between sections.
+
+-----------------------------------
+OPTIONAL BUT RECOMMENDED
+-----------------------------------
+
+Add tooltip descriptions.
+
+On hover, show:
+
+Questions
+"Define the decision the system will forecast."
+
+Signals
+"Evidence that influences predictions."
+
+Signal Review
+"Approve signals before they affect forecasts."
+
+Dashboard
+"Current probability forecasts."
+
+Forecast Ledger
+"History of forecast changes."
+
+Calibration
+"Measure forecast accuracy."
+
+-----------------------------------
+NON-GOALS
+-----------------------------------
+
+Do NOT:
+
+- change database schema
+- change engine behavior
+- move backend logic
+- create new components
+- modify calculations
+- introduce agents
+
+This is strictly navigation restructuring.
+
+-----------------------------------
+DELIVERABLE
+-----------------------------------
+
+Updated left sidebar showing:
+
+Decision
+Evidence
+Prediction
+Learning
+
+With all existing pages preserved and functioning exactly as before.

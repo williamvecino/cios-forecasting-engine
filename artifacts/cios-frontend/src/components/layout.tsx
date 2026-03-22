@@ -1,7 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  TrendingUp,
   Radio,
   BarChart3,
   Cpu,
@@ -18,20 +17,47 @@ interface NavItem {
   name: string;
   path: string;
   icon: React.FC<any>;
+  tooltip: string;
 }
 
-const navItems: NavItem[] = [
-  { name: "Dashboard", path: "/", icon: Target },
-  { name: "Questions", path: "/cases", icon: FileText },
-  { name: "Adopter Discovery", path: "/discovery", icon: Sparkles },
-  { name: "Signal Review", path: "/review", icon: ClipboardCheck },
-  { name: "Signals", path: "/watchlist", icon: Radio },
-  { name: "Forecast Ledger", path: "/case-library", icon: BookOpen },
-  { name: "Calibration", path: "/calibration", icon: BarChart3 },
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    title: "Decision",
+    items: [
+      { name: "Questions", path: "/cases", icon: FileText, tooltip: "Define the decision the system will forecast." },
+      { name: "Adopter Discovery", path: "/discovery", icon: Sparkles, tooltip: "Identify physicians or institutions to evaluate." },
+    ],
+  },
+  {
+    title: "Evidence",
+    items: [
+      { name: "Signals", path: "/watchlist", icon: Radio, tooltip: "Evidence that influences predictions." },
+      { name: "Signal Review", path: "/review", icon: ClipboardCheck, tooltip: "Approve signals before they affect forecasts." },
+    ],
+  },
+  {
+    title: "Prediction",
+    items: [
+      { name: "Dashboard", path: "/", icon: Target, tooltip: "Current probability forecasts." },
+      { name: "Forecast Ledger", path: "/case-library", icon: BookOpen, tooltip: "History of forecast changes." },
+    ],
+  },
+  {
+    title: "Learning",
+    items: [
+      { name: "Calibration", path: "/calibration", icon: BarChart3, tooltip: "Measure forecast accuracy." },
+    ],
+  },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";
@@ -52,31 +78,52 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-4 px-3">
-          {navItems.map((item) => {
-            const active = isActive(item.path);
-            return (
-              <Link
-                key={item.name}
-                href={item.path}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-150 text-[13px] font-medium mb-1",
-                  active
-                    ? "bg-primary/15 text-primary"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                )}
-              >
-                <item.icon
-                  className={cn(
-                    "w-4 h-4 shrink-0",
-                    active ? "text-primary" : "text-muted-foreground/70"
-                  )}
-                />
-                <span>{item.name}</span>
-                {active && <ChevronRight className="w-3 h-3 ml-auto opacity-40" />}
-              </Link>
-            );
-          })}
+        <div className="flex-1 overflow-y-auto py-3 px-3">
+          {navSections.map((section, sIdx) => (
+            <div key={section.title} className={cn(sIdx > 0 && "mt-5")}>
+              <div className="px-3 mb-2">
+                <div className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-[0.12em]">
+                  {section.title}
+                </div>
+              </div>
+
+              {section.items.map((item) => {
+                const active = isActive(item.path);
+                return (
+                  <div key={item.name} className="relative">
+                    <Link
+                      href={item.path}
+                      className={cn(
+                        "flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-150 text-[13px] font-medium mb-0.5",
+                        active
+                          ? "bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      )}
+                      onMouseEnter={() => setHoveredItem(item.name)}
+                      onMouseLeave={() => setHoveredItem(null)}
+                    >
+                      <item.icon
+                        className={cn(
+                          "w-4 h-4 shrink-0",
+                          active ? "text-primary" : "text-muted-foreground/70"
+                        )}
+                      />
+                      <span>{item.name}</span>
+                      {active && <ChevronRight className="w-3 h-3 ml-auto opacity-40" />}
+                    </Link>
+
+                    {hoveredItem === item.name && (
+                      <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 pointer-events-none">
+                        <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-xl shadow-black/30 whitespace-nowrap">
+                          <p className="text-xs text-foreground">{item.tooltip}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         <div className="p-3 border-t border-border/50">
