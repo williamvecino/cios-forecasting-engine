@@ -26,6 +26,7 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Weekly Strategic Brief:** Provides an aggregated read-only summary of current system state.
 - **Competitor Behavior Register:** Structured intelligence layer for tracking competitor strategic behaviors.
 - **Target Resolution Layer:** Hierarchical targeting (market → specialty → subspecialty → institution → physician). Cases have a `targetType` field; signals have a `signalScope` field. The forecast engine filters signals by scope eligibility before computing. An `eventFamilyId` field prevents over-stacking signals from the same event family. Target entities are managed via CRUD routes at `/api/target-entities`.
+- **Forecast Interpretation Panel:** `ForecastInterpretationPanel` component on case detail page. Probability-band logic: >70% → "Execute strategy", 50-70% → "Reduce uncertainty", <50% → "Identify barriers". Generates `interpretationSummary`, `nextActions`, and `questionRefinementSuggestions`. Logic lives in `deriveForecastInterpretation()` in `recommendation-adapter.ts`. Placed below Recommended Action, above Monitor section. No backend changes.
 
 **UI/UX Decisions:**
 The frontend employs an "Aaru-like Decision Interface" with question-driven, decision-oriented language, replacing Bayesian/forecast jargon with accessible terminology.

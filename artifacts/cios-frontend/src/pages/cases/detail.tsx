@@ -6,7 +6,8 @@ import type { CaseSummary, ForecastDetailResponse, SignalDetail, ScenarioSimulat
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
 import { Card, Badge, ProbabilityGauge, Button } from "@/components/ui-components";
-import { deriveRecommendation, deriveInterpretation } from "@/lib/recommendation-adapter";
+import { deriveRecommendation, deriveInterpretation, deriveForecastInterpretation } from "@/lib/recommendation-adapter";
+import type { ForecastInterpretation } from "@/lib/recommendation-adapter";
 import {
   TrendingUp,
   TrendingDown,
@@ -75,6 +76,55 @@ function PanelLoading({ label }: { label: string }) {
     <div className="flex items-center gap-2 py-6 justify-center text-xs text-muted-foreground">
       <Loader2 className="w-3.5 h-3.5 animate-spin" />
       <span>{label}</span>
+    </div>
+  );
+}
+
+function ForecastInterpretationPanel({ interpretation }: { interpretation: ForecastInterpretation }) {
+  return (
+    <div className="mt-4 pt-3 border-t border-border/20 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className={cn(
+          "px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider",
+          interpretation.priorityLabel === "execute" ? "bg-success/15 text-success" :
+          interpretation.priorityLabel === "reduce-uncertainty" ? "bg-warning/15 text-warning" :
+          "bg-destructive/15 text-destructive"
+        )}>
+          {interpretation.priority}
+        </div>
+        <span className="text-[10px] text-muted-foreground/50">Forecast interpretation</span>
+      </div>
+
+      <p className="text-[12px] text-muted-foreground/80 leading-relaxed">{interpretation.interpretationSummary}</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1">
+            <Zap className="w-3 h-3 text-primary" /> Next Actions
+          </div>
+          <div className="space-y-1">
+            {interpretation.nextActions.map((action, i) => (
+              <div key={i} className="flex gap-1.5 items-start">
+                <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+                <span className="text-[11px] text-muted-foreground">{action}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1">
+            <Activity className="w-3 h-3 text-accent" /> Question Refinement
+          </div>
+          <div className="space-y-1">
+            {interpretation.questionRefinementSuggestions.map((suggestion, i) => (
+              <div key={i} className="flex gap-1.5 items-start">
+                <ChevronRight className="w-3 h-3 text-accent shrink-0 mt-0.5" />
+                <span className="text-[11px] text-muted-foreground">{suggestion}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -161,6 +211,23 @@ export default function QuestionDetail() {
   }, [fc, cd, currentProb, priorProb, confidenceLevel]);
 
   const interpretation = useMemo(() => deriveInterpretation(currentProb), [currentProb]);
+
+  const forecastInterpretation = useMemo<ForecastInterpretation | null>(() => {
+    if (!fc || !cd) return null;
+    const allDrivers = [
+      ...(drivers.positive || []),
+      ...(drivers.negative || []),
+    ];
+    return deriveForecastInterpretation({
+      probability: currentProb,
+      prior: priorProb,
+      confidence: confidenceLevel,
+      keyDrivers: allDrivers,
+      signalCount: allSignals.length,
+      target: (cd as any).targetType ?? "market",
+      timeHorizon: cd.timeHorizon || "12 months",
+    });
+  }, [fc, cd, currentProb, priorProb, confidenceLevel, drivers, allSignals.length]);
 
   if (loadingCase) {
     return (
@@ -602,6 +669,11 @@ export default function QuestionDetail() {
                 <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Recommended Action</div>
                 <div className="text-sm font-semibold text-foreground leading-snug">{recommendation.headline}</div>
                 <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">{recommendation.rationale}</p>
+
+                {forecastInterpretation && (
+                  <ForecastInterpretationPanel interpretation={forecastInterpretation} />
+                )}
+
                 <div className="flex items-start gap-4 mt-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Monitor</div>

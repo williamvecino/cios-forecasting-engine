@@ -73,3 +73,96 @@ export function deriveInterpretation(probability: number): string {
   if (probability >= 0.4) return "Signals are mixed. The outcome is within a zone of genuine uncertainty.";
   return "Current signals suggest the outcome faces material headwinds.";
 }
+
+export interface ForecastInterpretation {
+  priority: string;
+  priorityLabel: "execute" | "reduce-uncertainty" | "identify-barriers";
+  interpretationSummary: string;
+  nextActions: string[];
+  questionRefinementSuggestions: string[];
+}
+
+export function deriveForecastInterpretation(inputs: {
+  probability: number;
+  prior: number;
+  confidence: string;
+  keyDrivers: { name: string; direction: string; lr: number; signalType: string }[];
+  signalCount: number;
+  target: string;
+  timeHorizon: string;
+}): ForecastInterpretation {
+  const { probability, prior, confidence, keyDrivers, signalCount, target, timeHorizon } = inputs;
+  const pct = (probability * 100).toFixed(1);
+  const changeNum = (probability - prior) * 100;
+  const changePts = changeNum.toFixed(1);
+  const changePrefix = changeNum >= 0 ? "+" : "";
+  const positiveDrivers = keyDrivers.filter(d => d.direction === "Positive");
+  const negativeDrivers = keyDrivers.filter(d => d.direction === "Negative");
+  const topDriver = keyDrivers.length > 0 ? keyDrivers[0].name : null;
+
+  if (probability > 0.7) {
+    return {
+      priority: "Execute strategy",
+      priorityLabel: "execute",
+      interpretationSummary: `At ${pct}% (${changePrefix}${changePts} pts from prior), the evidence base strongly favors the outcome${target !== "market" ? ` for this ${target}-level question` : ""}. ${positiveDrivers.length} positive driver${positiveDrivers.length !== 1 ? "s" : ""} dominate the signal mix${topDriver ? `, led by ${topDriver}` : ""}. The ${timeHorizon} window supports forward execution.`,
+      nextActions: [
+        "Lock in resource commitments aligned with the favorable forecast",
+        "Identify the 1-2 signals that could reverse the current trajectory",
+        confidence === "Low" || confidence === "Developing"
+          ? "Add higher-reliability signals to strengthen confidence before major commitments"
+          : "Track competitive response signals for early warning of trajectory change",
+      ],
+      questionRefinementSuggestions: [
+        "Consider narrowing the time horizon to test near-term execution readiness",
+        negativeDrivers.length > 0
+          ? `Investigate whether ${negativeDrivers[0].name} could amplify under stress conditions`
+          : "Add a counter-scenario question to stress-test the bullish thesis",
+        signalCount < 4
+          ? "Expand the signal base — high probability with few signals carries hidden fragility"
+          : "The signal density is adequate; focus on signal quality over quantity",
+      ],
+    };
+  }
+
+  if (probability >= 0.5) {
+    return {
+      priority: "Reduce uncertainty",
+      priorityLabel: "reduce-uncertainty",
+      interpretationSummary: `At ${pct}% (${changePrefix}${changePts} pts from prior), the outcome leans favorable but hasn't reached conviction${target !== "market" ? ` at the ${target} level` : ""}. ${positiveDrivers.length} positive vs. ${negativeDrivers.length} negative driver${negativeDrivers.length !== 1 ? "s" : ""} — the balance hasn't tipped decisively. The priority is identifying what would push above 70%.`,
+      nextActions: [
+        "Map the 1-2 highest-leverage evidence gaps that would shift probability above 70%",
+        "Validate the strongest positive signal with an independent data source",
+        negativeDrivers.length > 0
+          ? `Assess whether ${negativeDrivers[0].name} is structural or resolvable`
+          : "Search for disconfirming evidence to test whether the positive tilt is durable",
+      ],
+      questionRefinementSuggestions: [
+        "Break this question into sub-questions targeting each key uncertainty",
+        `Consider whether the ${timeHorizon} time horizon is compressing or expanding the true probability`,
+        target === "market"
+          ? "Narrow the target scope (specialty, institution, or physician) for a higher-resolution read"
+          : "Compare this target's trajectory against the broader market-level question",
+      ],
+    };
+  }
+
+  return {
+    priority: "Identify barriers",
+    priorityLabel: "identify-barriers",
+    interpretationSummary: `At ${pct}% (${changePrefix}${changePts} pts from prior), the evidence weighs against the outcome${target !== "market" ? ` at the ${target} level` : ""}. ${negativeDrivers.length} barrier signal${negativeDrivers.length !== 1 ? "s" : ""} are driving the forecast below 50%${topDriver ? `, most notably ${topDriver}` : ""}. The priority is understanding which barriers are structural vs. resolvable.`,
+    nextActions: [
+      "Classify each negative signal as structural (market/regulatory) or tactical (resolvable with action)",
+      "Identify what single evidence change would shift probability above 50%",
+      positiveDrivers.length > 0
+        ? `Determine whether ${positiveDrivers[0].name} could strengthen enough to offset barriers`
+        : "Search for any unreported positive signals that may not yet be captured",
+    ],
+    questionRefinementSuggestions: [
+      "Reframe the question to test whether a narrower or alternative outcome is more achievable",
+      `Evaluate whether the ${timeHorizon} window is realistic given the barrier profile`,
+      target === "market"
+        ? "Test whether specific institutions or physicians show more favorable micro-trajectories"
+        : "Compare against the market-level baseline to determine if this target is an outlier",
+    ],
+  };
+}
