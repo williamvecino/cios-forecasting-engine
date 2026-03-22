@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useRoute, Link } from "wouter";
 import { useRunForecast, useGetCase, useListSignals } from "@workspace/api-client-react";
 import { useMutation } from "@tanstack/react-query";
+import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import type { CaseSummary, ForecastDetailResponse, SignalDetail, ScenarioSimulationResponse, ScenarioSimulationRequest } from "@workspace/contracts";
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
@@ -347,7 +348,11 @@ export default function QuestionDetail() {
               )}
             </div>
           </div>
-          <div className="flex gap-2 shrink-0 pt-5">
+          <div className="flex gap-2 shrink-0 pt-5 flex-wrap items-start">
+            <RecalculateForecastButton
+              caseId={caseId}
+              onComplete={() => { refetchForecast(); }}
+            />
             <Link href={`/case/${caseId}/signals`}>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <Radio className="w-3.5 h-3.5" /> Add Signals

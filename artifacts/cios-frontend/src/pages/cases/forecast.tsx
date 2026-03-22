@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRoute } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase } from "@workspace/api-client-react";
+import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import { AppLayout } from "@/components/layout";
 import { cn } from "@/lib/cn";
 import { Card, Badge, ProbabilityGauge, Button } from "@/components/ui-components";
@@ -279,9 +280,18 @@ export default function ForecastResults() {
               <span>· Profile: {caseData?.primarySpecialtyProfile}</span>
             </div>
           </div>
-          <Button variant="outline" className="gap-2 shrink-0">
-            <Download className="w-4 h-4" /> Export
-          </Button>
+          <div className="flex gap-2 shrink-0 items-start">
+            <RecalculateForecastButton
+              caseId={caseId}
+              onComplete={() => {
+                queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+                queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+              }}
+            />
+            <Button variant="outline" className="gap-2">
+              <Download className="w-4 h-4" /> Export
+            </Button>
+          </div>
         </header>
 
         {/* Main output row */}
