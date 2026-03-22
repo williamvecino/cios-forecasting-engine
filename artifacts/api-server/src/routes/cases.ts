@@ -34,7 +34,11 @@ router.post("/cases", async (req, res) => {
     payerEnvironment: body.payerEnvironment || "Balanced",
     guidelineLeverage: body.guidelineLeverage || "Medium",
     competitorProfile: body.competitorProfile || "Entrenched standard of care",
-    isDemo: "false",
+    targetType: body.targetType || "market",
+    targetId: body.targetId || null,
+    subspecialty: body.subspecialty || null,
+    institutionName: body.institutionName || null,
+    isDemo: body.isDemo || "false",
   }).returning();
   res.status(201).json(mapCase(created));
 });
@@ -65,6 +69,10 @@ router.put("/cases/:caseId", async (req, res) => {
       payerEnvironment: body.payerEnvironment,
       guidelineLeverage: body.guidelineLeverage,
       competitorProfile: body.competitorProfile,
+      targetType: body.targetType,
+      targetId: body.targetId,
+      subspecialty: body.subspecialty,
+      institutionName: body.institutionName,
       lastUpdate: new Date(),
     })
     .where(eq(casesTable.caseId, req.params.caseId))
@@ -185,6 +193,10 @@ function mapCase(c: typeof casesTable.$inferSelect) {
     topConstrainingActor: c.topConstrainingActor,
     miosRoutingCheck: c.miosRoutingCheck,
     ohosRoutingCheck: c.ohosRoutingCheck,
+    targetType: c.targetType || "market",
+    targetId: c.targetId,
+    subspecialty: c.subspecialty,
+    institutionName: c.institutionName,
     isDemo: c.isDemo,
     lastUpdate: c.lastUpdate,
     signalCount: 0,

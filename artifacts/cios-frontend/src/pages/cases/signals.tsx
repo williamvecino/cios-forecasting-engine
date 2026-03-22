@@ -123,6 +123,14 @@ const DIRECTION_OPTIONS = [
 ];
 
 // ─── Schema ────────────────────────────────────────────────────────────────
+const SIGNAL_SCOPE_OPTIONS = [
+  { value: "market", label: "Market-wide" },
+  { value: "specialty", label: "Specialty" },
+  { value: "subspecialty", label: "Subspecialty" },
+  { value: "institution", label: "Institution" },
+  { value: "physician", label: "Physician" },
+];
+
 const signalSchema = z.object({
   signalDescription: z.string().min(8, "Describe the intelligence in at least 8 characters"),
   signalType: z.string(),
@@ -136,6 +144,13 @@ const signalSchema = z.object({
   route: z.string().default("CIOS→MIOS"),
   miosFlag: z.string().default("Yes"),
   ohosFlag: z.string().default("No"),
+  signalScope: z.string().default("market"),
+  appliesToSpecialty: z.string().optional(),
+  appliesToSubspecialty: z.string().optional(),
+  appliesToInstitutionId: z.string().optional(),
+  appliesToTargetId: z.string().optional(),
+  appliesToGeography: z.string().optional(),
+  eventFamilyId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof signalSchema>;
@@ -233,6 +248,7 @@ export default function SignalsRegister() {
       route: "CIOS→MIOS",
       miosFlag: "Yes",
       ohosFlag: "No",
+      signalScope: "market",
     },
   });
 
@@ -505,6 +521,44 @@ export default function SignalsRegister() {
                       );
                     })}
                   </div>
+                </div>
+              </div>
+
+              {/* Signal Scope + Target Linkage */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label>Signal scope</Label>
+                  <Select {...form.register("signalScope")}>
+                    {SIGNAL_SCOPE_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </Select>
+                </div>
+                {(watchedValues as any).signalScope && (watchedValues as any).signalScope !== "market" && (
+                  <div>
+                    <Label>Applies to</Label>
+                    <Input
+                      {...form.register(
+                        (watchedValues as any).signalScope === "specialty" ? "appliesToSpecialty" :
+                        (watchedValues as any).signalScope === "subspecialty" ? "appliesToSubspecialty" :
+                        (watchedValues as any).signalScope === "institution" ? "appliesToInstitutionId" :
+                        "appliesToTargetId"
+                      )}
+                      placeholder={
+                        (watchedValues as any).signalScope === "specialty" ? "e.g. Pulmonology" :
+                        (watchedValues as any).signalScope === "subspecialty" ? "e.g. Interventional Cardiology" :
+                        (watchedValues as any).signalScope === "institution" ? "e.g. MGH" :
+                        "e.g. NPI or physician ID"
+                      }
+                    />
+                  </div>
+                )}
+                <div>
+                  <Label>Event family ID <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input
+                    {...form.register("eventFamilyId")}
+                    placeholder="e.g. FDA-2026-APPROVAL"
+                  />
                 </div>
               </div>
 

@@ -8,6 +8,7 @@ import { simulateAgents } from "../lib/agent-engine.js";
 import { getLrCorrections, getBucket, computeDecay } from "../lib/calibration-utils.js";
 import { computeHierarchicalCalibration, computeSegmentConfidence } from "../lib/calibration-fallback.js";
 import { deriveQuestionType } from "../lib/case-context.js";
+import { filterEligibleSignals, applyEventFamilyGuardrail } from "../lib/signal-eligibility.js";
 
 const router = Router();
 
@@ -16,12 +17,24 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
   const caseData = caseRow[0];
 
-  const signals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, req.params.caseId));
+  const allSignals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, req.params.caseId));
   const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
 
   if (actors.length === 0) {
     return res.status(400).json({ error: "No actors configured. Please seed the database first." });
   }
+
+  // ── Apply target-scope eligibility filter ─────────────────────────────────
+  const caseTargetContext = {
+    targetType: caseData.targetType ?? "market",
+    targetId: caseData.targetId ?? null,
+    specialty: caseData.specialty ?? null,
+    subspecialty: caseData.subspecialty ?? null,
+    institutionName: caseData.institutionName ?? null,
+    geography: caseData.geography ?? null,
+  };
+  const eligibleSignals = filterEligibleSignals(allSignals, caseTargetContext);
+  const signals = applyEventFamilyGuardrail(eligibleSignals);
 
   // ── Apply LR corrections and freshness decay ─────────────────────────────
   const corrections = await getLrCorrections();
@@ -110,6 +123,12 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
         primarySpecialtyProfile: caseData.primarySpecialtyProfile ?? "General",
       },
       forecastDate: new Date().toISOString(),
+    },
+    _targetFiltering: {
+      caseTargetType: caseTargetContext.targetType,
+      totalSignals: allSignals.length,
+      eligibleSignals: eligibleSignals.length,
+      filteredOut: allSignals.length - eligibleSignals.length,
     },
   };
 

@@ -7,6 +7,7 @@ import { simulateAgents } from "../lib/agent-engine.js";
 import { getLrCorrections, computeDecay } from "../lib/calibration-utils.js";
 import { computeHierarchicalCalibration } from "../lib/calibration-fallback.js";
 import { deriveQuestionType } from "../lib/case-context.js";
+import { filterEligibleSignals, applyEventFamilyGuardrail } from "../lib/signal-eligibility.js";
 import type { ScenarioSimulationRequest, ScenarioSimulationResponse } from "@workspace/contracts";
 
 const router = Router();
@@ -76,8 +77,18 @@ router.post("/cases/:caseId/scenario-simulate", async (req, res) => {
     return cal.calibratedProbability;
   };
 
-  const baseProbability = await runScenario(allSignals);
-  const scenarioSignals = allSignals.filter((s) => !excludeSignalIds.includes(s.signalId));
+  const caseTargetContext = {
+    targetType: caseData.targetType ?? "market",
+    targetId: caseData.targetId ?? null,
+    specialty: caseData.specialty ?? null,
+    subspecialty: caseData.subspecialty ?? null,
+    institutionName: caseData.institutionName ?? null,
+    geography: caseData.geography ?? null,
+  };
+  const eligibleSignals = applyEventFamilyGuardrail(filterEligibleSignals(allSignals, caseTargetContext));
+
+  const baseProbability = await runScenario(eligibleSignals);
+  const scenarioSignals = eligibleSignals.filter((s) => !excludeSignalIds.includes(s.signalId));
   const scenarioProbability = await runScenario(scenarioSignals);
 
   const response: ScenarioSimulationResponse = {
@@ -85,7 +96,7 @@ router.post("/cases/:caseId/scenario-simulate", async (req, res) => {
     scenarioProbability,
     delta: scenarioProbability - baseProbability,
     excludedCount: excludeSignalIds.length,
-    totalSignals: allSignals.length,
+    totalSignals: eligibleSignals.length,
     scenarioSignals: scenarioSignals.length,
   };
 

@@ -28,6 +28,16 @@ export const signalsTable = pgTable("signals", {
   activeLikelihoodRatio: real("active_likelihood_ratio"),
   absoluteImpact: real("absolute_impact"),
   correlationGroup: text("correlation_group"),
+
+  // Target resolution scope
+  signalScope: text("signal_scope").default("market"),
+  appliesToTargetId: text("applies_to_target_id"),
+  appliesToSpecialty: text("applies_to_specialty"),
+  appliesToSubspecialty: text("applies_to_subspecialty"),
+  appliesToInstitutionId: text("applies_to_institution_id"),
+  appliesToGeography: text("applies_to_geography"),
+  eventFamilyId: text("event_family_id"),
+
   createdAt: timestamp("created_at").defaultNow(),
 });
 

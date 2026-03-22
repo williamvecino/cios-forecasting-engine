@@ -14,6 +14,12 @@ export const casesTable = pgTable("cases", {
   specialty: text("specialty"),
   geography: text("geography").default("US"),
 
+  // Target resolution hierarchy
+  targetType: text("target_type").default("market"),
+  targetId: text("target_id"),
+  subspecialty: text("subspecialty"),
+  institutionName: text("institution_name"),
+
   // Strategic question framing
   strategicQuestion: text("strategic_question").notNull(),
   outcomeDefinition: text("outcome_definition"),

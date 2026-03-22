@@ -224,6 +224,22 @@ export default function QuestionDetail() {
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <Badge variant="primary">{cd.therapeuticArea || "General"}</Badge>
               <span className="text-xs text-muted-foreground">{cd.assetName || cd.primaryBrand}</span>
+              {(cd as any).targetType && (cd as any).targetType !== "market" && (
+                <>
+                  <span className="text-xs text-muted-foreground/40">|</span>
+                  <Badge variant="default">
+                    <Target className="w-2.5 h-2.5 mr-0.5" />
+                    {(cd as any).targetType === "specialty" ? `${(cd as any).specialty || "Specialty"}` :
+                     (cd as any).targetType === "subspecialty" ? `${(cd as any).subspecialty || "Subspecialty"}` :
+                     (cd as any).targetType === "institution" ? `${(cd as any).institutionName || "Institution"}` :
+                     (cd as any).targetType === "physician" ? `Physician${(cd as any).targetId ? ` (${(cd as any).targetId})` : ""}` :
+                     (cd as any).targetType}
+                  </Badge>
+                </>
+              )}
+              {((cd as any).institutionName && (cd as any).targetType === "physician") && (
+                <span className="text-[11px] text-muted-foreground">@ {(cd as any).institutionName}</span>
+              )}
               <span className="text-xs text-muted-foreground/40">|</span>
               <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3 h-3" /> {cd.timeHorizon || "12 months"}

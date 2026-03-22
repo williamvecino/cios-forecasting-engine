@@ -148,6 +148,13 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     weightedSignalScore: weightedScore,
     activeLikelihoodRatio: lr,
     correlationGroup: body.correlationGroup || null,
+    signalScope: body.signalScope || "market",
+    appliesToTargetId: body.appliesToTargetId || null,
+    appliesToSpecialty: body.appliesToSpecialty || null,
+    appliesToSubspecialty: body.appliesToSubspecialty || null,
+    appliesToInstitutionId: body.appliesToInstitutionId || null,
+    appliesToGeography: body.appliesToGeography || null,
+    eventFamilyId: body.eventFamilyId || null,
   }).returning();
 
   const response: Record<string, any> = { ...created };
@@ -191,6 +198,13 @@ router.put("/signals/:signalId", async (req, res) => {
       ohosFlag: body.ohosFlag,
       weightedSignalScore: Number(body.strengthScore) * Number(body.reliabilityScore),
       correlationGroup: body.correlationGroup ?? null,
+      signalScope: body.signalScope ?? undefined,
+      appliesToTargetId: body.appliesToTargetId ?? undefined,
+      appliesToSpecialty: body.appliesToSpecialty ?? undefined,
+      appliesToSubspecialty: body.appliesToSubspecialty ?? undefined,
+      appliesToInstitutionId: body.appliesToInstitutionId ?? undefined,
+      appliesToGeography: body.appliesToGeography ?? undefined,
+      eventFamilyId: body.eventFamilyId ?? undefined,
     })
     .where(eq(signalsTable.signalId, req.params.signalId))
     .returning();

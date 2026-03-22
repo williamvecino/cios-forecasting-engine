@@ -21,6 +21,16 @@ const GEOGRAPHIES = [
   "US", "US + EU5", "EU5", "EU", "Global", "Japan", "APAC", "Other",
 ];
 
+const TARGET_TYPES = ["market", "specialty", "subspecialty", "institution", "physician"] as const;
+
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  market: "Market-level",
+  specialty: "Specialty-level",
+  subspecialty: "Subspecialty-level",
+  institution: "Institution-level",
+  physician: "Physician-level",
+};
+
 const caseSchema = z.object({
   assetName: z.string().min(1, "Asset name is required"),
   assetType: z.string(),
@@ -28,6 +38,10 @@ const caseSchema = z.object({
   diseaseState: z.string().optional(),
   specialty: z.string().optional(),
   geography: z.string(),
+  targetType: z.string().default("market"),
+  targetId: z.string().optional(),
+  subspecialty: z.string().optional(),
+  institutionName: z.string().optional(),
   strategicQuestion: z.string().min(5, "Strategic question must be descriptive"),
   outcomeDefinition: z.string().optional(),
   priorProbability: z.coerce.number().min(0.01).max(0.99),
@@ -60,6 +74,7 @@ export default function CasesList() {
       assetType: "Medication",
       therapeuticArea: "",
       geography: "US",
+      targetType: "market",
       priorProbability: 0.45,
       timeHorizon: "12 months",
       primarySpecialtyProfile: "General",
@@ -79,6 +94,7 @@ export default function CasesList() {
   }, []);
 
   const priorVal = form.watch("priorProbability");
+  const targetTypeVal = form.watch("targetType");
 
   const onSubmit = (data: CaseFormValues) => {
     createCase(
@@ -198,6 +214,51 @@ export default function CasesList() {
                       placeholder="e.g. Oncology, Cardiology"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Section: Target Resolution */}
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 pb-1 border-b border-border/50">
+                  Target Resolution
+                  <span className="normal-case font-normal ml-2 text-muted-foreground">— forecast scope level</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Target Type</Label>
+                    <Select {...form.register("targetType")}>
+                      {TARGET_TYPES.map(t => (
+                        <option key={t} value={t}>{TARGET_TYPE_LABELS[t]}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  {(targetTypeVal === "subspecialty" || targetTypeVal === "institution" || targetTypeVal === "physician") && (
+                    <div>
+                      <Label>Subspecialty</Label>
+                      <Input
+                        {...form.register("subspecialty")}
+                        placeholder="e.g. Interventional Cardiology"
+                      />
+                    </div>
+                  )}
+                  {(targetTypeVal === "institution" || targetTypeVal === "physician") && (
+                    <div>
+                      <Label>Institution</Label>
+                      <Input
+                        {...form.register("institutionName")}
+                        placeholder="e.g. Massachusetts General Hospital"
+                      />
+                    </div>
+                  )}
+                  {targetTypeVal === "physician" && (
+                    <div>
+                      <Label>Physician / Target ID</Label>
+                      <Input
+                        {...form.register("targetId")}
+                        placeholder="e.g. NPI or internal ID"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -354,6 +415,9 @@ export default function CasesList() {
                     )}
                     {(c as any).therapeuticArea && (
                       <Badge variant="default">{(c as any).therapeuticArea}</Badge>
+                    )}
+                    {(c as any).targetType && (c as any).targetType !== "market" && (
+                      <Badge variant="default">{TARGET_TYPE_LABELS[(c as any).targetType] || (c as any).targetType}</Badge>
                     )}
                     {(c as any).geography && (
                       <span className="text-xs text-muted-foreground">· {(c as any).geography}</span>
