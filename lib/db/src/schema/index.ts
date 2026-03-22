@@ -15,3 +15,6 @@ export * from "./forecast-ledger";
 export * from "./signal-watchlist";
 export * from "./competitor-behaviors";
 export * from "./target-entities";
+export * from "./discovery-runs";
+export * from "./discovery-candidates";
+export * from "./discovery-candidate-signals";

@@ -9,6 +9,7 @@ import {
   Target,
   BookOpen,
   FileText,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -21,6 +22,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { name: "Dashboard", path: "/", icon: Target },
   { name: "Questions", path: "/cases", icon: FileText },
+  { name: "Adopter Discovery", path: "/discovery", icon: Sparkles },
   { name: "Signals", path: "/watchlist", icon: Radio },
   { name: "Forecast Ledger", path: "/case-library", icon: BookOpen },
   { name: "Calibration", path: "/calibration", icon: BarChart3 },

@@ -24,6 +24,7 @@ import signalWatchlistRouter from "./signal-watchlist.js";
 import weeklyBriefRouter from "./weekly-brief.js";
 import competitorBehaviorsRouter from "./competitor-behaviors.js";
 import targetEntitiesRouter from "./target-entities.js";
+import adopterDiscoveryRouter from "./adopter-discovery.js";
 
 const router: IRouter = Router();
 
@@ -52,5 +53,6 @@ router.use(signalWatchlistRouter);
 router.use(weeklyBriefRouter);
 router.use(competitorBehaviorsRouter);
 router.use(targetEntitiesRouter);
+router.use(adopterDiscoveryRouter);
 
 export default router;

@@ -16,6 +16,7 @@ import CaseLibrary from "@/pages/case-library/index";
 import Calibration from "@/pages/calibration/index";
 import FieldIntelligence from "@/pages/field-intelligence/index";
 import Watchlist from "@/pages/watchlist/index";
+import AdopterDiscovery from "@/pages/discovery/index";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/calibration" component={Calibration} />
       <Route path="/field-intelligence" component={FieldIntelligence} />
       <Route path="/watchlist" component={Watchlist} />
+      <Route path="/discovery" component={AdopterDiscovery} />
       <Route component={NotFound} />
     </Switch>
   );
