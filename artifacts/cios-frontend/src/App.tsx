@@ -25,6 +25,17 @@ import AgentHygiene from "@/pages/cases/agents/hygiene";
 import AgentRefinement from "@/pages/cases/agents/refinement";
 import AgentMessage from "@/pages/cases/agents/message";
 import NotFound from "@/pages/not-found";
+import { useRoute, useLocation } from "wouter";
+import { useEffect } from "react";
+
+function LegacyCaseRedirect() {
+  const [, params] = useRoute("/cases/:caseId");
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    if (params?.caseId) navigate(`/case/${params.caseId}/question`, { replace: true });
+  }, [params?.caseId, navigate]);
+  return null;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +77,7 @@ function Router() {
       <Route path="/discovery" component={AdopterDiscovery} />
       <Route path="/review" component={SignalReview} />
       <Route path="/signal-detection" component={SignalDetection} />
+      <Route path="/cases/:caseId" component={LegacyCaseRedirect} />
       <Route component={NotFound} />
     </Switch>
   );
