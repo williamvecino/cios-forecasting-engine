@@ -443,8 +443,8 @@ export default function QuestionDetail() {
                           return (
                             <div key={i} className="flex items-center gap-1.5 py-1">
                               <TrendingUp className="w-3 h-3 text-success shrink-0" />
-                              <span className="text-[12px] flex-1 line-clamp-1" title={d.name}>{d.name}</span>
-                              <Badge variant={impactBadgeVariant(impact)} className="text-[9px] px-1.5 py-0">{impact}</Badge>
+                              <span className="text-[12px] flex-1">{d.name}</span>
+                              <Badge variant={impactBadgeVariant(impact)} className="text-[9px] px-1.5 py-0 shrink-0">{impact}</Badge>
                             </div>
                           );
                         })}
@@ -460,7 +460,7 @@ export default function QuestionDetail() {
                           return (
                             <div key={i} className="flex items-center gap-1.5 py-1">
                               <TrendingDown className="w-3 h-3 text-destructive shrink-0" />
-                              <span className="text-[12px] flex-1 line-clamp-1" title={d.name}>{d.name}</span>
+                              <span className="text-[12px] flex-1">{d.name}</span>
                               <Badge variant={impactBadgeVariant(impact)} className="text-[9px] px-1.5 py-0">{impact}</Badge>
                             </div>
                           );
@@ -536,7 +536,7 @@ export default function QuestionDetail() {
                               <ToggleRight className="w-3.5 h-3.5 text-primary shrink-0" />
                             )}
                             <DirectionIcon dir={s.direction} />
-                            <span className="flex-1 line-clamp-1" title={s.signalDescription || s.signalType}>{s.signalDescription || s.signalType}</span>
+                            <span className="flex-1 text-wrap">{s.signalDescription || s.signalType}</span>
                           </button>
                         );
                       })}
@@ -638,7 +638,7 @@ export default function QuestionDetail() {
                   {allSignals.map((s: any) => (
                     <tr key={s.signalId} className="border-t border-border/15 hover:bg-muted/5 transition-colors">
                       <td className="py-1.5 px-5">
-                        <div className="text-[12px] font-medium line-clamp-1" title={s.signalDescription || s.signalType}>{s.signalDescription || s.signalType}</div>
+                        <div className="text-[12px] font-medium">{s.signalDescription || s.signalType}</div>
                       </td>
                       <td className="py-1.5 px-3">
                         <div className="flex items-center gap-1">
