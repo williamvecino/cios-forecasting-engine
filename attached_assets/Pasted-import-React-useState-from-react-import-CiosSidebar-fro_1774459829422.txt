@@ -1,0 +1,62 @@
+import React, { useState } from "react";
+import CiosSidebar from "./components/CiosSidebar";
+import { ActiveQuestion, NavKey } from "./types/navigation";
+import QuestionsPage from "./pages/QuestionsPage";
+import AdopterDiscoveryPage from "./pages/AdopterDiscoveryPage";
+import EventRadarPage from "./pages/EventRadarPage";
+import SignalDetectionPage from "./pages/SignalDetectionPage";
+import SignalReviewPage from "./pages/SignalReviewPage";
+import DashboardPage from "./pages/DashboardPage";
+import ForecastLedgerPage from "./pages/ForecastLedgerPage";
+import CalibrationPage from "./pages/CalibrationPage";
+import SystemMapPage from "./pages/SystemMapPage";
+
+export default function App() {
+  const [activeItem, setActiveItem] = useState<NavKey>("signal-review");
+
+  const [activeQuestion] = useState<ActiveQuestion>({
+    id: "q-001",
+    title: "Will ARIKAYCE be adopted earlier in treatment by U.S. pulmonologists within 12 months?",
+    therapyArea: "Pulmonology",
+    geography: "US",
+    horizon: "12 months",
+    targetPopulation: "Pulmonologists",
+    adoptionDefinition: "Earlier-line adoption",
+  });
+
+  const renderPage = () => {
+    switch (activeItem) {
+      case "questions":
+        return <QuestionsPage activeQuestion={activeQuestion} />;
+      case "adopter-discovery":
+        return <AdopterDiscoveryPage activeQuestion={activeQuestion} />;
+      case "event-radar":
+        return <EventRadarPage activeQuestion={activeQuestion} />;
+      case "signal-detection":
+        return <SignalDetectionPage activeQuestion={activeQuestion} />;
+      case "signal-review":
+        return <SignalReviewPage activeQuestion={activeQuestion} />;
+      case "dashboard":
+        return <DashboardPage activeQuestion={activeQuestion} />;
+      case "forecast-ledger":
+        return <ForecastLedgerPage activeQuestion={activeQuestion} />;
+      case "calibration":
+        return <CalibrationPage activeQuestion={activeQuestion} />;
+      case "system-map":
+        return <SystemMapPage activeQuestion={activeQuestion} />;
+      default:
+        return <QuestionsPage activeQuestion={activeQuestion} />;
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen bg-[#050d2c]">
+      <CiosSidebar
+        activeItem={activeItem}
+        onNavigate={setActiveItem}
+        activeQuestion={activeQuestion}
+      />
+      <main className="flex-1 overflow-y-auto">{renderPage()}</main>
+    </div>
+  );
+}
