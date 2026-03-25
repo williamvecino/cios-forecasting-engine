@@ -8,6 +8,7 @@ import {
   ExternalLink, History, Edit3, Save, Radio,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { SIGNAL_TYPE_ORDER, SIGNAL_TYPE_META } from "@/lib/signal-taxonomy";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -219,9 +220,14 @@ export default function SignalReviewQueue() {
             </div>
             <Select value={filters.signalType || ""} onChange={e => updateFilter("signalType", e.target.value)} className="w-48">
               <option value="">All Signal Types</option>
-              {["Phase III clinical", "KOL endorsement", "Field intelligence", "Access / commercial", "Operational friction", "Regulatory / policy"].map(t => (
-                <option key={t} value={t}>{t}</option>
+              {SIGNAL_TYPE_ORDER.map(t => (
+                <option key={t} value={SIGNAL_TYPE_META[t].label}>{SIGNAL_TYPE_META[t].label}</option>
               ))}
+              <option disabled>──────────</option>
+              <option value="Field intelligence">Field intelligence</option>
+              <option value="Competitor counteraction">Competitor counteraction</option>
+              <option value="Access friction">Access friction</option>
+              <option value="Experience infrastructure">Experience infrastructure</option>
             </Select>
             <Select value={filters.caseId || ""} onChange={e => updateFilter("caseId", e.target.value)} className="w-52">
               <option value="">All Questions</option>

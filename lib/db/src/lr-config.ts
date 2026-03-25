@@ -9,6 +9,10 @@ export const SIGNAL_TYPES = [
   "Regulatory / clinical",
   "Access friction",
   "Experience infrastructure",
+  "Payer / coverage",
+  "Market adoption / utilization",
+  "Capacity / infrastructure",
+  "Competitor countermove",
 ] as const;
 
 export type SignalType = (typeof SIGNAL_TYPES)[number];
@@ -51,6 +55,10 @@ export const LR_RANGES: Record<SignalType, LRRange> = {
   "Regulatory / clinical":       { min: 1.3, max: 2.0 },
   "Access friction":             { min: 0.5, max: 0.85 },
   "Experience infrastructure":   { min: 1.1, max: 1.5 },
+  "Payer / coverage":            { min: 1.2, max: 1.8 },
+  "Market adoption / utilization": { min: 1.3, max: 2.0 },
+  "Capacity / infrastructure":   { min: 0.7, max: 1.3 },
+  "Competitor countermove":      { min: 0.7, max: 0.9 },
 };
 
 const ATTRIBUTE_WEIGHTS = {

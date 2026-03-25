@@ -393,7 +393,20 @@ router.patch("/signals/:signalId", async (req, res) => {
 });
 
 router.delete("/signals/:signalId", async (req, res) => {
+  const [existing] = await db.select().from(signalsTable).where(eq(signalsTable.signalId, req.params.signalId));
+  if (!existing) return res.status(404).json({ error: "Not found" });
+
   await db.delete(signalsTable).where(eq(signalsTable.signalId, req.params.signalId));
+
+  await logAudit({
+    objectType: "signal",
+    objectId: req.params.signalId,
+    action: "deleted",
+    performedByType: (req.body?.performedByType as string) || "human",
+    performedById: (req.body?.performedById as string) || null,
+    beforeState: existing as any,
+  });
+
   res.status(204).send();
 });
 
