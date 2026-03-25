@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import type { ActiveQuestion } from "@/types";
 
 interface NavItem {
   name: string;
@@ -30,7 +31,7 @@ interface NavSection {
   items: NavItem[];
 }
 
-function useActiveQuestion() {
+function useActiveQuestion(): ActiveQuestion {
   const [location] = useLocation();
   const match = location.match(/\/case\/([^/]+)/);
   if (!match) return null;

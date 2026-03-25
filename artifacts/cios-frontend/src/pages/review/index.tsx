@@ -9,11 +9,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { SIGNAL_TYPE_ORDER, SIGNAL_TYPE_META } from "@/lib/signal-taxonomy";
+import type { SignalStatus } from "@/types";
 
 const API = import.meta.env.VITE_API_URL || "";
 
-const STATUSES = ["candidate", "reviewed", "validated", "active", "archived", "rejected"] as const;
-type SignalStatus = (typeof STATUSES)[number];
+const STATUSES: SignalStatus[] = ["candidate", "reviewed", "validated", "active", "archived", "rejected"];
 
 const STATUS_CONFIG: Record<SignalStatus, { label: string; variant: "default" | "success" | "warning" | "danger" | "primary"; icon: React.FC<any> }> = {
   candidate: { label: "Candidate", variant: "default", icon: Clock },
