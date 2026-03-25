@@ -27,6 +27,7 @@ import targetEntitiesRouter from "./target-entities.js";
 import adopterDiscoveryRouter from "./adopter-discovery.js";
 import auditLogsRouter from "./audit-logs.js";
 import signalDetectionRouter from "./signal-detection.js";
+import recalculateRouter from "./recalculate.js";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(targetEntitiesRouter);
 router.use(adopterDiscoveryRouter);
 router.use(auditLogsRouter);
 router.use(signalDetectionRouter);
+router.use(recalculateRouter);
 
 export default router;
