@@ -10,6 +10,9 @@ import {
 import { cn } from "@/lib/cn";
 import { SIGNAL_TYPE_ORDER, SIGNAL_TYPE_META } from "@/lib/signal-taxonomy";
 import type { SignalStatus } from "@/types";
+import WorkflowIndicator from "@/components/workflow-indicator";
+import DataFlowBox from "@/components/data-flow-box";
+import { moduleMeta } from "@/lib/module-meta";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -240,6 +243,14 @@ export default function SignalReviewQueue() {
               <option value="human">Human</option>
               <option value="system">System</option>
             </Select>
+          </div>
+          <div className="mt-3">
+            <WorkflowIndicator current={moduleMeta["signal-review"].workflowStep} />
+            <DataFlowBox
+              purpose={moduleMeta["signal-review"].purpose}
+              input={moduleMeta["signal-review"].input}
+              output={moduleMeta["signal-review"].output}
+            />
           </div>
         </div>
 

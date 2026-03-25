@@ -8,6 +8,9 @@ import {
   Radar, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import WorkflowIndicator from "@/components/workflow-indicator";
+import DataFlowBox from "@/components/data-flow-box";
+import { moduleMeta } from "@/lib/module-meta";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -207,6 +210,14 @@ export default function SignalDetection() {
                 </Select>
               )}
             </div>
+          </div>
+          <div className="mt-3 px-0">
+            <WorkflowIndicator current={moduleMeta["signal-detection"].workflowStep} />
+            <DataFlowBox
+              purpose={moduleMeta["signal-detection"].purpose}
+              input={moduleMeta["signal-detection"].input}
+              output={moduleMeta["signal-detection"].output}
+            />
           </div>
         </div>
 

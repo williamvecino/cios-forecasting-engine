@@ -3,6 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useListCalibration, useGetCalibrationStats } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button } from "@/components/ui-components";
+import WorkflowIndicator from "@/components/workflow-indicator";
+import DataFlowBox from "@/components/data-flow-box";
+import { moduleMeta } from "@/lib/module-meta";
 import {
   ScatterChart,
   Scatter,
@@ -316,6 +319,13 @@ export default function Calibration() {
             Measure forecast accuracy, track signal-type bias, and close the prediction–outcome feedback loop.
           </p>
         </header>
+
+        <WorkflowIndicator current={moduleMeta.calibration.workflowStep} />
+        <DataFlowBox
+          purpose={moduleMeta.calibration.purpose}
+          input={moduleMeta.calibration.input}
+          output={moduleMeta.calibration.output}
+        />
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

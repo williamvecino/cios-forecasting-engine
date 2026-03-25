@@ -8,6 +8,9 @@ import {
   Sparkles, AlertTriangle, ShieldCheck, Eye, ArrowRight, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import WorkflowIndicator from "@/components/workflow-indicator";
+import DataFlowBox from "@/components/data-flow-box";
+import { moduleMeta } from "@/lib/module-meta";
 
 const THERAPY_AREAS = [
   "Oncology", "Cardiology", "Neurology", "Immunology / Rheumatology",
@@ -500,6 +503,13 @@ export default function AdopterDiscovery() {
             )}
           </Button>
         </div>
+
+        <WorkflowIndicator current={moduleMeta["adopter-discovery"].workflowStep} />
+        <DataFlowBox
+          purpose={moduleMeta["adopter-discovery"].purpose}
+          input={moduleMeta["adopter-discovery"].input}
+          output={moduleMeta["adopter-discovery"].output}
+        />
 
         {showForm && (
           <Card>

@@ -2,6 +2,9 @@ import { useListCaseLibrary } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button } from "@/components/ui-components";
 import { Library, Search } from "lucide-react";
+import WorkflowIndicator from "@/components/workflow-indicator";
+import DataFlowBox from "@/components/data-flow-box";
+import { moduleMeta } from "@/lib/module-meta";
 
 export default function CaseLibrary() {
   const { data: analogs, isLoading } = useListCaseLibrary();
@@ -16,6 +19,13 @@ export default function CaseLibrary() {
           </div>
           <Button className="gap-2">Add Analog Case</Button>
         </div>
+
+        <WorkflowIndicator current={moduleMeta["forecast-ledger"].workflowStep} />
+        <DataFlowBox
+          purpose={moduleMeta["forecast-ledger"].purpose}
+          input={moduleMeta["forecast-ledger"].input}
+          output={moduleMeta["forecast-ledger"].output}
+        />
 
         <Card noPadding>
           <div className="p-4 border-b border-border flex items-center gap-3 bg-muted/10">

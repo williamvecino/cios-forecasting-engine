@@ -5,6 +5,9 @@ import { Card, Badge, Button } from "@/components/ui-components";
 import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle, MessageSquare, Send, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/cn";
+import WorkflowIndicator from "@/components/workflow-indicator";
+import DataFlowBox from "@/components/data-flow-box";
+import { moduleMeta } from "@/lib/module-meta";
 
 export default function Dashboard() {
   const { data: cases, isLoading: loadingCases } = useListCases();
@@ -76,6 +79,13 @@ export default function Dashboard() {
             <span className="text-foreground font-medium">{allCases.length}</span> active forecast{allCases.length !== 1 ? "s" : ""} across {new Set(allCases.map((c: any) => c.therapeuticArea).filter(Boolean)).size || 0} therapeutic areas.
           </p>
         </header>
+
+        <WorkflowIndicator current={moduleMeta.dashboard.workflowStep} />
+        <DataFlowBox
+          purpose={moduleMeta.dashboard.purpose}
+          input={moduleMeta.dashboard.input}
+          output={moduleMeta.dashboard.output}
+        />
 
         <Card className="relative overflow-hidden">
           <div className="absolute top-0 right-0 w-60 h-60 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
