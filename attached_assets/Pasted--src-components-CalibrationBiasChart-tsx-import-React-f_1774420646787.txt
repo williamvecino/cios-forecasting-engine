@@ -1,0 +1,110 @@
+// src/components/CalibrationBiasChart.tsx
+
+import React from "react";
+import type { BiasBySignalType } from "../types/forecast";
+
+type Props = {
+  rows: BiasBySignalType[];
+};
+
+export default function CalibrationBiasChart({ rows }: Props) {
+  const displayRows = [...rows].sort((a, b) => a.meanErrorPp - b.meanErrorPp);
+
+  const min = Math.min(-25, ...displayRows.map((r) => r.meanErrorPp));
+  const max = Math.max(10, ...displayRows.map((r) => r.meanErrorPp));
+  const span = max - min || 1;
+
+  function xPosition(value: number) {
+    return `${((value - min) / span) * 100}%`;
+  }
+
+  function barWidth(value: number) {
+    return `${(Math.abs(value) / span) * 100}%`;
+  }
+
+  return (
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 16,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.03)",
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
+        Forecast Bias Analysis
+      </div>
+      <div style={{ opacity: 0.8, marginBottom: 16 }}>
+        Mean forecast error (pp) in calibrated cases where this signal type was active.
+      </div>
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {displayRows.map((row) => {
+          const zeroPos = xPosition(0);
+          const valuePos = xPosition(row.meanErrorPp);
+          const isOverforecast = row.meanErrorPp < 0;
+
+          return (
+            <div
+              key={row.signalType}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "240px 1fr 56px",
+                gap: 12,
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600 }}>{row.label}</div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  {row.n > 0 ? `${row.n} calibrated` : "no calibrated records yet"}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  position: "relative",
+                  height: 26,
+                  borderRadius: 8,
+                  background: "rgba(255,255,255,0.04)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    left: zeroPos,
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    background: "rgba(255,255,255,0.25)",
+                  }}
+                />
+
+                {row.n > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 4,
+                      bottom: 4,
+                      left: isOverforecast ? valuePos : zeroPos,
+                      width: barWidth(row.meanErrorPp),
+                      borderRadius: 6,
+                      background: isOverforecast
+                        ? "rgba(245, 158, 11, 0.9)"
+                        : "rgba(34, 197, 94, 0.9)",
+                    }}
+                  />
+                )}
+              </div>
+
+              <div style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                {row.n > 0 ? `${row.meanErrorPp.toFixed(1)}pp` : "—"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
