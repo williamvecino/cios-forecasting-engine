@@ -1,0 +1,96 @@
+import type { NavKey, WorkflowStep } from "@/types";
+
+export const moduleMeta: Record<
+  NavKey,
+  {
+    title: string;
+    subtitle: string;
+    purpose: string;
+    input: string;
+    output: string;
+    nextStep: string;
+    workflowStep: WorkflowStep;
+  }
+> = {
+  questions: {
+    title: "Questions",
+    subtitle: "Define the forecasting target.",
+    purpose: "Clarify exactly what the system is predicting.",
+    input: "Strategic forecasting objective, therapy context, geography, time horizon.",
+    output: "Active question context for downstream modules.",
+    nextStep: "Use Adopter Discovery to define who will act on this question.",
+    workflowStep: "question",
+  },
+  "adopter-discovery": {
+    title: "Adopter Discovery",
+    subtitle: "Define who will act on the active question.",
+    purpose: "Translate the active question into a real adopter population.",
+    input: "Active question context.",
+    output: "Adopter population and segmentation for downstream signal work.",
+    nextStep: "Use Event Radar to monitor upcoming events that could move adoption.",
+    workflowStep: "adopters",
+  },
+  "event-radar": {
+    title: "Event Radar",
+    subtitle: "Track upcoming signals.",
+    purpose: "Monitor future events before they become active signals.",
+    input: "Known future events, readouts, milestones, and expected timing.",
+    output: "Trackable upcoming events for Signal Detection.",
+    nextStep: "When events occur or sources appear, run Signal Detection.",
+    workflowStep: "events",
+  },
+  "signal-detection": {
+    title: "Signal Detection",
+    subtitle: "Capture new information.",
+    purpose: "Extract candidate signals from articles, releases, summaries, and other sources.",
+    input: "Source content, event updates, and optional filters.",
+    output: "Candidate signals sent to Signal Review.",
+    nextStep: "Validate detected signals before allowing them to affect forecasts.",
+    workflowStep: "detection",
+  },
+  "signal-review": {
+    title: "Signal Validation",
+    subtitle: "Confirm signal quality.",
+    purpose: "Review, validate, reject, or activate candidate signals.",
+    input: "Candidate signals from Signal Detection.",
+    output: "Validated or active signals linked to forecasting questions.",
+    nextStep: "Use Dashboard and Forecast Ledger to see forecast impact over time.",
+    workflowStep: "review",
+  },
+  dashboard: {
+    title: "Dashboard",
+    subtitle: "Show current forecast.",
+    purpose: "Display the current forecast state and the major drivers affecting it.",
+    input: "Validated and active signals.",
+    output: "Current forecast view.",
+    nextStep: "Use Forecast Ledger to inspect historical forecast changes.",
+    workflowStep: "forecast",
+  },
+  "forecast-ledger": {
+    title: "Forecast Ledger",
+    subtitle: "Track prediction history.",
+    purpose: "Maintain a chronological record of forecast changes and drivers.",
+    input: "Forecast updates over time.",
+    output: "Historical record of predictions and revisions.",
+    nextStep: "Use Calibration to compare predictions against outcomes.",
+    workflowStep: "forecast",
+  },
+  calibration: {
+    title: "Calibration",
+    subtitle: "Measure accuracy.",
+    purpose: "Assess forecast quality and improve future judgment.",
+    input: "Resolved outcomes and prior forecasts.",
+    output: "Accuracy, calibration, and learning metrics.",
+    nextStep: "Use calibration learnings to refine future questions and signals.",
+    workflowStep: "learning",
+  },
+  "system-map": {
+    title: "System Map",
+    subtitle: "Understand how the app works.",
+    purpose: "Explain how modules connect across the forecasting workflow.",
+    input: "System architecture.",
+    output: "Clear mental model of the product.",
+    nextStep: "Return to the relevant module and continue the workflow.",
+    workflowStep: "learning",
+  },
+};
