@@ -4,6 +4,7 @@ import { calibrationLogTable, lrCorrectionsTable, bucketCorrectionsTable } from 
 import { eq } from "drizzle-orm";
 import { enrichCalibrationWithMetadata } from "../lib/case-context.js";
 import { getBucket, BUCKETS, computeAndSaveCorrections, MIN_SAMPLE_FOR_CORRECTION, CORRECTION_THRESHOLD, MIN_BUCKET_SAMPLE, BUCKET_THRESHOLD, MAX_BUCKET_CORRECTION_PP } from "../lib/calibration-utils.js";
+import { SIGNAL_TYPE_ORDER, SIGNAL_TYPE_META, resolveLegacyType } from "../lib/signal-taxonomy.js";
 
 const router = Router();
 
@@ -91,16 +92,22 @@ router.get("/calibration/error-patterns", async (_req, res) => {
   const typeMap: Record<string, { errors: number[]; briers: number[] }> = {};
   const actorMap: Record<string, { errors: number[]; briers: number[] }> = {};
 
+  for (const coreType of SIGNAL_TYPE_ORDER) {
+    typeMap[coreType] = { errors: [], briers: [] };
+  }
+
   for (const row of calibrated) {
     let snapshot: any;
     try { snapshot = JSON.parse(row.snapshotJson!); } catch { continue; }
 
     const signalDetails: any[] = snapshot.signalDetails ?? [];
-    const activeTypes = [...new Set(
-      signalDetails.map((s: any) => s.signalType as string)
-        .filter((t): t is string => Boolean(t) && t !== "Unknown")
+    const rawTypes = signalDetails
+      .map((s: any) => s.signalType as string)
+      .filter((t): t is string => Boolean(t) && t !== "Unknown");
+    const resolvedTypes = [...new Set(
+      rawTypes.map((raw) => resolveLegacyType(raw) ?? raw)
     )];
-    for (const st of activeTypes) {
+    for (const st of resolvedTypes) {
       if (!typeMap[st]) typeMap[st] = { errors: [], briers: [] };
       typeMap[st].errors.push(row.forecastError!);
       typeMap[st].briers.push(row.brierComponent!);
@@ -121,10 +128,24 @@ router.get("/calibration/error-patterns", async (_req, res) => {
     category: "signal_type" | "actor"
   ) => {
     const n = data.errors.length;
+    if (n === 0) {
+      const label = SIGNAL_TYPE_META[name as keyof typeof SIGNAL_TYPE_META]?.label ?? name;
+      return {
+        name: label,
+        coreType: name,
+        category,
+        sampleSize: 0,
+        meanError: 0,
+        meanBrierScore: 0,
+        bias: "none" as const,
+      };
+    }
     const meanError = data.errors.reduce((s, e) => s + e, 0) / n;
     const meanBrier = data.briers.reduce((s, b) => s + b, 0) / n;
+    const label = SIGNAL_TYPE_META[name as keyof typeof SIGNAL_TYPE_META]?.label ?? name;
     return {
-      name,
+      name: label,
+      coreType: name,
       category,
       sampleSize: n,
       meanError: Number(meanError.toFixed(4)),
@@ -133,9 +154,9 @@ router.get("/calibration/error-patterns", async (_req, res) => {
     };
   };
 
-  const signalPatterns = Object.entries(typeMap)
-    .map(([name, data]) => toPattern(name, data, "signal_type"))
-    .sort((a, b) => Math.abs(b.meanError) - Math.abs(a.meanError));
+  const signalPatterns = SIGNAL_TYPE_ORDER.map(
+    (coreType) => toPattern(coreType, typeMap[coreType], "signal_type")
+  );
 
   const actorPatterns = Object.entries(actorMap)
     .map(([name, data]) => toPattern(name, data, "actor"))

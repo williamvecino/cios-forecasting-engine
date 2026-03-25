@@ -23,11 +23,12 @@ import { cn } from "@/lib/cn";
 
 interface ErrorPattern {
   name: string;
+  coreType?: string;
   category: "signal_type" | "actor";
   sampleSize: number;
   meanError: number;
   meanBrierScore: number;
-  bias: "over" | "under" | "balanced";
+  bias: "over" | "under" | "balanced" | "none";
 }
 
 interface ErrorPatternsResponse {
@@ -36,10 +37,11 @@ interface ErrorPatternsResponse {
   calibratedCount: number;
 }
 
-const BIAS_COLORS = {
+const BIAS_COLORS: Record<string, string> = {
   over: "hsl(38 92% 50%)",
   under: "hsl(217 91% 60%)",
   balanced: "hsl(142 71% 45%)",
+  none: "hsl(0 0% 80%)",
 };
 
 function BiasIcon({ bias }: { bias: "over" | "under" | "balanced" }) {
@@ -466,16 +468,16 @@ export default function Calibration() {
               Amber = overforecast · Blue = underforecast · Green = balanced.
             </p>
 
-            {errorPatterns.length === 0 ? (
+            {errorPatterns.length === 0 && activePatternTab === "actor" ? (
               <div className="flex flex-col items-center justify-center h-52 text-muted-foreground/40 gap-2">
                 <BarChart2 className="w-10 h-10" />
                 <p className="text-sm font-medium">No bias data yet</p>
                 <p className="text-xs text-center max-w-48">
-                  Calibrated outcomes will reveal which {activePatternTab === "signal_type" ? "signal types" : "actors"} are systematically mis-estimated.
+                  Calibrated outcomes will reveal which actors are systematically mis-estimated.
                 </p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={activePatternTab === "signal_type" ? 320 : 220}>
                 <BarChart
                   data={errorPatterns}
                   layout="vertical"
@@ -490,14 +492,38 @@ export default function Calibration() {
                   <YAxis
                     type="category"
                     dataKey="name"
-                    width={120}
-                    tick={{ fontSize: 9 }}
-                    tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 16) + "…" : v}
+                    width={160}
+                    tick={({ x, y, payload }: any) => {
+                      const entry = errorPatterns.find((p) => p.name === payload.value);
+                      const label = payload.value.length > 20 ? payload.value.slice(0, 18) + "…" : payload.value;
+                      const isEmpty = entry?.sampleSize === 0;
+                      return (
+                        <g transform={`translate(${x},${y})`}>
+                          <text x={-4} y={0} dy={isEmpty ? -4 : 0} textAnchor="end" fontSize={9} fill={isEmpty ? "hsl(var(--muted-foreground))" : "currentColor"}>
+                            {label}
+                          </text>
+                          {isEmpty && (
+                            <text x={-4} y={0} dy={8} textAnchor="end" fontSize={7} fill="hsl(var(--muted-foreground))" fontStyle="italic">
+                              n = 0
+                            </text>
+                          )}
+                        </g>
+                      );
+                    }}
                   />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]?.payload as ErrorPattern;
+                      if (d.sampleSize === 0) {
+                        return (
+                          <div className="bg-background border border-border rounded-lg p-2.5 text-xs shadow-lg min-w-40">
+                            <p className="font-semibold mb-1">{d.name}</p>
+                            <p className="text-muted-foreground italic">No calibrated records yet</p>
+                            <p className="text-muted-foreground">n = 0</p>
+                          </div>
+                        );
+                      }
                       return (
                         <div className="bg-background border border-border rounded-lg p-2.5 text-xs shadow-lg min-w-40">
                           <p className="font-semibold mb-1">{d.name}</p>
@@ -508,7 +534,7 @@ export default function Calibration() {
                             "font-medium mt-1",
                             d.bias === "over" ? "text-amber-500" : d.bias === "under" ? "text-blue-500" : "text-green-500"
                           )}>
-                            {biasLabel(d.bias)}
+                            {biasLabel(d.bias as "over" | "under" | "balanced")}
                           </p>
                         </div>
                       );
@@ -517,7 +543,7 @@ export default function Calibration() {
                   <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" strokeWidth={1} strokeOpacity={0.6} />
                   <Bar dataKey="meanError" name="Mean Forecast Error" radius={[0, 3, 3, 0]}>
                     {errorPatterns.map((entry, idx) => (
-                      <Cell key={idx} fill={BIAS_COLORS[entry.bias]} />
+                      <Cell key={idx} fill={BIAS_COLORS[entry.bias] ?? BIAS_COLORS.none} fillOpacity={entry.sampleSize === 0 ? 0.25 : 1} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -527,9 +553,9 @@ export default function Calibration() {
         </div>
 
         {/* Bias legend + interpretation */}
-        {(errorData?.calibratedCount ?? 0) > 0 && errorPatterns.length > 0 && (
+        {(errorData?.calibratedCount ?? 0) > 0 && errorPatterns.filter((p) => p.sampleSize > 0).length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {errorPatterns.slice(0, 3).map((p) => (
+            {errorPatterns.filter((p) => p.sampleSize > 0).slice(0, 3).map((p) => (
               <Card key={p.name} className={cn(
                 "border",
                 p.bias === "over" ? "border-amber-200/50 bg-amber-50/20" :

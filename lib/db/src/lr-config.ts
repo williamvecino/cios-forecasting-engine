@@ -13,6 +13,16 @@ export const SIGNAL_TYPES = [
   "Market adoption / utilization",
   "Capacity / infrastructure",
   "Competitor countermove",
+  "GUIDELINE_INCLUSION",
+  "COMPETITOR_COUNTERMOVE",
+  "REGULATORY_CLINICAL",
+  "PHASE_III_CLINICAL",
+  "KOL_ENDORSEMENT",
+  "OPERATIONAL_FRICTION",
+  "ACCESS_COMMERCIAL",
+  "PAYER_ACCESS",
+  "MARKET_ADOPTION",
+  "CAPACITY_INFRASTRUCTURE",
 ] as const;
 
 export type SignalType = (typeof SIGNAL_TYPES)[number];
@@ -59,6 +69,16 @@ export const LR_RANGES: Record<SignalType, LRRange> = {
   "Market adoption / utilization": { min: 1.3, max: 2.0 },
   "Capacity / infrastructure":   { min: 0.7, max: 1.3 },
   "Competitor countermove":      { min: 0.7, max: 0.9 },
+  "GUIDELINE_INCLUSION":         { min: 1.7, max: 2.2 },
+  "COMPETITOR_COUNTERMOVE":      { min: 0.7, max: 0.9 },
+  "REGULATORY_CLINICAL":         { min: 1.3, max: 2.0 },
+  "PHASE_III_CLINICAL":          { min: 1.8, max: 2.5 },
+  "KOL_ENDORSEMENT":             { min: 1.2, max: 1.4 },
+  "OPERATIONAL_FRICTION":        { min: 0.6, max: 0.9 },
+  "ACCESS_COMMERCIAL":           { min: 1.1, max: 1.6 },
+  "PAYER_ACCESS":                { min: 1.2, max: 1.8 },
+  "MARKET_ADOPTION":             { min: 1.3, max: 2.0 },
+  "CAPACITY_INFRASTRUCTURE":    { min: 0.7, max: 1.3 },
 };
 
 const ATTRIBUTE_WEIGHTS = {
