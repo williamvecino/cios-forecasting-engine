@@ -1,0 +1,96 @@
+import React, { useState } from "react";
+
+type Props = {
+  caseId: string;
+  onDone?: () => void;
+  navigateTo?: string | null;
+  variant?: "primary" | "secondary";
+  label?: string;
+};
+
+export default function RecalculateCaseButton({
+  caseId,
+  onDone,
+  navigateTo = null,
+  variant = "primary",
+  label = "Recalculate Score",
+}: Props) {
+  const [isRunning, setIsRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleRecalculate() {
+    setIsRunning(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/cases/${caseId}/recalculate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Recalculation failed (${response.status})`);
+      }
+
+      if (onDone) {
+        await onDone();
+      }
+
+      if (navigateTo) {
+        window.location.href = navigateTo;
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unknown recalculation error";
+      setError(message);
+    } finally {
+      setIsRunning(false);
+    }
+  }
+
+  const buttonStyle: React.CSSProperties =
+    variant === "primary"
+      ? {
+          padding: "10px 14px",
+          borderRadius: 12,
+          border: "1px solid rgba(96, 165, 250, 0.35)",
+          background: "rgba(59, 130, 246, 0.18)",
+          color: "#dbeafe",
+          fontWeight: 700,
+          cursor: isRunning ? "not-allowed" : "pointer",
+          opacity: isRunning ? 0.7 : 1,
+        }
+      : {
+          padding: "10px 14px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.04)",
+          color: "white",
+          fontWeight: 700,
+          cursor: isRunning ? "not-allowed" : "pointer",
+          opacity: isRunning ? 0.7 : 1,
+        };
+
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <button
+        type="button"
+        onClick={handleRecalculate}
+        disabled={isRunning}
+        style={buttonStyle}
+      >
+        {isRunning ? "Recalculating..." : label}
+      </button>
+
+      {error ? (
+        <div style={{ fontSize: 12, color: "#fca5a5" }}>
+          {error}
+        </div>
+      ) : null}
+    </div>
+  );
+}

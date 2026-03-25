@@ -1,0 +1,174 @@
+import React, { useCallback, useEffect, useState } from "react";
+import RecalculateCaseButton from "../components/RecalculateCaseButton";
+
+type IntelligenceRow = {
+  id: string;
+  intelligence: string;
+  classification: string;
+  effect: string;
+  impactReliability: string;
+  evidenceWeight: string;
+};
+
+type CasePayload = {
+  caseId: string;
+  title: string;
+  assetName?: string;
+  rows: IntelligenceRow[];
+  currentScore?: number | null;
+  lastCalculatedAt?: string | null;
+};
+
+export default function EvidenceRegisterPage() {
+  const pathParts = window.location.pathname.split("/");
+  const caseId = pathParts[pathParts.length - 1] || "unknown-case";
+
+  const [data, setData] = useState<CasePayload | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadPage = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/cases/${caseId}/evidence-register`);
+      if (!res.ok) {
+        throw new Error(`Failed to load evidence register (${res.status})`);
+      }
+      const json = await res.json();
+      setData(json);
+    } finally {
+      setLoading(false);
+    }
+  }, [caseId]);
+
+  useEffect(() => {
+    void loadPage();
+  }, [loadPage]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: 24, color: "white" }}>
+        Loading evidence register...
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div style={{ padding: 24, color: "white" }}>
+        Unable to load case.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 24, color: "white" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+            {data.caseId} {data.assetName ? `• ${data.assetName}` : ""}
+          </div>
+          <h1 style={{ fontSize: 40, margin: 0, lineHeight: 1.05 }}>
+            Evidence Register
+          </h1>
+          <div style={{ marginTop: 8, opacity: 0.8 }}>
+            Log strategic intelligence about this asset. The engine derives its
+            assessment weight automatically.
+          </div>
+
+          <div style={{ marginTop: 12, fontSize: 13, opacity: 0.7 }}>
+            Current score:{" "}
+            <strong>
+              {data.currentScore !== null && data.currentScore !== undefined
+                ? data.currentScore.toFixed(1)
+                : "Not calculated"}
+            </strong>
+            {"  "}
+            {data.lastCalculatedAt
+              ? `• Last calculated ${new Date(data.lastCalculatedAt).toLocaleString()}`
+              : ""}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <RecalculateCaseButton
+            caseId={caseId}
+            onDone={loadPage}
+            variant="secondary"
+            label="Recalculate Score"
+          />
+
+          <RecalculateCaseButton
+            caseId={caseId}
+            onDone={loadPage}
+            navigateTo={`/cases/${caseId}/dashboard`}
+            variant="primary"
+            label="Recalculate & Open Dashboard"
+          />
+
+          <button
+            type="button"
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "1px solid rgba(96,165,250,0.25)",
+              background: "rgba(59,130,246,0.18)",
+              color: "#dbeafe",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+            onClick={() => {
+              window.location.href = `/cases/${caseId}/signals/new`;
+            }}
+          >
+            + Log Intelligence
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          borderRadius: 18,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(255,255,255,0.03)",
+        }}
+      >
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ textAlign: "left", opacity: 0.7, fontSize: 12 }}>
+              <th style={{ padding: 16 }}>ID</th>
+              <th style={{ padding: 16 }}>INTELLIGENCE</th>
+              <th style={{ padding: 16 }}>CLASSIFICATION</th>
+              <th style={{ padding: 16 }}>EFFECT</th>
+              <th style={{ padding: 16 }}>IMPACT / RELIABILITY</th>
+              <th style={{ padding: 16 }}>EVIDENCE WEIGHT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((row) => (
+              <tr
+                key={row.id}
+                style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+              >
+                <td style={{ padding: 16, opacity: 0.75 }}>{row.id}</td>
+                <td style={{ padding: 16, fontWeight: 600 }}>{row.intelligence}</td>
+                <td style={{ padding: 16 }}>{row.classification}</td>
+                <td style={{ padding: 16 }}>{row.effect}</td>
+                <td style={{ padding: 16 }}>{row.impactReliability}</td>
+                <td style={{ padding: 16 }}>{row.evidenceWeight}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
