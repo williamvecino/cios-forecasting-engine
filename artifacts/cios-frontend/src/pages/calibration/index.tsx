@@ -477,7 +477,7 @@ export default function Calibration() {
                 </p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={activePatternTab === "signal_type" ? 320 : 220}>
+              <ResponsiveContainer width="100%" height={activePatternTab === "signal_type" ? 440 : 220}>
                 <BarChart
                   data={errorPatterns}
                   layout="vertical"
