@@ -1,0 +1,65 @@
+import React from "react";
+import { moduleMeta } from "../config/moduleMeta";
+import { ActiveQuestion, NavKey } from "../types/navigation";
+import WorkflowIndicator from "./WorkflowIndicator";
+import DataFlowBox from "./DataFlowBox";
+import NextStepCard from "./NextStepCard";
+
+export default function PageShell({
+  navKey,
+  activeQuestion,
+  children,
+}: {
+  navKey: NavKey;
+  activeQuestion: ActiveQuestion;
+  children: React.ReactNode;
+}) {
+  const meta = moduleMeta[navKey];
+
+  return (
+    <div className="mx-auto max-w-7xl px-8 py-8 text-white">
+      <div className="mb-2">
+        <h1 className="text-4xl font-semibold tracking-tight">{meta.title}</h1>
+        <p className="mt-2 text-lg text-slate-400">{meta.subtitle}</p>
+      </div>
+
+      <WorkflowIndicator current={meta.workflowStep} />
+
+      {activeQuestion && navKey !== "questions" && navKey !== "system-map" && (
+        <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Active Question Context
+          </div>
+          <div className="text-base text-white">{activeQuestion.title}</div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
+            {activeQuestion.therapyArea && (
+              <span className="rounded-full bg-slate-800 px-3 py-1">{activeQuestion.therapyArea}</span>
+            )}
+            {activeQuestion.targetPopulation && (
+              <span className="rounded-full bg-slate-800 px-3 py-1">
+                {activeQuestion.targetPopulation}
+              </span>
+            )}
+            {activeQuestion.geography && (
+              <span className="rounded-full bg-slate-800 px-3 py-1">{activeQuestion.geography}</span>
+            )}
+            {activeQuestion.horizon && (
+              <span className="rounded-full bg-slate-800 px-3 py-1">{activeQuestion.horizon}</span>
+            )}
+            {activeQuestion.adoptionDefinition && (
+              <span className="rounded-full bg-slate-800 px-3 py-1">
+                {activeQuestion.adoptionDefinition}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <DataFlowBox purpose={meta.purpose} input={meta.input} output={meta.output} />
+
+      {children}
+
+      <NextStepCard text={meta.nextStep} />
+    </div>
+  );
+}
