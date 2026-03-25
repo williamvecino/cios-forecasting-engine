@@ -9,6 +9,9 @@ import { Link, useSearch, useLocation } from "wouter";
 import { Plus, FlaskConical, ArrowRight, ChevronRight, Layers, MoreHorizontal, Eye, Edit3, Radio, ClipboardCheck, Zap, RefreshCw, Radar, ShieldCheck, MessageSquare, BookOpen, FileText } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActorEnvironmentSection } from "@/components/actor-environment-panel";
+import WorkflowIndicator from "@/components/workflow-indicator";
+import DataFlowBox from "@/components/data-flow-box";
+import { moduleMeta } from "@/lib/module-meta";
 
 const THERAPEUTIC_AREAS = [
   "Oncology", "Cardiology", "Neurology", "Immunology / Rheumatology",
@@ -245,6 +248,13 @@ export default function CasesList() {
             <Plus className="w-4 h-4" /> New Case
           </Button>
         </div>
+
+        <WorkflowIndicator current={moduleMeta.questions.workflowStep} />
+        <DataFlowBox
+          purpose={moduleMeta.questions.purpose}
+          input={moduleMeta.questions.input}
+          output={moduleMeta.questions.output}
+        />
 
         {/* Creation Form */}
         {isCreating && (
