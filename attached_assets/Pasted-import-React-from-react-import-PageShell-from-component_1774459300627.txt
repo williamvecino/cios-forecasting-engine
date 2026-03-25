@@ -1,0 +1,55 @@
+import React from "react";
+import PageShell from "../components/PageShell";
+import { ActiveQuestion } from "../types/navigation";
+
+export default function AdopterDiscoveryPage({
+  activeQuestion,
+}: {
+  activeQuestion: ActiveQuestion;
+}) {
+  return (
+    <PageShell navKey="adopter-discovery" activeQuestion={activeQuestion}>
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-6">
+        <div className="mb-4 text-lg font-semibold">Adopter Segmentation</div>
+
+        {!activeQuestion ? (
+          <div className="rounded-2xl border border-amber-700 bg-amber-950/30 p-4 text-sm text-amber-300">
+            Select or create a question first. Adopter Discovery is derived from the active
+            question.
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl bg-slate-900 p-4">
+              <div className="mb-2 text-sm font-medium text-white">Primary Adopters</div>
+              <div className="text-sm text-slate-400">
+                Pulmonologists in community and academic settings with relevant patient volume.
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-900 p-4">
+              <div className="mb-2 text-sm font-medium text-white">Secondary Adopters</div>
+              <div className="text-sm text-slate-400">
+                Infectious disease specialists and high-influence referral networks.
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-900 p-4">
+              <div className="mb-2 text-sm font-medium text-white">Segmentation Logic</div>
+              <div className="text-sm text-slate-400">
+                Segment by disease familiarity, access environment, referral behavior, and
+                perceived treatment timing.
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-900 p-4">
+              <div className="mb-2 text-sm font-medium text-white">Operational Output</div>
+              <div className="text-sm text-slate-400">
+                This adopter map should guide which signals matter most downstream.
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </PageShell>
+  );
+}

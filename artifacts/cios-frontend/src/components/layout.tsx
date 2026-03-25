@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Radio,
@@ -11,19 +11,20 @@ import {
   Radar,
   LayoutDashboard,
   BrainCircuit,
-  Link2,
+  Map,
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import type { ActiveQuestion } from "@/types";
+import type { ActiveQuestion, NavKey } from "@/types";
 
 interface NavItem {
+  key: NavKey;
   name: string;
   path: string;
   icon: React.FC<any>;
   isChild?: boolean;
   disabled?: boolean;
-  helperText?: string;
+  description: string;
 }
 
 interface NavSection {
@@ -46,29 +47,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
     {
       title: "Decision",
       items: [
-        { name: "Questions", path: "/cases", icon: FileQuestion, helperText: activeQuestion ? "Prediction target defined" : "Define the prediction target" },
-        { name: "Adopter Discovery", path: "/discovery", icon: Sparkles, isChild: true, helperText: activeQuestion ? "Derived from active question" : "Select or create a question first" },
+        { key: "questions", name: "Questions", path: "/cases", icon: FileQuestion, description: "Define what we are predicting" },
+        { key: "adopter-discovery", name: "Adopter Discovery", path: "/discovery", icon: Sparkles, isChild: true, disabled: !activeQuestion, description: activeQuestion ? "Define who will act on the active question" : "Select or create a question first" },
       ],
     },
     {
       title: "Evidence",
       items: [
-        { name: "Signal Detection", path: "/signal-detection", icon: Radar },
-        { name: "Signals", path: "/watchlist", icon: Radio },
-        { name: "Signal Review", path: "/review", icon: ClipboardCheck },
+        { key: "event-radar", name: "Event Radar", path: "/event-radar", icon: Radar, description: "Track future signals" },
+        { key: "signal-detection", name: "Signal Detection", path: "/signal-detection", icon: Radio, description: "Capture new information" },
+        { key: "signal-review", name: "Signal Validation", path: "/review", icon: ClipboardCheck, description: "Confirm signal quality" },
       ],
     },
     {
       title: "Prediction",
       items: [
-        { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-        { name: "Forecast Ledger", path: "/case-library", icon: BookOpen },
+        { key: "dashboard", name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, description: "Show current forecast" },
+        { key: "forecast-ledger", name: "Forecast Ledger", path: "/case-library", icon: BookOpen, description: "Track prediction history" },
       ],
     },
     {
       title: "Learning",
       items: [
-        { name: "Calibration", path: "/calibration", icon: BarChart3 },
+        { key: "calibration", name: "Calibration", path: "/calibration", icon: BarChart3, description: "Measure accuracy" },
+        { key: "system-map", name: "System Map", path: "/system-map", icon: Map, description: "Understand how the app works" },
       ],
     },
   ];
@@ -81,92 +83,81 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden text-foreground selection:bg-primary/30">
-      <aside className="w-[280px] flex-shrink-0 border-r border-white/10 bg-[#08133a] flex flex-col z-20">
-        <div className="border-b border-white/10 px-5 py-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#2b4da6] bg-[#0d2158] text-[#76a0ff] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-              <BrainCircuit className="h-6 w-6" />
+      <aside className="flex h-screen w-[300px] flex-shrink-0 flex-col border-r border-white/10 bg-[#071238] z-20">
+        <div className="border-b border-white/10 px-6 py-5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-700 bg-blue-950 text-blue-300">
+              <BrainCircuit className="h-7 w-7" />
             </div>
-            <div className="min-w-0 pt-0.5">
-              <div className="text-2xl leading-none font-semibold tracking-tight text-white">CIOS</div>
-              <div className="mt-1 text-xs text-slate-400">Strategic Intelligence Engine</div>
+            <div className="pt-1">
+              <div className="text-[34px] font-semibold leading-none tracking-tight text-white">CIOS</div>
+              <div className="mt-1 text-sm text-slate-400">Strategic Intelligence Engine</div>
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-            <div className="flex items-start gap-2">
-              <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
-              <div className="min-w-0">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  Active Question Context
-                </div>
-                {activeQuestion ? (
-                  <div className="mt-1">
-                    <div className="truncate text-sm font-medium text-white">
-                      {activeQuestion.title}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-1 flex items-start gap-2 text-xs text-amber-300">
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>No active question selected</span>
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Active Question Context
+            </div>
+            {activeQuestion ? (
+              <>
+                <div className="text-sm font-medium text-white">{activeQuestion.title}</div>
+                {(activeQuestion.therapyArea || activeQuestion.targetPopulation) && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {activeQuestion.therapyArea && (
+                      <span className="rounded-full bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300">
+                        {activeQuestion.therapyArea}
+                      </span>
+                    )}
+                    {activeQuestion.targetPopulation && (
+                      <span className="rounded-full bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300">
+                        {activeQuestion.targetPopulation}
+                      </span>
+                    )}
                   </div>
                 )}
+              </>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-amber-300">
+                <AlertCircle className="h-4 w-4" />
+                <span>No active question selected</span>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-3 px-3">
-          {navSections.map((section, sIdx) => (
-            <div key={section.title} className={cn(sIdx > 0 && "mt-4")}>
-              <div className="px-3 pt-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <div className="flex-1 overflow-y-auto px-4 pb-6">
+          {navSections.map((section) => (
+            <div key={section.title}>
+              <div className="px-3 pt-6 pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 {section.title}
               </div>
 
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {section.items.map((item) => {
                   const active = isActive(item.path);
                   return (
                     <Link
-                      key={item.name}
-                      href={item.path}
+                      key={item.key}
+                      href={item.disabled ? "#" : item.path}
                       className={cn(
-                        "group w-full rounded-2xl text-left transition-all duration-150 block",
-                        "border border-transparent",
-                        item.isChild ? "pl-10 pr-3 py-2" : "px-3 py-2.5",
+                        "group w-full rounded-2xl border text-left transition-all duration-150 block",
+                        item.isChild ? "pl-10 pr-3 py-2.5" : "px-3 py-3",
                         active
-                          ? "bg-[#182a63] text-[#7ea2ff] border-[#22397f]"
-                          : "text-slate-300 hover:bg-white/5 hover:text-white",
-                        item.disabled && "opacity-50 pointer-events-none"
+                          ? "border-blue-700 bg-blue-950 text-white"
+                          : "border-transparent text-slate-300 hover:bg-white/5 hover:text-white",
+                        item.disabled && "cursor-not-allowed opacity-50 pointer-events-none"
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        {!item.isChild && (
-                          <span className={cn("shrink-0", active ? "text-[#7ea2ff]" : "text-slate-400 group-hover:text-slate-200")}>
-                            <item.icon className="h-[18px] w-[18px]" />
-                          </span>
-                        )}
-
-                        {item.isChild && (
-                          <span className="flex items-center gap-2 text-slate-500">
-                            <span className="h-px w-4 bg-slate-600" />
-                            <span className={cn(active ? "text-[#7ea2ff]" : "text-slate-400 group-hover:text-slate-200")}>
-                              <item.icon className="h-4 w-4" />
-                            </span>
-                          </span>
-                        )}
-
+                      <div className="flex items-start gap-3">
+                        {item.isChild && <div className="ml-3 mt-0.5 shrink-0"><item.icon className="h-4 w-4" /></div>}
+                        {!item.isChild && <div className="mt-0.5 shrink-0"><item.icon className="h-5 w-5" /></div>}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-3">
-                            <span className="truncate text-[14px] font-medium">{item.name}</span>
-                            {active && <ChevronRight className="h-4 w-4 shrink-0 opacity-50" />}
+                            <div className="truncate text-[15px] font-medium">{item.name}</div>
+                            {active && <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />}
                           </div>
-                          {item.helperText && (
-                            <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                              {item.helperText}
-                            </div>
-                          )}
+                          <div className="mt-1 text-[11px] text-slate-400">{item.description}</div>
                         </div>
                       </div>
                     </Link>
