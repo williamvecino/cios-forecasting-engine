@@ -19,6 +19,7 @@ import Watchlist from "@/pages/watchlist/index";
 import AdopterDiscovery from "@/pages/discovery/index";
 import SignalReview from "@/pages/review/index";
 import SignalDetection from "@/pages/signal-detection/index";
+import EventRadar from "@/pages/event-radar/index";
 import PendingSignals from "@/pages/cases/pending-signals";
 import AgentDetection from "@/pages/cases/agents/detection";
 import AgentHygiene from "@/pages/cases/agents/hygiene";
@@ -77,6 +78,7 @@ function Router() {
       <Route path="/discovery" component={AdopterDiscovery} />
       <Route path="/review" component={SignalReview} />
       <Route path="/signal-detection" component={SignalDetection} />
+      <Route path="/event-radar" component={EventRadar} />
       <Route path="/cases/:caseId" component={LegacyCaseRedirect} />
       <Route component={NotFound} />
     </Switch>
