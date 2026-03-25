@@ -15,7 +15,11 @@ import {
   Info,
   Trash2,
   Pencil,
+  ArrowLeft,
+  RefreshCw,
+  Check,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   SIGNAL_TYPES,
@@ -383,10 +387,42 @@ export default function SignalsRegister() {
   }));
 
   const cd = caseData as any;
+  const [, navigate] = useLocation();
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcResult, setRecalcResult] = useState<{ score: number; signalCount: number } | null>(null);
+
+  const handleRecalculate = async () => {
+    setRecalculating(true);
+    setRecalcResult(null);
+    try {
+      const resp = await fetch(`/api/cases/${caseId}/recalculate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        setRecalcResult({ score: data.score, signalCount: data.signalCount });
+        queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      }
+    } catch {
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Back nav */}
+        <button
+          onClick={() => navigate(`/case/${caseId}/question`)}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors -mb-3"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to case
+        </button>
+
         {/* Header */}
         <div className="flex justify-between items-end">
           <div>
@@ -402,10 +438,38 @@ export default function SignalsRegister() {
               assessment weight automatically.
             </p>
           </div>
-          <Button onClick={() => setIsCreating(!isCreating)} className="gap-2">
-            <Plus className="w-4 h-4" /> Log Intelligence
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={handleRecalculate}
+              disabled={recalculating}
+              className="gap-2"
+            >
+              <RefreshCw className={cn("w-4 h-4", recalculating && "animate-spin")} />
+              {recalculating ? "Recalculating…" : "Recalculate Score"}
+            </Button>
+            <Button onClick={() => setIsCreating(!isCreating)} className="gap-2">
+              <Plus className="w-4 h-4" /> Log Intelligence
+            </Button>
+          </div>
         </div>
+
+        {/* Recalculation result banner */}
+        {recalcResult && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-green-500/10 border border-green-500/20 animate-in fade-in slide-in-from-top-2 duration-300">
+            <Check className="w-4 h-4 text-green-500 shrink-0" />
+            <p className="text-sm">
+              Score recalculated: <span className="font-semibold text-green-400">{(recalcResult.score * 100).toFixed(1)}%</span>
+              {" "}using {recalcResult.signalCount} active signal{recalcResult.signalCount !== 1 ? "s" : ""}.
+            </p>
+            <button
+              onClick={() => navigate(`/case/${caseId}/question`)}
+              className="ml-auto text-xs font-medium text-primary hover:underline whitespace-nowrap"
+            >
+              View forecast →
+            </button>
+          </div>
+        )}
 
         {/* Entry form */}
         {isCreating && (
