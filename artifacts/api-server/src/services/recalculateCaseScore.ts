@@ -8,6 +8,48 @@ import { getLrCorrections, getBucket, computeDecay } from "../lib/calibration-ut
 import { computeHierarchicalCalibration } from "../lib/calibration-fallback.js";
 import { deriveQuestionType } from "../lib/case-context.js";
 import { filterEligibleSignals, applyEventFamilyGuardrail } from "../lib/signal-eligibility.js";
+import {
+  computeEnvironmentAdjustments,
+  applyEnvironmentToProbability,
+  type ActorEnvironmentConfig,
+  type SpecialtyActorProfile,
+  type PayerEnvironment,
+  type GuidelineLeverage,
+  type CompetitiveLandscape,
+  type AdoptionPhase,
+  type ForecastHorizonMonths,
+} from "../lib/forecast-environment.js";
+
+function resolveSpecialtyProfile(raw: string | null): SpecialtyActorProfile {
+  const map: Record<string, SpecialtyActorProfile> = {
+    "general": "general", "early adopter": "early_adopter_specialty",
+    "conservative": "conservative_specialty", "cost sensitive": "cost_sensitive_specialty",
+    "procedural": "procedural_specialty",
+  };
+  return map[(raw ?? "").toLowerCase()] ?? "general";
+}
+function resolvePayerEnv(raw: string | null): PayerEnvironment {
+  const map: Record<string, PayerEnvironment> = { "favorable": "favorable", "balanced": "balanced", "restrictive": "restrictive" };
+  return map[(raw ?? "").toLowerCase()] ?? "balanced";
+}
+function resolveGuidelineLeverage(raw: string | null): GuidelineLeverage {
+  const map: Record<string, GuidelineLeverage> = { "low": "low", "medium": "medium", "high": "high" };
+  return map[(raw ?? "").toLowerCase()] ?? "medium";
+}
+function resolveCompetitiveLandscape(raw: string | null): CompetitiveLandscape {
+  const map: Record<string, CompetitiveLandscape> = {
+    "open market": "open_market", "moderate competition": "moderate_competition",
+    "entrenched standard of care": "entrenched_standard_of_care",
+  };
+  return map[(raw ?? "").toLowerCase()] ?? "entrenched_standard_of_care";
+}
+function resolveHorizonMonths(raw: string | null): ForecastHorizonMonths {
+  const months = parseInt((raw ?? "12").replace(/[^0-9]/g, ""), 10);
+  if (months <= 6) return 6;
+  if (months <= 12) return 12;
+  if (months <= 24) return 24;
+  return 36;
+}
 
 export type RecalcResult = {
   score: number;
@@ -90,10 +132,23 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     questionType,
   );
   const calibratedProbability = hierarchicalCalibration.calibratedProbability;
+
+  const envConfig: ActorEnvironmentConfig = {
+    specialtyActorProfile: resolveSpecialtyProfile(caseData.primarySpecialtyProfile),
+    payerEnvironment: resolvePayerEnv(caseData.payerEnvironment),
+    guidelineLeverage: resolveGuidelineLeverage(caseData.guidelineLeverage),
+    competitiveLandscape: resolveCompetitiveLandscape(caseData.competitorProfile),
+    accessFrictionIndex: caseData.accessFrictionIndex ?? 0.5,
+    adoptionPhase: (caseData.adoptionPhase ?? "early_adoption") as AdoptionPhase,
+    forecastHorizonMonths: resolveHorizonMonths(caseData.timeHorizon),
+  };
+  const envAdjustments = computeEnvironmentAdjustments(envConfig);
+  const finalProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
+
   const calculatedAt = new Date();
 
   await db.update(casesTable).set({
-    currentProbability: calibratedProbability,
+    currentProbability: finalProbability,
     confidenceLevel: result.confidenceLevel,
     topSupportiveActor: result.topSupportiveActor,
     topConstrainingActor: result.topConstrainingActor,
@@ -107,12 +162,12 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     id: randomUUID(),
     forecastId,
     caseId,
-    predictedProbability: calibratedProbability,
+    predictedProbability: finalProbability,
     snapshotJson: JSON.stringify(result),
   }).onConflictDoNothing();
 
   return {
-    score: calibratedProbability,
+    score: finalProbability,
     calculatedAt: calculatedAt.toISOString(),
     signalCount: signalsWithAdjustedLR.length,
     forecastId,

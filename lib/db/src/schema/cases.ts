@@ -34,6 +34,11 @@ export const casesTable = pgTable("cases", {
   guidelineLeverage: text("guideline_leverage").default("Medium"),
   competitorProfile: text("competitor_profile").default("Entrenched standard of care"),
 
+  // Environment adjustment fields
+  accessFrictionIndex: real("access_friction_index").default(0.5),
+  adoptionPhase: text("adoption_phase").default("early_adoption"),
+  forecastHorizonMonths: integer("forecast_horizon_months").default(12),
+
   // Computed engine outputs (written back after forecast run)
   currentProbability: real("current_probability"),
   confidenceLevel: text("confidence_level"),

@@ -1,0 +1,218 @@
+// components/ActorEnvironmentPanel.tsx
+
+import React from "react";
+import type {
+  ActorEnvironmentConfig,
+  AdoptionPhase,
+  CompetitiveLandscape,
+  ForecastHorizonMonths,
+  GuidelineLeverage,
+  PayerEnvironment,
+  SpecialtyActorProfile,
+} from "../lib/forecastEnvironment";
+
+type Props = {
+  value: ActorEnvironmentConfig;
+  onChange: (next: ActorEnvironmentConfig) => void;
+  onInitialize?: () => void;
+  onCancel?: () => void;
+};
+
+const specialtyOptions: { value: SpecialtyActorProfile; label: string }[] = [
+  { value: "general", label: "General (default)" },
+  { value: "early_adopter_specialty", label: "Early adopter specialty" },
+  { value: "conservative_specialty", label: "Conservative specialty" },
+  { value: "cost_sensitive_specialty", label: "Cost-sensitive specialty" },
+  { value: "procedural_specialty", label: "Procedural specialty" },
+];
+
+const payerOptions: { value: PayerEnvironment; label: string }[] = [
+  { value: "favorable", label: "Favorable" },
+  { value: "balanced", label: "Balanced" },
+  { value: "restrictive", label: "Restrictive" },
+];
+
+const guidelineOptions: { value: GuidelineLeverage; label: string }[] = [
+  { value: "low", label: "Low — limited guideline force" },
+  { value: "medium", label: "Medium — guidelines exist, moderate adherence" },
+  { value: "high", label: "High — strong guideline influence" },
+];
+
+const competitionOptions: { value: CompetitiveLandscape; label: string }[] = [
+  { value: "open_market", label: "Open market" },
+  { value: "moderate_competition", label: "Moderate competition" },
+  { value: "entrenched_standard_of_care", label: "Entrenched standard of care" },
+];
+
+const adoptionPhaseOptions: { value: AdoptionPhase; label: string }[] = [
+  { value: "pre_launch", label: "Pre-launch" },
+  { value: "early_adoption", label: "Early adoption" },
+  { value: "growth", label: "Growth" },
+  { value: "plateau", label: "Plateau" },
+  { value: "decline", label: "Decline" },
+];
+
+const horizonOptions: {
+  value: ForecastHorizonMonths;
+  label: string;
+}[] = [
+  { value: 6, label: "6 months" },
+  { value: 12, label: "12 months" },
+  { value: 24, label: "24 months" },
+  { value: 36, label: "36 months" },
+];
+
+function SelectField<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-slate-300">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange((typeof value === "number" ? Number(e.target.value) : e.target.value) as T)}
+        className="w-full rounded-2xl border border-slate-700 bg-slate-900 px-4 py-4 text-white outline-none focus:border-blue-500"
+      >
+        {options.map((opt) => (
+          <option key={String(opt.value)} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+export default function ActorEnvironmentPanel({
+  value,
+  onChange,
+  onInitialize,
+  onCancel,
+}: Props) {
+  const current: Required<ActorEnvironmentConfig> = {
+    specialtyActorProfile: value.specialtyActorProfile ?? "general",
+    payerEnvironment: value.payerEnvironment ?? "balanced",
+    guidelineLeverage: value.guidelineLeverage ?? "medium",
+    competitiveLandscape: value.competitiveLandscape ?? "entrenched_standard_of_care",
+    accessFrictionIndex: value.accessFrictionIndex ?? 0.5,
+    adoptionPhase: value.adoptionPhase ?? "early_adoption",
+    forecastHorizonMonths: value.forecastHorizonMonths ?? 12,
+  };
+
+  const patch = (updates: Partial<ActorEnvironmentConfig>) => {
+    onChange({ ...current, ...updates });
+  };
+
+  return (
+    <div className="rounded-3xl border border-slate-800 bg-[#0b1220] p-6 shadow-2xl">
+      <div className="mb-6 border-b border-slate-800 pb-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          Actor Environment
+        </div>
+        <div className="mt-1 text-sm text-slate-500">
+          Configures baseline behavioral weighting and forecast context
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <SelectField
+          label="Specialty Actor Profile"
+          value={current.specialtyActorProfile}
+          options={specialtyOptions}
+          onChange={(v) => patch({ specialtyActorProfile: v })}
+        />
+
+        <SelectField
+          label="Payer Environment"
+          value={current.payerEnvironment}
+          options={payerOptions}
+          onChange={(v) => patch({ payerEnvironment: v })}
+        />
+
+        <SelectField
+          label="Guideline Leverage"
+          value={current.guidelineLeverage}
+          options={guidelineOptions}
+          onChange={(v) => patch({ guidelineLeverage: v })}
+        />
+
+        <SelectField
+          label="Competitive Landscape"
+          value={current.competitiveLandscape}
+          options={competitionOptions}
+          onChange={(v) => patch({ competitiveLandscape: v })}
+        />
+
+        <div className="space-y-2 md:col-span-1">
+          <label className="block text-sm font-medium text-slate-300">
+            Access Friction Index
+          </label>
+          <div className="rounded-2xl border border-slate-700 bg-slate-900 px-4 py-4">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={current.accessFrictionIndex}
+              onChange={(e) =>
+                patch({ accessFrictionIndex: Number(e.target.value) })
+              }
+              className="w-full"
+            />
+            <div className="mt-3 flex items-center justify-between text-sm text-slate-400">
+              <span>Low friction</span>
+              <span className="font-semibold text-white">
+                {current.accessFrictionIndex.toFixed(2)}
+              </span>
+              <span>High friction</span>
+            </div>
+          </div>
+        </div>
+
+        <SelectField
+          label="Adoption Phase"
+          value={current.adoptionPhase}
+          options={adoptionPhaseOptions}
+          onChange={(v) => patch({ adoptionPhase: v })}
+        />
+
+        <SelectField
+          label="Forecast Horizon"
+          value={current.forecastHorizonMonths}
+          options={horizonOptions}
+          onChange={(v) => patch({ forecastHorizonMonths: v })}
+        />
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-400">
+        Defaults are intentionally centered so existing cases remain stable.
+        New fields refine context but do not alter the core engine.
+      </div>
+
+      <div className="mt-6 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-2xl px-5 py-3 text-slate-300 hover:bg-slate-800"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onInitialize}
+          className="rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-500"
+        >
+          Initialize Forecast Case
+        </button>
+      </div>
+    </div>
+  );
+}

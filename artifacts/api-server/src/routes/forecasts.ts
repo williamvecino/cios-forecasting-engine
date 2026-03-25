@@ -9,6 +9,59 @@ import { getLrCorrections, getBucket, computeDecay } from "../lib/calibration-ut
 import { computeHierarchicalCalibration, computeSegmentConfidence } from "../lib/calibration-fallback.js";
 import { deriveQuestionType } from "../lib/case-context.js";
 import { filterEligibleSignals, applyEventFamilyGuardrail } from "../lib/signal-eligibility.js";
+import {
+  computeEnvironmentAdjustments,
+  applyEnvironmentToProbability,
+  type ActorEnvironmentConfig,
+  type SpecialtyActorProfile,
+  type PayerEnvironment,
+  type GuidelineLeverage,
+  type CompetitiveLandscape,
+  type AdoptionPhase,
+  type ForecastHorizonMonths,
+} from "../lib/forecast-environment.js";
+
+function resolveSpecialtyProfile(raw: string | null): SpecialtyActorProfile {
+  const map: Record<string, SpecialtyActorProfile> = {
+    "general": "general",
+    "early adopter": "early_adopter_specialty",
+    "conservative": "conservative_specialty",
+    "cost sensitive": "cost_sensitive_specialty",
+    "procedural": "procedural_specialty",
+  };
+  return map[(raw ?? "").toLowerCase()] ?? "general";
+}
+
+function resolvePayerEnv(raw: string | null): PayerEnvironment {
+  const map: Record<string, PayerEnvironment> = {
+    "favorable": "favorable",
+    "balanced": "balanced",
+    "restrictive": "restrictive",
+  };
+  return map[(raw ?? "").toLowerCase()] ?? "balanced";
+}
+
+function resolveGuidelineLeverage(raw: string | null): GuidelineLeverage {
+  const map: Record<string, GuidelineLeverage> = { "low": "low", "medium": "medium", "high": "high" };
+  return map[(raw ?? "").toLowerCase()] ?? "medium";
+}
+
+function resolveCompetitiveLandscape(raw: string | null): CompetitiveLandscape {
+  const map: Record<string, CompetitiveLandscape> = {
+    "open market": "open_market",
+    "moderate competition": "moderate_competition",
+    "entrenched standard of care": "entrenched_standard_of_care",
+  };
+  return map[(raw ?? "").toLowerCase()] ?? "entrenched_standard_of_care";
+}
+
+function resolveHorizonMonths(raw: string | null): ForecastHorizonMonths {
+  const months = parseInt((raw ?? "12").replace(/[^0-9]/g, ""), 10);
+  if (months <= 6) return 6;
+  if (months <= 12) return 12;
+  if (months <= 24) return 24;
+  return 36;
+}
 
 const router = Router();
 
@@ -97,18 +150,38 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   );
   const calibratedProbability = hierarchicalCalibration.calibratedProbability;
 
+  // ── Apply environment adjustments (bounded, post-calibration) ────────────
+  const envConfig: ActorEnvironmentConfig = {
+    specialtyActorProfile: resolveSpecialtyProfile(caseData.primarySpecialtyProfile),
+    payerEnvironment: resolvePayerEnv(caseData.payerEnvironment),
+    guidelineLeverage: resolveGuidelineLeverage(caseData.guidelineLeverage),
+    competitiveLandscape: resolveCompetitiveLandscape(caseData.competitorProfile),
+    accessFrictionIndex: caseData.accessFrictionIndex ?? 0.5,
+    adoptionPhase: (caseData.adoptionPhase ?? "early_adoption") as AdoptionPhase,
+    forecastHorizonMonths: resolveHorizonMonths(caseData.timeHorizon),
+  };
+  const envAdjustments = computeEnvironmentAdjustments(envConfig);
+  const environmentAdjustedProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
+
   // Keep bucket field for backward compatibility with downstream consumers
   const bucket = getBucket(rawProbability);
 
   const finalResult = {
     ...result,
-    currentProbability: calibratedProbability,
+    currentProbability: environmentAdjustedProbability,
     rawProbability,
     bucketCorrectionApplied: hierarchicalCalibration.correctionAppliedPp !== 0
       ? { bucket, correctionPp: hierarchicalCalibration.correctionAppliedPp }
       : null,
+    calibratedProbability,
     hierarchicalCalibration,
     calibrationConfidence,
+    environmentAdjustments: {
+      priorMultiplier: envAdjustments.priorMultiplier,
+      posteriorMultiplier: envAdjustments.posteriorMultiplier,
+      explanation: envAdjustments.explanation,
+      config: envAdjustments.normalizedConfig,
+    },
     // ── Case context metadata (embedded for validation + trace integrity) ───
     _caseContext: {
       caseId: req.params.caseId,
@@ -135,7 +208,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   };
 
   await db.update(casesTable).set({
-    currentProbability: calibratedProbability,
+    currentProbability: environmentAdjustedProbability,
     confidenceLevel: result.confidenceLevel,
     topSupportiveActor: result.topSupportiveActor,
     topConstrainingActor: result.topConstrainingActor,
@@ -149,7 +222,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     id: randomUUID(),
     forecastId,
     caseId: req.params.caseId,
-    predictedProbability: calibratedProbability,
+    predictedProbability: environmentAdjustedProbability,
     snapshotJson: JSON.stringify(finalResult),
   }).onConflictDoNothing();
 
