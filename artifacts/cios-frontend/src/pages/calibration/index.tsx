@@ -552,10 +552,44 @@ export default function Calibration() {
           </Card>
         </div>
 
-        {/* Bias legend + interpretation */}
-        {(errorData?.calibratedCount ?? 0) > 0 && errorPatterns.filter((p) => p.sampleSize > 0).length > 0 && (
+        {/* Bias cards — all taxonomy signal types */}
+        {activePatternTab === "signal_type" && errorPatterns.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {errorPatterns.map((p) => (
+              <Card key={p.name} className={cn(
+                "border",
+                p.sampleSize === 0 ? "border-border/40 bg-muted/5 opacity-60" :
+                p.bias === "over" ? "border-amber-200/50 bg-amber-50/20" :
+                p.bias === "under" ? "border-blue-200/50 bg-blue-50/20" :
+                "border-green-200/50 bg-green-50/20"
+              )}>
+                <div className="flex items-start gap-2">
+                  {p.sampleSize > 0 ? (
+                    <BiasIcon bias={p.bias as "over" | "under" | "balanced"} />
+                  ) : (
+                    <Clock className="w-3.5 h-3.5 text-muted-foreground/50 mt-0.5 shrink-0" />
+                  )}
+                  <div>
+                    <p className="text-xs font-semibold leading-snug">{p.name}</p>
+                    {p.sampleSize > 0 ? (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {biasLabel(p.bias as "over" | "under" | "balanced")} by {Math.abs(p.meanError * 100).toFixed(1)}pp
+                        across {p.sampleSize} forecast{p.sampleSize !== 1 ? "s" : ""}.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/60 mt-0.5 italic">
+                        No calibrated records yet
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+        {activePatternTab === "actor" && (errorData?.calibratedCount ?? 0) > 0 && (errorData?.actorPatterns ?? []).length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {errorPatterns.filter((p) => p.sampleSize > 0).slice(0, 3).map((p) => (
+            {(errorData?.actorPatterns ?? []).slice(0, 3).map((p) => (
               <Card key={p.name} className={cn(
                 "border",
                 p.bias === "over" ? "border-amber-200/50 bg-amber-50/20" :
@@ -563,12 +597,12 @@ export default function Calibration() {
                 "border-green-200/50 bg-green-50/20"
               )}>
                 <div className="flex items-start gap-2">
-                  <BiasIcon bias={p.bias} />
+                  <BiasIcon bias={p.bias as "over" | "under" | "balanced"} />
                   <div>
                     <p className="text-xs font-semibold leading-snug">{p.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {biasLabel(p.bias)} by {Math.abs(p.meanError * 100).toFixed(1)}pp
-                      on average across {p.sampleSize} calibrated forecast{p.sampleSize !== 1 ? "s" : ""}.
+                      {biasLabel(p.bias as "over" | "under" | "balanced")} by {Math.abs(p.meanError * 100).toFixed(1)}pp
+                      across {p.sampleSize} forecast{p.sampleSize !== 1 ? "s" : ""}.
                     </p>
                   </div>
                 </div>
