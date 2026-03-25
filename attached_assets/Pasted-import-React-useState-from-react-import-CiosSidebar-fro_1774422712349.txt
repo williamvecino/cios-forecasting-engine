@@ -1,0 +1,87 @@
+import React, { useState } from "react";
+import CiosSidebar from "./components/CiosSidebar";
+
+type NavKey =
+  | "questions"
+  | "adopter-discovery"
+  | "signal-detection"
+  | "signals"
+  | "signal-review"
+  | "dashboard"
+  | "forecast-ledger"
+  | "calibration";
+
+type ActiveQuestion = {
+  id: string;
+  title: string;
+  therapyArea?: string;
+  geography?: string;
+  horizon?: string;
+  targetPopulation?: string;
+} | null;
+
+export default function App() {
+  const [activeItem, setActiveItem] = useState<NavKey>("questions");
+
+  // Replace this with your real app state or selected question store
+  const [activeQuestion] = useState<ActiveQuestion>({
+    id: "q-001",
+    title: "Will Drug X be adopted by pulmonologists in the US within 12 months?",
+    therapyArea: "Pulmonology",
+    geography: "US",
+    horizon: "12 months",
+    targetPopulation: "Pulmonologists",
+  });
+
+  const handleNavigate = (item: NavKey) => {
+    // Prevent orphan navigation
+    if (item === "adopter-discovery" && !activeQuestion) return;
+    setActiveItem(item);
+  };
+
+  return (
+    <div className="flex min-h-screen bg-[#050c28]">
+      <CiosSidebar
+        activeItem={activeItem}
+        onNavigate={handleNavigate}
+        activeQuestion={activeQuestion}
+      />
+
+      <main className="flex-1 p-8 text-white">
+        <div className="mx-auto max-w-5xl">
+          <h1 className="text-2xl font-semibold">
+            {activeItem === "questions" && "Questions"}
+            {activeItem === "adopter-discovery" && "Adopter Discovery"}
+            {activeItem === "signal-detection" && "Signal Detection"}
+            {activeItem === "signals" && "Signals"}
+            {activeItem === "signal-review" && "Signal Review"}
+            {activeItem === "dashboard" && "Dashboard"}
+            {activeItem === "forecast-ledger" && "Forecast Ledger"}
+            {activeItem === "calibration" && "Calibration"}
+          </h1>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-slate-300">
+            {activeItem === "adopter-discovery" && activeQuestion ? (
+              <>
+                <div className="text-sm uppercase tracking-[0.16em] text-slate-400">
+                  Derived from active question
+                </div>
+                <div className="mt-2 text-lg font-medium text-white">
+                  {activeQuestion.title}
+                </div>
+                <div className="mt-4 text-sm">
+                  This screen should use the active question context to prefill:
+                  therapy area, target population, geography, and horizon.
+                </div>
+              </>
+            ) : (
+              <div className="text-sm">
+                Main content area for <span className="text-white">{activeItem}</span>.
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
