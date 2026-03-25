@@ -8,6 +8,7 @@ import * as z from "zod";
 import { Link, useSearch, useLocation } from "wouter";
 import { Plus, FlaskConical, ArrowRight, ChevronRight, Layers, MoreHorizontal, Eye, Edit3, Radio, ClipboardCheck, Zap, RefreshCw, Radar, ShieldCheck, MessageSquare, BookOpen, FileText } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { ActorEnvironmentSection } from "@/components/actor-environment-panel";
 
 const THERAPEUTIC_AREAS = [
   "Oncology", "Cardiology", "Neurology", "Immunology / Rheumatology",
@@ -50,6 +51,9 @@ const caseSchema = z.object({
   payerEnvironment: z.string(),
   guidelineLeverage: z.string(),
   competitorProfile: z.string(),
+  accessFrictionIndex: z.coerce.number().min(0).max(1).default(0.5),
+  adoptionPhase: z.string().default("early_adoption"),
+  forecastHorizonMonths: z.coerce.number().default(12),
 });
 
 type CaseFormValues = z.infer<typeof caseSchema>;
@@ -179,10 +183,13 @@ export default function CasesList() {
       targetType: "market",
       priorProbability: 0.45,
       timeHorizon: "12 months",
-      primarySpecialtyProfile: "General",
-      payerEnvironment: "Balanced",
-      guidelineLeverage: "Medium",
-      competitorProfile: "Entrenched standard of care",
+      primarySpecialtyProfile: "general",
+      payerEnvironment: "balanced",
+      guidelineLeverage: "medium",
+      competitorProfile: "entrenched_standard_of_care",
+      accessFrictionIndex: 0.5,
+      adoptionPhase: "early_adoption",
+      forecastHorizonMonths: 12,
     },
   });
 
@@ -433,54 +440,7 @@ export default function CasesList() {
               </div>
 
               {/* Section: Actor Environment */}
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 pb-1 border-b border-border/50">
-                  Actor Environment
-                  <span className="normal-case font-normal ml-2 text-muted-foreground">— configures the behavioral weighting model</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Specialty Actor Profile</Label>
-                    <Select {...form.register("primarySpecialtyProfile")}>
-                      <option value="General">General (default)</option>
-                      <option value="Oncology / academic-led">Oncology / academic-led</option>
-                      <option value="Cardiology / mixed specialist">Cardiology / mixed specialist</option>
-                      <option value="Pulmonology / rare disease">Pulmonology / rare disease</option>
-                      <option value="Dermatology / community-led">Dermatology / community-led</option>
-                      <option value="Psychiatry / access-sensitive">Psychiatry / access-sensitive</option>
-                      <option value="Infectious disease / guideline-led">Infectious disease / guideline-led</option>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Payer Environment</Label>
-                    <Select {...form.register("payerEnvironment")}>
-                      <option value="Balanced">Balanced</option>
-                      <option value="Commercial-heavy">Commercial-heavy</option>
-                      <option value="Medicare-heavy">Medicare-heavy</option>
-                      <option value="Medicaid-heavy">Medicaid-heavy</option>
-                      <option value="Integrated delivery / IDN">Integrated delivery / IDN</option>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Guideline Leverage</Label>
-                    <Select {...form.register("guidelineLeverage")}>
-                      <option value="Low">Low — guidelines not established or not followed</option>
-                      <option value="Medium">Medium — guidelines exist, moderate adherence</option>
-                      <option value="High">High — guideline-driven prescribing</option>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Competitive Landscape</Label>
-                    <Select {...form.register("competitorProfile")}>
-                      <option value="Whitespace / limited direct competition">Whitespace — no significant competition</option>
-                      <option value="Entrenched standard of care">Entrenched standard of care</option>
-                      <option value="Aggressive branded competitor">Aggressive branded competitor</option>
-                      <option value="Generic erosion risk">Generic / biosimilar pressure</option>
-                      <option value="Crowded class / multiple competitors">Crowded class — multiple competitors</option>
-                    </Select>
-                  </div>
-                </div>
-              </div>
+              <ActorEnvironmentSection form={form} />
 
               <div className="flex justify-end gap-3 pt-4 border-t border-border mt-2">
                 <Button type="button" variant="ghost" onClick={() => setIsCreating(false)}>Cancel</Button>

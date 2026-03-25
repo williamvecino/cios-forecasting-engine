@@ -38,6 +38,9 @@ router.post("/cases", async (req, res) => {
     targetId: body.targetId || null,
     subspecialty: body.subspecialty || null,
     institutionName: body.institutionName || null,
+    accessFrictionIndex: body.accessFrictionIndex != null ? Number(body.accessFrictionIndex) : 0.5,
+    adoptionPhase: body.adoptionPhase || "early_adoption",
+    forecastHorizonMonths: body.forecastHorizonMonths != null ? Number(body.forecastHorizonMonths) : 12,
     isDemo: body.isDemo || "false",
   }).returning();
   res.status(201).json(mapCase(created));
@@ -73,6 +76,9 @@ router.put("/cases/:caseId", async (req, res) => {
       targetId: body.targetId,
       subspecialty: body.subspecialty,
       institutionName: body.institutionName,
+      accessFrictionIndex: body.accessFrictionIndex != null ? Number(body.accessFrictionIndex) : undefined,
+      adoptionPhase: body.adoptionPhase ?? undefined,
+      forecastHorizonMonths: body.forecastHorizonMonths != null ? Number(body.forecastHorizonMonths) : undefined,
       lastUpdate: new Date(),
     })
     .where(eq(casesTable.caseId, req.params.caseId))
