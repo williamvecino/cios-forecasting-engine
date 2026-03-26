@@ -1,17 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import { MOCK_CASE } from "@/lib/mock-case";
+import { enrichCase } from "@/lib/case-library";
+import type { CaseCardData } from "@/lib/case-library";
+import CaseCard from "@/components/case-library/case-card";
 import {
-  CheckCircle2,
-  XCircle,
   ArrowUpRight,
   ArrowDownRight,
   BookOpen,
   Target,
-  BarChart3,
   Layers,
   TrendingUp,
 } from "lucide-react";
@@ -26,18 +26,6 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "drivers", label: "Driver Impact", icon: <TrendingUp className="w-4 h-4" /> },
   { key: "library", label: "Case Library", icon: <BookOpen className="w-4 h-4" /> },
 ];
-
-interface CaseRow {
-  id: string;
-  caseId: string;
-  strategicQuestion: string;
-  currentProbability: number | null;
-  confidenceLevel: string | null;
-  timeHorizon: string | null;
-  updatedAt: string;
-  primaryBrand: string | null;
-  therapeuticArea?: string;
-}
 
 export default function ForecastPage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
@@ -298,122 +286,68 @@ function DriverImpactTab() {
 }
 
 function CaseLibraryTab() {
-  const [cases, setCases] = useState<CaseRow[]>([]);
+  const [cards, setCards] = useState<CaseCardData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch(`${API_BASE}/cases`)
       .then((r) => r.json())
-      .then((data) => setCases(data))
-      .catch(() => setCases([]))
+      .then((data: any[]) => {
+        setCards(data.map((c, i) => enrichCase(c, i)));
+      })
+      .catch(() => setCards([]))
       .finally(() => setLoading(false));
   }, []);
 
+  const handleUpdate = useCallback(
+    (caseId: string, updates: Partial<CaseCardData>) => {
+      setCards((prev) =>
+        prev.map((c) => (c.caseId === caseId ? { ...c, ...updates } : c))
+      );
+    },
+    []
+  );
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-12 text-center text-muted-foreground">
+        Loading cases...
+      </div>
+    );
+  }
+
+  if (cards.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-12 text-center text-muted-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <BookOpen className="w-8 h-8 opacity-20" />
+          <p>No cases yet. Ask a strategic question to begin.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
-      <div className="p-5 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-primary" />
-              Case Library
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              All strategic cases in one view. Click any row to open.
-            </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-primary" />
+            Case Library
           </div>
-          <div className="text-sm text-muted-foreground">
-            {cases.length} case{cases.length !== 1 ? "s" : ""}
-          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Strategic case board. Hover any card to edit. System values are suggestions — override anything.
+          </p>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {cards.length} case{cards.length !== 1 ? "s" : ""}
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs text-muted-foreground uppercase bg-muted/20 border-b border-border">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Case ID</th>
-              <th className="px-4 py-3 font-semibold">Strategic Question</th>
-              <th className="px-4 py-3 font-semibold text-right">Probability</th>
-              <th className="px-4 py-3 font-semibold">Confidence</th>
-              <th className="px-4 py-3 font-semibold">Horizon</th>
-              <th className="px-4 py-3 font-semibold">Updated</th>
-              <th className="px-4 py-3 font-semibold text-center">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/50">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                  Loading cases...
-                </td>
-              </tr>
-            ) : cases.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                  <div className="flex flex-col items-center gap-3">
-                    <BookOpen className="w-8 h-8 opacity-20" />
-                    <p>No cases yet. Ask a strategic question to begin.</p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              cases.map((c) => (
-                <tr
-                  key={c.id}
-                  className="hover:bg-muted/10 transition-colors"
-                >
-                  <td className="px-4 py-3 font-mono text-xs text-primary whitespace-nowrap">
-                    {c.caseId}
-                  </td>
-                  <td className="px-4 py-3 max-w-[260px] truncate">
-                    {c.strategicQuestion}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono font-semibold text-foreground">
-                    {c.currentProbability !== null
-                      ? `${(c.currentProbability * 100).toFixed(1)}%`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {c.confidenceLevel ? (
-                      <span
-                        className={[
-                          "inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                          c.confidenceLevel === "High"
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : c.confidenceLevel === "Moderate"
-                            ? "bg-amber-500/15 text-amber-300"
-                            : "bg-muted/30 text-muted-foreground",
-                        ].join(" ")}
-                      >
-                        {c.confidenceLevel}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">Pending</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {c.timeHorizon || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {new Date(c.updatedAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <Link
-                      href={`/case/${c.caseId}/question`}
-                      className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-primary hover:bg-muted/20 transition"
-                    >
-                      Open
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {cards.map((c) => (
+          <CaseCard key={c.caseId} data={c} onUpdate={handleUpdate} />
+        ))}
       </div>
     </div>
   );

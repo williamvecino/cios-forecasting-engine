@@ -1,0 +1,100 @@
+The Case Library should be semi-automated, not a static table.
+
+It used to feel stronger because there were mini curves, icons, and system suggestions visible at a glance. We need that back.
+
+Design rule:
+The system should propose the case summary, but the user must be able to edit it.
+
+What I want:
+
+1. Turn the Case Library into a semi-automated case board
+   For each case, the system should generate default values for:
+
+* probability
+* base / upside / downside scenarios
+* trend curve state
+* primary drivers
+* status
+* recommended next step
+
+But every one of those fields must remain editable by the user.
+
+2. Add mini forecast curves back
+   Each case card should include a small sparkline / mini-curve showing trajectory.
+
+Use simple visual states at minimum:
+
+* rising
+* flat
+* declining
+* volatile
+
+This can initially be driven by mock or derived case state, but it should be visually present.
+
+3. Add driver icons
+   Each case should show 2–4 small icons representing major forces:
+
+* evidence
+* payer/access
+* competition
+* guideline
+* timing
+* segment/adoption
+
+This should make the board scannable.
+
+4. Add system suggestions
+   Each case should include a system-generated suggestion line, for example:
+
+* “Monitor access closely”
+* “Momentum improving”
+* “Scenario-sensitive case”
+* “Barrier reduction needed”
+
+This suggestion should be editable by the user.
+
+5. Use card-based layout, not just a plain table
+   The library should feel like a strategic dashboard.
+
+Each card should show:
+
+* Case ID
+* Strategic question
+* Probability
+* Base / Upside / Downside
+* Mini curve
+* Driver icons
+* Status
+* Last updated
+* System suggestion
+* Open / Edit
+
+6. Add editable mode
+   Each card needs an edit control so the user can modify:
+
+* probability
+* scenario values
+* suggestion text
+* status
+* driver selection
+
+7. Keep this under Step 3 — See Forecast
+   Inside Step 3, add tabs:
+
+* Current Forecast
+* Scenario Planning
+* Driver Impact
+* Case Library
+
+Case Library must be a first-class tab, not hidden in Advanced/System.
+
+Files likely needed:
+
+* components/case-library/case-library-board.tsx
+* components/case-library/case-card.tsx
+* components/case-library/mini-curve.tsx
+* components/case-library/driver-icons.tsx
+* lib/case-library.ts
+
+Success criteria:
+When I open Case Library, I should immediately see a visually rich board of cases with curves, icons, scenarios, and editable system suggestions. It should feel like a living decision engine, not a static list.

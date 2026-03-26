@@ -1,0 +1,116 @@
+We need to add a Question Guidance panel to Step 1 — Ask a Question.
+
+Purpose:
+Help users see how strong strategic questions are structured and prevent vague or untestable inputs.
+
+This is a UI-only feature.
+No engine changes required.
+
+---
+
+PLACEMENT
+
+Step 1 — Ask a Question
+
+Add a right-side panel titled:
+
+Question Examples
+
+---
+
+SECTION 1 — Strong Strategic Questions
+
+Add a section titled:
+
+Strong Strategic Questions
+
+Display example questions as clickable chips or cards.
+
+Examples:
+
+* Will adoption increase after indication expansion within 12 months?
+* Which segment is most likely to adopt first after launch?
+* Will payer restrictions delay uptake in the first year?
+* Will guideline endorsement shift prescribing behavior?
+* Will competitor entry materially reduce share within 6 months?
+
+Behavior:
+
+Clicking a question should populate the main question input field.
+
+---
+
+SECTION 2 — Avoid These Questions
+
+Add a section titled:
+
+Avoid These Questions
+
+Display example questions styled differently (muted or warning color).
+
+Examples:
+
+* What will happen with this product?
+* Is this launch going to be successful?
+* What do doctors think?
+* How will the market react?
+* Will this work?
+
+These examples should not populate the field automatically.
+They are instructional only.
+
+---
+
+VISUAL DESIGN
+
+Use two stacked sections:
+
+Strong Strategic Questions
+
+Avoid These Questions
+
+Use color distinction:
+
+Good examples:
+
+green or neutral
+
+Avoid examples:
+
+orange or muted red
+
+Keep the panel compact and readable.
+
+---
+
+FILES TO MODIFY
+
+components/question/question-input.tsx
+
+Add:
+
+QuestionExamplesPanel
+
+components/question/question-examples-panel.tsx
+
+Create:
+
+QuestionExamplesPanel component
+
+---
+
+SUCCESS CRITERIA
+
+When I open Step 1 — Ask a Question:
+
+I can see example questions on the side
+
+I can click a strong example to populate the input field
+
+I can visually understand what good vs poor questions look like
+
+The workflow remains simple
+
+---
+
+This feature should feel like coaching, not documentation.
