@@ -26,6 +26,24 @@ export interface ForecastCaseInput {
   environment: ActorEnvironmentConfig;
 }
 
+export interface ForecastOutput {
+  runId: string;
+  caseId: string;
+  question: string;
+  priorProbability: number;
+  posteriorProbability: number;
+  adjustedProbability: number;
+  priorMultiplier: number;
+  posteriorMultiplier: number;
+  signalCount: number;
+  effectiveSignalCount: number;
+  appliedSignals: AppliedSignal[];
+  explanation: string[];
+  engineVersion: string;
+  environmentFingerprint: string;
+  inputFingerprint: string;
+}
+
 export type {
   SpecialtyActorProfile,
   PayerEnvironment,
