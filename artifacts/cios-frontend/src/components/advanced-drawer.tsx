@@ -7,6 +7,16 @@ interface Props {
 
 const systemLinks = [
   {
+    label: "Strategic Dashboard",
+    path: "/dashboard",
+    description: "Full case overview with probabilities, calibration, and active questions.",
+  },
+  {
+    label: "Case Library",
+    path: "/case-library",
+    description: "Historical case library for analog retrieval matching.",
+  },
+  {
     label: "Forecast Ledger",
     path: "/forecast-ledger",
     description: "Formal prediction history and resolution tracking.",
