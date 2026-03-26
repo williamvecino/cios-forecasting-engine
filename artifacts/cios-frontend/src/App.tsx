@@ -22,6 +22,7 @@ import SignalDetection from "@/pages/signal-detection/index";
 import EventRadar from "@/pages/event-radar/index";
 import SystemMap from "@/pages/system-map/index";
 import CIOSWorkbench from "@/pages/workbench/index";
+import StabilityTests from "@/pages/stability-tests/index";
 import PendingSignals from "@/pages/cases/pending-signals";
 import AgentDetection from "@/pages/cases/agents/detection";
 import AgentHygiene from "@/pages/cases/agents/hygiene";
@@ -83,6 +84,7 @@ function Router() {
       <Route path="/event-radar" component={EventRadar} />
       <Route path="/system-map" component={SystemMap} />
       <Route path="/workbench" component={CIOSWorkbench} />
+      <Route path="/stability-tests" component={StabilityTests} />
       <Route path="/cases/:caseId" component={LegacyCaseRedirect} />
       <Route component={NotFound} />
     </Switch>
