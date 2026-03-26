@@ -1,0 +1,123 @@
+We need to restore the Case Library view as a first-class part of the workflow.
+
+Right now the mock case shows only a single forecast screen. That makes the system feel static and removes the sense of intelligence and memory.
+
+Previously we had a dashboard where users could click into a library of cases and see:
+
+* the original question
+* the probability
+* the scenario planning
+* the decision status
+* the last update
+
+That view needs to return — but aligned with the new workflow shell.
+
+---
+
+Placement
+
+Add the Case Library as a sub-view under:
+
+Step 3 — See Forecast
+
+This is not an Advanced / System feature.
+This is core workflow functionality.
+
+---
+
+Navigation
+
+Inside Step 3, create tabs:
+
+* Current Forecast
+* Scenario Planning
+* Driver Impact
+* Case Library
+
+Default tab:
+
+Current Forecast
+
+---
+
+Case Library Purpose
+
+The Case Library is the visual Forecast Ledger.
+
+It should show all cases in a table or card grid so users can:
+
+* scan multiple forecasts
+* compare probabilities
+* see scenario differences
+* open any case instantly
+
+This restores the feeling of a strategic dashboard.
+
+---
+
+Case Library Columns
+
+Each row should show:
+
+Case ID
+Strategic Question
+Probability
+Base Scenario
+Status
+Last Updated
+Open button
+
+Example:
+
+CASE_001
+Will adoption increase after indication expansion?
+42%
+Base Case
+Monitoring
+Mar 26
+
+---
+
+Interaction
+
+Clicking a row should:
+
+Open that case
+Load its forecast
+Load its scenarios
+Load its drivers
+
+---
+
+Files to modify
+
+components/forecast/forecast-tabs.tsx
+
+Add:
+
+CaseLibraryTab
+
+components/case-library/case-library-table.tsx
+
+Create:
+
+CaseLibraryTable
+
+lib/case-store.ts
+
+Expose:
+
+getAllCases()
+
+---
+
+Success criteria
+
+After implementation:
+
+Users can open Step 3 — See Forecast
+Click Case Library
+See all cases in one place
+Open any case instantly
+
+The system feels like a living decision engine again, not a single workflow screen.
