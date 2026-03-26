@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
-import QuestionGate from "@/components/question-gate";
+
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import { MOCK_CASE } from "@/lib/mock-case";
 import { enrichCase } from "@/lib/case-library";
@@ -80,17 +80,20 @@ export default function ForecastPage() {
 }
 
 function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
+  const hasQuestion = !!activeQuestion;
+  const prob = hasQuestion ? MOCK_CASE.forecast.probability : "—";
+  const drivers = hasQuestion ? MOCK_CASE.forecast.keyDrivers.join(", ") : "—";
+  const timing = hasQuestion ? MOCK_CASE.forecast.timing : "—";
+
   return (
     <>
-      <QuestionGate activeQuestion={activeQuestion}>
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <ForecastCard label="Probability" value="—" body="Primary forecast output." />
-            <ForecastCard label="Key Drivers" value="—" body="Main factors moving the forecast." />
-            <ForecastCard label="Timing" value="—" body="When the shift is likely to occur." />
-          </div>
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <ForecastCard label="Probability" value={prob} body="Primary forecast output." highlight={hasQuestion} />
+          <ForecastCard label="Key Drivers" value={drivers} body="Main factors moving the forecast." />
+          <ForecastCard label="Timing" value={timing} body="When the shift is likely to occur." />
         </div>
-      </QuestionGate>
+      </div>
 
       <div className="rounded-2xl border border-border bg-card p-6">
         <div className="text-sm font-semibold text-foreground">What comes next</div>
@@ -353,15 +356,17 @@ function ForecastCard({
   label,
   value,
   body,
+  highlight,
 }: {
   label: string;
   value: string;
   body: string;
+  highlight?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/10 p-5">
+    <div className={`rounded-xl border p-5 ${highlight ? "border-primary/30 bg-primary/5" : "border-border bg-muted/10"}`}>
       <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
+      <div className={`mt-2 font-semibold text-foreground ${value.length > 30 ? "text-sm" : "text-2xl"}`}>{value}</div>
       <div className="mt-2 text-sm text-muted-foreground/70">{body}</div>
     </div>
   );
