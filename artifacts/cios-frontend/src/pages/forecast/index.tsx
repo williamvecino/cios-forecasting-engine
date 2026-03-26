@@ -38,6 +38,38 @@ export default function ForecastPage() {
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="text-sm font-semibold text-foreground">What comes next</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              Once the forecast is visible, the next layer helps convert that output into action:
+              who to target, what blocks movement, when to act, and what competitive risks to watch.
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                "Adoption Segmentation",
+                "Barrier Diagnosis",
+                "Readiness Timeline",
+                "Competitive Risk",
+                "Growth Feasibility",
+              ].map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full bg-muted/20 px-3 py-1 text-xs text-muted-foreground"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+
+            <Link
+              href="/decide"
+              className="mt-5 inline-flex rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500"
+            >
+              Go to Decide
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-6">
             <div className="text-sm font-semibold text-foreground">
               Advanced forecast tools
             </div>
