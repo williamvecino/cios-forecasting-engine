@@ -31,6 +31,7 @@ type Category = "evidence" | "access" | "competition" | "guideline" | "timing" |
 interface Signal {
   id: string;
   text: string;
+  caveat: string;
   direction: Direction;
   strength: Strength;
   reliability: Reliability;
@@ -71,6 +72,7 @@ function generateSuggestions(questionText: string): Signal[] {
     {
       id: "sys-1",
       text: "Positive phase 3 efficacy data supports clinical differentiation",
+      caveat: "",
       direction: "positive",
       strength: "High",
       reliability: "Confirmed",
@@ -81,6 +83,7 @@ function generateSuggestions(questionText: string): Signal[] {
     {
       id: "sys-2",
       text: "Guideline committee reviewing updated treatment recommendations",
+      caveat: "",
       direction: "positive",
       strength: "Medium",
       reliability: "Probable",
@@ -91,6 +94,7 @@ function generateSuggestions(questionText: string): Signal[] {
     {
       id: "sys-3",
       text: "Moderate payer friction observed in early access negotiations",
+      caveat: "",
       direction: "negative",
       strength: "Medium",
       reliability: "Confirmed",
@@ -101,6 +105,7 @@ function generateSuggestions(questionText: string): Signal[] {
     {
       id: "sys-4",
       text: "Entrenched standard of care creating switching inertia",
+      caveat: "",
       direction: "negative",
       strength: "High",
       reliability: "Confirmed",
@@ -114,6 +119,7 @@ function generateSuggestions(questionText: string): Signal[] {
     base.push({
       id: "sys-5",
       text: "Early adopter segment showing interest after recent conference data",
+      caveat: "",
       direction: "positive",
       strength: "Medium",
       reliability: "Probable",
@@ -127,6 +133,7 @@ function generateSuggestions(questionText: string): Signal[] {
     base.push({
       id: "sys-6",
       text: "Competitor pipeline readout expected within next quarter",
+      caveat: "",
       direction: "negative",
       strength: "High",
       reliability: "Speculative",
@@ -140,6 +147,7 @@ function generateSuggestions(questionText: string): Signal[] {
     base.push({
       id: "sys-7",
       text: "Key regional payer expanding coverage criteria",
+      caveat: "",
       direction: "positive",
       strength: "Medium",
       reliability: "Probable",
@@ -153,6 +161,7 @@ function generateSuggestions(questionText: string): Signal[] {
     base.push({
       id: "sys-8",
       text: "NCCN guideline update draft circulating among committee members",
+      caveat: "",
       direction: "positive",
       strength: "High",
       reliability: "Probable",
@@ -166,6 +175,7 @@ function generateSuggestions(questionText: string): Signal[] {
     base.push({
       id: "sys-9",
       text: "Launch readiness assessments underway in priority markets",
+      caveat: "",
       direction: "positive",
       strength: "Medium",
       reliability: "Confirmed",
@@ -218,6 +228,7 @@ export default function SignalsPage() {
     const sig: Signal = {
       id: `user-${Date.now()}`,
       text: newText.trim(),
+      caveat: "",
       direction: newDirection,
       strength: newStrength,
       reliability: newReliability,
@@ -238,6 +249,7 @@ export default function SignalsPage() {
     const sig: Signal = {
       id: `ev-conv-${Date.now()}`,
       text: `${ev.title}: ${ev.description}`,
+      caveat: "",
       direction: "neutral",
       strength: "Medium",
       reliability: "Speculative",
@@ -426,11 +438,12 @@ function SuggestedSignalCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(signal.text);
+  const [editCaveat, setEditCaveat] = useState(signal.caveat);
   const catCfg = CATEGORY_CONFIG[signal.category];
   const CatIcon = catCfg.icon;
 
   function handleSaveEdit() {
-    onUpdate({ text: editText });
+    onUpdate({ text: editText, caveat: editCaveat });
     setEditing(false);
   }
 
@@ -440,14 +453,31 @@ function SuggestedSignalCard({
         <Sparkles className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
           {editing ? (
-            <textarea
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              rows={2}
-              className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-foreground"
-            />
+            <div className="space-y-2">
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                rows={2}
+                className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-foreground"
+                placeholder="Signal description..."
+              />
+              <input
+                value={editCaveat}
+                onChange={(e) => setEditCaveat(e.target.value)}
+                className="w-full rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 placeholder:text-amber-400/40"
+                placeholder="Add caveat or note (e.g. 'only applies to US market')..."
+              />
+            </div>
           ) : (
-            <div className="text-sm text-foreground">{signal.text}</div>
+            <div>
+              <div className="text-sm text-foreground">{signal.text}</div>
+              {signal.caveat && (
+                <div className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-300/80 italic">
+                  <span className="shrink-0">Caveat:</span>
+                  <span>{signal.caveat}</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -456,7 +486,7 @@ function SuggestedSignalCard({
               <button type="button" onClick={handleSaveEdit} className="rounded-lg border border-emerald-500/30 p-1.5 text-emerald-400 hover:bg-emerald-500/10 transition" title="Save">
                 <Check className="w-3.5 h-3.5" />
               </button>
-              <button type="button" onClick={() => { setEditText(signal.text); setEditing(false); }} className="rounded-lg border border-border p-1.5 text-muted-foreground hover:bg-muted/20 transition" title="Cancel">
+              <button type="button" onClick={() => { setEditText(signal.text); setEditCaveat(signal.caveat); setEditing(false); }} className="rounded-lg border border-border p-1.5 text-muted-foreground hover:bg-muted/20 transition" title="Cancel">
                 <X className="w-3.5 h-3.5" />
               </button>
             </>
@@ -475,6 +505,17 @@ function SuggestedSignalCard({
           )}
         </div>
       </div>
+
+      {!editing && (
+        <div className="pl-7">
+          <input
+            value={signal.caveat}
+            onChange={(e) => onUpdate({ caveat: e.target.value })}
+            className="w-full rounded-lg border border-transparent bg-transparent px-0 py-1 text-xs text-muted-foreground placeholder:text-muted-foreground/30 hover:border-amber-500/20 focus:border-amber-500/30 focus:bg-amber-500/5 transition"
+            placeholder="+ Add caveat or note..."
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-3 flex-wrap pl-7">
         <DirectionBadge direction={signal.direction} />
@@ -522,14 +563,29 @@ function ActiveSignalRow({
         </div>
         <div className="flex-1 min-w-0">
           {editing ? (
-            <textarea
-              value={signal.text}
-              onChange={(e) => onUpdate({ text: e.target.value })}
-              rows={2}
-              className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-foreground"
-            />
+            <div className="space-y-2">
+              <textarea
+                value={signal.text}
+                onChange={(e) => onUpdate({ text: e.target.value })}
+                rows={2}
+                className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-foreground"
+              />
+              <input
+                value={signal.caveat}
+                onChange={(e) => onUpdate({ caveat: e.target.value })}
+                className="w-full rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 placeholder:text-amber-400/40"
+                placeholder="Add caveat or note..."
+              />
+            </div>
           ) : (
-            <div className="text-sm text-foreground/90">{signal.text}</div>
+            <div>
+              <div className="text-sm text-foreground/90">{signal.text}</div>
+              {signal.caveat && (
+                <div className="mt-1 text-xs text-amber-300/70 italic">
+                  Caveat: {signal.caveat}
+                </div>
+              )}
+            </div>
           )}
           <div className="mt-1.5 flex items-center gap-2 flex-wrap">
             <DirectionBadge direction={signal.direction} />
