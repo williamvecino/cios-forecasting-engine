@@ -1,3 +1,5 @@
+import { clamp, round4 } from "./stability";
+
 export type SpecialtyActorProfile =
   | "general"
   | "early_adopter_specialty"
@@ -44,14 +46,6 @@ export interface EnvironmentAdjustmentResult {
   posteriorMultiplier: number;
   explanation: string[];
   normalizedConfig: Required<ActorEnvironmentConfig>;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
 }
 
 export function normalizeActorEnvironment(
