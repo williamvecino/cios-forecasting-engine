@@ -1,4 +1,10 @@
-export type RoadmapStatus = "planned" | "in_build" | "advanced";
+export type RoadmapStatus = "planned" | "in_build" | "advanced" | "coming_next";
+
+export type Subsegment = {
+  name: string;
+  description: string;
+  status: "Planned" | "In Build" | "Coming Next";
+};
 
 interface Props {
   title: string;
@@ -7,6 +13,7 @@ interface Props {
   inputs?: string[];
   output?: string;
   advanced?: boolean;
+  subsegments?: Subsegment[];
 }
 
 function getStatusLabel(status: RoadmapStatus) {
@@ -15,6 +22,8 @@ function getStatusLabel(status: RoadmapStatus) {
       return "In Build";
     case "advanced":
       return "Advanced";
+    case "coming_next":
+      return "Coming Next";
     case "planned":
     default:
       return "Planned";
@@ -27,9 +36,23 @@ function getStatusClasses(status: RoadmapStatus) {
       return "bg-blue-500/15 text-blue-300 border-blue-500/20";
     case "advanced":
       return "bg-muted/30 text-muted-foreground border-border";
+    case "coming_next":
+      return "bg-emerald-500/15 text-emerald-300 border-emerald-500/20";
     case "planned":
     default:
       return "bg-amber-500/15 text-amber-300 border-amber-500/20";
+  }
+}
+
+function getSubStatusClasses(status: Subsegment["status"]) {
+  switch (status) {
+    case "In Build":
+      return "text-blue-400";
+    case "Coming Next":
+      return "text-emerald-400";
+    case "Planned":
+    default:
+      return "text-amber-400";
   }
 }
 
@@ -40,6 +63,7 @@ export default function DecisionRoadmapCard({
   inputs = [],
   output,
   advanced = false,
+  subsegments = [],
 }: Props) {
   return (
     <div className="rounded-xl border border-border bg-muted/10 p-5">
@@ -64,6 +88,25 @@ export default function DecisionRoadmapCard({
       </div>
 
       <div className="mt-2 text-sm text-muted-foreground">{body}</div>
+
+      {subsegments.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {subsegments.map((sub) => (
+            <div
+              key={sub.name}
+              className="rounded-lg border border-border/50 bg-muted/5 px-3 py-2.5"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-xs font-semibold text-foreground/90">{sub.name}</div>
+                <span className={`text-[10px] font-semibold ${getSubStatusClasses(sub.status)}`}>
+                  {sub.status}
+                </span>
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{sub.description}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {(inputs.length > 0 || output) && (
         <div className="mt-4 space-y-3">

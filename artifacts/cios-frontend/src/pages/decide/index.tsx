@@ -1,7 +1,73 @@
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import DecisionRoadmapCard from "@/components/decision-roadmap-card";
+import type { Subsegment } from "@/components/decision-roadmap-card";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+
+type PanelDef = {
+  title: string;
+  purpose: string;
+  output: string;
+  subsegments: Subsegment[];
+};
+
+const panels: PanelDef[] = [
+  {
+    title: "Adoption Segmentation",
+    purpose: "Identify who will move first and how segments behave.",
+    output: "Who moves first, second, and later",
+    subsegments: [
+      { name: "Early Adopters", description: "Segments most likely to move first.", status: "Coming Next" },
+      { name: "Persuadables", description: "Segments likely to adopt with targeted intervention.", status: "Coming Next" },
+      { name: "Late Movers", description: "Segments that adopt after proof accumulates.", status: "Coming Next" },
+      { name: "Resistant Segments", description: "Segments unlikely to move without structural change.", status: "Coming Next" },
+    ],
+  },
+  {
+    title: "Barrier Diagnosis",
+    purpose: "Identify what is blocking adoption.",
+    output: "What is blocking movement now",
+    subsegments: [
+      { name: "Evidence Barrier", description: "Clinical confidence or data sufficiency concerns.", status: "Coming Next" },
+      { name: "Access Barrier", description: "Coverage, reimbursement, or pathway restrictions.", status: "Coming Next" },
+      { name: "Workflow Barrier", description: "Operational or implementation friction.", status: "Coming Next" },
+      { name: "Competitive Barrier", description: "Entrenched alternatives or defensive positioning.", status: "Coming Next" },
+    ],
+  },
+  {
+    title: "Readiness Timeline",
+    purpose: "Determine when the market can realistically shift.",
+    output: "When change is realistically achievable",
+    subsegments: [
+      { name: "Near-Term Readiness", description: "Likelihood of change in the immediate horizon.", status: "Coming Next" },
+      { name: "Trigger Events", description: "Events that could accelerate adoption.", status: "Coming Next" },
+      { name: "Dependencies", description: "Conditions required before adoption occurs.", status: "Coming Next" },
+      { name: "Timing Risks", description: "Factors that could delay adoption.", status: "Coming Next" },
+    ],
+  },
+  {
+    title: "Competitive Risk",
+    purpose: "Assess how competitors are likely to respond.",
+    output: "What competitive responses should be expected",
+    subsegments: [
+      { name: "Incumbent Defense", description: "Actions to protect existing share.", status: "Coming Next" },
+      { name: "Fast Follower Risk", description: "Speed of competitive replication.", status: "Coming Next" },
+      { name: "Access Response", description: "Competitive payer or contracting actions.", status: "Coming Next" },
+      { name: "Evidence Response", description: "Publication or data counter-messaging.", status: "Coming Next" },
+    ],
+  },
+  {
+    title: "Growth Feasibility",
+    purpose: "Evaluate whether expansion can translate into revenue.",
+    output: "Whether growth can translate into revenue",
+    subsegments: [
+      { name: "Segment Size", description: "Total reachable population.", status: "Coming Next" },
+      { name: "Access Expansion", description: "Coverage or channel growth potential.", status: "Coming Next" },
+      { name: "Operational Scalability", description: "Ability to deliver at scale.", status: "Coming Next" },
+      { name: "Revenue Translation", description: "Likelihood that adoption converts into revenue.", status: "Coming Next" },
+    ],
+  },
+];
 
 export default function DecidePage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
@@ -48,83 +114,28 @@ export default function DecidePage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <DecisionRoadmapCard
-                title="Adoption Segmentation"
-                body="Identify which segments are most likely to move first and in what sequence."
-                status="planned"
-                inputs={[
-                  "Active question",
-                  "Forecast output",
-                  "Signal mix",
-                  "Actor environment",
-                ]}
-                output="Who moves first, second, and later"
-              />
-
-              <DecisionRoadmapCard
-                title="Barrier Diagnosis"
-                body="Identify the dominant factors blocking adoption or behavior change."
-                status="planned"
-                inputs={[
-                  "Signal mix",
-                  "Forecast resistance",
-                  "Competitive context",
-                  "Payer friction",
-                ]}
-                output="What is blocking movement now"
-              />
-
-              <DecisionRoadmapCard
-                title="Readiness Timeline"
-                body="Estimate when the market can realistically shift, given the current evidence and constraints."
-                status="planned"
-                inputs={[
-                  "Forecast horizon",
-                  "Signal trajectory",
-                  "Guideline leverage",
-                  "Adoption phase",
-                ]}
-                output="When change is realistically achievable"
-              />
-
-              <DecisionRoadmapCard
-                title="Competitive Risk"
-                body="Estimate what competitors are likely to do next and how that changes the strategic picture."
-                status="planned"
-                inputs={[
-                  "Competitive landscape",
-                  "Observed signals",
-                  "Market timing",
-                  "Question context",
-                ]}
-                output="What competitive responses should be expected"
-              />
-
-              <DecisionRoadmapCard
-                title="Growth Feasibility"
-                body="Estimate whether expected adoption can plausibly convert into commercial expansion and revenue."
-                status="planned"
-                inputs={[
-                  "Forecast output",
-                  "Segment size",
-                  "Market access",
-                  "Timing",
-                ]}
-                output="Whether growth can translate into revenue"
-              />
+              {panels.map((panel) => (
+                <DecisionRoadmapCard
+                  key={panel.title}
+                  title={panel.title}
+                  body={panel.purpose}
+                  status="coming_next"
+                  output={panel.output}
+                  subsegments={panel.subsegments}
+                />
+              ))}
 
               <DecisionRoadmapCard
                 title="Actors / Segments"
                 body="Advanced layer for defined market-research actors, segment reaction scoring, and later simulation workflows."
                 status="advanced"
                 advanced
-                inputs={[
-                  "Segment definitions",
-                  "Reaction logic",
-                  "Campaign inputs",
-                  "Context layer",
-                ]}
                 output="How defined actors may react under different scenarios"
+                subsegments={[
+                  { name: "Segment Definitions", description: "Named actor groups with behavior rules.", status: "Planned" },
+                  { name: "Reaction Logic", description: "How segments respond to campaigns and signals.", status: "Planned" },
+                  { name: "Scenario Simulation", description: "Run what-if models across actor networks.", status: "Planned" },
+                ]}
               />
             </div>
           </div>
