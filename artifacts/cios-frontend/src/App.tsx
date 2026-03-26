@@ -32,6 +32,7 @@ import AgentDetection from "@/pages/cases/agents/detection";
 import AgentHygiene from "@/pages/cases/agents/hygiene";
 import AgentRefinement from "@/pages/cases/agents/refinement";
 import AgentMessage from "@/pages/cases/agents/message";
+import ForecastLedgerPage from "@/pages/forecast-ledger/index";
 import NotFound from "@/pages/not-found";
 import { useRoute, useLocation } from "wouter";
 import { useEffect } from "react";
@@ -83,6 +84,7 @@ function Router() {
       <Route path="/case/:caseId/portfolio" component={Portfolio} />
 
       <Route path="/case-library" component={CaseLibrary} />
+      <Route path="/forecast-ledger" component={ForecastLedgerPage} />
       <Route path="/calibration" component={Calibration} />
       <Route path="/field-intelligence" component={FieldIntelligence} />
       <Route path="/watchlist" component={Watchlist} />
