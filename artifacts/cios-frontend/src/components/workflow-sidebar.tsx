@@ -38,13 +38,12 @@ export default function WorkflowSidebar({
           return (
             <Link
               key={step.key}
-              href={gated ? "/question" : step.path}
+              href={step.path}
               className={[
                 "block rounded-xl border px-4 py-4 transition",
                 isActive
                   ? "border-primary/60 bg-primary/10"
                   : "border-border bg-muted/10 hover:border-border/80 hover:bg-muted/20",
-                gated ? "opacity-70" : "",
               ].join(" ")}
             >
               <div className="flex items-start justify-between gap-3">
@@ -54,7 +53,7 @@ export default function WorkflowSidebar({
                 </div>
                 {gated && (
                   <span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                    Locked
+                    Preview
                   </span>
                 )}
               </div>
