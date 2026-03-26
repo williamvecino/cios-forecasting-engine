@@ -36,9 +36,14 @@ export default function ActiveQuestionBanner({ activeQuestion, onClear }: Props)
               </div>
             </>
           ) : (
-            <div className="mt-2 text-sm text-muted-foreground/70">
-              No question is active yet.
-            </div>
+            <>
+              <div className="mt-2 text-sm text-muted-foreground">
+                No question is active yet.
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground/70">
+                Start with your own case or open <span className="text-foreground/80">See Mock Case</span> to preview the workflow.
+              </div>
+            </>
           )}
         </div>
 

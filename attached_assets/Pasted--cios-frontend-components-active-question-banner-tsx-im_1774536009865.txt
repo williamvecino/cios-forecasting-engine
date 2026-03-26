@@ -1,0 +1,65 @@
+// cios-frontend/components/active-question-banner.tsx
+
+import React from "react";
+import type { ActiveQuestion } from "../lib/workflow";
+
+interface Props {
+  activeQuestion: ActiveQuestion | null;
+  onClear: () => void;
+}
+
+export default function ActiveQuestionBanner({ activeQuestion, onClear }: Props) {
+  return (
+    <div className="rounded-3xl border border-slate-800 bg-[#0b1220] p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Active Question
+          </div>
+
+          {activeQuestion ? (
+            <>
+              <div className="mt-2 text-lg font-semibold text-white">
+                {activeQuestion.text}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400">
+                <span className="rounded-full bg-slate-900 px-3 py-1">
+                  ID: {activeQuestion.id}
+                </span>
+                {activeQuestion.caseId && (
+                  <span className="rounded-full bg-slate-900 px-3 py-1">
+                    Case: {activeQuestion.caseId}
+                  </span>
+                )}
+                {activeQuestion.timeHorizon && (
+                  <span className="rounded-full bg-slate-900 px-3 py-1">
+                    Horizon: {activeQuestion.timeHorizon}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-2 text-sm text-slate-300">
+                No question is active yet.
+              </div>
+              <div className="mt-2 text-sm text-slate-500">
+                Start with your own case or open <span className="text-slate-300">See Mock Case</span> to preview the workflow.
+              </div>
+            </>
+          )}
+        </div>
+
+        {activeQuestion && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-2xl border border-slate-800 px-4 py-3 text-sm text-slate-300 hover:border-slate-700 hover:bg-slate-900"
+          >
+            Clear Question
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
