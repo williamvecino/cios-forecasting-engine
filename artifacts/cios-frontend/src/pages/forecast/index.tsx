@@ -1,43 +1,88 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRunForecast, useGetCase } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
 import { useActiveQuestion } from "@/hooks/use-active-question";
-import { MOCK_CASE } from "@/lib/mock-case";
-import { enrichCase } from "@/lib/case-library";
-import type { CaseCardData } from "@/lib/case-library";
-import CaseCard from "@/components/case-library/case-card";
-import { ProbabilityGauge, Badge } from "@/components/ui-components";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import {
-  ArrowUpRight,
-  ArrowDownRight,
-  ArrowRight,
   BookOpen,
-  Target,
-  Layers,
-  TrendingUp,
-  TrendingDown,
   BrainCircuit,
-  RefreshCcw,
-  Minus,
-  Zap,
-  Activity,
-  CheckCircle2,
-  AlertOctagon,
   AlertTriangle,
   ShieldAlert,
+  Zap,
 } from "lucide-react";
 
 type Tab = "forecast" | "scenarios" | "drivers" | "library";
+type Strength = "Low" | "Medium" | "High";
+type Direction = "Upward" | "Downward";
+type Confidence = "Low" | "Moderate" | "High";
 
-const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-  { key: "forecast", label: "Current Forecast", icon: <Target className="w-4 h-4" /> },
-  { key: "scenarios", label: "Scenario Planning", icon: <Layers className="w-4 h-4" /> },
-  { key: "drivers", label: "Driver Impact", icon: <TrendingUp className="w-4 h-4" /> },
-  { key: "library", label: "Case Library", icon: <BookOpen className="w-4 h-4" /> },
-];
+type Driver = {
+  id: string;
+  name: string;
+  direction: Direction;
+  strength: Strength;
+  probabilityImpact: number;
+  watchSignal: string;
+  interpretation?: string;
+};
+
+type Scenario = {
+  id: string;
+  name: string;
+  probability: number;
+  confidence: Confidence;
+  summary: string;
+  changedDrivers: string[];
+  triggerSignals: string[];
+  recommendedAction: string;
+};
+
+type AdoptionSegment = {
+  id: string;
+  name: string;
+  adoptionLikelihood: number;
+  timing: "Early" | "Middle" | "Late";
+  rationale: string;
+  blockers: string[];
+};
+
+const strengthBadgeClass: Record<Strength, string> = {
+  Low: "bg-slate-700/70 text-slate-200 border border-slate-600",
+  Medium: "bg-blue-500/15 text-blue-200 border border-blue-400/30",
+  High: "bg-amber-500/15 text-amber-200 border border-amber-400/30",
+};
+
+const confidenceBadgeClass: Record<Confidence, string> = {
+  Low: "bg-rose-500/15 text-rose-200 border border-rose-400/30",
+  Moderate: "bg-blue-500/15 text-blue-200 border border-blue-400/30",
+  High: "bg-emerald-500/15 text-emerald-200 border border-emerald-400/30",
+};
+
+const timingBadgeClass: Record<AdoptionSegment["timing"], string> = {
+  Early: "bg-emerald-500/15 text-emerald-200 border border-emerald-400/30",
+  Middle: "bg-blue-500/15 text-blue-200 border border-blue-400/30",
+  Late: "bg-slate-700/70 text-slate-200 border border-slate-600",
+};
+
+const directionTextClass: Record<Direction, string> = {
+  Upward: "text-emerald-300",
+  Downward: "text-rose-300",
+};
+
+const directionArrow: Record<Direction, string> = {
+  Upward: "↗",
+  Downward: "↘",
+};
+
+function cn(...values: Array<string | false | null | undefined>) {
+  return values.filter(Boolean).join(" ");
+}
+
+function strengthWeight(s: Strength): number {
+  return s === "High" ? 3 : s === "Medium" ? 2 : 1;
+}
 
 export default function ForecastPage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
@@ -50,35 +95,43 @@ export default function ForecastPage() {
       onClearQuestion={clearQuestion}
     >
       <section className="space-y-6">
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
             Step 3
           </div>
-          <h1 className="mt-2 text-2xl font-semibold text-foreground">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
             What is likely to happen?
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Review forecasts, explore scenarios, understand driver impact,
-            and browse all cases in one place.
+          <p className="mt-2 max-w-3xl text-base text-slate-300">
+            Review the forecast, see what is driving movement, understand which stakeholders
+            are likely to adopt first, and identify what would change the trajectory.
           </p>
 
-          <div className="mt-5 flex flex-wrap gap-2 border-b border-border pb-0">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={[
-                  "inline-flex items-center gap-2 rounded-t-lg border-b-2 px-4 py-2.5 text-sm font-medium transition",
-                  tab === t.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
-                ].join(" ")}
-              >
-                {t.icon}
-                {t.label}
-              </button>
-            ))}
+          <div className="mt-5 border-b border-white/10">
+            <div className="flex flex-wrap gap-6">
+              {(
+                [
+                  { id: "forecast", label: "Current Forecast" },
+                  { id: "scenarios", label: "Scenario Planning" },
+                  { id: "drivers", label: "Driver Impact" },
+                  { id: "library", label: "Case Library" },
+                ] as { id: Tab; label: string }[]
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    "border-b-2 pb-3 text-sm font-medium transition",
+                    tab === t.id
+                      ? "border-blue-400 text-blue-300"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -91,20 +144,213 @@ export default function ForecastPage() {
   );
 }
 
+function useDriversFromForecast(forecast: any) {
+  return useMemo(() => {
+    if (!forecast) return [];
+    const f = forecast as any;
+    const sa = f.sensitivityAnalysis;
+    const signalDetails = f.signalDetails || [];
+    const drivers: Driver[] = [];
+
+    if (sa?.upwardSignals) {
+      for (const sig of sa.upwardSignals) {
+        const detail = signalDetails.find((d: any) => d.signalId === sig.signalId);
+        const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? 1;
+        const impact = sig.deltaIfRemoved ? Math.round(sig.deltaIfRemoved * 100) : Math.round((lr - 1) * 15);
+        drivers.push({
+          id: sig.signalId,
+          name: sig.description || detail?.description || sig.signalId,
+          direction: "Upward",
+          strength: lr >= 2 ? "High" : lr >= 1.3 ? "Medium" : "Low",
+          probabilityImpact: Math.abs(impact),
+          watchSignal: detail?.signalType || "Monitor for changes",
+          interpretation: detail?.signalType ? `${detail.signalType} signal contributing to upward pressure.` : undefined,
+        });
+      }
+    }
+
+    if (sa?.downwardSignals) {
+      for (const sig of sa.downwardSignals) {
+        const detail = signalDetails.find((d: any) => d.signalId === sig.signalId);
+        const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? 1;
+        const impact = sig.deltaIfRemoved ? Math.round(sig.deltaIfRemoved * 100) : Math.round((1 - lr) * 15);
+        drivers.push({
+          id: sig.signalId,
+          name: sig.description || detail?.description || sig.signalId,
+          direction: "Downward",
+          strength: lr <= 0.5 ? "High" : lr <= 0.75 ? "Medium" : "Low",
+          probabilityImpact: -Math.abs(impact),
+          watchSignal: detail?.signalType || "Monitor for changes",
+          interpretation: detail?.signalType ? `${detail.signalType} signal contributing to downward pressure.` : undefined,
+        });
+      }
+    }
+
+    if (drivers.length === 0 && signalDetails.length > 0) {
+      for (const sig of signalDetails) {
+        const lr = sig.likelihoodRatio ?? sig.effectiveLR ?? 1;
+        const isUp = sig.direction === "Positive" || lr > 1;
+        drivers.push({
+          id: sig.signalId,
+          name: sig.description || sig.signalId,
+          direction: isUp ? "Upward" : "Downward",
+          strength: (lr > 1.5 || lr < 0.6) ? "High" : (lr > 1.2 || lr < 0.8) ? "Medium" : "Low",
+          probabilityImpact: isUp ? Math.round((lr - 1) * 15) : -Math.round((1 - lr) * 15),
+          watchSignal: sig.signalType || "Monitor for changes",
+        });
+      }
+    }
+
+    return [...drivers].sort((a, b) => {
+      const diff = Math.abs(b.probabilityImpact) - Math.abs(a.probabilityImpact);
+      return diff !== 0 ? diff : strengthWeight(b.strength) - strengthWeight(a.strength);
+    });
+  }, [forecast]);
+}
+
+function useScenariosFromForecast(forecast: any, drivers: Driver[]) {
+  return useMemo(() => {
+    const f = forecast as any;
+    if (!f) return [];
+
+    const sim = f.scenarioSimulation;
+    if (sim?.bestCase?.probability != null && sim?.baseCase?.probability != null && sim?.riskCase?.probability != null) {
+      const upDriverIds = drivers.filter((d) => d.direction === "Upward").map((d) => d.id);
+      const downDriverIds = drivers.filter((d) => d.direction === "Downward").map((d) => d.id);
+      return [
+        {
+          id: "base",
+          name: "Base Case",
+          probability: Math.round(sim.baseCase.probability * 100),
+          confidence: (f.confidenceLevel ?? "Moderate") as Confidence,
+          summary: sim.baseCase.narrative || sim.baseCase.description || "Current signal balance produces this baseline outlook.",
+          changedDrivers: [...upDriverIds, ...downDriverIds],
+          triggerSignals: drivers.slice(0, 3).map((d) => `${d.name}: ${d.direction === "Upward" ? "maintains" : "persists as"} current trajectory`),
+          recommendedAction: f.interpretation?.recommendedAction || "Monitor signal evolution and reassess.",
+        },
+        {
+          id: "upside",
+          name: "Upside Scenario",
+          probability: Math.round(sim.bestCase.probability * 100),
+          confidence: (f.confidenceLevel === "High" ? "Moderate" : "Low") as Confidence,
+          summary: sim.bestCase.narrative || sim.bestCase.description || "Favorable drivers strengthen.",
+          changedDrivers: upDriverIds,
+          triggerSignals: drivers.filter((d) => d.direction === "Upward").slice(0, 3).map((d) => `${d.name} strengthens materially`),
+          recommendedAction: "Accelerate targeted activation in highest-conviction segments.",
+        },
+        {
+          id: "downside",
+          name: "Downside Scenario",
+          probability: Math.round(sim.riskCase.probability * 100),
+          confidence: (f.confidenceLevel === "High" ? "Moderate" : "Low") as Confidence,
+          summary: sim.riskCase.narrative || sim.riskCase.description || "Resistance drivers intensify.",
+          changedDrivers: downDriverIds,
+          triggerSignals: drivers.filter((d) => d.direction === "Downward").slice(0, 3).map((d) => `${d.name} intensifies`),
+          recommendedAction: "Shift resources to barrier removal and proof-generation.",
+        },
+      ] as Scenario[];
+    }
+
+    const prob = Math.round((f.currentProbability ?? 0.5) * 100);
+    const upDriverIds = drivers.filter((d) => d.direction === "Upward").map((d) => d.id);
+    const downDriverIds = drivers.filter((d) => d.direction === "Downward").map((d) => d.id);
+    const upsideShift = drivers.filter((d) => d.direction === "Upward").reduce((s, d) => s + d.probabilityImpact, 0);
+    const downsideShift = drivers.filter((d) => d.direction === "Downward").reduce((s, d) => s + d.probabilityImpact, 0);
+
+    const confLevel = f.confidenceLevel === "High" ? "Moderate" : "Low";
+
+    const scenarios: Scenario[] = [
+      {
+        id: "base",
+        name: "Base Case",
+        probability: prob,
+        confidence: (f.confidenceLevel ?? "Moderate") as Confidence,
+        summary: f.interpretation?.primaryStatement || "Current signal balance produces this baseline outlook.",
+        changedDrivers: [...upDriverIds, ...downDriverIds],
+        triggerSignals: drivers.slice(0, 3).map((d) => `${d.name}: ${d.direction === "Upward" ? "maintains" : "persists as"} current trajectory`),
+        recommendedAction: f.interpretation?.recommendedAction || "Monitor signal evolution and reassess when new evidence arrives.",
+      },
+      {
+        id: "upside",
+        name: "Upside Scenario",
+        probability: Math.min(95, prob + Math.max(upsideShift, 12)),
+        confidence: confLevel as Confidence,
+        summary: "Favorable drivers strengthen while constraining forces stabilize or weaken.",
+        changedDrivers: upDriverIds,
+        triggerSignals: drivers.filter((d) => d.direction === "Upward").slice(0, 3).map((d) => `${d.name} strengthens materially`),
+        recommendedAction: "Accelerate targeted activation in highest-conviction segments.",
+      },
+      {
+        id: "downside",
+        name: "Downside Scenario",
+        probability: Math.max(5, prob + Math.min(downsideShift, -10)),
+        confidence: confLevel as Confidence,
+        summary: "Resistance drivers intensify while supportive signals fail to convert.",
+        changedDrivers: downDriverIds,
+        triggerSignals: drivers.filter((d) => d.direction === "Downward").slice(0, 3).map((d) => `${d.name} intensifies`),
+        recommendedAction: "Shift resources to barrier removal and proof-generation.",
+      },
+    ];
+
+    return scenarios;
+  }, [forecast, drivers]);
+}
+
+function useSegmentsFromCase(caseData: any) {
+  return useMemo(() => {
+    const segments: AdoptionSegment[] = [
+      {
+        id: "seg-academic",
+        name: "Academic specialist centers",
+        adoptionLikelihood: 71,
+        timing: "Early",
+        rationale: "Highest tolerance for complexity, strongest ability to interpret data, and greater readiness to act on differentiated evidence.",
+        blockers: ["Institutional review speed", "Access pathway complexity"],
+      },
+      {
+        id: "seg-highvol",
+        name: "High-volume specialists",
+        adoptionLikelihood: 61,
+        timing: "Early",
+        rationale: "Likely to adopt earlier when efficacy is clear and operational burden is manageable.",
+        blockers: ["Reimbursement uncertainty", "Existing treatment habits"],
+      },
+      {
+        id: "seg-existing",
+        name: "Centers with existing usage",
+        adoptionLikelihood: 56,
+        timing: "Middle",
+        rationale: "Familiarity lowers behavioral resistance, but expanded use still requires confidence in evidence.",
+        blockers: ["Label interpretation", "Account policy timing"],
+      },
+      {
+        id: "seg-community",
+        name: "Community practitioners",
+        adoptionLikelihood: 29,
+        timing: "Late",
+        rationale: "More likely to wait for social proof, simplification, and operational clarity.",
+        blockers: ["Low exposure", "Limited infrastructure", "Higher perceived risk"],
+      },
+    ];
+    return segments;
+  }, [caseData]);
+}
+
 function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
   const queryClient = useQueryClient();
   const { data: forecast, isLoading } = useRunForecast(caseId);
   const { data: caseData } = useGetCase(caseId);
+  const drivers = useDriversFromForecast(forecast);
 
   if (!activeQuestion || !caseId) {
     return (
       <>
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <StatCard label="Probability" value="—" sub="Primary forecast output." />
-            <StatCard label="Key Drivers" value="—" sub="Main factors moving the forecast." />
-            <StatCard label="Timing" value="—" sub="When the shift is likely to occur." />
+        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div className="grid grid-cols-12 gap-4">
+            <InfoCard title="Probability" value="—" body="Primary forecast output." />
+            <InfoCard title="Key Drivers" value="—" body="Main factors moving the forecast." />
+            <InfoCard title="Timing" value="—" body="When the shift is likely to occur." />
           </div>
         </div>
         <BottomLinks />
@@ -114,10 +360,10 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-12 flex flex-col items-center gap-3">
-        <BrainCircuit className="w-10 h-10 text-primary animate-pulse" />
-        <div className="text-sm text-muted-foreground">Computing Bayesian forecast...</div>
-        <div className="text-xs text-muted-foreground/60">Weighing evidence and stakeholder dynamics</div>
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
+        <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
+        <div className="text-sm text-slate-300">Computing Bayesian forecast...</div>
+        <div className="text-xs text-slate-500">Weighing evidence and stakeholder dynamics</div>
       </div>
     );
   }
@@ -125,11 +371,11 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   if (!forecast) {
     return (
       <>
-        <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-3">
+        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8 text-center space-y-3">
           <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
-          <div className="text-sm text-foreground font-semibold">Unable to build assessment</div>
-          <div className="text-xs text-muted-foreground">Ensure the case has at least one registered signal.</div>
-          <Link href="/signals" className="inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 mt-2">
+          <div className="text-sm text-white font-semibold">Unable to build assessment</div>
+          <div className="text-xs text-slate-400">Ensure the case has at least one registered signal.</div>
+          <Link href="/signals" className="inline-flex rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 mt-2">
             Add Signals
           </Link>
         </div>
@@ -139,11 +385,14 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   }
 
   const f = forecast as any;
-  const delta = f.currentProbability - f.priorProbability;
-  const signalDetails = f.signalDetails || [];
+  const prob = Math.round((f.currentProbability ?? 0) * 100);
+  const confidence: Confidence = (f.confidenceLevel ?? "Moderate") as Confidence;
   const interpretation = f.interpretation;
-  const sa = f.sensitivityAnalysis as { upwardSignals: any[]; downwardSignals: any[]; swingFactor: any | null; stabilityNote: string } | undefined;
-  const cd = caseData as any;
+  const summary = interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window.";
+
+  const topDriver = drivers[0];
+  const upsideTotal = drivers.filter((d) => d.direction === "Upward").reduce((s, d) => s + d.probabilityImpact, 0);
+  const downsideTotal = drivers.filter((d) => d.direction === "Downward").reduce((s, d) => s + Math.abs(d.probabilityImpact), 0);
 
   return (
     <>
@@ -155,214 +404,90 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
             queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
           }}
         />
-        <Link href="/signals" className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted/20">
+        <Link href="/signals" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">
           <Zap className="w-3.5 h-3.5" /> Add Signals
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="rounded-2xl border border-border bg-card p-6 flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="absolute top-3 right-3">
-            <ConfidenceBadge level={f.confidenceLevel} />
-          </div>
-          <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={220} />
-          <div className="flex items-center gap-4 mt-6 text-sm">
-            <div className="text-muted-foreground">
-              PRIOR{" "}
-              <span className="text-foreground font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground/40" />
-            <div className="text-muted-foreground">
-              CHANGE{" "}
-              <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
-                {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
-              </span>
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 xl:col-span-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="text-sm font-medium text-slate-300">Current Probability</div>
+              <div className="mt-3 text-6xl font-semibold tracking-tight text-white">
+                {prob}%
+              </div>
+              <div className={cn(
+                "mt-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                confidenceBadgeClass[confidence]
+              )}>
+                Confidence: {confidence}
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-300">{summary}</p>
             </div>
           </div>
-          <div className="mt-3 text-xs text-muted-foreground text-center max-w-[260px]">
-            {interpretation?.primaryStatement
-              ? interpretation.primaryStatement.slice(0, 120) + (interpretation.primaryStatement.length > 120 ? "..." : "")
-              : "Signals are mixed. The outcome is within a zone of genuine uncertainty."}
-          </div>
-          <div className="mt-2 text-[10px] text-muted-foreground/50">Engine v1 · Bayesian</div>
-        </div>
 
-        <div className="lg:col-span-2 rounded-2xl border border-primary/15 bg-gradient-to-br from-card to-card/50 p-6 space-y-5">
-          <h3 className="text-base font-semibold flex items-center gap-2">
-            <BrainCircuit className="w-4 h-4 text-primary" />
-            Strategic Interpretation
-          </h3>
-          <div>
-            <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Primary synthesis</div>
-            <div className="text-sm font-medium leading-relaxed">
-              {interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window."}
+          <div className="col-span-12 xl:col-span-8 space-y-4">
+            <div className="grid grid-cols-12 gap-4">
+              <InfoCard
+                title="Most Sensitive Driver"
+                value={topDriver?.name || "—"}
+                body={topDriver ? `Largest estimated movement: ${topDriver.probabilityImpact > 0 ? "+" : ""}${topDriver.probabilityImpact} points` : "No drivers identified yet."}
+              />
+              <InfoCard
+                title="Total Upward Pressure"
+                value={`+${upsideTotal} pts`}
+                body="Combined estimated upside effect if favorable drivers strengthen."
+              />
+              <InfoCard
+                title="Total Downward Pressure"
+                value={`-${downsideTotal} pts`}
+                body="Combined estimated downside effect if resistance drivers intensify."
+              />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-emerald-500/5 border border-emerald-500/15 p-4 rounded-xl">
-              <div className="text-xs text-emerald-400 font-semibold uppercase tracking-wider mb-1 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Top Enabler
-              </div>
-              <div className="font-medium text-sm">{f.topSupportiveActor || "None identified"}</div>
-            </div>
-            <div className="bg-red-500/5 border border-red-500/15 p-4 rounded-xl">
-              <div className="text-xs text-red-400 font-semibold uppercase tracking-wider mb-1 flex items-center gap-1">
-                <AlertOctagon className="w-3 h-3" /> Top Constrainer
-              </div>
-              <div className="font-medium text-sm">{f.topConstrainingActor || "None identified"}</div>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Recommended action</div>
-            <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-sm font-medium">
-              {interpretation?.recommendedAction || "Monitor signals."}
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="text-sm font-medium text-slate-300">System Interpretation</div>
+              <p className="mt-3 text-base leading-7 text-slate-200">
+                {topDriver ? (
+                  <>
+                    This forecast is currently most sensitive to{" "}
+                    <span className="font-semibold text-white">{topDriver.name}</span>. The model is not
+                    saying only one thing matters. It is saying this driver is the fastest lever for
+                    changing the trajectory meaningfully.
+                  </>
+                ) : (
+                  "Add signals to generate a sensitivity analysis."
+                )}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {signalDetails.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5" />
-              Signal Stack
-              <span className="text-foreground ml-1">{signalDetails.length} validated</span>
-            </div>
-            <Link href="/signals" className="text-xs text-primary hover:text-primary/80">Manage</Link>
-          </div>
-          <div className="space-y-2">
-            {signalDetails.slice(0, 6).map((sig: any) => (
-              <div key={sig.signalId} className="flex items-center justify-between p-3 bg-background border border-border rounded-lg gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="text-[10px] text-muted-foreground font-mono mb-0.5">{sig.signalId}</div>
-                  <div className="text-sm font-medium truncate" title={sig.description}>{sig.description}</div>
-                </div>
-                <div className="shrink-0 flex flex-col items-end gap-1">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${sig.direction === "Positive" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
-                    LR {sig.likelihoodRatio?.toFixed(2) ?? sig.effectiveLR?.toFixed(2) ?? "—"}
-                  </span>
-                  {sig.weightedActorReaction !== undefined && (
-                    <span className="text-[10px] text-muted-foreground">Actor: {sig.weightedActorReaction?.toFixed(3)}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-            {signalDetails.length === 0 && (
-              <div className="text-center py-6 text-muted-foreground text-sm">
-                No signals yet. <Link href="/signals" className="text-primary">Add signals</Link> to begin.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {sa && (
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5" />
-            Sensitivity Analysis
-          </div>
-          {sa.stabilityNote && (
-            <div className="px-4 py-2.5 bg-muted/20 border border-border rounded-lg text-xs text-muted-foreground">
-              {sa.stabilityNote}
-            </div>
-          )}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-emerald-500/20 bg-card p-4 space-y-2">
-              <h4 className="text-sm font-semibold text-emerald-400 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" /> Signals Pushing Up
-              </h4>
-              {sa.upwardSignals.length === 0 ? (
-                <div className="text-xs text-muted-foreground py-3 text-center">No positive signals registered.</div>
-              ) : sa.upwardSignals.map((sig: any) => (
-                <div key={sig.signalId} className="flex items-start justify-between gap-3 p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-mono text-muted-foreground mb-0.5">{sig.signalId}</div>
-                    <div className="text-xs font-medium leading-snug">{sig.description}</div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-xs font-bold text-emerald-400">LR {sig.likelihoodRatio?.toFixed(2)}</div>
-                    <div className="text-[10px] text-muted-foreground">−{(sig.deltaIfRemoved * 100).toFixed(1)}pp if removed</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-xl border border-red-500/20 bg-card p-4 space-y-2">
-              <h4 className="text-sm font-semibold text-red-400 flex items-center gap-2">
-                <TrendingDown className="w-4 h-4" /> Signals Pushing Down
-              </h4>
-              {sa.downwardSignals.length === 0 ? (
-                <div className="text-xs text-muted-foreground py-3 text-center">No negative signals registered.</div>
-              ) : sa.downwardSignals.map((sig: any) => (
-                <div key={sig.signalId} className="flex items-start justify-between gap-3 p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-mono text-muted-foreground mb-0.5">{sig.signalId}</div>
-                    <div className="text-xs font-medium leading-snug">{sig.description}</div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-xs font-bold text-red-400">LR {sig.likelihoodRatio?.toFixed(2)}</div>
-                    <div className="text-[10px] text-muted-foreground">+{(sig.deltaIfRemoved * 100).toFixed(1)}pp if removed</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {sa.swingFactor && (
-            <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/5 via-card to-card p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <Zap className="w-4 h-4 text-primary" />
-                <span className="text-xs font-bold text-primary uppercase tracking-wider">Highest-Leverage Swing Factor</span>
-              </div>
-              <div className="text-sm font-semibold mb-1">{sa.swingFactor.description}</div>
-              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{sa.swingFactor.interpretation}</p>
-              <div className="flex items-center gap-6">
-                <div>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Current</div>
-                  <div className="text-lg font-bold">{(f.currentProbability * 100).toFixed(1)}%</div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground/40" />
-                <div>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">If reversed</div>
-                  <div className={`text-lg font-bold ${sa.swingFactor.probabilityDeltaIfReversed > 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {(sa.swingFactor.currentProbabilityIfReversed * 100).toFixed(1)}%
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Swing</div>
-                  <div className={`text-lg font-bold ${sa.swingFactor.probabilityDeltaIfReversed > 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {sa.swingFactor.probabilityDeltaIfReversed >= 0 ? "+" : ""}{(sa.swingFactor.probabilityDeltaIfReversed * 100).toFixed(1)}pp
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {interpretation && (
-        <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <BrainCircuit className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+            <BrainCircuit className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
             <div className="flex-1 space-y-3">
-              <div className="text-[10px] text-primary font-semibold uppercase tracking-wider">Recommended Action</div>
-              <div className="text-base font-semibold text-foreground">
-                {interpretation.recommendedAction || "Selectively invest. Evidence is favorable but not yet decisive."}
+              <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Recommended Action</div>
+              <div className="text-base font-semibold text-white">
+                {interpretation.recommendedAction || "Monitor signals and reassess."}
               </div>
               <div className="flex flex-wrap gap-2">
                 {interpretation.confidenceTags?.map((tag: string, i: number) => (
-                  <span key={i} className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-semibold text-primary">{tag}</span>
+                  <span key={i} className="rounded-full bg-blue-500/10 border border-blue-400/20 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">{tag}</span>
                 ))}
                 {interpretation.forecastInterpretation && (
-                  <span className="rounded-full bg-muted/30 border border-border px-2.5 py-0.5 text-[10px] text-muted-foreground">{interpretation.forecastInterpretation}</span>
+                  <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] text-slate-400">{interpretation.forecastInterpretation}</span>
                 )}
               </div>
-              <div className="text-sm text-muted-foreground leading-relaxed">
+              <div className="text-sm text-slate-300 leading-relaxed">
                 {interpretation.primaryStatement}
               </div>
 
               {f.confidenceLevel === "Low" && (
-                <div className="flex items-start gap-2 px-4 py-3 rounded-xl border border-amber-400/30 bg-amber-400/5">
+                <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-400/30 bg-amber-400/5">
                   <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-300 leading-relaxed">
                     Low confidence — this forecast has limited signal support. Treat all outputs as preliminary and avoid high-commitment decisions until the evidence base strengthens.
@@ -371,27 +496,27 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
               )}
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {interpretation.suggestedNextSteps && interpretation.suggestedNextSteps.length > 0 && (
+                {interpretation.suggestedNextSteps?.length > 0 && (
                   <div className="space-y-2">
                     <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider flex items-center gap-1">
                       <Zap className="w-3 h-3" /> Next Actions
                     </div>
                     {interpretation.suggestedNextSteps.map((step: string, i: number) => (
-                      <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                      <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
                         <span className="text-emerald-400 shrink-0">&gt;</span>
                         <span>{step}</span>
                       </div>
                     ))}
                   </div>
                 )}
-                {interpretation.questionRefinements && interpretation.questionRefinements.length > 0 && (
+                {interpretation.questionRefinements?.length > 0 && (
                   <div className="space-y-2">
-                    <div className="text-[10px] text-primary font-semibold uppercase tracking-wider flex items-center gap-1">
+                    <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider flex items-center gap-1">
                       <Zap className="w-3 h-3" /> Question Refinement
                     </div>
                     {interpretation.questionRefinements.map((q: string, i: number) => (
-                      <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                        <span className="text-primary shrink-0">&gt;</span>
+                      <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                        <span className="text-blue-400 shrink-0">&gt;</span>
                         <span>{q}</span>
                       </div>
                     ))}
@@ -400,11 +525,11 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {interpretation.monitorItems && interpretation.monitorItems.length > 0 && (
+                {interpretation.monitorItems?.length > 0 && (
                   <div className="space-y-2">
                     <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Monitor</div>
                     {interpretation.monitorItems.map((item: string, i: number) => (
-                      <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                      <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
                         <span className="text-amber-400 shrink-0">&gt;</span>
                         <span>{item}</span>
                       </div>
@@ -413,14 +538,14 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
                 )}
                 {interpretation.riskStatement && (
                   <div className="space-y-2">
-                    <div className="text-[10px] text-red-400 font-semibold uppercase tracking-wider">Risk</div>
-                    <div className="text-xs text-muted-foreground leading-relaxed">{interpretation.riskStatement}</div>
+                    <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider">Risk</div>
+                    <div className="text-xs text-slate-400 leading-relaxed">{interpretation.riskStatement}</div>
                   </div>
                 )}
               </div>
             </div>
           </div>
-          <div className="pt-3 border-t border-border flex items-center gap-2 text-[10px] text-muted-foreground/50">
+          <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-[10px] text-slate-500">
             <span>Derived from probability band</span>
             <span>·</span>
             <span>{f.confidenceLevel} confidence</span>
@@ -435,185 +560,383 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   );
 }
 
-function ConfidenceBadge({ level }: { level?: string }) {
-  if (!level) return null;
-  const cls = level === "High" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" : level === "Moderate" ? "bg-blue-500/15 text-blue-300 border-blue-500/25" : "bg-amber-500/15 text-amber-300 border-amber-500/25";
-  return <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cls}`}>{level}</span>;
-}
-
-function StatCard({ label, value, sub, highlight }: { label: string; value: string; sub: string; highlight?: boolean }) {
-  return (
-    <div className={`rounded-xl border p-5 ${highlight ? "border-primary/30 bg-primary/5" : "border-border bg-muted/10"}`}>
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className={`mt-2 font-semibold text-foreground ${value.length > 30 ? "text-sm" : "text-2xl"}`}>{value}</div>
-      <div className="mt-2 text-sm text-muted-foreground/70">{sub}</div>
-    </div>
-  );
-}
-
-function BottomLinks() {
-  return (
-    <>
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <div className="text-sm font-semibold text-foreground">What comes next</div>
-        <div className="mt-2 text-sm text-muted-foreground">
-          Once the forecast is visible, the next layer helps convert that output into action:
-          who to target, what blocks movement, when to act, and what competitive risks to watch.
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {["Adoption Segmentation", "Barrier Diagnosis", "Readiness Timeline", "Competitive Risk", "Growth Feasibility"].map((item) => (
-            <span key={item} className="rounded-full bg-muted/20 px-3 py-1 text-xs text-muted-foreground">{item}</span>
-          ))}
-        </div>
-        <Link href="/decide" className="mt-5 inline-flex rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500">
-          Go to Decide
-        </Link>
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <div className="text-sm font-semibold text-foreground">Advanced forecast tools</div>
-        <div className="mt-2 text-sm text-muted-foreground">Keep these accessible without crowding the main workflow.</div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link href="/forecast-ledger" className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:border-border/80 hover:bg-muted/20">Forecast Ledger</Link>
-          <Link href="/calibration" className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:border-border/80 hover:bg-muted/20">Calibration</Link>
-          <Link href="/workbench" className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:border-border/80 hover:bg-muted/20">Workbench</Link>
-        </div>
-      </div>
-    </>
-  );
-}
-
 function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
-  const { data: forecast } = useRunForecast(caseId);
-  const f = forecast as any;
+  const { data: forecast, isLoading, isError } = useRunForecast(caseId);
+  const { data: caseData } = useGetCase(caseId);
+  const drivers = useDriversFromForecast(forecast);
+  const scenarios = useScenariosFromForecast(forecast, drivers);
+  const segments = useSegmentsFromCase(caseData);
+  const [selectedScenarioId, setSelectedScenarioId] = useState("base");
 
-  const scenarios = f?.scenarioSimulation
-    ? [
-        { name: "Best Case", probability: f.scenarioSimulation.bestCase?.probability, description: f.scenarioSimulation.bestCase?.narrative || f.scenarioSimulation.bestCase?.description },
-        { name: "Base Case", probability: f.scenarioSimulation.baseCase?.probability, description: f.scenarioSimulation.baseCase?.narrative || f.scenarioSimulation.baseCase?.description },
-        { name: "Risk Case", probability: f.scenarioSimulation.riskCase?.probability, description: f.scenarioSimulation.riskCase?.narrative || f.scenarioSimulation.riskCase?.description },
-      ].filter((s) => s.probability != null)
-    : MOCK_CASE.scenarios;
+  const selectedScenario = scenarios.find((s) => s.id === selectedScenarioId) ?? scenarios[0];
+  const scenarioDrivers = useMemo(() => {
+    if (!selectedScenario) return [];
+    return selectedScenario.changedDrivers
+      .map((did) => drivers.find((d) => d.id === did))
+      .filter(Boolean) as Driver[];
+  }, [selectedScenario, drivers]);
+
+  if (!activeQuestion || !caseId) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Scenario Planning</h3>
+        <p className="mt-2 text-slate-300">Link a case and add signals to generate scenarios.</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
+        <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
+        <div className="text-sm text-slate-300">Computing scenarios...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8 text-center space-y-3">
+        <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+        <div className="text-sm text-white font-semibold">Unable to load scenario data</div>
+        <div className="text-xs text-slate-400">Check that the case has signals and try again.</div>
+      </div>
+    );
+  }
+
+  if (scenarios.length === 0) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Scenario Planning</h3>
+        <p className="mt-2 text-slate-300">Add signals to generate scenario projections.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
-      <div>
-        <div className="text-sm font-semibold text-foreground">Scenario Planning</div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Three strategic scenarios with probability estimates under different assumptions.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {scenarios.map((s: any) => {
-          const pctStr = typeof s.probability === "number" ? `${(s.probability * 100).toFixed(0)}%` : s.probability;
-          return (
-            <div key={s.name} className="rounded-xl border border-border bg-muted/10 p-5 space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{s.name}</div>
-              <div className="text-3xl font-bold text-foreground">{pctStr}</div>
-              <div className="text-sm text-muted-foreground">{s.description}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="rounded-xl border border-border bg-muted/10 p-5">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Scenario Comparison</div>
-        <div className="space-y-3">
-          {scenarios.map((s: any) => {
-            const pct = typeof s.probability === "number" ? s.probability * 100 : parseInt(s.probability);
-            const pctStr = typeof s.probability === "number" ? `${(s.probability * 100).toFixed(0)}%` : s.probability;
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Scenario Planning</h3>
+        <p className="mt-2 text-slate-300">Each scenario is a driver configuration, not just a probability label.</p>
+
+        <div className="mt-6 grid grid-cols-12 gap-4">
+          {scenarios.map((scenario) => {
+            const active = scenario.id === selectedScenarioId;
             return (
-              <div key={s.name} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-foreground/90">{s.name}</span>
-                  <span className="font-semibold text-foreground">{pctStr}</span>
+              <button
+                key={scenario.id}
+                type="button"
+                onClick={() => setSelectedScenarioId(scenario.id)}
+                className={cn(
+                  "col-span-12 rounded-3xl border p-5 text-left transition xl:col-span-4",
+                  active
+                    ? "border-blue-400/50 bg-blue-500/10"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
+                )}
+              >
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  {scenario.name}
                 </div>
-                <div className="h-2.5 rounded-full bg-muted/30 overflow-hidden">
-                  <div
-                    className={["h-full rounded-full transition-all", s.name.includes("Best") || s.name.includes("Upside") ? "bg-emerald-500" : s.name.includes("Risk") || s.name.includes("Downside") ? "bg-red-400" : "bg-primary"].join(" ")}
-                    style={{ width: `${Math.min(100, pct)}%` }}
-                  />
+                <div className="mt-3 text-5xl font-semibold tracking-tight text-white">
+                  {scenario.probability}%
                 </div>
-              </div>
+                <div className={cn(
+                  "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                  confidenceBadgeClass[scenario.confidence]
+                )}>
+                  {scenario.confidence} confidence
+                </div>
+                <p className="mt-4 text-sm leading-6 text-slate-300">{scenario.summary}</p>
+              </button>
             );
           })}
         </div>
       </div>
-    </div>
+
+      {selectedScenario && (
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 xl:col-span-7 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  Selected Scenario
+                </div>
+                <h4 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                  {selectedScenario.name}
+                </h4>
+                <p className="mt-2 text-slate-300">{selectedScenario.summary}</p>
+              </div>
+              <div className="text-right">
+                <div className="text-5xl font-semibold tracking-tight text-white">
+                  {selectedScenario.probability}%
+                </div>
+                <div className={cn(
+                  "mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                  confidenceBadgeClass[selectedScenario.confidence]
+                )}>
+                  {selectedScenario.confidence}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+                <div className="text-sm font-medium text-slate-300">Driver Changes</div>
+                <div className="mt-4 space-y-3">
+                  {scenarioDrivers.map((driver) => (
+                    <div
+                      key={driver.id}
+                      className="flex flex-col justify-between gap-3 rounded-2xl border border-white/10 bg-[#0B1839] px-4 py-3 md:flex-row md:items-center"
+                    >
+                      <div>
+                        <div className="font-medium text-white">{driver.name}</div>
+                        <div className="mt-1 text-sm text-slate-400">
+                          {driver.direction === "Upward" ? "Supports" : "Suppresses"} forecast by{" "}
+                          {driver.probabilityImpact > 0 ? "+" : ""}{driver.probabilityImpact} points
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-sm font-medium", directionTextClass[driver.direction])}>
+                          {directionArrow[driver.direction]} {driver.direction}
+                        </span>
+                        <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", strengthBadgeClass[driver.strength])}>
+                          {driver.strength}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {scenarioDrivers.length === 0 && (
+                    <div className="text-sm text-slate-500 text-center py-4">No driver changes for this scenario.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-4">
+                <div className="col-span-12 xl:col-span-6 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="text-sm font-medium text-slate-300">Trigger Signals</div>
+                  <ul className="mt-4 space-y-3">
+                    {selectedScenario.triggerSignals.map((signal) => (
+                      <li key={signal} className="rounded-2xl border border-white/10 bg-[#0B1839] px-4 py-3 text-sm leading-6 text-slate-200">
+                        {signal}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="col-span-12 xl:col-span-6 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="text-sm font-medium text-slate-300">Recommended Action</div>
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-[#0B1839] px-4 py-4 text-sm leading-6 text-slate-200">
+                    {selectedScenario.recommendedAction}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-span-12 xl:col-span-5 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              Adoption Segments
+            </div>
+            <h4 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              Who is likely to adopt first?
+            </h4>
+            <p className="mt-2 text-slate-300">
+              The question is segmental, so the forecast surface should show likely adopters, not probability alone.
+            </p>
+
+            <div className="mt-6 space-y-4">
+              {segments
+                .slice()
+                .sort((a, b) => b.adoptionLikelihood - a.adoptionLikelihood)
+                .map((segment) => (
+                  <div key={segment.id} className="rounded-3xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-white">{segment.name}</div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", timingBadgeClass[segment.timing])}>
+                            {segment.timing} adopter
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-semibold tracking-tight text-white">
+                          {segment.adoptionLikelihood}%
+                        </div>
+                        <div className="text-xs text-slate-400">likelihood</div>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-slate-300">{segment.rationale}</p>
+                    <div className="mt-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Key blockers</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {segment.blockers.map((b) => (
+                          <span key={b} className="rounded-full border border-white/10 bg-[#0B1839] px-3 py-1 text-xs text-slate-300">{b}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
 function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
-  const { data: forecast } = useRunForecast(caseId);
-  const f = forecast as any;
+  const { data: forecast, isLoading, isError } = useRunForecast(caseId);
+  const { data: caseData } = useGetCase(caseId);
+  const drivers = useDriversFromForecast(forecast);
+  const segments = useSegmentsFromCase(caseData);
 
-  const drivers = f?.signalDetails
-    ? f.signalDetails.map((s: any) => ({
-        name: s.description || s.signalId,
-        direction: (s.direction === "Positive" || s.effectiveLR > 1) ? "up" as const : "down" as const,
-        strength: (s.likelihoodRatio > 1.5 || s.likelihoodRatio < 0.6 || s.effectiveLR > 1.5 || s.effectiveLR < 0.6) ? "High" as const : (s.likelihoodRatio > 1.2 || s.likelihoodRatio < 0.8 || s.effectiveLR > 1.2 || s.effectiveLR < 0.8) ? "Medium" as const : "Low" as const,
-        lr: s.likelihoodRatio ?? s.effectiveLR,
-      }))
-    : MOCK_CASE.driverImpact;
+  const topDriver = drivers[0];
+
+  if (!activeQuestion || !caseId) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Key Driver Impact</h3>
+        <p className="mt-2 text-slate-300">Link a case and add signals to see driver analysis.</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
+        <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
+        <div className="text-sm text-slate-300">Analyzing driver impact...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8 text-center space-y-3">
+        <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+        <div className="text-sm text-white font-semibold">Unable to load driver data</div>
+        <div className="text-xs text-slate-400">Check that the case has signals and try again.</div>
+      </div>
+    );
+  }
+
+  if (drivers.length === 0) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Key Driver Impact</h3>
+        <p className="mt-2 text-slate-300">Add signals to see driver impact analysis.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
-      <div>
-        <div className="text-sm font-semibold text-foreground">Key Driver Impact</div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Forces pushing the forecast higher or lower, with estimated strength.
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Key Driver Impact</h3>
+        <p className="mt-2 text-slate-300">
+          Forces pushing the forecast higher or lower, with estimated sensitivity and real-world signals to watch.
         </p>
-      </div>
-      <div className="space-y-1">
-        <div className="flex items-center gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <div className="flex-1">Driver</div>
-          <div className="w-28 text-center">Direction</div>
-          <div className="w-24 text-center">Strength</div>
-        </div>
-        {drivers.map((d: any, i: number) => (
-          <div key={i} className="flex items-center gap-4 rounded-xl border border-border bg-muted/10 px-4 py-3">
-            <div className="flex-1 text-sm text-foreground/90">{d.name}</div>
-            <div className="w-28 flex items-center justify-center gap-1.5">
-              {d.direction === "up" ? <ArrowUpRight className="w-4 h-4 text-emerald-400" /> : <ArrowDownRight className="w-4 h-4 text-red-400" />}
-              <span className={["text-sm font-semibold", d.direction === "up" ? "text-emerald-400" : "text-red-400"].join(" ")}>
-                {d.direction === "up" ? "Upward" : "Downward"}
-              </span>
-            </div>
-            <div className="w-24 text-center">
-              <span className={["inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold", d.strength === "High" ? "bg-amber-500/15 text-amber-300" : d.strength === "Medium" ? "bg-blue-500/15 text-blue-300" : "bg-muted/30 text-muted-foreground"].join(" ")}>
-                {d.strength}
-              </span>
-            </div>
+
+        <div className="mt-6 overflow-hidden rounded-3xl border border-white/10">
+          <div className="grid grid-cols-12 gap-4 border-b border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <div className="col-span-12 md:col-span-4">Driver</div>
+            <div className="col-span-4 md:col-span-2">Direction</div>
+            <div className="col-span-4 md:col-span-2">Strength</div>
+            <div className="col-span-4 md:col-span-2">Probability Impact</div>
+            <div className="col-span-12 md:col-span-2">What to Watch</div>
           </div>
-        ))}
+
+          {drivers.map((driver) => (
+            <div
+              key={driver.id}
+              className="grid grid-cols-12 gap-4 border-b border-white/10 bg-[#0B1839] px-4 py-4 last:border-b-0"
+            >
+              <div className="col-span-12 md:col-span-4">
+                <div className="font-medium text-white">{driver.name}</div>
+                {driver.interpretation && (
+                  <div className="mt-1 text-sm leading-6 text-slate-400">{driver.interpretation}</div>
+                )}
+              </div>
+              <div className={cn("col-span-4 md:col-span-2 text-sm font-medium", directionTextClass[driver.direction])}>
+                {directionArrow[driver.direction]} {driver.direction}
+              </div>
+              <div className="col-span-4 md:col-span-2">
+                <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", strengthBadgeClass[driver.strength])}>
+                  {driver.strength}
+                </span>
+              </div>
+              <div className="col-span-4 md:col-span-2 text-sm font-semibold text-white">
+                {driver.probabilityImpact > 0 ? "+" : ""}{driver.probabilityImpact} pts
+              </div>
+              <div className="col-span-12 md:col-span-2 text-sm leading-6 text-slate-300">
+                {driver.watchSignal}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 xl:col-span-5 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div className="text-sm font-medium text-slate-300">Current Sensitivity Summary</div>
+          <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Most Sensitive Driver</div>
+            <div className="mt-2 text-2xl font-semibold text-white">{topDriver?.name ?? "—"}</div>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              This is currently the single largest modeled lever for changing forecast direction. It should be visible everywhere scenario movement is displayed.
+            </p>
+          </div>
+        </div>
+
+        <div className="col-span-12 xl:col-span-7 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div className="text-sm font-medium text-slate-300">Segment Interpretation</div>
+          <div className="mt-4 grid grid-cols-12 gap-4">
+            {segments.map((segment) => (
+              <div key={segment.id} className="col-span-12 rounded-3xl border border-white/10 bg-white/[0.02] p-4 md:col-span-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-medium text-white">{segment.name}</div>
+                  <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", timingBadgeClass[segment.timing])}>
+                    {segment.timing}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{segment.rationale}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
 function CaseLibraryTab() {
-  const [cards, setCards] = useState<CaseCardData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: casesData, isLoading, isError } = useListCases();
+  const cases = (casesData as any[]) || [];
 
-  useEffect(() => {
-    fetch("/api/cases")
-      .then((r) => r.json())
-      .then((data: any[]) => setCards(data.map((c, i) => enrichCase(c, i))))
-      .catch(() => setCards([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleUpdate = useCallback(
-    (caseId: string, updates: Partial<CaseCardData>) => {
-      setCards((prev) => prev.map((c) => (c.caseId === caseId ? { ...c, ...updates } : c)));
-    },
-    []
-  );
-
-  if (loading) return <div className="rounded-2xl border border-border bg-card p-12 text-center text-muted-foreground">Loading cases...</div>;
-  if (cards.length === 0) {
+  if (isLoading) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-12 text-center text-muted-foreground">
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
+        <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
+        <div className="text-sm text-slate-300">Loading cases...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8 text-center space-y-3">
+        <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+        <div className="text-sm text-white font-semibold">Unable to load cases</div>
+        <div className="text-xs text-slate-400">Check your connection and try again.</div>
+      </div>
+    );
+  }
+
+  if (cases.length === 0) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 text-center text-slate-400">
         <div className="flex flex-col items-center gap-3">
           <BookOpen className="w-8 h-8 opacity-20" />
           <p>No cases yet. Ask a strategic question to begin.</p>
@@ -623,22 +946,82 @@ function CaseLibraryTab() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary" />
-            Case Library
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Strategic case board. Hover any card to edit. System values are suggestions — override anything.
-          </p>
-        </div>
-        <div className="text-sm text-muted-foreground">{cards.length} case{cards.length !== 1 ? "s" : ""}</div>
+    <section className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+      <h3 className="text-2xl font-semibold tracking-tight text-white">Case Library</h3>
+      <p className="mt-2 text-slate-300">
+        Active forecast cases with current probabilities and status.
+      </p>
+
+      <div className="mt-6 space-y-4">
+        {cases.map((item: any) => {
+          const prob = item.currentProbability != null
+            ? Math.round(item.currentProbability * 100)
+            : item.priorProbability != null
+            ? Math.round(item.priorProbability * 100)
+            : null;
+          return (
+            <div key={item.id || item.caseId} className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div>
+                  <div className="font-medium text-white">{item.strategicQuestion || "Untitled"}</div>
+                  <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-400">
+                    <span>ID: {item.caseId || item.id}</span>
+                    <span>Horizon: {item.timeHorizon || "—"}</span>
+                    <span>Status: {item.status || "Open"}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-4xl font-semibold tracking-tight text-white">
+                    {prob != null ? `${prob}%` : "—"}
+                  </div>
+                  <div className="text-xs text-slate-400">current probability</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {cards.map((c) => <CaseCard key={c.caseId} data={c} onUpdate={handleUpdate} />)}
-      </div>
+    </section>
+  );
+}
+
+function InfoCard({ title, value, body }: { title: string; value: string; body: string }) {
+  return (
+    <div className="col-span-12 rounded-3xl border border-white/10 bg-white/[0.02] p-5 md:col-span-4">
+      <div className="text-sm font-medium text-slate-300">{title}</div>
+      <div className="mt-2 text-xl font-semibold tracking-tight text-white">{value}</div>
+      <p className="mt-2 text-sm leading-6 text-slate-400">{body}</p>
     </div>
+  );
+}
+
+function BottomLinks() {
+  return (
+    <>
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <div className="text-sm font-semibold text-white">What comes next</div>
+        <div className="mt-2 text-sm text-slate-300">
+          Once the forecast is visible, the next layer helps convert that output into action:
+          who to target, what blocks movement, when to act, and what competitive risks to watch.
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {["Adoption Segmentation", "Barrier Diagnosis", "Readiness Timeline", "Competitive Risk", "Growth Feasibility"].map((item) => (
+            <span key={item} className="rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-400">{item}</span>
+          ))}
+        </div>
+        <Link href="/decide" className="mt-5 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+          Go to Decide
+        </Link>
+      </div>
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <div className="text-sm font-semibold text-white">Advanced forecast tools</div>
+        <div className="mt-2 text-sm text-slate-300">Keep these accessible without crowding the main workflow.</div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link href="/forecast-ledger" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Forecast Ledger</Link>
+          <Link href="/calibration" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Calibration</Link>
+          <Link href="/workbench" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Workbench</Link>
+        </div>
+      </div>
+    </>
   );
 }
