@@ -11,11 +11,7 @@ export default function SignalsPage() {
       activeQuestion={activeQuestion}
       onClearQuestion={clearQuestion}
     >
-      <QuestionGate
-        activeQuestion={activeQuestion}
-        title="An active question is required"
-        body="Signals should always be attached to a specific question. Start by defining what you want to predict."
-      >
+      <QuestionGate activeQuestion={activeQuestion}>
         <section className="rounded-2xl border border-border bg-card p-6">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             Step 2

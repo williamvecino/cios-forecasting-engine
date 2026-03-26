@@ -82,11 +82,7 @@ export default function ForecastPage() {
 function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   return (
     <>
-      <QuestionGate
-        activeQuestion={activeQuestion}
-        title="An active question is required"
-        body="Forecasts must be generated in the context of a defined question."
-      >
+      <QuestionGate activeQuestion={activeQuestion}>
         <div className="rounded-2xl border border-border bg-card p-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <ForecastCard label="Probability" value="—" body="Primary forecast output." />

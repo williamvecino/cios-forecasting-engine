@@ -78,11 +78,7 @@ export default function DecisionPanels() {
       activeQuestion={activeQuestion}
       onClearQuestion={clearQuestion}
     >
-      <QuestionGate
-        activeQuestion={activeQuestion}
-        title="An active question is required"
-        body="Decision tools should only activate once a question and forecast context exist."
-      >
+      <QuestionGate activeQuestion={activeQuestion}>
         <section className="space-y-6">
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">

@@ -4,31 +4,29 @@ import type { ActiveQuestion } from "../lib/workflow";
 
 interface Props {
   activeQuestion: ActiveQuestion | null;
-  title: string;
-  body: string;
   children: ReactNode;
 }
 
-export default function QuestionGate({
-  activeQuestion,
-  title,
-  body,
-  children,
-}: Props) {
-  if (!activeQuestion) {
-    return (
-      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
-        <div className="text-sm font-semibold text-amber-300">{title}</div>
-        <div className="mt-2 text-sm text-amber-100/80">{body}</div>
-        <Link
-          href="/question"
-          className="mt-5 inline-flex rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-amber-400"
-        >
-          Go to Ask a Question
-        </Link>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+export default function QuestionGate({ activeQuestion, children }: Props) {
+  return (
+    <>
+      {!activeQuestion && (
+        <div className="flex items-center gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+          <span className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">
+            Preview Mode
+          </span>
+          <span className="text-sm text-blue-200/70">
+            Exploring workflow without an active question.
+          </span>
+          <Link
+            href="/question"
+            className="ml-auto text-xs font-medium text-blue-400 hover:text-blue-300 transition"
+          >
+            Ask a Question
+          </Link>
+        </div>
+      )}
+      {children}
+    </>
+  );
 }
