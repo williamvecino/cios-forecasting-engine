@@ -393,13 +393,11 @@ export default function SignalsPage() {
             </div>
           </div>
 
-          {accepted.length > 0 && (
-            <div className="flex justify-end">
-              <Link href="/forecast" className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
-                Continue to See Forecast
-              </Link>
-            </div>
-          )}
+          <div className="flex justify-end">
+            <Link href="/forecast" className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+              Continue to See Forecast
+            </Link>
+          </div>
         </section>
       </QuestionGate>
     </WorkflowLayout>
