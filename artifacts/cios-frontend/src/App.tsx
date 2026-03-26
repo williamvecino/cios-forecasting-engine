@@ -23,6 +23,10 @@ import EventRadar from "@/pages/event-radar/index";
 import SystemMap from "@/pages/system-map/index";
 import CIOSWorkbench from "@/pages/workbench/index";
 import StabilityTests from "@/pages/stability-tests/index";
+import QuestionPage from "@/pages/question/index";
+import SignalsPage from "@/pages/signals/index";
+import ForecastPage from "@/pages/forecast/index";
+import DecidePage from "@/pages/decide/index";
 import PendingSignals from "@/pages/cases/pending-signals";
 import AgentDetection from "@/pages/cases/agents/detection";
 import AgentHygiene from "@/pages/cases/agents/hygiene";
@@ -55,8 +59,12 @@ function Router() {
   return (
     <Switch>
       <Route path="/">
-        <Redirect to="/dashboard" />
+        <Redirect to="/question" />
       </Route>
+      <Route path="/question" component={QuestionPage} />
+      <Route path="/signals" component={SignalsPage} />
+      <Route path="/forecast" component={ForecastPage} />
+      <Route path="/decide" component={DecidePage} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
 

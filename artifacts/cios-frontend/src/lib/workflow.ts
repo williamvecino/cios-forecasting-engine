@@ -1,0 +1,75 @@
+export type WorkflowStep = "question" | "signals" | "forecast" | "decide";
+
+export interface ActiveQuestion {
+  id: string;
+  text: string;
+  createdAt: string;
+  caseId?: string;
+  timeHorizon?: string;
+}
+
+const ACTIVE_QUESTION_STORAGE_KEY = "cios.activeQuestion";
+
+export function getWorkflowSteps(): {
+  key: WorkflowStep;
+  label: string;
+  title: string;
+  description: string;
+  path: string;
+}[] {
+  return [
+    {
+      key: "question",
+      label: "1 — Ask a Question",
+      title: "Ask a Question",
+      description: "Define what you want to predict.",
+      path: "/question",
+    },
+    {
+      key: "signals",
+      label: "2 — Add Information",
+      title: "Add Information",
+      description: "Add the new evidence or signal changes.",
+      path: "/signals",
+    },
+    {
+      key: "forecast",
+      label: "3 — See Forecast",
+      title: "See Forecast",
+      description: "Review the probability, drivers, and forecast state.",
+      path: "/forecast",
+    },
+    {
+      key: "decide",
+      label: "4 — Decide",
+      title: "Decide",
+      description: "Turn the forecast into action.",
+      path: "/decide",
+    },
+  ];
+}
+
+export function createQuestionId(): string {
+  const ts = Date.now().toString(36).toUpperCase();
+  return `Q_${ts}`;
+}
+
+export function getStoredActiveQuestion(): ActiveQuestion | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_QUESTION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ActiveQuestion;
+    if (!parsed?.id || !parsed?.text) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function storeActiveQuestion(question: ActiveQuestion): void {
+  localStorage.setItem(ACTIVE_QUESTION_STORAGE_KEY, JSON.stringify(question));
+}
+
+export function clearStoredActiveQuestion(): void {
+  localStorage.removeItem(ACTIVE_QUESTION_STORAGE_KEY);
+}
