@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRunForecast, useGetCase } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import { MOCK_CASE } from "@/lib/mock-case";
 import { enrichCase } from "@/lib/case-library";
 import type { CaseCardData } from "@/lib/case-library";
 import CaseCard from "@/components/case-library/case-card";
-import { ProbabilityGauge } from "@/components/ui-components";
+import { ProbabilityGauge, Badge } from "@/components/ui-components";
+import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import {
   ArrowUpRight,
   ArrowDownRight,
+  ArrowRight,
   BookOpen,
   Target,
   Layers,
@@ -17,13 +21,14 @@ import {
   TrendingDown,
   BrainCircuit,
   RefreshCcw,
-  Loader2,
   Minus,
   Zap,
   Activity,
+  CheckCircle2,
+  AlertOctagon,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
-
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 type Tab = "forecast" | "scenarios" | "drivers" | "library";
 
@@ -87,30 +92,12 @@ export default function ForecastPage() {
 }
 
 function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
-  const caseId = activeQuestion?.caseId;
-  const [forecast, setForecast] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const caseId = activeQuestion?.caseId || "";
+  const queryClient = useQueryClient();
+  const { data: forecast, isLoading } = useRunForecast(caseId);
+  const { data: caseData } = useGetCase(caseId);
 
-  function fetchForecast() {
-    if (!caseId) return;
-    setLoading(true);
-    setError(null);
-    fetch(`${API_BASE}/cases/${caseId}/forecast`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to fetch forecast");
-        return r.json();
-      })
-      .then((data) => setForecast(data))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    fetchForecast();
-  }, [caseId]);
-
-  if (!activeQuestion) {
+  if (!activeQuestion || !caseId) {
     return (
       <>
         <div className="rounded-2xl border border-border bg-card p-6">
@@ -125,272 +112,320 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
     );
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="rounded-2xl border border-border bg-card p-12 flex flex-col items-center gap-3">
         <BrainCircuit className="w-10 h-10 text-primary animate-pulse" />
         <div className="text-sm text-muted-foreground">Computing Bayesian forecast...</div>
+        <div className="text-xs text-muted-foreground/60">Weighing evidence and stakeholder dynamics</div>
       </div>
     );
   }
 
-  if (error || !forecast) {
+  if (!forecast) {
     return (
       <>
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <StatCard label="Probability" value={MOCK_CASE.forecast.probability} sub="From prior estimate" highlight />
-            <StatCard label="Key Drivers" value={MOCK_CASE.forecast.keyDrivers.join(", ")} sub="Main factors moving the forecast." />
-            <StatCard label="Timing" value={MOCK_CASE.forecast.timing} sub="When the shift is likely to occur." />
-          </div>
+        <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-3">
+          <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+          <div className="text-sm text-foreground font-semibold">Unable to build assessment</div>
+          <div className="text-xs text-muted-foreground">Ensure the case has at least one registered signal.</div>
+          <Link href="/signals" className="inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 mt-2">
+            Add Signals
+          </Link>
         </div>
         <BottomLinks />
       </>
     );
   }
 
-  const currentPct = (forecast.currentProbability * 100).toFixed(1);
-  const priorPct = (forecast.priorProbability * 100).toFixed(1);
-  const delta = forecast.currentProbability - forecast.priorProbability;
-  const deltaPts = (delta * 100).toFixed(1);
-
-  const signalDetails = forecast.signalDetails || [];
-  const positiveDrivers = signalDetails.filter((s: any) => s.effectiveLR > 1);
-  const negativeDrivers = signalDetails.filter((s: any) => s.effectiveLR < 1);
-  const interpretation = forecast.interpretation;
-  const simulation = forecast.scenarioSimulation;
+  const f = forecast as any;
+  const delta = f.currentProbability - f.priorProbability;
+  const signalDetails = f.signalDetails || [];
+  const interpretation = f.interpretation;
+  const sa = f.sensitivityAnalysis as { upwardSignals: any[]; downwardSignals: any[]; swingFactor: any | null; stabilityNote: string } | undefined;
+  const cd = caseData as any;
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="rounded-2xl border border-border bg-card p-6 flex flex-col items-center justify-center">
-          <ProbabilityGauge value={forecast.currentProbability} size={200} />
-          <div className="mt-4 text-center space-y-1">
-            <div className="text-3xl font-bold text-emerald-400">{currentPct}%</div>
-            <div className="text-xs text-muted-foreground">Current probability</div>
+      <div className="flex items-center justify-end gap-2">
+        <RecalculateForecastButton
+          caseId={caseId}
+          onComplete={() => {
+            queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+            queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+          }}
+        />
+        <Link href="/signals" className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted/20">
+          <Zap className="w-3.5 h-3.5" /> Add Signals
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="rounded-2xl border border-border bg-card p-6 flex flex-col items-center justify-center relative overflow-hidden">
+          <div className="absolute top-3 right-3">
+            <ConfidenceBadge level={f.confidenceLevel} />
           </div>
-          <div className="mt-4 flex items-center gap-4 text-xs">
+          <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={220} />
+          <div className="flex items-center gap-4 mt-6 text-sm">
             <div className="text-muted-foreground">
-              PRIOR <span className="text-foreground font-semibold">{priorPct}%</span>
+              PRIOR{" "}
+              <span className="text-foreground font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
             </div>
+            <ArrowRight className="w-4 h-4 text-muted-foreground/40" />
             <div className="text-muted-foreground">
               CHANGE{" "}
               <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
-                {delta >= 0 ? "+" : ""}{deltaPts} pts
+                {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
               </span>
-            </div>
-            <div className="text-muted-foreground">
-              CONFIDENCE{" "}
-              <span className="text-foreground font-semibold">{forecast.confidenceLevel || "—"}</span>
             </div>
           </div>
           <div className="mt-3 text-xs text-muted-foreground text-center max-w-[260px]">
-            {interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window."}
+            {interpretation?.primaryStatement
+              ? interpretation.primaryStatement.slice(0, 120) + (interpretation.primaryStatement.length > 120 ? "..." : "")
+              : "Signals are mixed. The outcome is within a zone of genuine uncertainty."}
           </div>
           <div className="mt-2 text-[10px] text-muted-foreground/50">Engine v1 · Bayesian</div>
         </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5" />
-                Key Drivers
-              </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Positive</div>
-                {positiveDrivers.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">None</div>
-                ) : (
-                  positiveDrivers.map((d: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs text-foreground/90">
-                        <ArrowUpRight className="w-3 h-3 text-emerald-400 shrink-0" />
-                        <span className="truncate">{d.description || d.signalId}</span>
-                      </div>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${d.effectiveLR > 1.5 ? "bg-amber-500/15 text-amber-300" : d.effectiveLR > 1.2 ? "bg-blue-500/15 text-blue-300" : "bg-muted/30 text-muted-foreground"}`}>
-                        {d.effectiveLR > 1.5 ? "High" : d.effectiveLR > 1.2 ? "Medium" : "Low"}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-red-400 font-semibold uppercase tracking-wider">Negative</div>
-                {negativeDrivers.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">None</div>
-                ) : (
-                  negativeDrivers.map((d: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs text-foreground/90">
-                        <ArrowDownRight className="w-3 h-3 text-red-400 shrink-0" />
-                        <span className="truncate">{d.description || d.signalId}</span>
-                      </div>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${d.effectiveLR < 0.6 ? "bg-amber-500/15 text-amber-300" : d.effectiveLR < 0.8 ? "bg-blue-500/15 text-blue-300" : "bg-muted/30 text-muted-foreground"}`}>
-                        {d.effectiveLR < 0.6 ? "High" : d.effectiveLR < 0.8 ? "Medium" : "Low"}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="pt-2 border-t border-border text-[10px] text-muted-foreground/60">
-                Ranked by likelihood ratio impact · {signalDetails.length} drivers shown
-              </div>
+        <div className="lg:col-span-2 rounded-2xl border border-primary/15 bg-gradient-to-br from-card to-card/50 p-6 space-y-5">
+          <h3 className="text-base font-semibold flex items-center gap-2">
+            <BrainCircuit className="w-4 h-4 text-primary" />
+            Strategic Interpretation
+          </h3>
+          <div>
+            <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Primary synthesis</div>
+            <div className="text-sm font-medium leading-relaxed">
+              {interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window."}
             </div>
-
-            <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" />
-                Scenario Simulator
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-emerald-500/5 border border-emerald-500/15 p-4 rounded-xl">
+              <div className="text-xs text-emerald-400 font-semibold uppercase tracking-wider mb-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Top Enabler
               </div>
-              <div className="text-[10px] text-muted-foreground/60">Scenario output · backend computed</div>
-              {simulation ? (
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  {["bestCase", "baseCase", "riskCase"].map((key) => {
-                    const s = simulation[key];
-                    if (!s) return null;
-                    const label = key === "bestCase" ? "Best case" : key === "baseCase" ? "Base case" : "Risk case";
-                    return (
-                      <div key={key} className="rounded-lg border border-border bg-muted/10 p-3 space-y-1">
-                        <div className="text-[10px] text-muted-foreground">{label}</div>
-                        <div className="text-sm text-foreground/80 leading-snug line-clamp-3">
-                          {s.description || s.narrative || "—"}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  {MOCK_CASE.scenarios.map((s) => (
-                    <div key={s.name} className="rounded-lg border border-border bg-muted/10 p-3 space-y-1">
-                      <div className="text-[10px] text-muted-foreground">{s.name}</div>
-                      <div className="text-lg font-bold text-foreground">{s.probability}</div>
-                      <div className="text-[11px] text-muted-foreground leading-snug line-clamp-3">{s.description}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={fetchForecast}
-                className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 flex items-center justify-center gap-2"
-              >
-                <RefreshCcw className="w-4 h-4" />
-                Run Scenario
-              </button>
+              <div className="font-medium text-sm">{f.topSupportiveActor || "None identified"}</div>
+            </div>
+            <div className="bg-red-500/5 border border-red-500/15 p-4 rounded-xl">
+              <div className="text-xs text-red-400 font-semibold uppercase tracking-wider mb-1 flex items-center gap-1">
+                <AlertOctagon className="w-3 h-3" /> Top Constrainer
+              </div>
+              <div className="font-medium text-sm">{f.topConstrainingActor || "None identified"}</div>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Recommended action</div>
+            <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-sm font-medium">
+              {interpretation?.recommendedAction || "Monitor signals."}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-        <div className="flex items-center justify-between">
+      {signalDetails.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5" />
+              Signal Stack
+              <span className="text-foreground ml-1">{signalDetails.length} validated</span>
+            </div>
+            <Link href="/signals" className="text-xs text-primary hover:text-primary/80">Manage</Link>
+          </div>
+          <div className="space-y-2">
+            {signalDetails.slice(0, 6).map((sig: any) => (
+              <div key={sig.signalId} className="flex items-center justify-between p-3 bg-background border border-border rounded-lg gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] text-muted-foreground font-mono mb-0.5">{sig.signalId}</div>
+                  <div className="text-sm font-medium truncate" title={sig.description}>{sig.description}</div>
+                </div>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${sig.direction === "Positive" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+                    LR {sig.likelihoodRatio?.toFixed(2) ?? sig.effectiveLR?.toFixed(2) ?? "—"}
+                  </span>
+                  {sig.weightedActorReaction !== undefined && (
+                    <span className="text-[10px] text-muted-foreground">Actor: {sig.weightedActorReaction?.toFixed(3)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {signalDetails.length === 0 && (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                No signals yet. <Link href="/signals" className="text-primary">Add signals</Link> to begin.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {sa && (
+        <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5" />
-            Signal Stack
-            <span className="text-foreground ml-1">{signalDetails.length} validated</span>
+            <Zap className="w-3.5 h-3.5" />
+            Sensitivity Analysis
           </div>
-          <Link href="/signals" className="text-xs text-primary hover:text-primary/80">
-            Manage
-          </Link>
+          {sa.stabilityNote && (
+            <div className="px-4 py-2.5 bg-muted/20 border border-border rounded-lg text-xs text-muted-foreground">
+              {sa.stabilityNote}
+            </div>
+          )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-emerald-500/20 bg-card p-4 space-y-2">
+              <h4 className="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" /> Signals Pushing Up
+              </h4>
+              {sa.upwardSignals.length === 0 ? (
+                <div className="text-xs text-muted-foreground py-3 text-center">No positive signals registered.</div>
+              ) : sa.upwardSignals.map((sig: any) => (
+                <div key={sig.signalId} className="flex items-start justify-between gap-3 p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-mono text-muted-foreground mb-0.5">{sig.signalId}</div>
+                    <div className="text-xs font-medium leading-snug">{sig.description}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xs font-bold text-emerald-400">LR {sig.likelihoodRatio?.toFixed(2)}</div>
+                    <div className="text-[10px] text-muted-foreground">−{(sig.deltaIfRemoved * 100).toFixed(1)}pp if removed</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-red-500/20 bg-card p-4 space-y-2">
+              <h4 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                <TrendingDown className="w-4 h-4" /> Signals Pushing Down
+              </h4>
+              {sa.downwardSignals.length === 0 ? (
+                <div className="text-xs text-muted-foreground py-3 text-center">No negative signals registered.</div>
+              ) : sa.downwardSignals.map((sig: any) => (
+                <div key={sig.signalId} className="flex items-start justify-between gap-3 p-2.5 bg-red-500/5 border border-red-500/15 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-mono text-muted-foreground mb-0.5">{sig.signalId}</div>
+                    <div className="text-xs font-medium leading-snug">{sig.description}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xs font-bold text-red-400">LR {sig.likelihoodRatio?.toFixed(2)}</div>
+                    <div className="text-[10px] text-muted-foreground">+{(sig.deltaIfRemoved * 100).toFixed(1)}pp if removed</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {sa.swingFactor && (
+            <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/5 via-card to-card p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <span className="text-xs font-bold text-primary uppercase tracking-wider">Highest-Leverage Swing Factor</span>
+              </div>
+              <div className="text-sm font-semibold mb-1">{sa.swingFactor.description}</div>
+              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{sa.swingFactor.interpretation}</p>
+              <div className="flex items-center gap-6">
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Current</div>
+                  <div className="text-lg font-bold">{(f.currentProbability * 100).toFixed(1)}%</div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground/40" />
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">If reversed</div>
+                  <div className={`text-lg font-bold ${sa.swingFactor.probabilityDeltaIfReversed > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {(sa.swingFactor.currentProbabilityIfReversed * 100).toFixed(1)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Swing</div>
+                  <div className={`text-lg font-bold ${sa.swingFactor.probabilityDeltaIfReversed > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {sa.swingFactor.probabilityDeltaIfReversed >= 0 ? "+" : ""}{(sa.swingFactor.probabilityDeltaIfReversed * 100).toFixed(1)}pp
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground">
-                <th className="text-left py-2 pr-4 font-semibold">SIGNAL</th>
-                <th className="text-center py-2 px-2 font-semibold w-12">DIR</th>
-                <th className="text-center py-2 px-2 font-semibold w-12">STR</th>
-                <th className="text-center py-2 px-2 font-semibold w-12">REL</th>
-                <th className="text-center py-2 px-2 font-semibold w-20">STATUS</th>
-                <th className="text-right py-2 pl-2 font-semibold w-16">DATE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {signalDetails.map((sig: any, i: number) => {
-                const isUp = sig.effectiveLR > 1;
-                return (
-                  <tr key={i} className="border-b border-border/50">
-                    <td className="py-2.5 pr-4 text-foreground/90 leading-snug max-w-[400px]">
-                      {sig.description || sig.signalId}
-                    </td>
-                    <td className="text-center py-2.5 px-2">
-                      {isUp ? (
-                        <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 mx-auto" />
-                      ) : sig.effectiveLR < 1 ? (
-                        <ArrowDownRight className="w-3.5 h-3.5 text-red-400 mx-auto" />
-                      ) : (
-                        <Minus className="w-3.5 h-3.5 text-muted-foreground mx-auto" />
-                      )}
-                    </td>
-                    <td className="text-center py-2.5 px-2">
-                      <StrengthDots value={sig.effectiveLR > 1.5 || sig.effectiveLR < 0.6 ? 5 : sig.effectiveLR > 1.2 || sig.effectiveLR < 0.8 ? 4 : 3} />
-                    </td>
-                    <td className="text-center py-2.5 px-2">
-                      <StrengthDots value={sig.reliability === "Confirmed" ? 5 : sig.reliability === "Probable" ? 4 : 3} />
-                    </td>
-                    <td className="text-center py-2.5 px-2">
-                      <span className="rounded-full bg-emerald-500/15 text-emerald-300 px-2 py-0.5 text-[10px] font-semibold">
-                        Validated
-                      </span>
-                    </td>
-                    <td className="text-right py-2.5 pl-2 text-muted-foreground">
-                      {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </td>
-                  </tr>
-                );
-              })}
-              {signalDetails.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                    No signals registered yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
 
       {interpretation && (
         <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
           <div className="flex items-start gap-3">
             <BrainCircuit className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-            <div className="space-y-2">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Recommended Action</div>
-              <div className="text-base font-semibold text-foreground">{interpretation.recommendedAction || "Selectively invest. Evidence is favorable but not yet decisive."}</div>
+            <div className="flex-1 space-y-3">
+              <div className="text-[10px] text-primary font-semibold uppercase tracking-wider">Recommended Action</div>
+              <div className="text-base font-semibold text-foreground">
+                {interpretation.recommendedAction || "Selectively invest. Evidence is favorable but not yet decisive."}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {interpretation.confidenceTags?.map((tag: string, i: number) => (
+                  <span key={i} className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-semibold text-primary">{tag}</span>
+                ))}
+                {interpretation.forecastInterpretation && (
+                  <span className="rounded-full bg-muted/30 border border-border px-2.5 py-0.5 text-[10px] text-muted-foreground">{interpretation.forecastInterpretation}</span>
+                )}
+              </div>
               <div className="text-sm text-muted-foreground leading-relaxed">
                 {interpretation.primaryStatement}
               </div>
-              {interpretation.suggestedNextSteps && interpretation.suggestedNextSteps.length > 0 && (
-                <div className="grid grid-cols-1 gap-3 mt-3 md:grid-cols-2">
+
+              {f.confidenceLevel === "Low" && (
+                <div className="flex items-start gap-2 px-4 py-3 rounded-xl border border-amber-400/30 bg-amber-400/5">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-300 leading-relaxed">
+                    Low confidence — this forecast has limited signal support. Treat all outputs as preliminary and avoid high-commitment decisions until the evidence base strengthens.
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {interpretation.suggestedNextSteps && interpretation.suggestedNextSteps.length > 0 && (
                   <div className="space-y-2">
-                    <div className="text-[10px] text-primary font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <Zap className="w-3 h-3" />
-                      Next Actions
+                    <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> Next Actions
                     </div>
                     {interpretation.suggestedNextSteps.map((step: string, i: number) => (
                       <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                        <span className="text-primary shrink-0">&gt;</span>
+                        <span className="text-emerald-400 shrink-0">&gt;</span>
                         <span>{step}</span>
                       </div>
                     ))}
                   </div>
-                  {interpretation.monitorItems && interpretation.monitorItems.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Monitor</div>
-                      {interpretation.monitorItems.map((item: string, i: number) => (
-                        <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                          <span className="text-amber-400 shrink-0">&gt;</span>
-                          <span>{item}</span>
-                        </div>
-                      ))}
+                )}
+                {interpretation.questionRefinements && interpretation.questionRefinements.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-primary font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> Question Refinement
                     </div>
-                  )}
-                </div>
-              )}
+                    {interpretation.questionRefinements.map((q: string, i: number) => (
+                      <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                        <span className="text-primary shrink-0">&gt;</span>
+                        <span>{q}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {interpretation.monitorItems && interpretation.monitorItems.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Monitor</div>
+                    {interpretation.monitorItems.map((item: string, i: number) => (
+                      <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                        <span className="text-amber-400 shrink-0">&gt;</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {interpretation.riskStatement && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-red-400 font-semibold uppercase tracking-wider">Risk</div>
+                    <div className="text-xs text-muted-foreground leading-relaxed">{interpretation.riskStatement}</div>
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+          <div className="pt-3 border-t border-border flex items-center gap-2 text-[10px] text-muted-foreground/50">
+            <span>Derived from probability band</span>
+            <span>·</span>
+            <span>{f.confidenceLevel} confidence</span>
+            <span>·</span>
+            <span>adapter v1</span>
           </div>
         </div>
       )}
@@ -400,17 +435,10 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   );
 }
 
-function StrengthDots({ value }: { value: number }) {
-  return (
-    <div className="flex items-center gap-0.5 justify-center">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <div
-          key={i}
-          className={`w-1.5 h-1.5 rounded-full ${i <= value ? "bg-primary" : "bg-muted/30"}`}
-        />
-      ))}
-    </div>
-  );
+function ConfidenceBadge({ level }: { level?: string }) {
+  if (!level) return null;
+  const cls = level === "High" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" : level === "Moderate" ? "bg-blue-500/15 text-blue-300 border-blue-500/25" : "bg-amber-500/15 text-amber-300 border-amber-500/25";
+  return <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cls}`}>{level}</span>;
 }
 
 function StatCard({ label, value, sub, highlight }: { label: string; value: string; sub: string; highlight?: boolean }) {
@@ -455,22 +483,15 @@ function BottomLinks() {
 }
 
 function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
-  const [forecast, setForecast] = useState<any>(null);
-  const caseId = activeQuestion?.caseId;
+  const caseId = activeQuestion?.caseId || "";
+  const { data: forecast } = useRunForecast(caseId);
+  const f = forecast as any;
 
-  useEffect(() => {
-    if (!caseId) return;
-    fetch(`${API_BASE}/cases/${caseId}/forecast`)
-      .then((r) => r.json())
-      .then(setForecast)
-      .catch(() => {});
-  }, [caseId]);
-
-  const scenarios = forecast?.scenarioSimulation
+  const scenarios = f?.scenarioSimulation
     ? [
-        { name: "Best Case", probability: forecast.scenarioSimulation.bestCase?.probability, description: forecast.scenarioSimulation.bestCase?.narrative || forecast.scenarioSimulation.bestCase?.description },
-        { name: "Base Case", probability: forecast.scenarioSimulation.baseCase?.probability, description: forecast.scenarioSimulation.baseCase?.narrative || forecast.scenarioSimulation.baseCase?.description },
-        { name: "Risk Case", probability: forecast.scenarioSimulation.riskCase?.probability, description: forecast.scenarioSimulation.riskCase?.narrative || forecast.scenarioSimulation.riskCase?.description },
+        { name: "Best Case", probability: f.scenarioSimulation.bestCase?.probability, description: f.scenarioSimulation.bestCase?.narrative || f.scenarioSimulation.bestCase?.description },
+        { name: "Base Case", probability: f.scenarioSimulation.baseCase?.probability, description: f.scenarioSimulation.baseCase?.narrative || f.scenarioSimulation.baseCase?.description },
+        { name: "Risk Case", probability: f.scenarioSimulation.riskCase?.probability, description: f.scenarioSimulation.riskCase?.narrative || f.scenarioSimulation.riskCase?.description },
       ].filter((s) => s.probability != null)
     : MOCK_CASE.scenarios;
 
@@ -482,12 +503,9 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
           Three strategic scenarios with probability estimates under different assumptions.
         </p>
       </div>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {scenarios.map((s: any) => {
-          const pctStr = typeof s.probability === "number"
-            ? `${(s.probability * 100).toFixed(0)}%`
-            : s.probability;
+          const pctStr = typeof s.probability === "number" ? `${(s.probability * 100).toFixed(0)}%` : s.probability;
           return (
             <div key={s.name} className="rounded-xl border border-border bg-muted/10 p-5 space-y-3">
               <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{s.name}</div>
@@ -497,7 +515,6 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
           );
         })}
       </div>
-
       <div className="rounded-xl border border-border bg-muted/10 p-5">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Scenario Comparison</div>
         <div className="space-y-3">
@@ -526,23 +543,16 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
 }
 
 function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
-  const [forecast, setForecast] = useState<any>(null);
-  const caseId = activeQuestion?.caseId;
+  const caseId = activeQuestion?.caseId || "";
+  const { data: forecast } = useRunForecast(caseId);
+  const f = forecast as any;
 
-  useEffect(() => {
-    if (!caseId) return;
-    fetch(`${API_BASE}/cases/${caseId}/forecast`)
-      .then((r) => r.json())
-      .then(setForecast)
-      .catch(() => {});
-  }, [caseId]);
-
-  const drivers = forecast?.signalDetails
-    ? forecast.signalDetails.map((s: any) => ({
+  const drivers = f?.signalDetails
+    ? f.signalDetails.map((s: any) => ({
         name: s.description || s.signalId,
-        direction: s.effectiveLR > 1 ? "up" as const : "down" as const,
-        strength: (s.effectiveLR > 1.5 || s.effectiveLR < 0.6) ? "High" as const : (s.effectiveLR > 1.2 || s.effectiveLR < 0.8) ? "Medium" as const : "Low" as const,
-        lr: s.effectiveLR,
+        direction: (s.direction === "Positive" || s.effectiveLR > 1) ? "up" as const : "down" as const,
+        strength: (s.likelihoodRatio > 1.5 || s.likelihoodRatio < 0.6 || s.effectiveLR > 1.5 || s.effectiveLR < 0.6) ? "High" as const : (s.likelihoodRatio > 1.2 || s.likelihoodRatio < 0.8 || s.effectiveLR > 1.2 || s.effectiveLR < 0.8) ? "Medium" as const : "Low" as const,
+        lr: s.likelihoodRatio ?? s.effectiveLR,
       }))
     : MOCK_CASE.driverImpact;
 
@@ -554,7 +564,6 @@ function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
           Forces pushing the forecast higher or lower, with estimated strength.
         </p>
       </div>
-
       <div className="space-y-1">
         <div className="flex items-center gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <div className="flex-1">Driver</div>
@@ -587,7 +596,7 @@ function CaseLibraryTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE}/cases`)
+    fetch("/api/cases")
       .then((r) => r.json())
       .then((data: any[]) => setCards(data.map((c, i) => enrichCase(c, i))))
       .catch(() => setCards([]))
