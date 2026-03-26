@@ -1,25 +1,11 @@
+import type { ForecastCaseInput, ForecastOutput } from "./types";
+import { runCoreForecast } from "./core-forecast-engine";
+
 export interface ForecastRunState {
   status: "idle" | "dirty" | "running" | "ready" | "error";
-  lastOutput: ForecastRunOutput | null;
+  lastOutput: ForecastOutput | null;
   errorMessage: string | null;
   dirtyReason: string | null;
-}
-
-export interface ForecastRunOutput {
-  runId: string;
-  caseId: string;
-  question: string;
-  priorProbability: number;
-  posteriorProbability: number;
-  adjustedProbability: number;
-  priorMultiplier: number;
-  posteriorMultiplier: number;
-  signalCount: number;
-  effectiveSignalCount: number;
-  explanation: string[];
-  engineVersion: string;
-  environmentFingerprint: string;
-  inputFingerprint: string;
 }
 
 export const initialForecastRunState: ForecastRunState = {
@@ -38,4 +24,25 @@ export function markForecastDirty(
     status: "dirty",
     dirtyReason: reason,
   };
+}
+
+export async function recalculateForecast(
+  input: ForecastCaseInput
+): Promise<ForecastRunState> {
+  try {
+    const output = runCoreForecast(input);
+    return {
+      status: "ready",
+      lastOutput: output,
+      errorMessage: null,
+      dirtyReason: null,
+    };
+  } catch (error: any) {
+    return {
+      status: "error",
+      lastOutput: null,
+      errorMessage: error?.message ?? "Unknown recalculation error",
+      dirtyReason: null,
+    };
+  }
 }

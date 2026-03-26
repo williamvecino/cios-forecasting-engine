@@ -1,0 +1,115 @@
+import type {
+  ActorEnvironmentConfig,
+  AdoptionPhase,
+  CompetitiveLandscape,
+  ForecastHorizonMonths,
+  GuidelineLeverage,
+  PayerEnvironment,
+  SpecialtyActorProfile,
+} from "./types";
+import { clamp, round4 } from "./stability";
+
+export interface EnvironmentAdjustmentResult {
+  priorMultiplier: number;
+  posteriorMultiplier: number;
+  explanation: string[];
+  normalizedConfig: Required<ActorEnvironmentConfig>;
+}
+
+export function normalizeActorEnvironment(
+  config: ActorEnvironmentConfig
+): Required<ActorEnvironmentConfig> {
+  return {
+    specialtyActorProfile: config.specialtyActorProfile ?? "general",
+    payerEnvironment: config.payerEnvironment ?? "balanced",
+    guidelineLeverage: config.guidelineLeverage ?? "medium",
+    competitiveLandscape: config.competitiveLandscape ?? "entrenched_standard_of_care",
+    accessFrictionIndex: clamp(config.accessFrictionIndex ?? 0.5, 0, 1),
+    adoptionPhase: config.adoptionPhase ?? "early_adoption",
+    forecastHorizonMonths: config.forecastHorizonMonths ?? 12,
+  };
+}
+
+export function computeEnvironmentAdjustments(
+  rawConfig: ActorEnvironmentConfig
+): EnvironmentAdjustmentResult {
+  const config = normalizeActorEnvironment(rawConfig);
+  const notes: string[] = [];
+
+  let priorMultiplier = 1.0;
+  let posteriorMultiplier = 1.0;
+
+  const specialtyPriorMap: Record<SpecialtyActorProfile, number> = {
+    general: 1.0,
+    early_adopter_specialty: 1.08,
+    conservative_specialty: 0.93,
+    cost_sensitive_specialty: 0.95,
+    procedural_specialty: 1.03,
+  };
+
+  const payerPosteriorMap: Record<PayerEnvironment, number> = {
+    favorable: 1.06,
+    balanced: 1.0,
+    restrictive: 0.92,
+  };
+
+  const guidelinePriorMap: Record<GuidelineLeverage, number> = {
+    low: 0.96,
+    medium: 1.0,
+    high: 1.07,
+  };
+
+  const competitionPosteriorMap: Record<CompetitiveLandscape, number> = {
+    open_market: 1.06,
+    moderate_competition: 0.99,
+    entrenched_standard_of_care: 0.9,
+  };
+
+  const phasePriorMap: Record<AdoptionPhase, number> = {
+    pre_launch: 0.9,
+    early_adoption: 1.0,
+    growth: 1.08,
+    plateau: 0.98,
+    decline: 0.9,
+  };
+
+  const horizonPosteriorMap: Record<ForecastHorizonMonths, number> = {
+    6: 0.95,
+    12: 1.0,
+    24: 1.06,
+    36: 1.1,
+  };
+
+  priorMultiplier *= specialtyPriorMap[config.specialtyActorProfile];
+  notes.push(`Specialty profile '${config.specialtyActorProfile}' adjusted prior by ${specialtyPriorMap[config.specialtyActorProfile].toFixed(2)}`);
+
+  posteriorMultiplier *= payerPosteriorMap[config.payerEnvironment];
+  notes.push(`Payer environment '${config.payerEnvironment}' adjusted posterior by ${payerPosteriorMap[config.payerEnvironment].toFixed(2)}`);
+
+  priorMultiplier *= guidelinePriorMap[config.guidelineLeverage];
+  notes.push(`Guideline leverage '${config.guidelineLeverage}' adjusted prior by ${guidelinePriorMap[config.guidelineLeverage].toFixed(2)}`);
+
+  posteriorMultiplier *= competitionPosteriorMap[config.competitiveLandscape];
+  notes.push(`Competitive landscape '${config.competitiveLandscape}' adjusted posterior by ${competitionPosteriorMap[config.competitiveLandscape].toFixed(2)}`);
+
+  const accessShift = (0.5 - config.accessFrictionIndex) * 0.16;
+  const accessMultiplier = clamp(1 + accessShift, 0.92, 1.08);
+  posteriorMultiplier *= accessMultiplier;
+  notes.push(`Access friction index ${config.accessFrictionIndex.toFixed(2)} adjusted posterior by ${accessMultiplier.toFixed(2)}`);
+
+  priorMultiplier *= phasePriorMap[config.adoptionPhase];
+  notes.push(`Adoption phase '${config.adoptionPhase}' adjusted prior by ${phasePriorMap[config.adoptionPhase].toFixed(2)}`);
+
+  posteriorMultiplier *= horizonPosteriorMap[config.forecastHorizonMonths];
+  notes.push(`Forecast horizon ${config.forecastHorizonMonths} months adjusted posterior by ${horizonPosteriorMap[config.forecastHorizonMonths].toFixed(2)}`);
+
+  priorMultiplier = clamp(priorMultiplier, 0.8, 1.2);
+  posteriorMultiplier = clamp(posteriorMultiplier, 0.8, 1.2);
+
+  return {
+    priorMultiplier: round4(priorMultiplier),
+    posteriorMultiplier: round4(posteriorMultiplier),
+    explanation: notes,
+    normalizedConfig: config,
+  };
+}

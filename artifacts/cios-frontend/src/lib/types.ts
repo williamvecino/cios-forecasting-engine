@@ -1,0 +1,76 @@
+export type SignalDirection = "positive" | "negative" | "neutral";
+
+export interface SignalInput {
+  id: string;
+  label: string;
+  likelihoodRatio: number;
+  reliability: number;
+  strength: number;
+  direction: SignalDirection;
+  enabled?: boolean;
+}
+
+export interface AppliedSignal {
+  id: string;
+  label: string;
+  enabled: boolean;
+  effectiveLikelihoodRatio: number;
+  direction: SignalDirection;
+}
+
+export type SpecialtyActorProfile =
+  | "general"
+  | "early_adopter_specialty"
+  | "conservative_specialty"
+  | "cost_sensitive_specialty"
+  | "procedural_specialty";
+
+export type PayerEnvironment = "favorable" | "balanced" | "restrictive";
+export type GuidelineLeverage = "low" | "medium" | "high";
+export type CompetitiveLandscape =
+  | "open_market"
+  | "moderate_competition"
+  | "entrenched_standard_of_care";
+export type AdoptionPhase =
+  | "pre_launch"
+  | "early_adoption"
+  | "growth"
+  | "plateau"
+  | "decline";
+export type ForecastHorizonMonths = 6 | 12 | 24 | 36;
+
+export interface ActorEnvironmentConfig {
+  specialtyActorProfile: SpecialtyActorProfile;
+  payerEnvironment: PayerEnvironment;
+  guidelineLeverage: GuidelineLeverage;
+  competitiveLandscape: CompetitiveLandscape;
+  accessFrictionIndex?: number;
+  adoptionPhase?: AdoptionPhase;
+  forecastHorizonMonths?: ForecastHorizonMonths;
+}
+
+export interface ForecastCaseInput {
+  caseId: string;
+  question: string;
+  priorProbability: number;
+  signals: SignalInput[];
+  environment: ActorEnvironmentConfig;
+}
+
+export interface ForecastOutput {
+  runId: string;
+  caseId: string;
+  question: string;
+  priorProbability: number;
+  posteriorProbability: number;
+  adjustedProbability: number;
+  priorMultiplier: number;
+  posteriorMultiplier: number;
+  signalCount: number;
+  effectiveSignalCount: number;
+  appliedSignals: AppliedSignal[];
+  explanation: string[];
+  engineVersion: string;
+  environmentFingerprint: string;
+  inputFingerprint: string;
+}
