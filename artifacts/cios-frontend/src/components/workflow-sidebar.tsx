@@ -6,12 +6,14 @@ interface Props {
   currentStep: WorkflowStep;
   hasActiveQuestion: boolean;
   onToggleAdvanced: () => void;
+  onOpenMockCase: () => void;
 }
 
 export default function WorkflowSidebar({
   currentStep,
   hasActiveQuestion,
   onToggleAdvanced,
+  onOpenMockCase,
 }: Props) {
   const steps = getWorkflowSteps();
   const [location] = useLocation();
@@ -61,7 +63,15 @@ export default function WorkflowSidebar({
         })}
       </div>
 
-      <div className="mt-6 border-t border-border pt-5">
+      <div className="mt-6 space-y-3 border-t border-border pt-5">
+        <button
+          type="button"
+          onClick={onOpenMockCase}
+          className="w-full rounded-xl border border-border bg-muted/10 px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:border-border/80 hover:bg-muted/20"
+        >
+          See Mock Case
+        </button>
+
         <button
           type="button"
           onClick={onToggleAdvanced}

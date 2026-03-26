@@ -3,6 +3,7 @@ import type { ActiveQuestion, WorkflowStep } from "../lib/workflow";
 import ActiveQuestionBanner from "./active-question-banner";
 import AdvancedDrawer from "./advanced-drawer";
 import WorkflowSidebar from "./workflow-sidebar";
+import MockCaseTour from "./mock-case/mock-case-tour";
 
 interface Props {
   currentStep: WorkflowStep;
@@ -18,6 +19,7 @@ export default function WorkflowLayout({
   children,
 }: Props) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [mockCaseOpen, setMockCaseOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background p-6 text-foreground">
@@ -32,6 +34,7 @@ export default function WorkflowLayout({
             currentStep={currentStep}
             hasActiveQuestion={!!activeQuestion}
             onToggleAdvanced={() => setAdvancedOpen(true)}
+            onOpenMockCase={() => setMockCaseOpen(true)}
           />
 
           <main className="flex-1">{children}</main>
@@ -41,6 +44,11 @@ export default function WorkflowLayout({
       <AdvancedDrawer
         open={advancedOpen}
         onClose={() => setAdvancedOpen(false)}
+      />
+
+      <MockCaseTour
+        open={mockCaseOpen}
+        onClose={() => setMockCaseOpen(false)}
       />
     </div>
   );
