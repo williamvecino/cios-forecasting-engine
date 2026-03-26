@@ -1,7 +1,7 @@
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
-import { useActiveQuestion } from "@/hooks/use-active-question";
 import DecisionRoadmapCard from "@/components/decision-roadmap-card";
+import { useActiveQuestion } from "@/hooks/use-active-question";
 
 export default function DecidePage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
@@ -17,62 +17,124 @@ export default function DecidePage() {
         title="An active question is required"
         body="Decision tools should only activate once a question and forecast context exist."
       >
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Step 4
+        <section className="space-y-6">
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Step 4
+            </div>
+            <h1 className="mt-2 text-2xl font-semibold text-foreground">
+              What action should we take?
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+              This step holds the commercial decision layer. Keep it action-oriented.
+              Show what the system will help decide, without exposing unfinished internal modules as if they were live.
+            </p>
           </div>
-          <h1 className="mt-2 text-2xl font-semibold text-foreground">
-            What action should we take?
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            This step will hold the commercial decision panels. The primary view
-            should stay action-oriented, not module-oriented.
-          </p>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <DecisionRoadmapCard
-              title="Adoption Segmentation"
-              body="Who is likely to move first and when."
-              status="planned"
-              inputs={["Posterior probability", "Signal evidence", "Actor profiles"]}
-              output="Ranked adopter segments with timing estimates."
-            />
-            <DecisionRoadmapCard
-              title="Barrier Diagnosis"
-              body="What is blocking adoption or behavior change."
-              status="planned"
-              inputs={["Negative signals", "Market context", "Competitive landscape"]}
-              output="Prioritized list of adoption barriers with severity."
-            />
-            <DecisionRoadmapCard
-              title="Readiness Timeline"
-              body="When the market can realistically shift."
-              status="planned"
-              inputs={["Forecast trajectory", "Event calendar", "Regulatory signals"]}
-              output="Month-by-month readiness assessment with milestones."
-            />
-            <DecisionRoadmapCard
-              title="Competitive Risk"
-              body="What competitors are likely to do next."
-              status="planned"
-              inputs={["Competitor signals", "Market share data", "Pipeline intelligence"]}
-              output="Competitive threat matrix with response options."
-            />
-            <DecisionRoadmapCard
-              title="Growth Feasibility"
-              body="Whether expansion can translate into revenue."
-              status="planned"
-              inputs={["Adoption forecast", "Market sizing", "Resource constraints"]}
-              output="Go/no-go recommendation with confidence interval."
-            />
-            <DecisionRoadmapCard
-              title="Actors / Segments"
-              body="Advanced layer for market-research simulation and later reaction testing."
-              status="advanced"
-              advanced
-              inputs={["Actor network graph", "Influence mapping", "Simulation engine"]}
-              output="Agent-based scenario outcomes."
-            />
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  Primary decision panels
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Visible roadmap for the next major commercial layers.
+                </div>
+              </div>
+
+              <span className="rounded-full border border-border bg-muted/20 px-3 py-1 text-xs text-muted-foreground">
+                Structural placeholders only
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <DecisionRoadmapCard
+                title="Adoption Segmentation"
+                body="Identify which segments are most likely to move first and in what sequence."
+                status="planned"
+                inputs={[
+                  "Active question",
+                  "Forecast output",
+                  "Signal mix",
+                  "Actor environment",
+                ]}
+                output="Who moves first, second, and later"
+              />
+
+              <DecisionRoadmapCard
+                title="Barrier Diagnosis"
+                body="Identify the dominant factors blocking adoption or behavior change."
+                status="planned"
+                inputs={[
+                  "Signal mix",
+                  "Forecast resistance",
+                  "Competitive context",
+                  "Payer friction",
+                ]}
+                output="What is blocking movement now"
+              />
+
+              <DecisionRoadmapCard
+                title="Readiness Timeline"
+                body="Estimate when the market can realistically shift, given the current evidence and constraints."
+                status="planned"
+                inputs={[
+                  "Forecast horizon",
+                  "Signal trajectory",
+                  "Guideline leverage",
+                  "Adoption phase",
+                ]}
+                output="When change is realistically achievable"
+              />
+
+              <DecisionRoadmapCard
+                title="Competitive Risk"
+                body="Estimate what competitors are likely to do next and how that changes the strategic picture."
+                status="planned"
+                inputs={[
+                  "Competitive landscape",
+                  "Observed signals",
+                  "Market timing",
+                  "Question context",
+                ]}
+                output="What competitive responses should be expected"
+              />
+
+              <DecisionRoadmapCard
+                title="Growth Feasibility"
+                body="Estimate whether expected adoption can plausibly convert into commercial expansion and revenue."
+                status="planned"
+                inputs={[
+                  "Forecast output",
+                  "Segment size",
+                  "Market access",
+                  "Timing",
+                ]}
+                output="Whether growth can translate into revenue"
+              />
+
+              <DecisionRoadmapCard
+                title="Actors / Segments"
+                body="Advanced layer for defined market-research actors, segment reaction scoring, and later simulation workflows."
+                status="advanced"
+                advanced
+                inputs={[
+                  "Segment definitions",
+                  "Reaction logic",
+                  "Campaign inputs",
+                  "Context layer",
+                ]}
+                output="How defined actors may react under different scenarios"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="text-sm font-semibold text-foreground">Current rule</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              These panels are intentionally visible now so the workflow feels complete,
+              but they are not presented as active analytical outputs until each layer is built.
+            </div>
           </div>
         </section>
       </QuestionGate>
