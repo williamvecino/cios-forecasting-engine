@@ -8,6 +8,23 @@ export interface MockCaseStep {
   highlights: string[];
 }
 
+export interface Scenario {
+  name: string;
+  probability: string;
+  description: string;
+}
+
+export interface DriverImpact {
+  name: string;
+  direction: "up" | "down";
+  strength: "High" | "Medium" | "Low";
+}
+
+export interface ScenarioDecision {
+  scenario: string;
+  action: string;
+}
+
 export interface MockCaseData {
   caseId: string;
   question: string;
@@ -29,6 +46,9 @@ export interface MockCaseData {
     competitiveRisk: string;
     growthFeasibility: string;
   };
+  scenarios: Scenario[];
+  driverImpact: DriverImpact[];
+  scenarioDecisions: ScenarioDecision[];
 }
 
 export const MOCK_CASE: MockCaseData = {
@@ -66,6 +86,62 @@ export const MOCK_CASE: MockCaseData = {
     competitiveRisk: "Incumbent defense likely",
     growthFeasibility: "Promising if access broadens and first movers convert",
   },
+  scenarios: [
+    {
+      name: "Base Case",
+      probability: "42%",
+      description:
+        "Current trajectory assuming stable access and moderate guideline influence",
+    },
+    {
+      name: "Upside Scenario",
+      probability: "58%",
+      description:
+        "Guideline momentum strengthens and payer friction decreases",
+    },
+    {
+      name: "Downside Scenario",
+      probability: "27%",
+      description:
+        "Access restrictions increase and competitor response accelerates",
+    },
+  ],
+  driverImpact: [
+    {
+      name: "Positive phase 3 efficacy",
+      direction: "up",
+      strength: "High",
+    },
+    {
+      name: "Guideline momentum",
+      direction: "up",
+      strength: "Medium",
+    },
+    {
+      name: "Access friction",
+      direction: "down",
+      strength: "Medium",
+    },
+    {
+      name: "Entrenched competitor",
+      direction: "down",
+      strength: "High",
+    },
+  ],
+  scenarioDecisions: [
+    {
+      scenario: "Base Case",
+      action: "Focus on early adopters and monitor access expansion",
+    },
+    {
+      scenario: "Upside Scenario",
+      action: "Accelerate broader segment activation",
+    },
+    {
+      scenario: "Downside Scenario",
+      action: "Prioritize barrier reduction and defensive positioning",
+    },
+  ],
 };
 
 export const MOCK_CASE_STEPS: MockCaseStep[] = [
@@ -101,7 +177,8 @@ export const MOCK_CASE_STEPS: MockCaseStep[] = [
       "The system estimates what is likely to happen, why, and on what time scale.",
     highlights: [
       "Probability is shown",
-      "Key drivers are surfaced",
+      "Scenario planning across Base / Upside / Downside",
+      "Key driver impact is surfaced",
       "Timing is made explicit",
     ],
   },
@@ -116,6 +193,7 @@ export const MOCK_CASE_STEPS: MockCaseStep[] = [
       "What is blocking adoption",
       "When to act",
       "What competitive risks to watch",
+      "Scenario-aware recommended actions",
     ],
   },
 ];

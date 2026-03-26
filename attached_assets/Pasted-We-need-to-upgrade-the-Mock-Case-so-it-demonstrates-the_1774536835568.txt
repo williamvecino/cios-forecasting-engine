@@ -1,0 +1,311 @@
+We need to upgrade the Mock Case so it demonstrates the strategic power of the engine — specifically Scenario Planning and Driver Impact — without introducing fake analytics or destabilizing the system.
+
+This is not a redesign of the workflow.
+This is an enhancement of the Forecast and Decide steps inside the mock case.
+
+Scope:
+UI-only enhancement to the Mock Case demo.
+No changes to engine logic, schemas, or persistence.
+
+---
+
+PRIMARY CHANGE
+
+Add three new visual sections to the Forecast step:
+
+1. Scenario Planning
+2. Driver Impact
+3. Scenario-Aware Decisions (in the Decide step)
+
+---
+
+FILES TO MODIFY
+
+1. components/mock-case/mock-case-tour.tsx
+2. lib/mock-case.ts
+
+Do not modify:
+
+* engine/
+* services/
+* models/
+* calibration/
+* signal logic
+
+---
+
+STEP 1 — UPDATE MOCK CASE DATA
+
+Open:
+
+lib/mock-case.ts
+
+Add a new section called:
+
+scenarios
+driverImpact
+scenarioDecisions
+
+Use this structure:
+
+export const MOCK_CASE = {
+...
+
+scenarios: [
+{
+name: "Base Case",
+probability: "42%",
+description:
+"Current trajectory assuming stable access and moderate guideline influence",
+},
+{
+name: "Upside Scenario",
+probability: "58%",
+description:
+"Guideline momentum strengthens and payer friction decreases",
+},
+{
+name: "Downside Scenario",
+probability: "27%",
+description:
+"Access restrictions increase and competitor response accelerates",
+},
+],
+
+driverImpact: [
+{
+name: "Positive phase 3 efficacy",
+direction: "up",
+strength: "High",
+},
+{
+name: "Guideline momentum",
+direction: "up",
+strength: "Medium",
+},
+{
+name: "Access friction",
+direction: "down",
+strength: "Medium",
+},
+{
+name: "Entrenched competitor",
+direction: "down",
+strength: "High",
+},
+],
+
+scenarioDecisions: [
+{
+scenario: "Base Case",
+action:
+"Focus on early adopters and monitor access expansion",
+},
+{
+scenario: "Upside Scenario",
+action:
+"Accelerate broader segment activation",
+},
+{
+scenario: "Downside Scenario",
+action:
+"Prioritize barrier reduction and defensive positioning",
+},
+],
+};
+
+---
+
+STEP 2 — ADD SCENARIO PLANNING UI
+
+Inside:
+
+mock-case-tour.tsx
+
+In the Forecast step render block, add a new section after the main forecast cards:
+
+Title:
+
+Scenario Planning
+
+Render three scenario cards horizontally.
+
+Each card should display:
+
+* Scenario name
+* Probability
+* Description
+
+Create component:
+
+ScenarioCard
+
+---
+
+COMPONENT
+
+function ScenarioCard({ scenario }) {
+return ( <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"> <div className="text-xs text-slate-400">
+{scenario.name} </div>
+
+```
+  <div className="mt-2 text-2xl font-semibold text-white">
+    {scenario.probability}
+  </div>
+
+  <div className="mt-2 text-sm text-slate-400">
+    {scenario.description}
+  </div>
+</div>
+```
+
+);
+}
+
+---
+
+LAYOUT
+
+Add section:
+
+<div className="mt-6">
+  <div className="text-sm font-semibold text-white">
+    Scenario Planning
+  </div>
+
+  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+    {MOCK_CASE.scenarios.map((s) => (
+      <ScenarioCard key={s.name} scenario={s} />
+    ))}
+  </div>
+</div>
+
+---
+
+STEP 3 — ADD DRIVER IMPACT PANEL
+
+Still inside the Forecast step.
+
+Add a section titled:
+
+Key Drivers Impact
+
+This should show:
+
+Driver name
+Direction
+Strength
+
+---
+
+COMPONENT
+
+function DriverImpactRow({ driver }) {
+const color =
+driver.direction === "up"
+? "text-green-400"
+: "text-red-400";
+
+return ( <div className="flex items-center justify-between border-b border-slate-800 py-2"> <div className="text-sm text-slate-300">
+{driver.name} </div>
+
+```
+  <div className={`text-sm font-semibold ${color}`}>
+    {driver.direction === "up" ? "Upward" : "Downward"}
+  </div>
+
+  <div className="text-sm text-slate-400">
+    {driver.strength}
+  </div>
+</div>
+```
+
+);
+}
+
+---
+
+SECTION
+
+<div className="mt-6">
+  <div className="text-sm font-semibold text-white">
+    Driver Impact
+  </div>
+
+  <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+    {MOCK_CASE.driverImpact.map((d) => (
+      <DriverImpactRow key={d.name} driver={d} />
+    ))}
+  </div>
+</div>
+
+---
+
+STEP 4 — ADD SCENARIO-AWARE DECISIONS
+
+Inside the Decide step.
+
+Add new section:
+
+Recommended Actions by Scenario
+
+---
+
+COMPONENT
+
+function ScenarioDecisionCard({ item }) {
+return ( <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"> <div className="text-xs text-slate-400">
+{item.scenario} </div>
+
+```
+  <div className="mt-2 text-sm text-white">
+    {item.action}
+  </div>
+</div>
+```
+
+);
+}
+
+---
+
+SECTION
+
+<div className="mt-6">
+  <div className="text-sm font-semibold text-white">
+    Recommended Actions by Scenario
+  </div>
+
+  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+    {MOCK_CASE.scenarioDecisions.map((item) => (
+      <ScenarioDecisionCard
+        key={item.scenario}
+        item={item}
+      />
+    ))}
+  </div>
+</div>
+
+---
+
+SUCCESS CRITERIA
+
+After implementation, the Mock Case Forecast step must visibly show:
+
+* Main forecast probability
+* Scenario Planning (Base / Upside / Downside)
+* Driver Impact panel
+
+And the Decide step must show:
+
+* Recommended Actions by Scenario
+
+No fake analytics.
+No engine changes.
+No database changes.
+
+This is a visual demonstration of system capability.
+
+---
+
+END

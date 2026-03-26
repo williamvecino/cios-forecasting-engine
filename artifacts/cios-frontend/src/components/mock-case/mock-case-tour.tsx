@@ -3,6 +3,7 @@ import {
   MOCK_CASE,
   MOCK_CASE_STEPS,
 } from "@/lib/mock-case";
+import type { Scenario, DriverImpact, ScenarioDecision } from "@/lib/mock-case";
 
 interface Props {
   open: boolean;
@@ -72,37 +73,73 @@ export default function MockCaseTour({ open, onClose }: Props) {
 
       case "forecast":
         return (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <MockMetric title="Probability" value={MOCK_CASE.forecast.probability} />
               <MockMetric title="Timing" value={MOCK_CASE.forecast.timing} />
               <MockMetric title="Case" value={MOCK_CASE.caseId} />
             </div>
+
             <MockBlock title="Key Drivers">
               <BulletItems items={MOCK_CASE.forecast.keyDrivers} />
             </MockBlock>
+
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Scenario Planning
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+                {MOCK_CASE.scenarios.map((s) => (
+                  <ScenarioCard key={s.name} scenario={s} />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Driver Impact
+              </div>
+              <div className="mt-3 rounded-xl border border-border bg-muted/10 p-4">
+                {MOCK_CASE.driverImpact.map((d) => (
+                  <DriverImpactRow key={d.name} driver={d} />
+                ))}
+              </div>
+            </div>
           </div>
         );
 
       case "decide":
         return (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <MockBlock title="Adoption Segment">
-              {MOCK_CASE.decision.adoptionSegment}
-            </MockBlock>
-            <MockBlock title="Barrier Diagnosis">
-              {MOCK_CASE.decision.barrier}
-            </MockBlock>
-            <MockBlock title="Readiness Timeline">
-              {MOCK_CASE.decision.readiness}
-            </MockBlock>
-            <MockBlock title="Competitive Risk">
-              {MOCK_CASE.decision.competitiveRisk}
-            </MockBlock>
-            <div className="md:col-span-2">
-              <MockBlock title="Growth Feasibility">
-                {MOCK_CASE.decision.growthFeasibility}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <MockBlock title="Adoption Segment">
+                {MOCK_CASE.decision.adoptionSegment}
               </MockBlock>
+              <MockBlock title="Barrier Diagnosis">
+                {MOCK_CASE.decision.barrier}
+              </MockBlock>
+              <MockBlock title="Readiness Timeline">
+                {MOCK_CASE.decision.readiness}
+              </MockBlock>
+              <MockBlock title="Competitive Risk">
+                {MOCK_CASE.decision.competitiveRisk}
+              </MockBlock>
+              <div className="md:col-span-2">
+                <MockBlock title="Growth Feasibility">
+                  {MOCK_CASE.decision.growthFeasibility}
+                </MockBlock>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Recommended Actions by Scenario
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+                {MOCK_CASE.scenarioDecisions.map((item) => (
+                  <ScenarioDecisionCard key={item.scenario} item={item} />
+                ))}
+              </div>
             </div>
           </div>
         );
@@ -260,6 +297,48 @@ function BulletItems({ items }: { items: string[] }) {
           • {item}
         </div>
       ))}
+    </div>
+  );
+}
+
+function ScenarioCard({ scenario }: { scenario: Scenario }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/10 p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+        {scenario.name}
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-foreground">
+        {scenario.probability}
+      </div>
+      <div className="mt-2 text-sm text-muted-foreground">
+        {scenario.description}
+      </div>
+    </div>
+  );
+}
+
+function DriverImpactRow({ driver }: { driver: DriverImpact }) {
+  const color =
+    driver.direction === "up" ? "text-emerald-400" : "text-red-400";
+
+  return (
+    <div className="flex items-center justify-between border-b border-border/50 py-2.5 last:border-b-0">
+      <div className="text-sm text-foreground/90">{driver.name}</div>
+      <div className={`text-sm font-semibold ${color}`}>
+        {driver.direction === "up" ? "Upward" : "Downward"}
+      </div>
+      <div className="text-sm text-muted-foreground">{driver.strength}</div>
+    </div>
+  );
+}
+
+function ScenarioDecisionCard({ item }: { item: ScenarioDecision }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/10 p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+        {item.scenario}
+      </div>
+      <div className="mt-2 text-sm text-foreground/90">{item.action}</div>
     </div>
   );
 }
