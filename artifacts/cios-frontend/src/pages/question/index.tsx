@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+import MockCaseTour from "@/components/mock-case/mock-case-tour";
 
 export default function QuestionPage() {
   const [, navigate] = useLocation();
@@ -12,6 +13,7 @@ export default function QuestionPage() {
   const [timeHorizon, setTimeHorizon] = useState(
     activeQuestion?.timeHorizon ?? "12 months"
   );
+  const [tourOpen, setTourOpen] = useState(false);
 
   function handleCreateQuestion() {
     const text = questionText.trim();
@@ -88,16 +90,28 @@ export default function QuestionPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleCreateQuestion}
-            disabled={!questionText.trim()}
-            className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Continue to Add Information
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleCreateQuestion}
+              disabled={!questionText.trim()}
+              className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Continue to Add Information
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTourOpen(true)}
+              className="rounded-xl border border-border px-5 py-3 text-sm text-muted-foreground hover:border-border/80 hover:bg-muted/20"
+            >
+              See demo walkthrough
+            </button>
+          </div>
         </div>
       </section>
+
+      <MockCaseTour open={tourOpen} onClose={() => setTourOpen(false)} />
     </WorkflowLayout>
   );
 }
