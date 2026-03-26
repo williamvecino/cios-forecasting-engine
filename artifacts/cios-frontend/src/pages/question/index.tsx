@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useListCases } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
 import { useActiveQuestion } from "@/hooks/use-active-question";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ChevronDown, Search, X } from "lucide-react";
 
 const STRONG_EXAMPLES = [
   "Will adoption increase after indication expansion within 12 months?",
@@ -23,6 +24,7 @@ const WEAK_EXAMPLES = [
 export default function QuestionPage() {
   const [, navigate] = useLocation();
   const { activeQuestion, createQuestion, clearQuestion } = useActiveQuestion();
+  const { data: cases } = useListCases();
 
   const [questionText, setQuestionText] = useState(activeQuestion?.text ?? "");
   const [caseId, setCaseId] = useState(activeQuestion?.caseId ?? "");
@@ -72,11 +74,10 @@ export default function QuestionPage() {
             />
 
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <Field
-                label="Case ID"
+              <CaseSelector
+                cases={(cases as any[]) || []}
                 value={caseId}
                 onChange={setCaseId}
-                placeholder="CASE_001"
               />
               <Field
                 label="Time horizon"
@@ -140,6 +141,112 @@ export default function QuestionPage() {
         </aside>
       </div>
     </WorkflowLayout>
+  );
+}
+
+function CaseSelector({
+  cases,
+  value,
+  onChange,
+}: {
+  cases: any[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const selected = cases.find((c) => (c.caseId || c.id) === value);
+  const filtered = cases.filter((c) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (c.strategicQuestion || "").toLowerCase().includes(q) ||
+      (c.assetName || "").toLowerCase().includes(q) ||
+      (c.caseId || c.id || "").toLowerCase().includes(q)
+    );
+  });
+
+  function truncate(s: string, n: number) {
+    return s.length > n ? s.slice(0, n) + "…" : s;
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="mb-2 block text-sm text-muted-foreground">Link to Case</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between rounded-xl border border-border bg-muted/20 px-4 py-3 text-left text-foreground"
+      >
+        {selected ? (
+          <span className="truncate text-sm">
+            {truncate(selected.strategicQuestion || selected.assetName || selected.id, 55)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/50 text-sm">Select a forecast case...</span>
+        )}
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-border bg-card shadow-xl">
+          <div className="sticky top-0 bg-card border-b border-border p-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search cases..."
+                autoFocus
+                className="w-full rounded-lg border border-border bg-muted/20 py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/50"
+              />
+            </div>
+          </div>
+          {value && (
+            <button
+              type="button"
+              onClick={() => { onChange(""); setOpen(false); setSearch(""); }}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-amber-400 hover:bg-muted/30 border-b border-border"
+            >
+              <X className="h-3.5 w-3.5" /> Clear selection
+            </button>
+          )}
+          {filtered.length === 0 && (
+            <div className="px-4 py-6 text-center text-xs text-muted-foreground">No cases found</div>
+          )}
+          {filtered.map((c: any) => {
+            const cid = c.caseId || c.id;
+            return (
+              <button
+                key={cid}
+                type="button"
+                onClick={() => { onChange(cid); setOpen(false); setSearch(""); }}
+                className={[
+                  "flex w-full flex-col gap-0.5 px-4 py-2.5 text-left hover:bg-muted/30 transition",
+                  cid === value ? "bg-primary/10" : "",
+                ].join(" ")}
+              >
+                <span className="text-sm font-medium text-foreground truncate">
+                  {truncate(c.strategicQuestion || "Untitled", 65)}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {c.assetName || "—"} · {cid}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -1,0 +1,974 @@
+import React, { useMemo, useState } from "react";
+
+type Strength = "Low" | "Medium" | "High";
+type Direction = "Upward" | "Downward";
+type Confidence = "Low" | "Moderate" | "High";
+
+type Driver = {
+  id: string;
+  name: string;
+  direction: Direction;
+  strength: Strength;
+  probabilityImpact: number; // positive or negative percentage-point effect
+  watchSignal: string;
+  interpretation?: string;
+};
+
+type Scenario = {
+  id: string;
+  name: string;
+  probability: number;
+  confidence: Confidence;
+  summary: string;
+  changedDrivers: string[]; // driver ids
+  triggerSignals: string[];
+  recommendedAction: string;
+};
+
+type AdoptionSegment = {
+  id: string;
+  name: string;
+  adoptionLikelihood: number;
+  timing: "Early" | "Middle" | "Late";
+  rationale: string;
+  blockers: string[];
+};
+
+type CaseLibraryItem = {
+  id: string;
+  title: string;
+  probability: number;
+  status: "Open" | "Monitoring" | "Resolved";
+  horizon: string;
+};
+
+type ForecastWorkspaceProps = {
+  activeQuestion: string;
+  caseId: string;
+  questionId: string;
+  horizonLabel: string;
+};
+
+type ForecastTab = "forecast" | "scenarios" | "drivers" | "library";
+
+const strengthBadgeClass: Record<Strength, string> = {
+  Low: "bg-slate-700/70 text-slate-200 border border-slate-600",
+  Medium: "bg-blue-500/15 text-blue-200 border border-blue-400/30",
+  High: "bg-amber-500/15 text-amber-200 border border-amber-400/30",
+};
+
+const confidenceBadgeClass: Record<Confidence, string> = {
+  Low: "bg-rose-500/15 text-rose-200 border border-rose-400/30",
+  Moderate: "bg-blue-500/15 text-blue-200 border border-blue-400/30",
+  High: "bg-emerald-500/15 text-emerald-200 border border-emerald-400/30",
+};
+
+const timingBadgeClass: Record<AdoptionSegment["timing"], string> = {
+  Early: "bg-emerald-500/15 text-emerald-200 border border-emerald-400/30",
+  Middle: "bg-blue-500/15 text-blue-200 border border-blue-400/30",
+  Late: "bg-slate-700/70 text-slate-200 border border-slate-600",
+};
+
+const directionTextClass: Record<Direction, string> = {
+  Upward: "text-emerald-300",
+  Downward: "text-rose-300",
+};
+
+const directionArrow: Record<Direction, string> = {
+  Upward: "↗",
+  Downward: "↘",
+};
+
+function cn(...values: Array<string | false | null | undefined>) {
+  return values.filter(Boolean).join(" ");
+}
+
+function strengthWeight(strength: Strength): number {
+  if (strength === "High") return 3;
+  if (strength === "Medium") return 2;
+  return 1;
+}
+
+function sortDriversBySensitivity(drivers: Driver[]): Driver[] {
+  return [...drivers].sort((a, b) => {
+    const absDiff = Math.abs(b.probabilityImpact) - Math.abs(a.probabilityImpact);
+    if (absDiff !== 0) return absDiff;
+    return strengthWeight(b.strength) - strengthWeight(a.strength);
+  });
+}
+
+export default function ForecastWorkspace({
+  activeQuestion,
+  caseId,
+  questionId,
+  horizonLabel,
+}: ForecastWorkspaceProps) {
+  const [tab, setTab] = useState<ForecastTab>("scenarios");
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("base");
+
+  const drivers: Driver[] = [
+    {
+      id: "phase3",
+      name: "Positive phase 3 efficacy",
+      direction: "Upward",
+      strength: "High",
+      probabilityImpact: 18,
+      watchSignal: "Durable culture conversion and symptom signal in final data readout",
+      interpretation: "Primary clinical validation materially increases first-line credibility.",
+    },
+    {
+      id: "guidelines",
+      name: "Guideline momentum",
+      direction: "Upward",
+      strength: "Medium",
+      probabilityImpact: 9,
+      watchSignal: "Committee endorsement, pathway inclusion, or favorable expert commentary",
+      interpretation: "Formal or informal endorsement reduces perceived decision risk.",
+    },
+    {
+      id: "access",
+      name: "Access friction",
+      direction: "Downward",
+      strength: "Medium",
+      probabilityImpact: -11,
+      watchSignal: "Prior authorization expansion, step edits, restricted policy language",
+      interpretation: "Operational barriers suppress adoption even when interest exists.",
+    },
+    {
+      id: "competitor",
+      name: "Entrenched competitor",
+      direction: "Downward",
+      strength: "High",
+      probabilityImpact: -16,
+      watchSignal: "Competing evidence, incumbent loyalty, account-level restrictions",
+      interpretation: "Competitive inertia delays conversion among target specialists.",
+    },
+  ];
+
+  const scenarios: Scenario[] = [
+    {
+      id: "base",
+      name: "Base Case",
+      probability: 42,
+      confidence: "Moderate",
+      summary:
+        "Clinical validation improves interest, but access friction and incumbent behavior keep adoption below target velocity.",
+      changedDrivers: ["phase3", "guidelines", "access", "competitor"],
+      triggerSignals: [
+        "Readout is positive but not decisive enough to overwhelm incumbent behavior",
+        "Guideline influence improves modestly",
+        "Access remains mixed across target accounts",
+      ],
+      recommendedAction:
+        "Prioritize the few highest-conviction segments and reduce operational barriers before broad expansion.",
+    },
+    {
+      id: "upside",
+      name: "Upside Scenario",
+      probability: 58,
+      confidence: "Moderate",
+      summary:
+        "Clinical strength converts into guideline momentum and reduced decision resistance among priority specialists.",
+      changedDrivers: ["phase3", "guidelines"],
+      triggerSignals: [
+        "Strong efficacy interpretation with durable benefit story",
+        "Guideline or KOL endorsement accelerates confidence",
+        "Field narrative clarifies which specialists benefit first",
+      ],
+      recommendedAction:
+        "Accelerate targeted activation in high-volume centers and expand specialist training immediately.",
+    },
+    {
+      id: "downside",
+      name: "Downside Scenario",
+      probability: 27,
+      confidence: "Moderate",
+      summary:
+        "Even with positive data, operational resistance and competitor entrenchment suppress conversion into first-line behavior.",
+      changedDrivers: ["access", "competitor"],
+      triggerSignals: [
+        "Access policies tighten or remain ambiguous",
+        "Competing option retains organizational preference",
+        "Community specialists delay change pending more experience",
+      ],
+      recommendedAction:
+        "Shift resources to barrier removal, account strategy, and proof-generation rather than broad promotional expansion.",
+    },
+  ];
+
+  const segments: AdoptionSegment[] = [
+    {
+      id: "segment1",
+      name: "Academic NTM / bronchiectasis centers",
+      adoptionLikelihood: 71,
+      timing: "Early",
+      rationale:
+        "Highest tolerance for complexity, strongest ability to interpret data, and greater readiness to act on differentiated evidence.",
+      blockers: ["Institutional review speed", "Access pathway complexity"],
+    },
+    {
+      id: "segment2",
+      name: "High-volume specialist pulmonologists",
+      adoptionLikelihood: 61,
+      timing: "Early",
+      rationale:
+        "Likely to adopt earlier when efficacy is clear and operational burden is manageable.",
+      blockers: ["Reimbursement uncertainty", "Existing treatment habits"],
+    },
+    {
+      id: "segment3",
+      name: "Centers already using ARIKAYCE later line",
+      adoptionLikelihood: 56,
+      timing: "Middle",
+      rationale:
+        "Familiarity lowers behavioral resistance, but first-line use still requires confidence in evidence and positioning.",
+      blockers: ["Label interpretation", "Account policy timing"],
+    },
+    {
+      id: "segment4",
+      name: "Community pulmonologists with lower volume",
+      adoptionLikelihood: 29,
+      timing: "Late",
+      rationale:
+        "More likely to wait for social proof, simplification, and operational clarity before changing practice behavior.",
+      blockers: ["Low exposure", "Limited infrastructure", "Higher perceived risk"],
+    },
+  ];
+
+  const caseLibrary: CaseLibraryItem[] = [
+    {
+      id: "ari2",
+      title: "ARIKAYCE first-line specialist adoption",
+      probability: 42,
+      status: "Monitoring",
+      horizon: "12 months",
+    },
+    {
+      id: "ari3",
+      title: "ARIKAYCE guideline acceleration scenario",
+      probability: 58,
+      status: "Open",
+      horizon: "12 months",
+    },
+    {
+      id: "ari4",
+      title: "ARIKAYCE access-constrained scenario",
+      probability: 27,
+      status: "Open",
+      horizon: "12 months",
+    },
+  ];
+
+  const sortedDrivers = useMemo(() => sortDriversBySensitivity(drivers), [drivers]);
+  const selectedScenario =
+    scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0];
+
+  const selectedScenarioDrivers = useMemo(() => {
+    return selectedScenario.changedDrivers
+      .map((driverId) => drivers.find((driver) => driver.id === driverId))
+      .filter(Boolean) as Driver[];
+  }, [drivers, selectedScenario]);
+
+  const forecastSummary = useMemo(() => {
+    const topDriver = sortedDrivers[0];
+    const upsideDrivers = drivers.filter((driver) => driver.direction === "Upward");
+    const downsideDrivers = drivers.filter((driver) => driver.direction === "Downward");
+
+    const upsideTotal = upsideDrivers.reduce(
+      (sum, driver) => sum + Math.max(driver.probabilityImpact, 0),
+      0
+    );
+    const downsideTotal = downsideDrivers.reduce(
+      (sum, driver) => sum + Math.abs(Math.min(driver.probabilityImpact, 0)),
+      0
+    );
+
+    return {
+      topDriver,
+      upsideTotal,
+      downsideTotal,
+    };
+  }, [drivers, sortedDrivers]);
+
+  return (
+    <div className="min-h-screen bg-[#06112B] text-white">
+      <div className="mx-auto max-w-[1360px] px-6 py-6">
+        <ActiveQuestionHeader
+          activeQuestion={activeQuestion}
+          questionId={questionId}
+          caseId={caseId}
+          horizonLabel={horizonLabel}
+        />
+
+        <div className="mt-6 grid grid-cols-12 gap-6">
+          <aside className="col-span-12 lg:col-span-3">
+            <WorkflowSidebar />
+          </aside>
+
+          <main className="col-span-12 lg:col-span-9 space-y-6">
+            <section className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+              <div className="flex flex-col gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+                    Step 3
+                  </div>
+                  <h2 className="mt-2 text-4xl font-semibold tracking-tight text-white">
+                    What is likely to happen?
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-base text-slate-300">
+                    Review the forecast, see what is driving movement, understand which stakeholders
+                    are likely to adopt first, and identify what would change the trajectory.
+                  </p>
+                </div>
+
+                <ForecastTabs active={tab} onChange={setTab} />
+              </div>
+            </section>
+
+            {tab === "forecast" && (
+              <CurrentForecastPanel
+                probability={42}
+                confidence="Moderate"
+                summary={scenarios[0].summary}
+                topDriver={forecastSummary.topDriver}
+                upsideTotal={forecastSummary.upsideTotal}
+                downsideTotal={forecastSummary.downsideTotal}
+              />
+            )}
+
+            {tab === "scenarios" && (
+              <IntegratedScenarioPanel
+                scenarios={scenarios}
+                selectedScenarioId={selectedScenarioId}
+                onSelectScenario={setSelectedScenarioId}
+                selectedScenario={selectedScenario}
+                scenarioDrivers={selectedScenarioDrivers}
+                segments={segments}
+              />
+            )}
+
+            {tab === "drivers" && (
+              <DriverImpactPanel
+                drivers={sortedDrivers}
+                segments={segments}
+                topDriver={forecastSummary.topDriver}
+              />
+            )}
+
+            {tab === "library" && <CaseLibraryPanel items={caseLibrary} />}
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActiveQuestionHeader({
+  activeQuestion,
+  caseId,
+  questionId,
+  horizonLabel,
+}: ForecastWorkspaceProps) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+            Active Question
+          </div>
+          <h1 className="mt-2 max-w-5xl text-2xl font-semibold tracking-tight text-white">
+            {activeQuestion}
+          </h1>
+          <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-400">
+            <span>ID: {questionId}</span>
+            <span>Case: {caseId}</span>
+            <span>Horizon: {horizonLabel}</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+        >
+          Clear Question
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function WorkflowSidebar() {
+  const items = [
+    {
+      step: "1",
+      title: "Ask a Question",
+      body: "Define what you want to predict.",
+      active: false,
+    },
+    {
+      step: "2",
+      title: "Add Information",
+      body: "Add the new evidence or signal changes.",
+      active: false,
+    },
+    {
+      step: "3",
+      title: "See Forecast",
+      body: "Review probability, drivers, scenarios, and segment behavior.",
+      active: true,
+    },
+    {
+      step: "4",
+      title: "Decide",
+      body: "Turn the forecast into action.",
+      active: false,
+    },
+  ];
+
+  return (
+    <section className="rounded-3xl border border-white/10 bg-[#0A1736] p-5">
+      <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+        Workflow
+      </div>
+      <p className="mt-3 text-base text-slate-300">
+        Simple guided path. System complexity stays in the background.
+      </p>
+
+      <div className="mt-6 space-y-3">
+        {items.map((item) => (
+          <div
+            key={item.step}
+            className={cn(
+              "rounded-3xl border p-4 transition",
+              item.active
+                ? "border-blue-400/50 bg-blue-500/10"
+                : "border-white/10 bg-white/[0.02]"
+            )}
+          >
+            <div className="text-xl font-semibold text-white">
+              {item.step} — {item.title}
+            </div>
+            <p className="mt-2 text-sm text-slate-300">{item.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
+        <button
+          type="button"
+          className="w-full rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left text-sm font-medium text-slate-200 hover:bg-white/[0.05]"
+        >
+          See Mock Case
+        </button>
+        <button
+          type="button"
+          className="w-full rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left text-sm font-medium text-slate-200 hover:bg-white/[0.05]"
+        >
+          Advanced / System
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ForecastTabs({
+  active,
+  onChange,
+}: {
+  active: ForecastTab;
+  onChange: (value: ForecastTab) => void;
+}) {
+  const tabs: Array<{ id: ForecastTab; label: string }> = [
+    { id: "forecast", label: "Current Forecast" },
+    { id: "scenarios", label: "Scenario Planning" },
+    { id: "drivers", label: "Driver Impact" },
+    { id: "library", label: "Case Library" },
+  ];
+
+  return (
+    <div className="border-b border-white/10">
+      <div className="flex flex-wrap gap-6">
+        {tabs.map((tab) => {
+          const isActive = active === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChange(tab.id)}
+              className={cn(
+                "border-b-2 pb-3 text-sm font-medium transition",
+                isActive
+                  ? "border-blue-400 text-blue-300"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
+              )}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CurrentForecastPanel({
+  probability,
+  confidence,
+  summary,
+  topDriver,
+  upsideTotal,
+  downsideTotal,
+}: {
+  probability: number;
+  confidence: Confidence;
+  summary: string;
+  topDriver: Driver;
+  upsideTotal: number;
+  downsideTotal: number;
+}) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 xl:col-span-4">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+            <div className="text-sm font-medium text-slate-300">Current Probability</div>
+            <div className="mt-3 text-6xl font-semibold tracking-tight text-white">
+              {probability}%
+            </div>
+            <div
+              className={cn(
+                "mt-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                confidenceBadgeClass[confidence]
+              )}
+            >
+              Confidence: {confidence}
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-300">{summary}</p>
+          </div>
+        </div>
+
+        <div className="col-span-12 xl:col-span-8 space-y-4">
+          <div className="grid grid-cols-12 gap-4">
+            <InfoCard
+              title="Most Sensitive Driver"
+              value={topDriver.name}
+              body={`Largest estimated movement: ${
+                topDriver.probabilityImpact > 0 ? "+" : ""
+              }${topDriver.probabilityImpact} points`}
+            />
+            <InfoCard
+              title="Total Upward Pressure"
+              value={`+${upsideTotal} pts`}
+              body="Combined estimated upside effect if favorable drivers strengthen."
+            />
+            <InfoCard
+              title="Total Downward Pressure"
+              value={`-${downsideTotal} pts`}
+              body="Combined estimated downside effect if resistance drivers intensify."
+            />
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+            <div className="text-sm font-medium text-slate-300">System Interpretation</div>
+            <p className="mt-3 text-base leading-7 text-slate-200">
+              This forecast is currently most sensitive to{" "}
+              <span className="font-semibold text-white">{topDriver.name}</span>. The model is not
+              saying only one thing matters. It is saying this driver is the fastest lever for
+              changing the trajectory meaningfully.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function IntegratedScenarioPanel({
+  scenarios,
+  selectedScenarioId,
+  onSelectScenario,
+  selectedScenario,
+  scenarioDrivers,
+  segments,
+}: {
+  scenarios: Scenario[];
+  selectedScenarioId: string;
+  onSelectScenario: (id: string) => void;
+  selectedScenario: Scenario;
+  scenarioDrivers: Driver[];
+  segments: AdoptionSegment[];
+}) {
+  return (
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <div>
+          <h3 className="text-2xl font-semibold tracking-tight text-white">Scenario Planning</h3>
+          <p className="mt-2 text-slate-300">
+            Each scenario is a driver configuration, not just a probability label.
+          </p>
+        </div>
+
+        <div className="mt-6 grid grid-cols-12 gap-4">
+          {scenarios.map((scenario) => {
+            const active = scenario.id === selectedScenarioId;
+            return (
+              <button
+                key={scenario.id}
+                type="button"
+                onClick={() => onSelectScenario(scenario.id)}
+                className={cn(
+                  "col-span-12 rounded-3xl border p-5 text-left transition xl:col-span-4",
+                  active
+                    ? "border-blue-400/50 bg-blue-500/10"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
+                )}
+              >
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  {scenario.name}
+                </div>
+                <div className="mt-3 text-5xl font-semibold tracking-tight text-white">
+                  {scenario.probability}%
+                </div>
+                <div
+                  className={cn(
+                    "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                    confidenceBadgeClass[scenario.confidence]
+                  )}
+                >
+                  {scenario.confidence} confidence
+                </div>
+                <p className="mt-4 text-sm leading-6 text-slate-300">{scenario.summary}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 xl:col-span-7 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                Selected Scenario
+              </div>
+              <h4 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                {selectedScenario.name}
+              </h4>
+              <p className="mt-2 text-slate-300">{selectedScenario.summary}</p>
+            </div>
+            <div className="text-right">
+              <div className="text-5xl font-semibold tracking-tight text-white">
+                {selectedScenario.probability}%
+              </div>
+              <div
+                className={cn(
+                  "mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                  confidenceBadgeClass[selectedScenario.confidence]
+                )}
+              >
+                {selectedScenario.confidence}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-12 gap-4">
+            <div className="col-span-12 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="text-sm font-medium text-slate-300">Driver Changes</div>
+              <div className="mt-4 space-y-3">
+                {scenarioDrivers.map((driver) => (
+                  <div
+                    key={driver.id}
+                    className="flex flex-col justify-between gap-3 rounded-2xl border border-white/10 bg-[#0B1839] px-4 py-3 md:flex-row md:items-center"
+                  >
+                    <div>
+                      <div className="font-medium text-white">{driver.name}</div>
+                      <div className="mt-1 text-sm text-slate-400">
+                        {driver.direction === "Upward" ? "Supports" : "Suppresses"} forecast by{" "}
+                        {driver.probabilityImpact > 0 ? "+" : ""}
+                        {driver.probabilityImpact} points
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-sm font-medium", directionTextClass[driver.direction])}>
+                        {directionArrow[driver.direction]} {driver.direction}
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full px-3 py-1 text-xs font-semibold",
+                          strengthBadgeClass[driver.strength]
+                        )}
+                      >
+                        {driver.strength}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="col-span-12 xl:col-span-6 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="text-sm font-medium text-slate-300">Trigger Signals</div>
+              <ul className="mt-4 space-y-3">
+                {selectedScenario.triggerSignals.map((signal) => (
+                  <li
+                    key={signal}
+                    className="rounded-2xl border border-white/10 bg-[#0B1839] px-4 py-3 text-sm leading-6 text-slate-200"
+                  >
+                    {signal}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="col-span-12 xl:col-span-6 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="text-sm font-medium text-slate-300">Recommended Action</div>
+              <div className="mt-4 rounded-2xl border border-white/10 bg-[#0B1839] px-4 py-4 text-sm leading-6 text-slate-200">
+                {selectedScenario.recommendedAction}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-span-12 xl:col-span-5 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              Adoption Segments
+            </div>
+            <h4 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              Who is likely to adopt first?
+            </h4>
+            <p className="mt-2 text-slate-300">
+              The question is segmental, so the forecast surface should show likely adopters, not
+              probability alone.
+            </p>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {segments
+              .slice()
+              .sort((a, b) => b.adoptionLikelihood - a.adoptionLikelihood)
+              .map((segment) => (
+                <div
+                  key={segment.id}
+                  className="rounded-3xl border border-white/10 bg-white/[0.02] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-white">{segment.name}</div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full px-3 py-1 text-xs font-semibold",
+                            timingBadgeClass[segment.timing]
+                          )}
+                        >
+                          {segment.timing} adopter
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-semibold tracking-tight text-white">
+                        {segment.adoptionLikelihood}%
+                      </div>
+                      <div className="text-xs text-slate-400">likelihood</div>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-sm leading-6 text-slate-300">{segment.rationale}</p>
+
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      Key blockers
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {segment.blockers.map((blocker) => (
+                        <span
+                          key={blocker}
+                          className="rounded-full border border-white/10 bg-[#0B1839] px-3 py-1 text-xs text-slate-300"
+                        >
+                          {blocker}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DriverImpactPanel({
+  drivers,
+  segments,
+  topDriver,
+}: {
+  drivers: Driver[];
+  segments: AdoptionSegment[];
+  topDriver: Driver;
+}) {
+  return (
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <div>
+          <h3 className="text-2xl font-semibold tracking-tight text-white">Key Driver Impact</h3>
+          <p className="mt-2 text-slate-300">
+            Forces pushing the forecast higher or lower, with estimated sensitivity and real-world
+            signals to watch.
+          </p>
+        </div>
+
+        <div className="mt-6 overflow-hidden rounded-3xl border border-white/10">
+          <div className="grid grid-cols-12 gap-4 border-b border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <div className="col-span-12 md:col-span-4">Driver</div>
+            <div className="col-span-4 md:col-span-2">Direction</div>
+            <div className="col-span-4 md:col-span-2">Strength</div>
+            <div className="col-span-4 md:col-span-2">Probability Impact</div>
+            <div className="col-span-12 md:col-span-2">What to Watch</div>
+          </div>
+
+          {drivers.map((driver) => (
+            <div
+              key={driver.id}
+              className="grid grid-cols-12 gap-4 border-b border-white/10 bg-[#0B1839] px-4 py-4 last:border-b-0"
+            >
+              <div className="col-span-12 md:col-span-4">
+                <div className="font-medium text-white">{driver.name}</div>
+                {driver.interpretation && (
+                  <div className="mt-1 text-sm leading-6 text-slate-400">
+                    {driver.interpretation}
+                  </div>
+                )}
+              </div>
+
+              <div className={cn("col-span-4 md:col-span-2 text-sm font-medium", directionTextClass[driver.direction])}>
+                {directionArrow[driver.direction]} {driver.direction}
+              </div>
+
+              <div className="col-span-4 md:col-span-2">
+                <span
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-semibold",
+                    strengthBadgeClass[driver.strength]
+                  )}
+                >
+                  {driver.strength}
+                </span>
+              </div>
+
+              <div className="col-span-4 md:col-span-2 text-sm font-semibold text-white">
+                {driver.probabilityImpact > 0 ? "+" : ""}
+                {driver.probabilityImpact} pts
+              </div>
+
+              <div className="col-span-12 md:col-span-2 text-sm leading-6 text-slate-300">
+                {driver.watchSignal}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 xl:col-span-5 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div className="text-sm font-medium text-slate-300">Current Sensitivity Summary</div>
+          <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+              Most Sensitive Driver
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-white">{topDriver.name}</div>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              This is currently the single largest modeled lever for changing forecast direction.
+              It should be visible everywhere scenario movement is displayed.
+            </p>
+          </div>
+        </div>
+
+        <div className="col-span-12 xl:col-span-7 rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+          <div className="text-sm font-medium text-slate-300">Segment Interpretation</div>
+          <div className="mt-4 grid grid-cols-12 gap-4">
+            {segments.map((segment) => (
+              <div
+                key={segment.id}
+                className="col-span-12 rounded-3xl border border-white/10 bg-white/[0.02] p-4 md:col-span-6"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-medium text-white">{segment.name}</div>
+                  <span
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-semibold",
+                      timingBadgeClass[segment.timing]
+                    )}
+                  >
+                    {segment.timing}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{segment.rationale}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CaseLibraryPanel({ items }: { items: CaseLibraryItem[] }) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+      <div>
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Case Library</h3>
+        <p className="mt-2 text-slate-300">
+          This should eventually evolve into a semi-automated board with trend curves, visual
+          states, and editable system suggestions.
+        </p>
+      </div>
+
+      <div className="mt-6 space-y-4">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-3xl border border-white/10 bg-white/[0.02] p-5"
+          >
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div>
+                <div className="font-medium text-white">{item.title}</div>
+                <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-400">
+                  <span>ID: {item.id}</span>
+                  <span>Horizon: {item.horizon}</span>
+                  <span>Status: {item.status}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-4xl font-semibold tracking-tight text-white">
+                  {item.probability}%
+                </div>
+                <div className="text-xs text-slate-400">current probability</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InfoCard({
+  title,
+  value,
+  body,
+}: {
+  title: string;
+  value: string;
+  body: string;
+}) {
+  return (
+    <div className="col-span-12 rounded-3xl border border-white/10 bg-white/[0.02] p-5 md:col-span-4">
+      <div className="text-sm font-medium text-slate-300">{title}</div>
+      <div className="mt-3 text-2xl font-semibold text-white">{value}</div>
+      <p className="mt-3 text-sm leading-6 text-slate-300">{body}</p>
+    </div>
+  );
+}

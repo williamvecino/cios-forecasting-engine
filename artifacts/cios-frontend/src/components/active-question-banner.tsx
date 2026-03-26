@@ -24,8 +24,8 @@ export default function ActiveQuestionBanner({ activeQuestion, onClear }: Props)
                   ID: {activeQuestion.id}
                 </span>
                 {activeQuestion.caseId && (
-                  <span className="rounded-full bg-muted/30 px-3 py-1">
-                    Case: {activeQuestion.caseId}
+                  <span className="rounded-full bg-muted/30 px-3 py-1 font-mono">
+                    Case: {activeQuestion.caseId.length > 12 ? activeQuestion.caseId.slice(0, 8) + "…" : activeQuestion.caseId}
                   </span>
                 )}
                 {activeQuestion.timeHorizon && (
