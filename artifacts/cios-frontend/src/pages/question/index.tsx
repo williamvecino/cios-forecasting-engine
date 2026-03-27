@@ -24,11 +24,12 @@ import {
 } from "lucide-react";
 
 const EXAMPLE_QUESTIONS = [
-  "Will ARIKAYCE gain first-line adoption in 12 months?",
-  "Which regions will adopt first-line ARIKAYCE fastest in 12 months?",
-  "Will Northeast academic centers adopt faster than Southern community centers in 12 months?",
-  "Will first-line adoption exceed 20% in 12 months?",
-  "When will commercial payers begin restricting access?",
+  "Will ARIKAYCE achieve target specialist adoption (≥4 Rx/quarter) among pulmonologists within 12 months?",
+  "Will CardioAsset X displace entrenched beta-blocker combinations in target cardiologist accounts over 18 months?",
+  "Will tumor-board adoption of OncoDevice Y reach threshold in academic oncology centers within 24 months?",
+  "Will non-stimulant ADHD therapy gain community pediatrics adoption within 12 months given stimulant supply constraints?",
+  "Will adjunctive MDD therapy expand from psychiatry into primary care prescribing within 18 months?",
+  "Will anti-amyloid biologic adoption reach memory clinic threshold despite REMS infusion site requirements within 24 months?",
 ];
 
 const QUESTION_TYPES = [
