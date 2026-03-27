@@ -201,6 +201,10 @@ function CaseSelector({
   return (
     <div ref={ref} className="relative">
       <label className="mb-2 block text-sm text-muted-foreground">Link to Case</label>
+      <p className="mb-2 text-xs text-muted-foreground/70">
+        Cases hold the signal history, prior probability, and actor model. Linking
+        your question to a case tells the engine which evidence base to forecast against.
+      </p>
       <button
         type="button"
         onClick={() => setOpen(!open)}
