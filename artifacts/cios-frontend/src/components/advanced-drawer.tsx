@@ -57,7 +57,7 @@ export default function AdvancedDrawer({ open, onClose }: Props) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Advanced / System
+              System Tools
             </div>
             <div className="mt-2 text-sm text-muted-foreground/70">
               Secondary modules stay accessible without crowding the primary workflow.

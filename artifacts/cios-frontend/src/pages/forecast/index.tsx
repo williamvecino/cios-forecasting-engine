@@ -967,7 +967,7 @@ function CaseLibraryTab() {
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 text-center text-slate-400">
         <div className="flex flex-col items-center gap-3">
           <BookOpen className="w-8 h-8 opacity-20" />
-          <p>No cases yet. Ask a strategic question to begin.</p>
+          <p>No cases yet. Define a question to begin.</p>
         </div>
       </div>
     );

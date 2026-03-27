@@ -147,7 +147,7 @@ export const MOCK_CASE: MockCaseData = {
 export const MOCK_CASE_STEPS: MockCaseStep[] = [
   {
     key: "question",
-    label: "1 — Ask a Question",
+    label: "1 — Define Question",
     title: "Start with one strategic prediction question",
     description:
       "The system begins with a single question so everything inherits one decision context.",

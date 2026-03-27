@@ -49,7 +49,7 @@ export default function ForecastsPage() {
               href="/"
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90"
             >
-              Ask a Question
+              Define Question
             </Link>
           </div>
         )}

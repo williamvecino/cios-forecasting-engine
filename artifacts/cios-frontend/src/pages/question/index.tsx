@@ -173,15 +173,15 @@ export default function QuestionPage() {
 
   const fields: { key: string; label: string; value: string; isMissing: boolean }[] = enriched
     ? [
-        { key: "subject", label: "Subject", value: enriched.subject || "", isMissing: missing.includes("subject") },
+        { key: "subject", label: "Evaluating", value: enriched.subject || "", isMissing: missing.includes("subject") },
         { key: "outcome", label: "Outcome", value: enriched.outcome || "", isMissing: missing.includes("outcome") },
         { key: "populationOrEntities", label: "Groups", value: entities.join(", "), isMissing: missing.includes("populationOrEntities") },
-        { key: "timeHorizon", label: "Time horizon", value: enriched.timeHorizon || "", isMissing: missing.includes("timeHorizon") },
+        { key: "timeHorizon", label: "Time period", value: enriched.timeHorizon || "", isMissing: missing.includes("timeHorizon") },
         ...(qt === "comparative" || enriched.comparator
-          ? [{ key: "comparator", label: "Comparator", value: enriched.comparator || "", isMissing: missing.includes("comparator") }]
+          ? [{ key: "comparator", label: "Compared to", value: enriched.comparator || "", isMissing: missing.includes("comparator") }]
           : []),
         ...(qt === "threshold" || enriched.successMetric
-          ? [{ key: "successMetric", label: "Success metric", value: enriched.successMetric || "", isMissing: missing.includes("successMetric") }]
+          ? [{ key: "successMetric", label: "Success looks like", value: enriched.successMetric || "", isMissing: missing.includes("successMetric") }]
           : []),
       ]
     : [];
@@ -246,13 +246,13 @@ export default function QuestionPage() {
                       : "bg-amber-500/10 text-amber-400"
                   }`}
                 >
-                  {complete ? "Ready" : `${missing.length} missing`}
+                  {complete ? "Ready" : `${missing.length} still needed`}
                 </span>
               </div>
 
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                  Detected type
+                  Question type
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {QUESTION_TYPES.map((t) => (
@@ -274,7 +274,7 @@ export default function QuestionPage() {
 
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                  Extracted fields
+                  What the system understands
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {fields.map((f) => (
@@ -326,7 +326,7 @@ export default function QuestionPage() {
                     </div>
                     <div className="flex-1 space-y-2">
                       <div className="text-sm font-medium text-foreground">
-                        Please provide: {FIELD_LABELS[firstMissing] || firstMissing}
+                        {FIELD_LABELS[firstMissing] || firstMissing}
                       </div>
                       <input
                         value={clarificationValue}
@@ -336,22 +336,16 @@ export default function QuestionPage() {
                             handleOverride(firstMissing, clarificationValue.trim());
                           }
                         }}
-                        placeholder={`Enter ${FIELD_LABELS[firstMissing] || firstMissing}...`}
+                        placeholder={firstMissing === "subject" ? "e.g. ARIKAYCE, new therapy, competitor launch" :
+                          firstMissing === "outcome" ? "e.g. first-line adoption, market share gain" :
+                          firstMissing === "populationOrEntities" ? "e.g. Northeast centers, community physicians" :
+                          firstMissing === "timeHorizon" ? "e.g. 12 months, 6 months" :
+                          firstMissing === "comparator" ? "e.g. standard of care, competitor drug" :
+                          firstMissing === "successMetric" ? "e.g. 20% adoption rate" :
+                          "Type your answer..."}
                         className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
                         autoFocus
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (clarificationValue.trim()) {
-                            handleOverride(firstMissing, clarificationValue.trim());
-                          }
-                        }}
-                        disabled={!clarificationValue.trim()}
-                        className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/30 disabled:opacity-50"
-                      >
-                        Confirm
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -388,9 +382,7 @@ export default function QuestionPage() {
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 {submitting
                   ? "Creating case..."
-                  : isEditing
-                    ? "Update & Continue"
-                    : "Run Forecast"}
+                  : "Continue"}
                 {!submitting && <ArrowRight className="w-4 h-4" />}
               </button>
               {!complete && rawInput.trim() && (

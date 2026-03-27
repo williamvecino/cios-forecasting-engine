@@ -5,14 +5,13 @@ import { getWorkflowSteps } from "../lib/workflow";
 interface Props {
   currentStep: WorkflowStep;
   hasActiveQuestion: boolean;
-  onToggleAdvanced: () => void;
+  onToggleAdvanced?: () => void;
   onOpenMockCase: () => void;
 }
 
 export default function WorkflowSidebar({
   currentStep,
   hasActiveQuestion,
-  onToggleAdvanced,
   onOpenMockCase,
 }: Props) {
   const steps = getWorkflowSteps();
@@ -51,11 +50,6 @@ export default function WorkflowSidebar({
                   <div className="text-sm font-semibold text-foreground">{step.label}</div>
                   <div className="mt-1 text-xs text-muted-foreground">{step.description}</div>
                 </div>
-                {gated && (
-                  <span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                    Preview
-                  </span>
-                )}
               </div>
             </Link>
           );
@@ -69,14 +63,6 @@ export default function WorkflowSidebar({
           className="w-full rounded-xl border border-border bg-muted/10 px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:border-border/80 hover:bg-muted/20"
         >
           See Mock Case
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleAdvanced}
-          className="w-full rounded-xl border border-border bg-muted/10 px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:border-border/80 hover:bg-muted/20"
-        >
-          Advanced / System
         </button>
       </div>
     </aside>

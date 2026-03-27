@@ -727,7 +727,7 @@ export default function AdopterDiscovery() {
               <Sparkles className="w-12 h-12 text-primary/30 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-foreground mb-2">No discovery runs yet</h3>
               <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                Ask a strategic question to identify potential adoption candidates across physicians and institutions.
+                Define a question to identify potential adoption candidates across physicians and institutions.
               </p>
               <Button onClick={() => setShowForm(true)}>
                 <Search className="w-4 h-4 mr-1.5" />

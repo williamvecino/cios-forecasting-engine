@@ -44,7 +44,7 @@ export default function Dashboard() {
     alerts.push({ level: "ok", text: `${activeCases.length} assessment${activeCases.length > 1 ? "s" : ""} computed across ${new Set(allCases.map((c: any) => c.therapeuticArea).filter(Boolean)).size || "multiple"} therapeutic areas.` });
   }
   if (alerts.length === 0) {
-    alerts.push({ level: "ok", text: "Platform ready. Ask a strategic question to begin." });
+    alerts.push({ level: "ok", text: "Platform ready. Define a question to begin." });
   }
 
   const handleAsk = () => {
@@ -92,7 +92,7 @@ export default function Dashboard() {
           <div className="relative">
             <div className="flex items-center gap-2 mb-3">
               <MessageSquare className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">Ask a Strategic Question</span>
+              <span className="text-sm font-semibold text-foreground">Define a Question</span>
             </div>
             <div className="flex gap-3">
               <input
@@ -105,7 +105,7 @@ export default function Dashboard() {
               />
               <Button onClick={handleAsk} className="gap-2 shrink-0 px-5">
                 <Send className="w-4 h-4" />
-                Ask
+                Start
               </Button>
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
@@ -221,7 +221,7 @@ export default function Dashboard() {
                   <HelpCircle className="w-8 h-8 mb-3 opacity-20" />
                   <p>No strategic questions yet.</p>
                   <Link href="/cases">
-                    <Button variant="ghost" className="mt-2 text-sm">Ask your first question</Button>
+                    <Button variant="ghost" className="mt-2 text-sm">Define your first question</Button>
                   </Link>
                 </div>
               )}

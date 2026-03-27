@@ -33,10 +33,10 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
 };
 
 export const FIELD_LABELS: Record<string, string> = {
-  subject: "Subject",
-  outcome: "Outcome",
-  populationOrEntities: "Groups being evaluated",
-  comparator: "Comparator",
-  timeHorizon: "Time horizon",
-  successMetric: "Success definition",
+  subject: "What are we evaluating?",
+  outcome: "What outcome are we predicting?",
+  populationOrEntities: "Who or what are we comparing?",
+  comparator: "Compared to what?",
+  timeHorizon: "Over what time period?",
+  successMetric: "How do we define success?",
 };

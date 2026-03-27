@@ -20,8 +20,8 @@ export function getWorkflowSteps(): {
   return [
     {
       key: "question",
-      label: "1 — Ask a Question",
-      title: "Ask a Question",
+      label: "1 — Define Question",
+      title: "Define Question",
       description: "Define what you want to predict.",
       path: "/question",
     },
