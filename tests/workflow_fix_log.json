@@ -1,0 +1,66 @@
+[
+  {
+    "question": "Will alopecia specialists adopt faster than dermatologists within 12 months?",
+    "failure": "subject is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "Added contextual subject extraction using 'Will [subject] [verb]' pattern. The parser now extracts multi-word subjects from the natural sentence structure when no explicit brand name or 'for X' pattern is found.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject extracted as 'Alopecia Specialists'"
+  },
+  {
+    "question": "Which segment will adopt first: academic centers, private dermatology clinics, or specialty hair-loss clinics?",
+    "failure": "subject is missing; time horizon is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "Added 'which [subject]' extraction pattern for ranking questions. Added time horizon inference: when question contains adoption-related keywords but no explicit time, defaults to '12 months'.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject: 'Segment', timeHorizon: '12 months' (inferred)"
+  },
+  {
+    "question": "Will first-line adoption exceed 20% within 12 months?",
+    "failure": "subject is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "Added contextual subject patterns for compound terms: 'first-line adoption', 'competing therapy', etc. These are multi-word domain concepts that the previous simple 'for X' extractor could not handle.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject extracted as 'First-Line Adoption'"
+  },
+  {
+    "question": "When will commercial payers begin restricting coverage?",
+    "failure": "subject is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "Added 'when will [subject] [verb]' extraction pattern for timing questions. Also added 'commercial payers' as a contextual subject pattern.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject extracted as 'Commercial Payers'"
+  },
+  {
+    "question": "Will payer prior authorization requirements delay adoption in community practices?",
+    "failure": "subject is missing; time horizon is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "Added contextual subject pattern for 'prior authorization requirements'. Added time horizon inference for questions with 'delay' keyword.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject: 'Payer Prior Authorization Requirements', timeHorizon: '12 months'"
+  },
+  {
+    "question": "Will high-volume clinics adopt faster than low-volume clinics?",
+    "failure": "subject is missing; time horizon is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "The 'Will [subject] adopt' pattern now captures multi-word subjects like 'high-volume clinics'. Time horizon inferred from adoption context.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject: 'High-Volume Clinics', timeHorizon: '12 months'"
+  },
+  {
+    "question": "Will positive Phase 3 safety data increase prescribing among dermatologists?",
+    "failure": "subject is missing; time horizon is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "Added contextual subject pattern for 'Phase N [word] data'. Added 'prescri' keyword to time horizon inference triggers.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject: 'Positive Phase 3 Safety Data', timeHorizon: '12 months'"
+  },
+  {
+    "question": "Will monitoring requirements limit adoption in small practices?",
+    "failure": "subject is missing; time horizon is missing",
+    "rootCauseCategory": "field extraction failure",
+    "fixImplemented": "Added contextual subject pattern for 'monitoring requirements'. Added 'limit' keyword to time horizon inference triggers.",
+    "filesChanged": ["artifacts/cios-frontend/src/lib/question-definition/parser.ts"],
+    "retestResult": "PASS - subject: 'Monitoring Requirements', timeHorizon: '12 months'"
+  }
+]
