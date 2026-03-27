@@ -444,8 +444,56 @@ export default function SignalsPage() {
   const [newReliability, setNewReliability] = useState<Reliability>("Probable");
   const [newCategory, setNewCategory] = useState<Category>("evidence");
 
+  const CATEGORY_TO_SIGNAL_TYPE: Record<Category, string> = {
+    evidence: "Phase III clinical",
+    access: "Access / commercial",
+    competition: "Competitor counteraction",
+    guideline: "Guideline inclusion",
+    timing: "Operational friction",
+    adoption: "Market adoption / utilization",
+  };
+
+  const STRENGTH_TO_SCORE: Record<Strength, number> = { High: 4, Medium: 3, Low: 2 };
+  const RELIABILITY_TO_SCORE: Record<Reliability, number> = { Confirmed: 5, Probable: 3, Speculative: 2 };
+
+  function persistSignalToDb(signal: Signal) {
+    const caseId = activeQuestion?.caseId;
+    if (!caseId) return;
+
+    const API = import.meta.env.VITE_API_URL || "";
+    const dbDirection = signal.direction === "negative" ? "Negative" : "Positive";
+
+    fetch(`${API}/api/cases/${caseId}/signals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        signalId: `SIG-${signal.id}`,
+        signalDescription: signal.text,
+        signalType: CATEGORY_TO_SIGNAL_TYPE[signal.category] || "Field intelligence",
+        direction: dbDirection,
+        strengthScore: STRENGTH_TO_SCORE[signal.strength] || 3,
+        reliabilityScore: RELIABILITY_TO_SCORE[signal.reliability] || 3,
+        scope: "national",
+        timing: "current",
+        status: "active",
+        sourceLabel: signal.source === "user" ? "User input" : "AI research",
+        evidenceSnippet: signal.text,
+        signalScope: "market",
+        observedAt: new Date().toISOString(),
+        createdByType: "human",
+        brand: subject || "",
+      }),
+    }).catch(() => {});
+  }
+
   function acceptSignal(id: string) {
-    setSignals((prev) => prev.map((s) => (s.id === id ? { ...s, accepted: true } : s)));
+    setSignals((prev) => {
+      const signal = prev.find((s) => s.id === id);
+      if (signal && !signal.accepted) {
+        persistSignalToDb(signal);
+      }
+      return prev.map((s) => (s.id === id ? { ...s, accepted: true } : s));
+    });
   }
 
   function dismissSignal(id: string) {
@@ -496,6 +544,7 @@ export default function SignalsPage() {
       accepted: true,
     };
     setSignals((prev) => [...prev, sig]);
+    persistSignalToDb(sig);
     setNewText("");
     setNewDirection("positive");
     setNewStrength("Medium");
@@ -526,6 +575,7 @@ export default function SignalsPage() {
       accepted: true,
     };
     setSignals((prev) => [...prev, sig]);
+    persistSignalToDb(sig);
   }
 
   const allSignals = signals;
