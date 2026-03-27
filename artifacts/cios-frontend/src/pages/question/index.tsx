@@ -106,7 +106,17 @@ export default function QuestionPage() {
   const firstMissing = missing.length > 0 ? missing[0] : null;
 
   function handleOverride(field: string, value: string) {
-    setOverrides((prev) => ({ ...prev, [field]: value }));
+    if (field === "populationOrEntities") {
+      const existing = enriched?.populationOrEntities || [];
+      const newEntities = value.split(",").map((s) => s.trim()).filter(Boolean);
+      const merged = [...existing, ...newEntities];
+      const unique = [...new Set(merged.map((e) => e.toLowerCase()))].map(
+        (lower) => merged.find((e) => e.toLowerCase() === lower) || lower
+      );
+      setOverrides((prev) => ({ ...prev, [field]: unique.join(", ") }));
+    } else {
+      setOverrides((prev) => ({ ...prev, [field]: value }));
+    }
     setClarificationValue("");
   }
 
@@ -341,7 +351,9 @@ export default function QuestionPage() {
                     </div>
                     <div className="flex-1 space-y-2">
                       <div className="text-sm font-medium text-foreground">
-                        {FIELD_LABELS[firstMissing] || firstMissing}
+                        {firstMissing === "populationOrEntities" && entities.length > 0
+                          ? `Add at least one more group to compare (have: ${entities.join(", ")})`
+                          : (FIELD_LABELS[firstMissing] || firstMissing)}
                       </div>
                       <input
                         value={clarificationValue}
