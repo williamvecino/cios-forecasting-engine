@@ -187,7 +187,9 @@ export default function QuestionPage() {
     ? [
         { key: "subject", label: "Evaluating", value: enriched.subject || "", isMissing: missing.includes("subject") },
         { key: "outcome", label: "Outcome", value: enriched.outcome || "", isMissing: missing.includes("outcome") },
-        { key: "populationOrEntities", label: "Groups", value: entities.join(", "), isMissing: missing.includes("populationOrEntities") },
+        ...((qt === "comparative" || qt === "ranking" || entities.length > 0)
+          ? [{ key: "populationOrEntities", label: "Groups", value: entities.join(", "), isMissing: missing.includes("populationOrEntities") }]
+          : []),
         { key: "timeHorizon", label: "Time period", value: enriched.timeHorizon || "", isMissing: missing.includes("timeHorizon") },
         ...(qt === "comparative" || enriched.comparator
           ? [{ key: "comparator", label: "Compared to", value: enriched.comparator || "", isMissing: missing.includes("comparator") }]
@@ -363,6 +365,8 @@ export default function QuestionPage() {
                       <div className="text-sm font-medium text-foreground">
                         {firstMissing === "populationOrEntities" && entities.length > 0
                           ? `Add at least one more group to compare (have: ${entities.join(", ")})`
+                          : firstMissing === "populationOrEntities"
+                            ? "Which groups or populations are we comparing?"
                           : (FIELD_LABELS[firstMissing] || firstMissing)}
                       </div>
                       <input

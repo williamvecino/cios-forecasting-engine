@@ -8,7 +8,6 @@ export function getMissingFields(q: Partial<DecisionQuestion>): string[] {
 
   switch (q.questionType) {
     case "binary":
-      if (!q.populationOrEntities) missing.push("populationOrEntities");
       if (!q.timeHorizon) missing.push("timeHorizon");
       break;
 
@@ -31,7 +30,6 @@ export function getMissingFields(q: Partial<DecisionQuestion>): string[] {
       break;
 
     case "timing":
-      if (!q.populationOrEntities) missing.push("populationOrEntities");
       break;
   }
 
