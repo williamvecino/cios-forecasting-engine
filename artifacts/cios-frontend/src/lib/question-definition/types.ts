@@ -10,16 +10,17 @@ export interface DecisionQuestion {
   rawInput: string;
   questionType: QuestionType;
 
-  subject: string;
-  outcome: string;
-  populationOrEntities: string[];
+  subject?: string;
+  outcome?: string;
+  populationOrEntities?: string[];
   comparator?: string;
-  timeHorizon: string;
+  timeHorizon?: string;
   successMetric?: string;
 
   missingFields: string[];
   isComplete: boolean;
-  interpretedQuestion: string;
+  interpretedQuestion?: string;
+
   createdAt: string;
 }
 
