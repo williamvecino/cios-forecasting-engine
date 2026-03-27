@@ -18,7 +18,7 @@ export function getMissingFields(q: Partial<DecisionQuestion>): string[] {
       break;
 
     case "ranking":
-      if (!q.populationOrEntities || q.populationOrEntities.length < 2)
+      if (!q.populationOrEntities || q.populationOrEntities.length < 1)
         missing.push("populationOrEntities");
       if (!q.timeHorizon) missing.push("timeHorizon");
       break;

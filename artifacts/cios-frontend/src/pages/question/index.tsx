@@ -453,24 +453,38 @@ export default function QuestionPage() {
                             ? "Which groups or populations are we comparing?"
                           : (FIELD_LABELS[firstMissing] || firstMissing)}
                       </div>
-                      <input
-                        value={draft.clarificationValue}
-                        onChange={(e) => dispatch({ type: "SET_CLARIFICATION", value: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && draft.clarificationValue.trim()) {
-                            handleOverride(firstMissing, draft.clarificationValue.trim());
-                          }
-                        }}
-                        placeholder={firstMissing === "subject" ? "e.g. ARIKAYCE, new therapy, competitor launch" :
-                          firstMissing === "outcome" ? "e.g. first-line adoption, market share gain" :
-                          firstMissing === "populationOrEntities" ? "e.g. Northeast centers, community physicians" :
-                          firstMissing === "timeHorizon" ? "e.g. 12 months, 6 months" :
-                          firstMissing === "comparator" ? "e.g. standard of care, competitor drug" :
-                          firstMissing === "successMetric" ? "e.g. 20% adoption rate" :
-                          "Type your answer..."}
-                        className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
-                        autoFocus
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          value={draft.clarificationValue}
+                          onChange={(e) => dispatch({ type: "SET_CLARIFICATION", value: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && draft.clarificationValue.trim()) {
+                              handleOverride(firstMissing, draft.clarificationValue.trim());
+                            }
+                          }}
+                          placeholder={firstMissing === "subject" ? "e.g. ARIKAYCE, new therapy, competitor launch" :
+                            firstMissing === "outcome" ? "e.g. first-line adoption, market share gain" :
+                            firstMissing === "populationOrEntities" ? "e.g. Northeast centers, community physicians" :
+                            firstMissing === "timeHorizon" ? "e.g. 12 months, 6 months" :
+                            firstMissing === "comparator" ? "e.g. standard of care, competitor drug" :
+                            firstMissing === "successMetric" ? "e.g. 20% adoption rate" :
+                            "Type your answer..."}
+                          className="flex-1 rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (draft.clarificationValue.trim()) {
+                              handleOverride(firstMissing, draft.clarificationValue.trim());
+                            }
+                          }}
+                          disabled={!draft.clarificationValue.trim()}
+                          className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        >
+                          Add
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
