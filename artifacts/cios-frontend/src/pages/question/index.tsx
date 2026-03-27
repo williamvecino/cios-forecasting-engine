@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useListCases, useCreateCase } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
@@ -33,6 +33,14 @@ const EXAMPLE_QUESTIONS = [
   "When will commercial payers begin restricting access?",
 ];
 
+const QUESTION_TYPES = [
+  { value: "binary", label: "Yes / No" },
+  { value: "comparative", label: "Comparative" },
+  { value: "ranking", label: "Ranking" },
+  { value: "threshold", label: "Threshold" },
+  { value: "timing", label: "Timing" },
+];
+
 export default function QuestionPage() {
   const [, navigate] = useLocation();
   const { activeQuestion, createQuestion, updateQuestion, clearQuestion } = useActiveQuestion();
@@ -46,8 +54,9 @@ export default function QuestionPage() {
   const [synced, setSynced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [clarificationValue, setClarificationValue] = useState("");
 
   useEffect(() => {
     if (activeQuestion && !synced) {
@@ -95,17 +104,11 @@ export default function QuestionPage() {
     return buildInterpretedQuestion(enriched as DecisionQuestion);
   }, [enriched]);
 
-  const currentClarification = useMemo(() => {
-    if (missing.length === 0 || !enriched) return null;
-    const field = missing[0];
-    return {
-      field,
-      prompt: `Please provide: ${FIELD_LABELS[field] || field}`,
-    };
-  }, [missing, enriched]);
+  const firstMissing = missing.length > 0 ? missing[0] : null;
 
   function handleOverride(field: string, value: string) {
     setOverrides((prev) => ({ ...prev, [field]: value }));
+    setClarificationValue("");
   }
 
   async function handleSubmit() {
@@ -138,7 +141,7 @@ export default function QuestionPage() {
         });
         resolvedCaseId = (created as any).caseId || (created as any).id;
         if (!resolvedCaseId) {
-          setSubmitError("Case was created but returned no identifier. Please try again.");
+          setSubmitError("Case was created but returned no identifier.");
           setSubmitting(false);
           return;
         }
@@ -166,6 +169,24 @@ export default function QuestionPage() {
     navigate("/signals");
   }
 
+  const qt = enriched?.questionType || "binary";
+  const entities = enriched?.populationOrEntities || [];
+
+  const fields: { key: string; label: string; value: string; isMissing: boolean }[] = enriched
+    ? [
+        { key: "subject", label: "Subject", value: enriched.subject || "", isMissing: missing.includes("subject") },
+        { key: "outcome", label: "Outcome", value: enriched.outcome || "", isMissing: missing.includes("outcome") },
+        { key: "populationOrEntities", label: "Groups", value: entities.join(", "), isMissing: missing.includes("populationOrEntities") },
+        { key: "timeHorizon", label: "Time horizon", value: enriched.timeHorizon || "", isMissing: missing.includes("timeHorizon") },
+        ...(qt === "comparative" || enriched.comparator
+          ? [{ key: "comparator", label: "Comparator", value: enriched.comparator || "", isMissing: missing.includes("comparator") }]
+          : []),
+        ...(qt === "threshold" || enriched.successMetric
+          ? [{ key: "successMetric", label: "Success metric", value: enriched.successMetric || "", isMissing: missing.includes("successMetric") }]
+          : []),
+      ]
+    : [];
+
   return (
     <WorkflowLayout
       currentStep="question"
@@ -176,6 +197,8 @@ export default function QuestionPage() {
         setCaseId("");
         setOverrides({});
         setSynced(false);
+        setEditingField(null);
+        setClarificationValue("");
       }}
     >
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -200,6 +223,8 @@ export default function QuestionPage() {
                 onChange={(e) => {
                   setRawInput(e.target.value);
                   setOverrides({});
+                  setEditingField(null);
+                  setClarificationValue("");
                 }}
                 placeholder="Example: Which regions will adopt first-line ARIKAYCE fastest in 12 months?"
                 rows={3}
@@ -209,43 +234,149 @@ export default function QuestionPage() {
           </div>
 
           {enriched && rawInput.trim() && (
-            <InterpretationCard
-              enriched={enriched}
-              interpretedQuestion={interpretedQuestion}
-              missing={missing}
-              complete={complete}
-              onOverride={handleOverride}
-            />
-          )}
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-semibold text-foreground">System Interpretation</span>
+                </div>
+                <span
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    complete
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "bg-amber-500/10 text-amber-400"
+                  }`}
+                >
+                  {complete ? "Ready" : `${missing.length} missing`}
+                </span>
+              </div>
 
-          {currentClarification && rawInput.trim() && (
-            <ClarificationPrompt
-              field={currentClarification.field}
-              prompt={currentClarification.prompt}
-              value={overrides[currentClarification.field] || ""}
-              onChange={(val) => handleOverride(currentClarification.field, val)}
-            />
-          )}
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                  Detected type
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUESTION_TYPES.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => handleOverride("questionType", t.value)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        qt === t.value
+                          ? "bg-blue-500/20 text-blue-300 border border-blue-500/40"
+                          : "bg-muted/20 text-muted-foreground border border-transparent hover:bg-muted/40"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <CaseSelector
-                cases={(cases as any[]) || []}
-                value={caseId}
-                onChange={setCaseId}
-              />
-              {enriched?.questionType !== "timing" && (
-                <div>
-                  <label className="mb-2 block text-sm text-muted-foreground">Time horizon</label>
-                  <input
-                    value={overrides.timeHorizon || enriched?.timeHorizon || ""}
-                    onChange={(e) => handleOverride("timeHorizon", e.target.value)}
-                    placeholder="12 months"
-                    className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50"
-                  />
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                  Extracted fields
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {fields.map((f) => (
+                    <div
+                      key={f.key}
+                      onClick={() => setEditingField(f.key)}
+                      className={`rounded-xl border px-3 py-2.5 cursor-pointer transition hover:border-blue-500/30 ${
+                        f.isMissing
+                          ? "border-amber-500/30 bg-amber-500/5"
+                          : "border-border bg-muted/10"
+                      }`}
+                    >
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {f.label}
+                      </div>
+                      {editingField === f.key ? (
+                        <input
+                          autoFocus
+                          defaultValue={f.value}
+                          onBlur={(e) => {
+                            handleOverride(f.key, e.target.value);
+                            setEditingField(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleOverride(f.key, (e.target as HTMLInputElement).value);
+                              setEditingField(null);
+                            }
+                          }}
+                          className="mt-1 w-full bg-transparent text-sm font-medium text-foreground border-b border-blue-400 outline-none"
+                        />
+                      ) : (
+                        <div className="mt-1 text-sm font-medium text-foreground">
+                          {f.value || (
+                            <span className="text-amber-400 italic text-xs">Click to add</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {firstMissing && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 shrink-0 w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div className="text-sm font-medium text-foreground">
+                        Please provide: {FIELD_LABELS[firstMissing] || firstMissing}
+                      </div>
+                      <input
+                        value={clarificationValue}
+                        onChange={(e) => setClarificationValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && clarificationValue.trim()) {
+                            handleOverride(firstMissing, clarificationValue.trim());
+                          }
+                        }}
+                        placeholder={`Enter ${FIELD_LABELS[firstMissing] || firstMissing}...`}
+                        className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (clarificationValue.trim()) {
+                            handleOverride(firstMissing, clarificationValue.trim());
+                          }
+                        }}
+                        disabled={!clarificationValue.trim()}
+                        className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/30 disabled:opacity-50"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {interpretedQuestion && (
+                <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+                  <div className="text-[10px] uppercase tracking-wider text-blue-400 mb-1">
+                    Interpreted question
+                  </div>
+                  <div className="text-sm text-foreground leading-relaxed">
+                    {interpretedQuestion}
+                  </div>
                 </div>
               )}
             </div>
+          )}
+
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <CaseSelector
+              cases={(cases as any[]) || []}
+              value={caseId}
+              onChange={setCaseId}
+            />
 
             {submitError && (
               <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
@@ -266,7 +397,7 @@ export default function QuestionPage() {
                   ? "Creating case..."
                   : isEditing
                     ? "Update & Continue"
-                    : "Create Forecast Case"}
+                    : "Run Forecast"}
                 {!submitting && <ArrowRight className="w-4 h-4" />}
               </button>
               {!complete && rawInput.trim() && (
@@ -293,6 +424,8 @@ export default function QuestionPage() {
                   onClick={() => {
                     setRawInput(q);
                     setOverrides({});
+                    setEditingField(null);
+                    setClarificationValue("");
                   }}
                   className="w-full rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
                 >
@@ -304,212 +437,6 @@ export default function QuestionPage() {
         </aside>
       </div>
     </WorkflowLayout>
-  );
-}
-
-const ALL_QUESTION_TYPES: Array<{ value: string; label: string }> = [
-  { value: "binary", label: "Yes / No" },
-  { value: "comparative", label: "Comparative" },
-  { value: "ranking", label: "Ranking" },
-  { value: "threshold", label: "Threshold" },
-  { value: "timing", label: "Timing" },
-];
-
-function InterpretationCard({
-  enriched,
-  interpretedQuestion,
-  missing,
-  complete,
-  onOverride,
-}: {
-  enriched: Partial<DecisionQuestion>;
-  interpretedQuestion: string;
-  missing: string[];
-  complete: boolean;
-  onOverride: (field: string, value: string) => void;
-}) {
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const qt = enriched.questionType || "binary";
-  const entities = enriched.populationOrEntities || [];
-
-  const editableFields: {
-    key: string;
-    label: string;
-    value: string;
-    status: "ok" | "missing";
-  }[] = [
-    {
-      key: "subject",
-      label: "Subject",
-      value: enriched.subject || "",
-      status: enriched.subject ? "ok" : missing.includes("subject") ? "missing" : "ok",
-    },
-    {
-      key: "outcome",
-      label: "Outcome",
-      value: enriched.outcome || "",
-      status: enriched.outcome ? "ok" : missing.includes("outcome") ? "missing" : "ok",
-    },
-    {
-      key: "populationOrEntities",
-      label: "Groups being evaluated",
-      value: entities.join(", ") || "",
-      status:
-        entities.length > 0 && !missing.includes("populationOrEntities")
-          ? "ok"
-          : missing.includes("populationOrEntities")
-            ? "missing"
-            : "ok",
-    },
-    {
-      key: "timeHorizon",
-      label: "Time horizon",
-      value: enriched.timeHorizon || "",
-      status: enriched.timeHorizon ? "ok" : missing.includes("timeHorizon") ? "missing" : "ok",
-    },
-  ];
-
-  if (enriched.comparator || qt === "comparative") {
-    editableFields.push({
-      key: "comparator",
-      label: "Comparator",
-      value: enriched.comparator || "",
-      status: enriched.comparator ? "ok" : missing.includes("comparator") ? "missing" : "ok",
-    });
-  }
-
-  if (enriched.successMetric || qt === "threshold") {
-    editableFields.push({
-      key: "successMetric",
-      label: "Success definition",
-      value: enriched.successMetric || "",
-      status: enriched.successMetric
-        ? "ok"
-        : missing.includes("successMetric")
-          ? "missing"
-          : "ok",
-    });
-  }
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-400" />
-          <span className="text-sm font-semibold text-foreground">System Interpretation</span>
-        </div>
-        <span
-          className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-            complete
-              ? "bg-emerald-500/10 text-emerald-400"
-              : "bg-amber-500/10 text-amber-400"
-          }`}
-        >
-          {complete ? "Ready" : `${missing.length} missing`}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {ALL_QUESTION_TYPES.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => onOverride("questionType", t.value)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-              qt === t.value
-                ? "bg-blue-500/20 text-blue-300 border border-blue-500/40"
-                : "bg-muted/20 text-muted-foreground border border-transparent hover:bg-muted/40"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {editableFields.map((f) => (
-          <div
-            key={f.key}
-            onClick={() => setEditingField(f.key)}
-            className={`rounded-xl border px-3 py-2.5 cursor-pointer transition hover:border-blue-500/30 ${
-              f.status === "missing"
-                ? "border-amber-500/30 bg-amber-500/5"
-                : "border-border bg-muted/10"
-            }`}
-          >
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {f.label}
-            </div>
-            {editingField === f.key ? (
-              <input
-                autoFocus
-                defaultValue={f.value}
-                onBlur={(e) => {
-                  onOverride(f.key, e.target.value);
-                  setEditingField(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    onOverride(f.key, (e.target as HTMLInputElement).value);
-                    setEditingField(null);
-                  }
-                }}
-                className="mt-1 w-full bg-transparent text-sm font-medium text-foreground border-b border-blue-400 outline-none"
-              />
-            ) : (
-              <div className="mt-1 text-sm font-medium text-foreground">
-                {f.value || (
-                  <span className="text-amber-400 italic text-xs">Click to add</span>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {interpretedQuestion && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-blue-400 mb-1">
-            Interpreted question
-          </div>
-          <div className="text-sm text-foreground leading-relaxed">
-            {interpretedQuestion}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ClarificationPrompt({
-  field,
-  prompt,
-  value,
-  onChange,
-}: {
-  field: string;
-  prompt: string;
-  value: string;
-  onChange: (val: string) => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 shrink-0 w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-        </div>
-        <div className="flex-1 space-y-3">
-          <div className="text-sm font-medium text-foreground">{prompt}</div>
-          <input
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={`Enter ${FIELD_LABELS[field] || field}...`}
-            className="w-full rounded-xl border border-border bg-background/50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50"
-            autoFocus
-          />
-        </div>
-      </div>
-    </div>
   );
 }
 
