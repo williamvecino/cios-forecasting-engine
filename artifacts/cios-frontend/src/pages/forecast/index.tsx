@@ -646,6 +646,25 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         </div>
       </div>
 
+      {(() => {
+        const caseKey = activeQuestion?.caseId || "unknown";
+        let translationText: string | null = null;
+        try { translationText = localStorage.getItem(`cios.translationSummary:${caseKey}`); } catch {}
+        if (!translationText) return null;
+        return (
+          <div className="rounded-3xl border border-violet-500/20 bg-[#0A1736] p-6 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-violet-400 mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="text-[10px] text-violet-400 font-semibold uppercase tracking-wider">Question Relevance Check</div>
+                <div className="text-sm text-slate-200 leading-relaxed">{translationText}</div>
+                <div className="text-[10px] text-slate-500 italic">Strong brand signals may not directly answer the specific question. This panel explains the translation gap between signal strength and forecast applicability.</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {interpretation && (
         <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 space-y-4">
           <div className="flex items-start gap-3">

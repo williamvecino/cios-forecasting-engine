@@ -61,6 +61,10 @@ const SIGNAL_FAMILY_LABELS: Record<SignalFamily, string> = {
   system_operational: "System / Operational",
 };
 
+type TranslationConfidence = "high" | "moderate" | "low";
+type LineOfTherapyApplicability = "current_label" | "future_label" | "uncertain";
+type TimeHorizonApplicability = "yes" | "partial" | "unlikely";
+
 interface Signal {
   id: string;
   text: string;
@@ -79,6 +83,11 @@ interface Signal {
   observed_date?: string | null;
   citation_excerpt?: string | null;
   brand_verified?: boolean;
+  applies_to_line_of_therapy?: LineOfTherapyApplicability;
+  applies_to_stakeholder_group?: string;
+  applies_within_time_horizon?: TimeHorizonApplicability;
+  translation_confidence?: TranslationConfidence;
+  question_relevance_note?: string;
 }
 
 interface IncomingEvent {
@@ -150,7 +159,13 @@ function generateIncomingEvents(ctx: QuestionContext): IncomingEvent[] {
   return events;
 }
 
-function computeImpact(s: { strength: Strength; reliability: Reliability }): Impact {
+function computeImpact(s: { strength: Strength; reliability: Reliability; translation_confidence?: TranslationConfidence }): Impact {
+  if (s.translation_confidence === "low") {
+    return s.strength === "High" ? "Medium" : "Low";
+  }
+  if (s.translation_confidence === "moderate" && s.strength === "High" && s.reliability !== "Confirmed") {
+    return "Medium";
+  }
   if (s.strength === "High" && s.reliability === "Confirmed") return "High";
   if (s.strength === "High" || (s.strength === "Medium" && s.reliability === "Confirmed")) return "Medium";
   return "Low";
@@ -340,6 +355,7 @@ export default function SignalsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
+  const [translationSummary, setTranslationSummary] = useState<string | null>(null);
   const [brandCheckDone, setBrandCheckDone] = useState(false);
   const [verifiedFound, setVerifiedFound] = useState(false);
   const aiRequestedRef = useRef<string | null>(null);
@@ -362,6 +378,7 @@ export default function SignalsPage() {
     setAiLoading(true);
     setAiError(null);
     setMarketSummary(null);
+    setTranslationSummary(null);
     setIncomingEvents(fallbackEvents);
     setSignals((prev) => {
       const userSignals = prev.filter((s) => s.source === "user");
@@ -398,6 +415,12 @@ export default function SignalsPage() {
             const reliability = VALID_RELIABILITIES.has(s.reliability) ? s.reliability : "Probable";
             const signal_class = VALID_SIGNAL_CLASSES.has(s.signal_class) ? s.signal_class as SignalClass : "derived";
             const signal_family = VALID_SIGNAL_FAMILIES.has(s.signal_family) ? s.signal_family as SignalFamily : "brand_clinical_regulatory";
+            const VALID_TRANSLATION_CONFIDENCE = new Set(["high", "moderate", "low"]);
+            const VALID_LINE_THERAPY = new Set(["current_label", "future_label", "uncertain"]);
+            const VALID_TIME_HORIZON_APP = new Set(["yes", "partial", "unlikely"]);
+            const translation_confidence = VALID_TRANSLATION_CONFIDENCE.has(s.translation_confidence) ? s.translation_confidence as TranslationConfidence : undefined;
+            const applies_to_line_of_therapy = VALID_LINE_THERAPY.has(s.applies_to_line_of_therapy) ? s.applies_to_line_of_therapy as LineOfTherapyApplicability : undefined;
+            const applies_within_time_horizon = VALID_TIME_HORIZON_APP.has(s.applies_within_time_horizon) ? s.applies_within_time_horizon as TimeHorizonApplicability : undefined;
             return {
               id: `ai-${i + 1}`,
               text: s.text,
@@ -405,7 +428,7 @@ export default function SignalsPage() {
               direction,
               strength,
               reliability,
-              impact: computeImpact({ strength, reliability }),
+              impact: computeImpact({ strength, reliability, translation_confidence }),
               category,
               source: "system" as const,
               accepted: false,
@@ -416,6 +439,11 @@ export default function SignalsPage() {
               observed_date: s.observed_date || null,
               citation_excerpt: s.citation_excerpt || null,
               brand_verified: !!s.brand_verified,
+              applies_to_line_of_therapy,
+              applies_to_stakeholder_group: s.applies_to_stakeholder_group || undefined,
+              applies_within_time_horizon,
+              translation_confidence,
+              question_relevance_note: s.question_relevance_note || undefined,
             };
           });
           setSignals((prev) => {
@@ -448,6 +476,15 @@ export default function SignalsPage() {
 
         if (data.market_summary) {
           setMarketSummary(data.market_summary);
+        }
+
+        const caseKey = activeQuestion?.caseId || "unknown";
+        if (data.question_translation_summary) {
+          setTranslationSummary(data.question_translation_summary);
+          localStorage.setItem(`cios.translationSummary:${caseKey}`, data.question_translation_summary);
+        } else {
+          setTranslationSummary(null);
+          localStorage.removeItem(`cios.translationSummary:${caseKey}`);
         }
 
         if (data.therapeutic_area) {
@@ -847,6 +884,41 @@ export default function SignalsPage() {
             return null;
           })()}
 
+          {translationSummary && !aiLoading && (
+            <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/5 via-card to-card p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-violet-400" />
+                <h2 className="text-xs font-bold uppercase tracking-wider text-violet-400">Question Relevance Translation</h2>
+              </div>
+              <div className="text-sm text-foreground leading-relaxed">{translationSummary}</div>
+              {(() => {
+                const lowConfCount = allSignals.filter((s) => s.translation_confidence === "low").length;
+                const modConfCount = allSignals.filter((s) => s.translation_confidence === "moderate").length;
+                const highConfCount = allSignals.filter((s) => s.translation_confidence === "high").length;
+                if (lowConfCount === 0 && modConfCount === 0) return null;
+                return (
+                  <div className="flex flex-wrap gap-2 text-[10px]">
+                    {highConfCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-semibold">
+                        {highConfCount} directly relevant
+                      </span>
+                    )}
+                    {modConfCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-semibold">
+                        {modConfCount} conditionally relevant
+                      </span>
+                    )}
+                    {lowConfCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 font-semibold">
+                        {lowConfCount} upstream only
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {!aiLoading && allSignals.length > 0 && (
             <div className="rounded-2xl border border-slate-500/20 bg-gradient-to-r from-slate-500/5 via-card to-card p-5 space-y-3">
               <div className="flex items-center gap-2">
@@ -1129,8 +1201,35 @@ function PrimaryDriverCard({
                 {signal.signal_class}
               </span>
             )}
+            {signal.translation_confidence && (
+              <TranslationBadge confidence={signal.translation_confidence} />
+            )}
             {!signal.accepted && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-300 font-semibold">Pending</span>}
           </div>
+          {signal.question_relevance_note && (
+            <div className="mt-1.5 text-[11px] text-violet-300/80 italic leading-snug">
+              {signal.question_relevance_note}
+            </div>
+          )}
+          {(signal.applies_to_line_of_therapy || signal.applies_within_time_horizon || signal.applies_to_stakeholder_group) && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {signal.applies_to_line_of_therapy && (
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${signal.applies_to_line_of_therapy === "current_label" ? "bg-emerald-500/15 text-emerald-300" : signal.applies_to_line_of_therapy === "future_label" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>
+                  {signal.applies_to_line_of_therapy === "current_label" ? "Current label" : signal.applies_to_line_of_therapy === "future_label" ? "Future label" : "Line uncertain"}
+                </span>
+              )}
+              {signal.applies_within_time_horizon && (
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${signal.applies_within_time_horizon === "yes" ? "bg-emerald-500/15 text-emerald-300" : signal.applies_within_time_horizon === "partial" ? "bg-amber-500/15 text-amber-300" : "bg-red-500/15 text-red-300"}`}>
+                  {signal.applies_within_time_horizon === "yes" ? "Within horizon" : signal.applies_within_time_horizon === "partial" ? "Partial horizon" : "Beyond horizon"}
+                </span>
+              )}
+              {signal.applies_to_stakeholder_group && signal.applies_to_stakeholder_group !== "unknown" && (
+                <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-blue-500/15 text-blue-300">
+                  {signal.applies_to_stakeholder_group}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <button type="button" onClick={onEdit} className={`rounded-lg border p-1.5 transition ${editing ? "border-primary/30 text-primary bg-primary/10" : "border-border text-muted-foreground hover:bg-muted/20"}`} title="Edit">
@@ -1247,6 +1346,24 @@ const FAMILY_COLORS: Record<SignalFamily, string> = {
   provider_behavioral: "bg-amber-500/15 text-amber-300 border-amber-500/20",
   system_operational: "bg-slate-500/15 text-slate-300 border-slate-500/20",
 };
+
+function TranslationBadge({ confidence }: { confidence: TranslationConfidence }) {
+  const cls = confidence === "high"
+    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/20"
+    : confidence === "moderate"
+    ? "bg-amber-500/15 text-amber-300 border-amber-500/20"
+    : "bg-red-500/15 text-red-300 border-red-500/20";
+  const label = confidence === "high"
+    ? "Directly relevant"
+    : confidence === "moderate"
+    ? "Conditionally relevant"
+    : "Upstream signal";
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
+      {label}
+    </span>
+  );
+}
 
 function FamilyBadge({ family }: { family: SignalFamily }) {
   return (

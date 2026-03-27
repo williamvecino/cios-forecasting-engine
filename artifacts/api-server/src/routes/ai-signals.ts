@@ -66,7 +66,23 @@ CRITICAL RULES:
 
 1. Each case is unique. Do NOT apply generic templates. Evaluate this specific brand/product/question on its own merits.
 
-2. SIGNAL FAMILIES — Every signal MUST belong to exactly one of these 6 families:
+2. QUESTION RELEVANCE TRANSLATION — This is the most important rule. Every signal MUST be evaluated against THE SPECIFIC QUESTION being asked, not just the brand overall. A strong brand signal that does not directly answer the question must NOT be treated as if it does.
+
+   For EACH signal, you must assess:
+   - **applies_to_line_of_therapy**: Does this signal apply to the specific line of therapy in the question? Values: "current_label" (matches current approved use), "future_label" (would require label expansion), "uncertain" (unclear applicability)
+   - **applies_to_stakeholder_group**: Which stakeholder group does this signal affect? Values: specific group name(s) from the question, "both", "all", "unknown"
+   - **applies_within_time_horizon**: Can this signal plausibly change behavior within the specified time horizon? Values: "yes" (likely within horizon), "partial" (some effect but constrained), "unlikely" (effect beyond horizon)
+   - **translation_confidence**: How directly does this signal translate to the specific outcome asked? Values: "high" (direct causal link to the asked outcome), "moderate" (indirect or conditional link), "low" (upstream signal with uncertain conversion)
+   - **question_relevance_note**: One sentence explaining WHY this signal does or does not directly answer the question. Be specific.
+
+   EXAMPLE: If the question asks about "first-line adoption within 12 months" and you find positive Phase 3 data:
+   - If the data supports the current indication but NOT first-line use → applies_to_line_of_therapy: "future_label", translation_confidence: "low"
+   - If access/guidelines haven't changed to support first-line → applies_within_time_horizon: "partial"
+   - The signal is still valid and important, but its FORECAST IMPACT must be constrained
+
+   FORECAST IMPACT RULE: A signal may only have "High" strength if translation_confidence is "high". If translation_confidence is "low", strength MUST be "Medium" or "Low" regardless of how important the brand news is. This prevents upstream brand signals from dominating the forecast when they don't directly answer the question.
+
+3. SIGNAL FAMILIES — Every signal MUST belong to exactly one of these 6 families:
    - "brand_clinical_regulatory": trial readouts, label updates, safety signals, regulatory filings, guideline updates
    - "payer_access": coverage criteria, prior authorization, formulary status, reimbursement, patient cost burden
    - "competitor": competitor launches, competitor data, competitor safety issues, competitor pricing, positioning shifts
@@ -103,6 +119,11 @@ For each signal, provide:
 - **citation_excerpt**: key quote/fact from source (required for observed signals), null otherwise
 - **brand_verified**: true for observed signals from verified sources, false otherwise
 - **rationale**: Why this factor matters for this specific forecast
+- **applies_to_line_of_therapy**: "current_label" | "future_label" | "uncertain"
+- **applies_to_stakeholder_group**: specific group name, "both", "all", or "unknown"
+- **applies_within_time_horizon**: "yes" | "partial" | "unlikely"
+- **translation_confidence**: "high" | "moderate" | "low"
+- **question_relevance_note**: One sentence explaining how directly this signal answers the specific question asked
 
 Generate 12-18 signals covering all 6 families. Observed brand developments first, then derived across all families, then uncertainties.
 
@@ -111,11 +132,14 @@ For incoming_events, generate 5 events the forecaster should monitor:
 
 For market_summary: 2-3 sentences starting with the most important recent development if one exists.
 
+For question_translation_summary: Write 2-3 sentences explaining the gap between the strongest brand signal and the specific question asked. For example: "ENCORE data strengthens the clinical case for Arikayce broadly, but the question asks about first-line adoption specifically. Current label, guidelines, and payer coverage do not yet support routine first-line use, creating a translation gap between the brand signal and the forecast outcome."
+
 Return ONLY valid JSON:
 {
   "signals": [...],
   "incoming_events": [...],
   "market_summary": "...",
+  "question_translation_summary": "...",
   "therapeutic_area": "${therapeuticArea}",
   "brand_check_performed": true,
   "verified_developments_found": ${hasResearch}
@@ -144,6 +168,14 @@ IMPORTANT: You must generate signals from ALL 6 families:
 4. patient_demand — what patient factors drive or limit demand?
 5. provider_behavioral — what physician behavior patterns affect adoption?
 6. system_operational — what operational/logistical factors affect adoption?
+
+CRITICAL REMINDER — QUESTION RELEVANCE TRANSLATION:
+Every signal must include applies_to_line_of_therapy, applies_to_stakeholder_group, applies_within_time_horizon, translation_confidence, and question_relevance_note.
+
+The question asks specifically: "${body.questionText}"
+- Evaluate each signal against THIS EXACT question.
+- A strong positive brand development (e.g. positive trial data) should NOT automatically get "High" strength if it doesn't directly drive the specific outcome asked about (e.g. first-line adoption vs general adoption).
+- If a signal is an upstream positive but has uncertain conversion to the asked outcome, set translation_confidence: "low" or "moderate" and constrain strength accordingly.
 
 Convert verified brand developments into observed signals first, then add derived implications and uncertainties across all families.`;
 
