@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
+import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import { ProbabilityGauge } from "@/components/ui-components";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
@@ -99,52 +100,54 @@ export default function ForecastPage() {
       activeQuestion={activeQuestion}
       onClearQuestion={clearQuestion}
     >
-      <section className="space-y-6">
-        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-            Step 3
-          </div>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-            What is likely to happen?
-          </h1>
-          <p className="mt-2 max-w-3xl text-base text-slate-300">
-            Review the forecast, see what is driving movement, understand which stakeholders
-            are likely to adopt first, and identify what would change the trajectory.
-          </p>
+      <QuestionGate activeQuestion={activeQuestion}>
+        <section className="space-y-6">
+          <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+              Step 3
+            </div>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+              What is likely to happen?
+            </h1>
+            <p className="mt-2 max-w-3xl text-base text-slate-300">
+              Review the forecast, see what is driving movement, understand which stakeholders
+              are likely to adopt first, and identify what would change the trajectory.
+            </p>
 
-          <div className="mt-5 border-b border-white/10">
-            <div className="flex flex-wrap gap-6">
-              {(
-                [
-                  { id: "forecast", label: "Current Forecast" },
-                  { id: "scenarios", label: "Scenario Planning" },
-                  { id: "drivers", label: "Driver Impact" },
-                  { id: "library", label: "Case Library" },
-                ] as { id: Tab; label: string }[]
-              ).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={cn(
-                    "border-b-2 pb-3 text-sm font-medium transition",
-                    tab === t.id
-                      ? "border-blue-400 text-blue-300"
-                      : "border-transparent text-slate-400 hover:text-slate-200"
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
+            <div className="mt-5 border-b border-white/10">
+              <div className="flex flex-wrap gap-6">
+                {(
+                  [
+                    { id: "forecast", label: "Current Forecast" },
+                    { id: "scenarios", label: "Scenario Planning" },
+                    { id: "drivers", label: "Driver Impact" },
+                    { id: "library", label: "Case Library" },
+                  ] as { id: Tab; label: string }[]
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={cn(
+                      "border-b-2 pb-3 text-sm font-medium transition",
+                      tab === t.id
+                        ? "border-blue-400 text-blue-300"
+                        : "border-transparent text-slate-400 hover:text-slate-200"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        {tab === "forecast" && <CurrentForecastTab activeQuestion={activeQuestion} />}
-        {tab === "scenarios" && <ScenarioPlanningTab activeQuestion={activeQuestion} />}
-        {tab === "drivers" && <DriverImpactTab activeQuestion={activeQuestion} />}
-        {tab === "library" && <CaseLibraryTab />}
-      </section>
+          {tab === "forecast" && <CurrentForecastTab activeQuestion={activeQuestion} />}
+          {tab === "scenarios" && <ScenarioPlanningTab activeQuestion={activeQuestion} />}
+          {tab === "drivers" && <DriverImpactTab activeQuestion={activeQuestion} />}
+          {tab === "library" && <CaseLibraryTab />}
+        </section>
+      </QuestionGate>
     </WorkflowLayout>
   );
 }

@@ -40,6 +40,9 @@ Top-level navigation includes Home, Forecasts, Library, and System, organizing v
 **UI/UX Decisions:**
 The frontend employs an "Aaru-like Decision Interface" with question-driven, decision-oriented language. Key design patterns include a question definition layer for structuring user input, a workflow test harness, a forecast readiness gate, a redesigned forecast page with a dark panel theme and four tabs (Current Forecast, Scenario Planning, Driver Impact, Case Library), an "Evidence Register" for signals, and a 6-panel enterprise decision layout for question details. Information is presented using structured tables, collapsible sections, and color-coded indicators.
 
+**Workflow Gating:**
+All pages (signals, forecast, decide) use `QuestionGate` to block content when no active question exists. The sidebar step completion checkmarks require `hasActiveQuestion` to prevent false positive indicators. The question parser (`parser.ts`) supports a comprehensive verb list for subject extraction including medical/pharma-specific actions (approve, launch, prescribe, reimburse, etc.) with a fallback pattern. The outcome extractor covers 30+ outcome categories. Both subject and outcome default to reasonable values to minimize blocked Continue buttons.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database.
 - **Express 5:** Backend web framework.

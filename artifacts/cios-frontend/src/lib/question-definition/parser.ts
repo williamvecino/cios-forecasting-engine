@@ -131,7 +131,7 @@ function extractSubject(rawInput: string): string | undefined {
     }
   }
 
-  const willSubjectMatch = rawInput.match(/^will\s+(.+?)\s+(?:adopt|reduce|increase|delay|limit|exceed|restrict|gain|achieve|improve|impact|affect|change|shift|grow)\b/i);
+  const willSubjectMatch = rawInput.match(/^will\s+(.+?)\s+(?:adopt|reduce|increase|delay|limit|exceed|restrict|gain|achieve|improve|impact|affect|change|shift|grow|approve|launch|enter|dominate|capture|lose|displace|outperform|erode|block|prevent|enable|accelerate|slow|halt|trigger|cause|face|experience|require|need|demand|receive|obtain|get|maintain|sustain|demonstrate|show|meet|reach|hit|surpass|fail|succeed|compete|emerge|expand|contract|decline|rise|fall|lead|drive|support|undermine|threaten|benefit|suffer|generate|produce|create|develop|introduce|initiate|begin|start|continue|remain|stay|become|offer|provide|deliver|establish|secure|attract|retain|convert|switch|transition|prescribe|recommend|endorse|cover|reimburse|pay|fund|finance|authorize|deny|reject|withdraw|recall|suspend|discontinue|modify|update|revise|amend)\b/i);
   if (willSubjectMatch) {
     let candidate = willSubjectMatch[1].trim();
     candidate = candidate.replace(/^(a|an|the)\s+/i, "").trim();
@@ -140,7 +140,7 @@ function extractSubject(rawInput: string): string | undefined {
     }
   }
 
-  const whenSubjectMatch = rawInput.match(/^when\s+will\s+(.+?)\s+(?:begin|start|achieve|reach|adopt|restrict|approve)\b/i);
+  const whenSubjectMatch = rawInput.match(/^when\s+will\s+(.+?)\s+(?:begin|start|achieve|reach|adopt|restrict|approve|launch|enter|gain|exceed|decline|emerge|expand)\b/i);
   if (whenSubjectMatch) {
     let candidate = whenSubjectMatch[1].trim();
     candidate = candidate.replace(/^(a|an|the)\s+/i, "").trim();
@@ -149,9 +149,39 @@ function extractSubject(rawInput: string): string | undefined {
     }
   }
 
-  const whichSubjectMatch = rawInput.match(/^which\s+(\w+)\s+will/i);
+  const whichSubjectMatch = rawInput.match(/^which\s+(\w+(?:\s+\w+)?)\s+will/i);
   if (whichSubjectMatch) {
     return titleCase(whichSubjectMatch[1]);
+  }
+
+  const howSubjectMatch = rawInput.match(/^how\s+(?:will|quickly\s+will|fast\s+will|likely\s+will|much\s+will)\s+(.+?)\s+(?:adopt|grow|change|shift|decline|improve|increase|reduce|expand|emerge|gain|lose|affect|impact)\b/i);
+  if (howSubjectMatch) {
+    let candidate = howSubjectMatch[1].trim();
+    candidate = candidate.replace(/^(a|an|the)\s+/i, "").trim();
+    if (candidate.length > 2 && candidate.split(/\s+/).length <= 5) {
+      return titleCase(candidate);
+    }
+  }
+
+  const doSubjectMatch = rawInput.match(/^(?:do|does|can|could|should|would)\s+(.+?)\s+(?:need|have|require|face|show|demonstrate|offer|provide|expect|anticipate|risk)\b/i);
+  if (doSubjectMatch) {
+    let candidate = doSubjectMatch[1].trim();
+    candidate = candidate.replace(/^(a|an|the)\s+/i, "").trim();
+    if (candidate.length > 2 && candidate.split(/\s+/).length <= 5) {
+      return titleCase(candidate);
+    }
+  }
+
+  const fallbackMatch = rawInput.match(/^(?:will|when|how|can|could|should|would|do|does)\s+(?:the\s+|a\s+|an\s+)?(.+?)(?:\s+(?:within|in|over|during|by|before|after|from)\s+\d|\?|$)/i);
+  if (fallbackMatch) {
+    let candidate = fallbackMatch[1].trim().replace(/\?$/, "");
+    const words = candidate.split(/\s+/);
+    if (words.length <= 3 && words.length >= 1) {
+      return titleCase(candidate);
+    }
+    if (words.length > 3) {
+      return titleCase(words.slice(0, 3).join(" "));
+    }
   }
 
   if (text.includes("drug")) return "drug";
@@ -167,11 +197,33 @@ function extractOutcome(text: string): string | undefined {
   if (text.includes("prescri")) return "prescribing";
   if (text.includes("market share") || text.includes("share")) return "market share";
   if (text.includes("delay")) return "adoption delay";
-  if (text.includes("reduce") || text.includes("reduction")) return "adoption reduction";
-  if (text.includes("limit")) return "adoption limitation";
+  if (text.includes("reduce") || text.includes("reduction")) return "reduction";
+  if (text.includes("limit")) return "limitation";
   if (text.includes("increase") || text.includes("increas")) return "increase";
   if (text.includes("exceed")) return "threshold exceedance";
-  return undefined;
+  if (text.includes("launch")) return "launch";
+  if (text.includes("switch")) return "switching";
+  if (text.includes("reimburse") || text.includes("reimbursement")) return "reimbursement";
+  if (text.includes("displace") || text.includes("displacement")) return "displacement";
+  if (text.includes("compet")) return "competitive impact";
+  if (text.includes("erode") || text.includes("erosion")) return "erosion";
+  if (text.includes("penetrat")) return "market penetration";
+  if (text.includes("uptake")) return "uptake";
+  if (text.includes("decline")) return "decline";
+  if (text.includes("grow") || text.includes("growth")) return "growth";
+  if (text.includes("entry") || text.includes("enter")) return "market entry";
+  if (text.includes("convert") || text.includes("conversion")) return "conversion";
+  if (text.includes("retain") || text.includes("retention")) return "retention";
+  if (text.includes("formulary")) return "formulary access";
+  if (text.includes("safety")) return "safety profile";
+  if (text.includes("efficacy")) return "efficacy";
+  if (text.includes("compliance") || text.includes("adherence")) return "compliance";
+  if (text.includes("awareness")) return "awareness";
+  if (text.includes("access")) return "access";
+  if (text.includes("demand")) return "demand";
+  if (text.includes("revenue")) return "revenue";
+  if (text.includes("profit")) return "profitability";
+  return "outcome";
 }
 
 function extractComparator(text: string): string | undefined {
