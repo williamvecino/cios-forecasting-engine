@@ -9,6 +9,7 @@ import {
 
 export interface CreateQuestionInput {
   text: string;
+  rawInput?: string;
   caseId?: string;
   timeHorizon?: string;
   questionType?: string;
@@ -31,6 +32,7 @@ export function useActiveQuestion() {
     const next: ActiveQuestion = {
       id: createQuestionId(),
       text: input.text.trim(),
+      rawInput: input.rawInput?.trim() || undefined,
       createdAt: new Date().toISOString(),
       caseId: input.caseId?.trim() || undefined,
       timeHorizon: input.timeHorizon?.trim() || undefined,

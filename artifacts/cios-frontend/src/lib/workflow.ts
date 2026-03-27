@@ -3,6 +3,7 @@ export type WorkflowStep = "question" | "signals" | "forecast" | "decide";
 export interface ActiveQuestion {
   id: string;
   text: string;
+  rawInput?: string;
   createdAt: string;
   caseId?: string;
   timeHorizon?: string;

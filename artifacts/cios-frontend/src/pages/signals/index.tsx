@@ -277,7 +277,7 @@ function getDriverSubtitle(questionType?: string): string {
 
 export default function SignalsPage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
-  const questionText = activeQuestion?.text || "";
+  const questionText = activeQuestion?.rawInput || activeQuestion?.text || "";
   const questionType = activeQuestion?.questionType;
   const entities = activeQuestion?.entities || [];
   const subject = activeQuestion?.subject;

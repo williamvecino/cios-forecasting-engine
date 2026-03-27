@@ -87,7 +87,7 @@ export default function DecisionPanels() {
   const requestedRef = useRef<string | null>(null);
 
   const subject = activeQuestion?.subject || "";
-  const questionText = activeQuestion?.text || activeQuestion?.question || "";
+  const questionText = activeQuestion?.rawInput || activeQuestion?.text || activeQuestion?.question || "";
   const contextKey = `${subject}|${questionText}`;
 
   useEffect(() => {

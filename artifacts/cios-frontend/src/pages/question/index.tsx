@@ -205,6 +205,7 @@ export default function QuestionPage() {
 
       const payload = {
         text: interpretedQuestion || draft.rawInput.trim(),
+        rawInput: draft.rawInput.trim(),
         caseId: newCaseId,
         timeHorizon: enriched?.timeHorizon || "12 months",
         questionType: enriched?.questionType || "binary",
