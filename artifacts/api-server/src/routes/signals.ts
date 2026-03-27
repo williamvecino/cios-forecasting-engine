@@ -164,10 +164,25 @@ router.post("/cases/:caseId/signals", async (req, res) => {
 
   const duplicateWarnings: Array<{ existingSignalId: string; similarity: number }> = [];
   for (const existing of existingSignals) {
+    if (existing.signalId === body.signalId) {
+      return res.status(409).json({
+        error: "Duplicate signal",
+        message: `Signal ${body.signalId} already exists on this case.`,
+        existingSignalId: existing.signalId,
+      });
+    }
     const similarity = computeDescriptionSimilarity(
       body.signalDescription,
       existing.signalDescription
     );
+    if (similarity > 0.85) {
+      return res.status(409).json({
+        error: "Duplicate signal",
+        message: "A very similar signal already exists on this case.",
+        existingSignalId: existing.signalId,
+        similarity: Number(similarity.toFixed(2)),
+      });
+    }
     if (similarity > 0.6) {
       duplicateWarnings.push({
         existingSignalId: existing.signalId,

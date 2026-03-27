@@ -1,0 +1,406 @@
+PROJECT: Add a universal Question Definition Layer before case creation in CIOS
+
+OBJECTIVE
+Build a simple Aaru-style question-definition workflow that converts vague user input into a structured decision question before the forecast runs.
+
+This must work across all topics, not just geography:
+- adoption
+- approval
+- payer access
+- message performance
+- competitive response
+- segmentation
+- ranking
+- timing
+- threshold questions
+
+CORE PRODUCT RULE
+The system must stop treating every user input as a standard binary forecast.
+Before creating a case, the app must classify the question and complete a structured decision object.
+
+NEW ARCHITECTURE
+Add a new pre-case layer called:
+Question Definition Layer
+
+Pipeline becomes:
+1. User enters rough question
+2. System classifies question type
+3. System extracts known fields
+4. System identifies missing fields
+5. UI asks only for missing fields, one at a time
+6. Structured decision object is created
+7. Case is created from that object
+8. Forecast runs as normal
+
+QUESTION TYPES
+Support these 5 types:
+1. binary
+   Example: Will ARIKAYCE gain first-line use within 12 months?
+2. comparative
+   Example: Will academic centers adopt faster than community centers?
+3. ranking
+   Example: Which regions will adopt first?
+4. threshold
+   Example: Will first-line adoption exceed 20% in 12 months?
+5. timing
+   Example: When will commercial payers begin restricting access?
+
+STRUCTURED DECISION SCHEMA
+Create a canonical schema for the question-definition layer.
+
+TypeScript type:
+
+export type QuestionType =
+  | "binary"
+  | "comparative"
+  | "ranking"
+  | "threshold"
+  | "timing";
+
+export interface DecisionQuestion {
+  id: string;
+  rawInput: string;
+  questionType: QuestionType;
+
+  subject: string;                 // product, campaign, strategy, competitor, event
+  outcome: string;                 // adoption, approval, restriction, uptake, etc.
+  populationOrEntities: string[];  // physicians, payers, regions, centers, segments
+  comparator?: string;             // vs national average, vs another entity, highest/lowest, etc.
+  timeHorizon: string;             // 6 months, 12 months, 3 years
+  successMetric?: string;          // >=20% adoption, positive Phase 3 readout, etc.
+
+  missingFields: string[];
+  isComplete: boolean;
+  interpretedQuestion: string;     // human-readable completed question
+  createdAt: string;
+}
+
+FIELD RULES
+Minimum completion rules by question type:
+
+1. binary
+Required:
+- subject
+- outcome
+- populationOrEntities (can be one generalized population)
+- timeHorizon
+
+Optional:
+- successMetric
+
+2. comparative
+Required:
+- subject
+- outcome
+- populationOrEntities (must include at least 2 entities)
+- timeHorizon
+- comparator
+
+3. ranking
+Required:
+- subject
+- outcome
+- populationOrEntities (must include at least 2 entities)
+- timeHorizon
+
+Optional:
+- successMetric
+
+4. threshold
+Required:
+- subject
+- outcome
+- populationOrEntities
+- timeHorizon
+- successMetric
+
+5. timing
+Required:
+- subject
+- outcome
+- populationOrEntities
+
+Optional:
+- successMetric
+Do not force timeHorizon for timing if the user is asking “when”; instead, the output should estimate timing.
+
+CLASSIFICATION LOGIC
+Create a rule-based question classifier first. Do not use a model dependency for v1.
+
+Heuristics:
+- ranking: contains “which”, “what area”, “what region”, “who will adopt first”, “rank”, “fastest”, “lead”
+- comparative: contains “vs”, “versus”, “faster than”, “more likely than”, “better than”, “compared with”
+- threshold: contains “exceed”, “reach”, “at least”, “greater than”, “less than”, “more than”, percentages like % or numeric threshold
+- timing: contains “when”, “how soon”, “how long until”, “time to”
+- binary: default fallback for well-formed “will” questions
+
+EXTRACTION LOGIC
+Create a lightweight parser that tries to fill:
+- subject
+- outcome
+- entities/population
+- time horizon
+- comparator
+- success metric
+
+Use deterministic pattern matching first.
+Do not over-engineer NLP for this version.
+
+Examples:
+- “what geographic area will adopt faster arikayce in first line in 12 months”
+  =>
+  questionType: ranking
+  subject: ARIKAYCE first-line use
+  outcome: adoption
+  populationOrEntities: ["geographic areas"]
+  timeHorizon: "12 months"
+  comparator: undefined
+  successMetric: undefined
+
+- “will northeast academic centers adopt first-line arikayce faster than the south in 12 months”
+  =>
+  questionType: comparative
+  subject: ARIKAYCE first-line use
+  outcome: adoption
+  populationOrEntities: ["Northeast academic centers", "South"]
+  timeHorizon: "12 months"
+  comparator: "faster than"
+
+MISSING-FIELD ENGINE
+Create a utility that checks which required fields are missing based on questionType.
+
+Example:
+input: “which regions will adopt arikayce first”
+output:
+missingFields:
+- timeHorizon
+
+If populationOrEntities is vague like ["geographic areas"], keep it for now but ask a clarification question:
+“Which regions or areas should be compared?”
+
+UI REQUIREMENTS
+Add a new step before forecast generation.
+
+NEW STEP ORDER
+1. Define Question
+2. Add Information
+3. See Forecast
+4. Decide
+
+Do not remove the current workflow shell. Insert the new step cleanly.
+
+DEFINE QUESTION SCREEN
+This screen should include:
+- one main text input: “What are you trying to predict?”
+- a structured interpretation card below it
+- one progressive clarification prompt area
+- a final “Create Forecast Case” button that only activates when required fields are complete
+
+ON FIRST INPUT
+When the user enters a rough question:
+- classify it
+- parse it
+- display the system interpretation
+
+Example display:
+Question type: Ranking
+Subject: ARIKAYCE first-line use
+Outcome: Adoption
+Entities: Geographic areas
+Time horizon: 12 months
+Status: Missing comparison entities
+
+CLARIFICATION UX
+Ask only one missing item at a time.
+Short prompts only.
+
+Examples:
+- Which regions or segments should be compared?
+- What defines adoption here?
+- By when?
+- What threshold should count as success?
+
+Do not show a long form with 10 fields.
+This must feel guided and light.
+
+HUMAN-READABLE OUTPUT
+Once complete, generate a normalized interpreted question.
+
+Examples:
+- “Which U.S. regions are most likely to lead first-line ARIKAYCE adoption over the next 12 months?”
+- “Will Northeast academic centers adopt first-line ARIKAYCE faster than Southern community centers within 12 months?”
+- “Will first-line ARIKAYCE adoption exceed 20% among priority NTM centers within 12 months?”
+
+CASE CREATION RULE
+The forecast engine must no longer accept raw free-text directly.
+It must receive a completed DecisionQuestion object.
+
+Create a mapper:
+DecisionQuestion -> CaseInput
+
+The existing case engine should continue to work after mapping.
+Do not rewrite the entire forecast logic.
+Wrap it.
+
+TECHNICAL TASKS
+Implement these files or equivalent modules.
+
+1. lib/question-definition/types.ts
+Contains:
+- QuestionType
+- DecisionQuestion
+- supporting field enums if needed
+
+2. lib/question-definition/classifier.ts
+Contains:
+- classifyQuestion(rawInput: string): QuestionType
+
+3. lib/question-definition/parser.ts
+Contains:
+- parseQuestion(rawInput: string): Partial<DecisionQuestion>
+
+4. lib/question-definition/missing-fields.ts
+Contains:
+- getMissingFields(question: Partial<DecisionQuestion>): string[]
+- isQuestionComplete(question: Partial<DecisionQuestion>): boolean
+
+5. lib/question-definition/interpreter.ts
+Contains:
+- buildInterpretedQuestion(question: DecisionQuestion): string
+
+6. lib/question-definition/case-mapper.ts
+Contains:
+- mapDecisionQuestionToCaseInput(question: DecisionQuestion): existing case format
+
+7. UI screen/component for Define Question
+Suggested names:
+- components/question-definition/QuestionBuilder.tsx
+- components/question-definition/QuestionInterpretationCard.tsx
+- components/question-definition/ClarificationPrompt.tsx
+
+8. state/store integration
+If app uses Zustand or similar:
+- add draft decision-question state
+- preserve edits
+- allow reset
+
+BEHAVIORAL RULES
+1. Forecast button must stay disabled until required fields are complete
+2. If the question is vague, system must not silently guess high-stakes fields
+3. If entities are missing for comparative or ranking questions, ask explicitly
+4. If successMetric is required and missing for threshold questions, ask explicitly
+5. Timing questions should not be forced into yes/no probability wording
+6. Comparative and ranking questions should no longer be misrouted into binary forecast mode
+
+SAMPLE CLARIFICATION LOGIC
+If ranking question + generic entity term like “areas”, “segments”, “stakeholders”:
+ask:
+“Which specific groups should be compared?”
+
+If binary question missing time:
+ask:
+“What time horizon should be used?”
+
+If threshold question missing success metric:
+ask:
+“What threshold should count as success?”
+
+If outcome is unclear:
+ask:
+“What outcome are you trying to predict?”
+
+UI COPY
+Use simple language.
+
+Title:
+Define the question
+
+Subtitle:
+Turn a rough idea into a forecast-ready decision question.
+
+Main input placeholder:
+Example: Which regions will adopt first-line ARIKAYCE fastest in 12 months?
+
+Interpretation card labels:
+- Question type
+- Subject
+- Outcome
+- Groups being evaluated
+- Time horizon
+- Success definition
+- Status
+
+Buttons:
+- Continue
+- Create Forecast Case
+- Clear
+
+TEST CASES
+Implement tests for these examples:
+
+1. “will arikayce gain first line adoption in 12 months”
+Expected:
+- binary
+- subject detected
+- outcome adoption
+- time 12 months
+- complete enough
+
+2. “which regions will adopt arikayce first line faster in 12 months”
+Expected:
+- ranking
+- time 12 months
+- missing specific entities if only “regions” is detected generically
+
+3. “will northeast academic centers adopt faster than southern community centers in 12 months”
+Expected:
+- comparative
+- at least 2 entities
+- complete enough
+
+4. “will first line adoption exceed 20% in 12 months”
+Expected:
+- threshold
+- successMetric 20%
+- may ask for subject if missing
+
+5. “when will commercial payers begin restricting access”
+Expected:
+- timing
+- no forced yes/no interpretation
+
+IMPORTANT PRODUCT CONSTRAINTS
+- Keep the workflow simple and linear
+- Do not add a heavy enterprise form
+- Do not expose internal complexity
+- This layer should improve question quality, not overwhelm the user
+- This is a wrapper around the current system, not a rebuild of the engine
+
+SUCCESS CRITERIA
+This build is successful if:
+1. vague questions are no longer sent straight into the forecast engine
+2. comparative and ranking questions are detected correctly
+3. users can complete a decision question in a few guided steps
+4. the system produces a clean interpreted question before forecast
+5. the current case engine still works through a mapped case object
+
+DELIVERABLES
+1. Working Question Definition Layer
+2. Updated workflow shell with new first step
+3. Parser/classifier utilities
+4. Clarification UI
+5. Case mapper
+6. Tests for the five main question patterns
+
+DO NOT
+- do not rebuild the entire forecasting engine
+- do not add LLM dependency for v1
+- do not force all questions into binary probability form
+- do not make the UI dense or technical
+- do not hide missing information silently
+
+FINAL IMPLEMENTATION NOTE
+The design goal is:
+free-text intent -> structured decision question -> forecastable case
+
+This should feel simple to the user, but enforce enough structure to stop bad logic before forecasting.

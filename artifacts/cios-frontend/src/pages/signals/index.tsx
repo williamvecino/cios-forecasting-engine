@@ -185,6 +185,14 @@ export default function SignalsPage() {
 
   function addCustomSignal() {
     if (!newText.trim()) return;
+    const trimmed = newText.trim().toLowerCase();
+    const isDuplicate = signals.some(
+      (s) => s.text.toLowerCase() === trimmed
+    );
+    if (isDuplicate) {
+      alert("This signal already exists. Each signal can only be added once.");
+      return;
+    }
     const base = { strength: newStrength, reliability: newReliability };
     const sig: Signal = {
       id: `user-${Date.now()}`,
@@ -208,9 +216,17 @@ export default function SignalsPage() {
   }
 
   function convertEvent(ev: IncomingEvent) {
+    const evText = `${ev.title}: ${ev.description}`;
+    const isDuplicate = signals.some(
+      (s) => s.text.toLowerCase() === evText.toLowerCase()
+    );
+    if (isDuplicate) {
+      alert("This signal already exists. Each signal can only be added once.");
+      return;
+    }
     const sig: Signal = {
       id: `ev-conv-${Date.now()}`,
-      text: `${ev.title}: ${ev.description}`,
+      text: evText,
       caveat: "",
       direction: "neutral",
       strength: "Medium",

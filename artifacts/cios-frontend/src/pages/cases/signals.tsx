@@ -369,6 +369,14 @@ export default function SignalsRegister() {
           queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
           form.reset();
         },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || err?.message || "Failed to add signal.";
+          if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("similar")) {
+            alert(`This signal was not added: ${msg}`);
+          } else {
+            alert(`Error adding signal: ${msg}`);
+          }
+        },
       }
     );
   };
