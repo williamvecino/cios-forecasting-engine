@@ -252,8 +252,8 @@ export default function QuestionPage() {
         resetDraft();
       }}
     >
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <section className="flex-1 space-y-5">
+      <div className="space-y-5 max-w-3xl mx-auto">
+        <section className="space-y-5">
           {activeQuestion && mode === "new_draft" && (
             <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
               <div className="flex items-center justify-between">
@@ -293,30 +293,44 @@ export default function QuestionPage() {
           )}
 
           <div className="rounded-2xl border border-border bg-card p-6">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Step 1
-            </div>
-            <h1 className="mt-2 text-2xl font-semibold text-foreground">
-              Define the question
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-              Turn a rough idea into a forecast-ready decision question.
-            </p>
+            <label className="mb-3 block text-sm font-medium text-foreground">
+              What are you trying to predict?
+            </label>
+            <textarea
+              value={draft.rawInput}
+              onChange={(e) => {
+                dispatch({ type: "SET_RAW_INPUT", value: e.target.value });
+              }}
+              placeholder="Example: Which regions will adopt first-line ARIKAYCE fastest in 12 months?"
+              rows={3}
+              autoFocus
+              className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none"
+            />
 
-            <div className="mt-6">
-              <label className="mb-2 block text-sm text-muted-foreground">
-                What are you trying to predict?
-              </label>
-              <textarea
-                value={draft.rawInput}
-                onChange={(e) => {
-                  dispatch({ type: "SET_RAW_INPUT", value: e.target.value });
-                }}
-                placeholder="Example: Which regions will adopt first-line ARIKAYCE fastest in 12 months?"
-                rows={3}
-                className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none"
-              />
-            </div>
+            {!draft.rawInput.trim() && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Or start with one of these:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {EXAMPLE_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => {
+                        setMode("new_draft");
+                        dispatch({ type: "SET_RAW_INPUT", value: q });
+                        setEditCaseId("");
+                      }}
+                      className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {enriched && draft.rawInput.trim() && (() => {
@@ -459,7 +473,6 @@ export default function QuestionPage() {
                             firstMissing === "successMetric" ? "e.g. 20% adoption rate" :
                             "Type your answer..."}
                           className="flex-1 rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
-                          autoFocus
                         />
                         <button
                           type="button"
@@ -523,31 +536,6 @@ export default function QuestionPage() {
             </div>
           </div>
         </section>
-
-        <aside className="w-full shrink-0 space-y-4 lg:w-[280px]">
-          <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              <div className="text-sm font-semibold text-foreground">Try These</div>
-            </div>
-            <div className="space-y-2">
-              {EXAMPLE_QUESTIONS.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => {
-                    setMode("new_draft");
-                    dispatch({ type: "SET_RAW_INPUT", value: q });
-                    setEditCaseId("");
-                  }}
-                  className="w-full rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        </aside>
       </div>
     </WorkflowLayout>
   );
