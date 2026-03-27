@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useReducer } from "react";
 import { useLocation } from "wouter";
 import { useCreateCase } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
@@ -10,8 +10,9 @@ import {
   buildInterpretedQuestion,
   mapDecisionQuestionToCaseInput,
   FIELD_LABELS,
+  createEmptyDraft,
 } from "@/lib/question-definition";
-import type { DecisionQuestion } from "@/lib/question-definition";
+import type { DecisionQuestion, DraftQuestion } from "@/lib/question-definition";
 import {
   AlertTriangle,
   Loader2,
@@ -38,40 +39,63 @@ const QUESTION_TYPES = [
   { value: "timing", label: "Timing" },
 ];
 
-type DraftMode = "new_draft" | "edit_existing";
+type DraftAction =
+  | { type: "SET_RAW_INPUT"; value: string }
+  | { type: "SET_OVERRIDE"; field: string; value: string }
+  | { type: "SET_EDITING_FIELD"; field: string | null }
+  | { type: "SET_CLARIFICATION"; value: string }
+  | { type: "RESET" }
+  | { type: "LOAD_FROM_CASE"; rawInput: string };
+
+function draftReducer(state: DraftQuestion, action: DraftAction): DraftQuestion {
+  switch (action.type) {
+    case "SET_RAW_INPUT":
+      return { ...createEmptyDraft(), rawInput: action.value };
+    case "SET_OVERRIDE":
+      return {
+        ...state,
+        overrides: { ...state.overrides, [action.field]: action.value },
+        clarificationValue: "",
+      };
+    case "SET_EDITING_FIELD":
+      return { ...state, editingField: action.field };
+    case "SET_CLARIFICATION":
+      return { ...state, clarificationValue: action.value };
+    case "RESET":
+      return createEmptyDraft();
+    case "LOAD_FROM_CASE":
+      return { ...createEmptyDraft(), rawInput: action.rawInput };
+    default:
+      return state;
+  }
+}
+
+type PageMode = "new_draft" | "edit_existing";
 
 export default function QuestionPage() {
   const [, navigate] = useLocation();
   const { activeQuestion, createQuestion, updateQuestion, clearQuestion } = useActiveQuestion();
   const createCaseMutation = useCreateCase();
 
-  const [mode, setMode] = useState<DraftMode>("new_draft");
-
-  const [rawInput, setRawInput] = useState("");
-  const [caseId, setCaseId] = useState("");
+  const [draft, dispatch] = useReducer(draftReducer, undefined, createEmptyDraft);
+  const [mode, setMode] = useState<PageMode>("new_draft");
+  const [editCaseId, setEditCaseId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [clarificationValue, setClarificationValue] = useState("");
 
   useEffect(() => {
     localStorage.removeItem("cios.questionDraft");
     console.log("[CIOS State] QuestionPage mounted fresh");
-    console.log("[CIOS State]   draftQuestion subject:", undefined, "(clean)");
-    console.log("[CIOS State]   activeCase subject:", activeQuestion?.subject ?? "none");
-    console.log("[CIOS State]   activeCase text:", activeQuestion?.text ?? "none");
-    console.log("[CIOS State]   mode:", "new_draft");
-    console.log("[CIOS State]   rawInput:", '""', "(empty)");
+    console.log("[CIOS State]   draftQuestion subject: (none — clean init)");
+    console.log("[CIOS State]   activeCase subject:", activeQuestion?.subject ?? "(no active case)");
+    console.log("[CIOS State]   activeCase text:", activeQuestion?.text ?? "(no active case)");
+    console.log("[CIOS State]   mode: new_draft");
   }, []);
 
   function resetDraft() {
-    console.log("[CIOS Draft] resetDraft called — clearing all draft state");
-    setRawInput("");
-    setCaseId("");
-    setOverrides({});
-    setEditingField(null);
-    setClarificationValue("");
+    console.log("[CIOS Draft] resetDraft — clearing all draft state to empty");
+    dispatch({ type: "RESET" });
+    setEditCaseId("");
     setSubmitError(null);
     setMode("new_draft");
   }
@@ -79,39 +103,36 @@ export default function QuestionPage() {
   function enterEditMode() {
     if (!activeQuestion) return;
     setMode("edit_existing");
-    setRawInput(activeQuestion.text ?? "");
-    setCaseId(activeQuestion.caseId ?? "");
-    setOverrides({});
-    setEditingField(null);
-    setClarificationValue("");
+    dispatch({ type: "LOAD_FROM_CASE", rawInput: activeQuestion.text ?? "" });
+    setEditCaseId(activeQuestion.caseId ?? "");
     setSubmitError(null);
   }
 
   const parsed = useMemo(() => {
-    if (!rawInput.trim()) return null;
-    return parseQuestion(rawInput);
-  }, [rawInput]);
+    if (!draft.rawInput.trim()) return null;
+    return parseQuestion(draft.rawInput);
+  }, [draft.rawInput]);
 
   const enriched = useMemo(() => {
     if (!parsed) return null;
     const merged = { ...parsed };
-    if (overrides.questionType) merged.questionType = overrides.questionType as any;
-    if (overrides.subject) merged.subject = overrides.subject;
-    if (overrides.outcome) merged.outcome = overrides.outcome;
-    if (overrides.timeHorizon) merged.timeHorizon = overrides.timeHorizon;
-    if (overrides.comparator) merged.comparator = overrides.comparator;
-    if (overrides.successMetric) merged.successMetric = overrides.successMetric;
-    if (overrides.populationOrEntities) {
-      merged.populationOrEntities = overrides.populationOrEntities
+    if (draft.overrides.questionType) merged.questionType = draft.overrides.questionType as any;
+    if (draft.overrides.subject) merged.subject = draft.overrides.subject;
+    if (draft.overrides.outcome) merged.outcome = draft.overrides.outcome;
+    if (draft.overrides.timeHorizon) merged.timeHorizon = draft.overrides.timeHorizon;
+    if (draft.overrides.comparator) merged.comparator = draft.overrides.comparator;
+    if (draft.overrides.successMetric) merged.successMetric = draft.overrides.successMetric;
+    if (draft.overrides.populationOrEntities) {
+      merged.populationOrEntities = draft.overrides.populationOrEntities
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    console.log("[CIOS Draft] Parser extracted subject:", merged.subject ?? "undefined");
-    console.log("[CIOS Draft] Parser extracted outcome:", merged.outcome ?? "undefined");
-    console.log("[CIOS Draft] activeCase subject (NOT used):", activeQuestion?.subject ?? "none");
+    console.log("[CIOS Draft] Parser extracted subject:", merged.subject ?? "(none)");
+    console.log("[CIOS Draft] Parser extracted outcome:", merged.outcome ?? "(none)");
+    console.log("[CIOS Draft] activeCase subject (NOT used by parser):", activeQuestion?.subject ?? "(no active case)");
     return merged;
-  }, [parsed, overrides]);
+  }, [parsed, draft.overrides]);
 
   const missing = useMemo(() => {
     if (!enriched) return [];
@@ -138,27 +159,27 @@ export default function QuestionPage() {
       const unique = [...new Set(merged.map((e) => e.toLowerCase()))].map(
         (lower) => merged.find((e) => e.toLowerCase() === lower) || lower
       );
-      setOverrides((prev) => ({ ...prev, [field]: unique.join(", ") }));
+      dispatch({ type: "SET_OVERRIDE", field, value: unique.join(", ") });
     } else {
-      setOverrides((prev) => ({ ...prev, [field]: value }));
+      dispatch({ type: "SET_OVERRIDE", field, value });
     }
-    setClarificationValue("");
   }
 
   async function handleSubmit() {
-    if (!rawInput.trim() || submitting || !complete) return;
+    if (!draft.rawInput.trim() || submitting || !complete) return;
     setSubmitError(null);
 
-    if (mode === "edit_existing" && caseId) {
+    if (mode === "edit_existing" && editCaseId) {
       const payload = {
-        text: interpretedQuestion || rawInput.trim(),
-        caseId,
+        text: interpretedQuestion || draft.rawInput.trim(),
+        caseId: editCaseId,
         timeHorizon: enriched?.timeHorizon || "12 months",
         questionType: enriched?.questionType || "binary",
         entities: enriched?.populationOrEntities || [],
         subject: enriched?.subject || undefined,
         outcome: enriched?.outcome || undefined,
       };
+      console.log("[CIOS Submit] Updating existing case:", editCaseId, "subject:", payload.subject);
       updateQuestion(payload);
       navigate("/signals");
       return;
@@ -168,7 +189,7 @@ export default function QuestionPage() {
     try {
       const dq: DecisionQuestion = {
         id: `DQ-${Date.now()}`,
-        rawInput: rawInput.trim(),
+        rawInput: draft.rawInput.trim(),
         questionType: enriched?.questionType || "binary",
         subject: enriched?.subject || "",
         outcome: enriched?.outcome || "",
@@ -193,7 +214,7 @@ export default function QuestionPage() {
       }
 
       const payload = {
-        text: interpretedQuestion || rawInput.trim(),
+        text: interpretedQuestion || draft.rawInput.trim(),
         caseId: newCaseId,
         timeHorizon: enriched?.timeHorizon || "12 months",
         questionType: enriched?.questionType || "binary",
@@ -201,6 +222,7 @@ export default function QuestionPage() {
         subject: enriched?.subject || undefined,
         outcome: enriched?.outcome || undefined,
       };
+      console.log("[CIOS Submit] New case created:", newCaseId, "subject:", payload.subject, "(draft bound to case now)");
       createQuestion(payload);
       navigate("/signals");
     } catch (err) {
@@ -222,11 +244,11 @@ export default function QuestionPage() {
           ? [{ key: "populationOrEntities", label: "Groups", value: entities.join(", "), isMissing: missing.includes("populationOrEntities") }]
           : []),
         { key: "timeHorizon", label: "Time period", value: enriched.timeHorizon || "", isMissing: missing.includes("timeHorizon") },
-        ...(qt === "comparative" || enriched.comparator
-          ? [{ key: "comparator", label: "Compared to", value: enriched.comparator || "", isMissing: missing.includes("comparator") }]
+        ...(enriched.comparator
+          ? [{ key: "comparator", label: "Compared to", value: enriched.comparator, isMissing: false }]
           : []),
-        ...(qt === "threshold" || enriched.successMetric
-          ? [{ key: "successMetric", label: "Success looks like", value: enriched.successMetric || "", isMissing: missing.includes("successMetric") }]
+        ...(enriched.successMetric
+          ? [{ key: "successMetric", label: "Success metric", value: enriched.successMetric, isMissing: false }]
           : []),
       ]
     : [];
@@ -236,6 +258,7 @@ export default function QuestionPage() {
       currentStep="question"
       activeQuestion={activeQuestion}
       onClearQuestion={() => {
+        console.log("[CIOS State] Clear Question — resetting both activeCase and draft");
         clearQuestion();
         resetDraft();
       }}
@@ -296,12 +319,9 @@ export default function QuestionPage() {
                 What are you trying to predict?
               </label>
               <textarea
-                value={rawInput}
+                value={draft.rawInput}
                 onChange={(e) => {
-                  setRawInput(e.target.value);
-                  setOverrides({});
-                  setEditingField(null);
-                  setClarificationValue("");
+                  dispatch({ type: "SET_RAW_INPUT", value: e.target.value });
                 }}
                 placeholder="Example: Which regions will adopt first-line ARIKAYCE fastest in 12 months?"
                 rows={3}
@@ -310,7 +330,7 @@ export default function QuestionPage() {
             </div>
           </div>
 
-          {enriched && rawInput.trim() && (() => {
+          {enriched && draft.rawInput.trim() && (() => {
             const totalFields = fields.length;
             const filledFields = fields.filter((f) => !f.isMissing).length;
             const pct = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
@@ -373,7 +393,7 @@ export default function QuestionPage() {
                   {fields.map((f) => (
                     <div
                       key={f.key}
-                      onClick={() => setEditingField(f.key)}
+                      onClick={() => dispatch({ type: "SET_EDITING_FIELD", field: f.key })}
                       className={`rounded-xl border px-3 py-2.5 cursor-pointer transition hover:border-blue-500/30 ${
                         f.isMissing
                           ? "border-amber-500/30 bg-amber-500/5"
@@ -383,18 +403,18 @@ export default function QuestionPage() {
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                         {f.label}
                       </div>
-                      {editingField === f.key ? (
+                      {draft.editingField === f.key ? (
                         <input
                           autoFocus
                           defaultValue={f.value}
                           onBlur={(e) => {
                             handleOverride(f.key, e.target.value);
-                            setEditingField(null);
+                            dispatch({ type: "SET_EDITING_FIELD", field: null });
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               handleOverride(f.key, (e.target as HTMLInputElement).value);
-                              setEditingField(null);
+                              dispatch({ type: "SET_EDITING_FIELD", field: null });
                             }
                           }}
                           className="mt-1 w-full bg-transparent text-sm font-medium text-foreground border-b border-blue-400 outline-none"
@@ -434,11 +454,11 @@ export default function QuestionPage() {
                           : (FIELD_LABELS[firstMissing] || firstMissing)}
                       </div>
                       <input
-                        value={clarificationValue}
-                        onChange={(e) => setClarificationValue(e.target.value)}
+                        value={draft.clarificationValue}
+                        onChange={(e) => dispatch({ type: "SET_CLARIFICATION", value: e.target.value })}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && clarificationValue.trim()) {
-                            handleOverride(firstMissing, clarificationValue.trim());
+                          if (e.key === "Enter" && draft.clarificationValue.trim()) {
+                            handleOverride(firstMissing, draft.clarificationValue.trim());
                           }
                         }}
                         placeholder={firstMissing === "subject" ? "e.g. ARIKAYCE, new therapy, competitor launch" :
@@ -482,7 +502,7 @@ export default function QuestionPage() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!rawInput.trim() || !complete || submitting}
+                disabled={!draft.rawInput.trim() || !complete || submitting}
                 className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -491,7 +511,7 @@ export default function QuestionPage() {
                   : mode === "edit_existing" ? "Update Case" : "Continue"}
                 {!submitting && <ArrowRight className="w-4 h-4" />}
               </button>
-              {!complete && rawInput.trim() && (
+              {!complete && draft.rawInput.trim() && (
                 <span className="text-xs text-amber-400 flex items-center gap-1">
                   <Info className="w-3 h-3" />
                   {missing.length} field{missing.length !== 1 ? "s" : ""} still needed
@@ -514,11 +534,8 @@ export default function QuestionPage() {
                   type="button"
                   onClick={() => {
                     setMode("new_draft");
-                    setRawInput(q);
-                    setCaseId("");
-                    setOverrides({});
-                    setEditingField(null);
-                    setClarificationValue("");
+                    dispatch({ type: "SET_RAW_INPUT", value: q });
+                    setEditCaseId("");
                   }}
                   className="w-full rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
                 >

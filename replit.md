@@ -45,9 +45,12 @@ All pages (signals, forecast, decide) use `QuestionGate` to block content when n
 
 **Draft vs Active Case Isolation:**
 Strict separation between `draftQuestion` (the in-progress text in the textarea/parser) and `activeCase` (the previously submitted question stored in localStorage). Key mechanisms:
-- `QuestionPageFresh` wrapper in `App.tsx` forces full remount via React `key` on every `/question` navigation, ensuring all draft state initializes clean.
+- `DraftQuestion` interface + `createEmptyDraft()` factory in `lib/question-definition/types.ts` — formal type separate from `ActiveQuestion`.
+- `useReducer(draftReducer)` in `QuestionPage` manages all draft state (`rawInput`, `overrides`, `editingField`, `clarificationValue`) as a single unit. `SET_RAW_INPUT` resets overrides to enforce clean-slate on new input.
+- `QuestionPageFresh` wrapper in `App.tsx` forces full remount via React `key` on every `/question` navigation.
 - Parser (`parser.ts`) has zero references to `activeQuestion`/`activeCase` — it only operates on raw text input.
-- `Clear Question` calls both `clearQuestion()` (removes active case from localStorage + state) and `resetDraft()` (clears textarea, overrides, mode).
+- Case binding only happens inside `handleSubmit` after the draft question is complete — never before.
+- `Clear Question` calls both `clearQuestion()` (removes active case from localStorage + state) and `resetDraft()` (dispatches `RESET` to clear all draft state).
 - Console logs prefixed `[CIOS State]` and `[CIOS Draft]` are present for debugging draft vs active case subject values. Remove for production.
 
 ## External Dependencies

@@ -24,6 +24,22 @@ export interface DecisionQuestion {
   createdAt: string;
 }
 
+export interface DraftQuestion {
+  rawInput: string;
+  overrides: Record<string, string>;
+  editingField: string | null;
+  clarificationValue: string;
+}
+
+export function createEmptyDraft(): DraftQuestion {
+  return {
+    rawInput: "",
+    overrides: {},
+    editingField: null,
+    clarificationValue: "",
+  };
+}
+
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   binary: "Yes / No",
   comparative: "Comparative",
