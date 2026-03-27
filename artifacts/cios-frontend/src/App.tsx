@@ -3,6 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+import HomePage from "@/pages/home/index";
+import ForecastsPage from "@/pages/forecasts/index";
+import LibraryPage from "@/pages/library/index";
+import SystemPage from "@/pages/system/index";
 import Dashboard from "@/pages/dashboard";
 import CasesList from "@/pages/cases/index";
 import QuestionDetail from "@/pages/cases/detail";
@@ -59,13 +63,16 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/">
-        <Redirect to="/question" />
-      </Route>
+      <Route path="/" component={HomePage} />
+      <Route path="/forecasts" component={ForecastsPage} />
+      <Route path="/library" component={LibraryPage} />
+      <Route path="/system" component={SystemPage} />
+
       <Route path="/question" component={QuestionPage} />
       <Route path="/signals" component={SignalsPage} />
       <Route path="/forecast" component={ForecastPage} />
       <Route path="/decide" component={DecidePage} />
+
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
 

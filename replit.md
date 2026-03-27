@@ -34,31 +34,31 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Forecast Environment Adjustment Layer:** A bounded, post-calibration environment adjustment module (`forecast-environment.ts`) that applies safe multipliers based on 7 environmental factors: specialty actor profile, payer environment, guideline leverage, competitive landscape, access friction index (0–1), adoption phase, and forecast horizon. Prior and posterior multipliers are independently clamped to [0.8, 1.2]. Uses odds-space arithmetic so adjustments compose correctly. Case schema includes `accessFrictionIndex`, `adoptionPhase`, and `forecastHorizonMonths` fields. Existing case fields (`primarySpecialtyProfile`, `payerEnvironment`, `guidelineLeverage`, `competitorProfile`, `timeHorizon`) are mapped to typed enums via resolver functions. Pipeline: Raw Bayesian → Calibration → Environment Adjustment → Final probability. Both forecast route and recalculate service apply environment adjustments. Response includes `environmentAdjustments` object with multipliers, explanation array, and normalized config.
 - **Signal Detection Agent:** Bounded agent that scans user-provided source text, extracts candidate signals using GPT-4o, classifies them (type, direction, strength, scope, confidence), and matches them to existing forecast cases. Does NOT update posterior probability or insert signals into active cases — all outputs are candidate signals for human review. DB tables: `detection_runs`, `detected_signals`, `signal_case_suggestions`. API routes at `/api/detection-runs`, `/api/detected-signals`. Frontend at `/signal-detection` under Evidence section. Supports: multi-source input, optional therapy area/geography/specialty filters, case matching with confidence levels, manual case linking, validate/reject/defer actions. Signal types: Clinical, Access, Regulatory, KOL, Operational, Competitor, Safety, InstitutionalReadiness, ReferralBehavior.
 
-**URL Structure (case-scoped routing):**
-- `/dashboard` — Strategic overview (redirected from `/`)
-- `/cases` — Forecast case list with ForecastActionsMenu per card
-- `/case/:caseId/question` — Case detail / question view
-- `/case/:caseId/signals` — Active signals for a case
-- `/case/:caseId/pending-signals` — Pending signals review for a case
-- `/case/:caseId/scenario` — Agent-based scenario simulation
-- `/case/:caseId/ledger` — Forecast results/ledger
-- `/case/:caseId/agents/detection` — Signal detection agent (case-scoped)
-- `/case/:caseId/agents/hygiene` — Signal hygiene audit
-- `/case/:caseId/agents/refinement` — Question refinement agent (stub)
-- `/case/:caseId/agents/message` — Message impact agent (stub)
-- `/case/:caseId/discover`, `/case/:caseId/analogs`, `/case/:caseId/portfolio` — Discovery, analogs, portfolio
-- `/review` — Global signal review queue
-- `/signal-detection` — Global signal detection console
-- `/discovery` — Adopter discovery
-- `/calibration` — Calibration learning
-- `/case-library` — Forecast ledger (global)
+**Navigation & Information Architecture:**
+Top-level navigation: **Home** (`/`), **Forecasts** (`/forecasts`), **Library** (`/library`), **System** (`/system`).
+- **Home** — Hero input "What do you want to forecast?", recent forecasts, resume active forecast, good/bad question examples. Typing a question and clicking "Start Forecast" pre-fills `/question`.
+- **Forecasts** — Grid of all forecast cases with probability, confidence, brand. "New Forecast" button links to `/question`.
+- **Library** — Question templates by type (binary/comparative/ranking/threshold/timing), forecast templates, saved cases.
+- **System** — All advanced tools organized by section: Performance (Ledger, Calibration, Stability Tests), Infrastructure (Dashboard, System Map, Workbench), Intelligence (Signal Review, Signal Detection, Adopter Discovery, Event Radar, Field Intelligence, Watchlist).
+
+**4-Step Workflow (inside forecast):**
+Stepper visible at top: Define Question → Add Information → See Forecast → Decide. Steps 2-4 are gated (non-clickable) until an active question is defined. Question definition auto-creates the case — no separate "create case" step.
+
+**URL Structure:**
+- `/` — Home page
+- `/forecasts` — Forecast list
+- `/library` — Library
+- `/system` — System tools
+- `/question` — Step 1: Define Question (workflow)
+- `/signals` — Step 2: Add Information (workflow)
+- `/forecast` — Step 3: See Forecast (workflow)
+- `/decide` — Step 4: Decide (workflow)
+- `/case/:caseId/*` — Case-scoped routes (legacy, still functional)
+- All advanced tool routes unchanged (`/dashboard`, `/calibration`, `/review`, etc.)
 - API routes remain at `/api/cases/...` (unchanged)
 
-**ForecastActionsMenu:** Dropdown on each case card with 11 actions in 4 sections (Question, Signals, Forecast, Intelligence), each navigating to the appropriate case-scoped route.
-
 **UI/UX Decisions:**
-The frontend employs an "Aaru-like Decision Interface" with question-driven, decision-oriented language, replacing Bayesian/forecast jargon with accessible terminology.
-- **Dashboard:** "Your Strategic Questions" with question-first presentation, portfolio gauge, track record, and system status.
+The frontend employs an "Aaru-like Decision Interface" with question-driven, decision-oriented language, replacing Bayesian/forecast jargon with accessible terminology. One visible path, hidden complexity.
 - **Question Definition Layer (Step 1):** A pre-case classification and structuring layer. User enters free-text; system classifies question type (binary, comparative, ranking, threshold, timing), extracts fields (subject, outcome, entities, time horizon, comparator, success metric), identifies missing required fields, and progressively asks for them. Users can manually override question type via type-selector buttons and click any detected field to edit inline. Only when all required fields are filled does the "Create Forecast Case" button activate. Utilities in `lib/question-definition/` (classifier, parser, missing-fields, interpreter, case-mapper). Duplicate signal prevention on both frontend (exact match) and API (409 for exact ID or >85% similarity).
 - **Forecast Page (Step 3):** Redesigned with dark panel theme (`bg-[#0A1736]`, `rounded-3xl`, `border-white/10`). Four tabs: (1) **Current Forecast** — ProbabilityGauge circle + prior/shift display + confidence badge, InfoCards (Most Sensitive Driver, Total Upward/Downward Pressure), System Interpretation panel, Recommended Action with Next Actions/Monitor/Risk/Question Refinements; (2) **Scenario Planning** — interactive Base/Upside/Downside scenario cards with driver changes, trigger signals, recommended actions + Adoption Segments panel (4 archetype segments with timing badges and blocker tags); (3) **Driver Impact** — structured table (Driver, Direction, Strength, Probability Impact, What to Watch) + Sensitivity Summary + Segment Interpretation; (4) **Case Library** — clickable case cards that set active question and reload forecast. Scenarios use server `scenarioSimulation` data when available, falling back to client-derived scenarios. All tabs have proper loading/error states.
 - **Signals Page:** "Evidence Register" with an "Evidence weight" column.

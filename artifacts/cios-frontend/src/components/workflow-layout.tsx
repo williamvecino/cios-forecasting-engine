@@ -1,9 +1,7 @@
-import { useState } from "react";
 import type { ActiveQuestion, WorkflowStep } from "../lib/workflow";
+import TopNav from "./top-nav";
+import ForecastStepper from "./forecast-stepper";
 import ActiveQuestionBanner from "./active-question-banner";
-import AdvancedDrawer from "./advanced-drawer";
-import WorkflowSidebar from "./workflow-sidebar";
-import MockCaseTour from "./mock-case/mock-case-tour";
 
 interface Props {
   currentStep: WorkflowStep;
@@ -18,38 +16,20 @@ export default function WorkflowLayout({
   onClearQuestion,
   children,
 }: Props) {
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [mockCaseOpen, setMockCaseOpen] = useState(false);
-
   return (
-    <div className="min-h-screen bg-background p-6 text-foreground">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-background text-foreground">
+      <TopNav />
+
+      <div className="mx-auto max-w-7xl px-6 py-6 space-y-5">
         <ActiveQuestionBanner
           activeQuestion={activeQuestion}
           onClear={onClearQuestion}
         />
 
-        <div className="flex flex-col gap-6 lg:flex-row">
-          <WorkflowSidebar
-            currentStep={currentStep}
-            hasActiveQuestion={!!activeQuestion}
-            onToggleAdvanced={() => setAdvancedOpen(true)}
-            onOpenMockCase={() => setMockCaseOpen(true)}
-          />
+        <ForecastStepper hasActiveQuestion={!!activeQuestion} />
 
-          <main className="flex-1">{children}</main>
-        </div>
+        <main>{children}</main>
       </div>
-
-      <AdvancedDrawer
-        open={advancedOpen}
-        onClose={() => setAdvancedOpen(false)}
-      />
-
-      <MockCaseTour
-        open={mockCaseOpen}
-        onClose={() => setMockCaseOpen(false)}
-      />
     </div>
   );
 }
