@@ -22,8 +22,10 @@ interface SegmentGroup {
 }
 
 interface BarrierItem {
-  level: string;
+  readiness: string;
+  barrier: string;
   detail: string;
+  level?: string;
 }
 
 interface DecideData {
@@ -237,11 +239,11 @@ function AdoptionSegmentationPanel({ data }: { data: DecideData["adoption_segmen
 }
 
 function BarrierDiagnosisPanel({ data }: { data: DecideData["barrier_diagnosis"] }) {
-  const barriers = [
-    { key: "evidence", label: "Evidence Barrier", data: data.evidence },
-    { key: "access", label: "Access Barrier", data: data.access },
-    { key: "workflow", label: "Workflow Barrier", data: data.workflow },
-    { key: "competitive", label: "Competitive Barrier", data: data.competitive },
+  const domains = [
+    { key: "evidence", label: "Evidence", data: data.evidence },
+    { key: "access", label: "Access", data: data.access },
+    { key: "workflow", label: "Workflow", data: data.workflow },
+    { key: "competitive", label: "Competitive", data: data.competitive },
   ];
 
   return (
@@ -251,17 +253,40 @@ function BarrierDiagnosisPanel({ data }: { data: DecideData["barrier_diagnosis"]
         <div className="text-sm font-semibold text-foreground">Barrier Diagnosis</div>
       </div>
       <div className="space-y-3">
-        {barriers.map((b) => (
-          <div key={b.key} className="rounded-xl border border-border/50 bg-muted/5 p-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="text-xs font-semibold text-foreground/90">{b.label}</div>
-              <LevelBadge level={b.data.level} />
+        {domains.map((d) => {
+          const readiness = d.data.readiness || d.data.level || "—";
+          const barrier = d.data.barrier || (d.data.level ? ({ High: "Low", Moderate: "Moderate", Low: "High" }[d.data.level] || "—") : "—");
+          return (
+            <div key={d.key} className="rounded-xl border border-border/50 bg-muted/5 p-3">
+              <div className="text-xs font-semibold text-foreground/90 mb-2">{d.label}</div>
+              <div className="flex items-center gap-3 mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">Readiness</span>
+                  <LevelBadge level={readiness} />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">Barrier</span>
+                  <BarrierBadge level={barrier} />
+                </div>
+              </div>
+              <div className="text-[11px] text-muted-foreground">{d.data.detail}</div>
             </div>
-            <div className="text-[11px] text-muted-foreground">{b.data.detail}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
+  );
+}
+
+function BarrierBadge({ level }: { level: string }) {
+  const color =
+    level === "High" ? "border-red-500/40 text-red-400 bg-red-500/10" :
+    level === "Low" ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" :
+    "border-amber-500/40 text-amber-400 bg-amber-500/10";
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${color}`}>
+      {level}
+    </span>
   );
 }
 

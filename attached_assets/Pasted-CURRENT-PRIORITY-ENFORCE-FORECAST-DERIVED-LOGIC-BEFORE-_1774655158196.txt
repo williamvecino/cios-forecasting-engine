@@ -1,0 +1,317 @@
+CURRENT PRIORITY: ENFORCE FORECAST-DERIVED LOGIC BEFORE ADDING MORE FEATURES
+
+OBJECTIVE
+
+Stop building new decision features until the Decide page is causally derived from the forecast.
+
+Right now the system can generate plausible-looking outputs, but barriers and actions are not reliably traceable to gates/signals/forecast state.
+
+That must be fixed first.
+
+==================================================
+WHAT TO BUILD NOW
+==================================================
+
+Build a new integrity layer:
+
+Decision Derivation Enforcement Layer
+
+Purpose:
+Guarantee that every item on the Decide page is derived from the forecast, not generated independently or from templates.
+
+==================================================
+CORE RULE
+==================================================
+
+Every Decide-page item must follow this chain:
+
+Signal
+→ Event Gate
+→ Forecast Constraint
+→ Barrier / Action / Segment Output
+
+If any output skips this chain, block it from rendering.
+
+==================================================
+REQUIRED DATA MODEL
+==================================================
+
+Add a DecisionItem model with these required fields:
+
+- decision_id
+- decision_type
+- title
+- rationale
+
+- source_gate_id
+- source_signal_id
+- forecast_dependency
+
+- severity_or_priority
+- derived_from_forecast (true/false)
+
+No decision item should exist without source_gate_id.
+
+Suggested types:
+- barrier
+- action
+- segment_assignment
+- trigger_event
+- monitoring_item
+
+==================================================
+DERIVATION RULES
+==================================================
+
+1. Every barrier must link to a gate
+Example:
+Operational Readiness = weak
+→ Workflow barrier
+
+2. Every action must link to a weak/moderate gate
+Example:
+Reimbursement Readiness = weak
+→ Early payer engagement
+
+3. Every segment assignment must link to gate profile
+Example:
+Strong infrastructure / high familiarity
+→ Early adopter
+
+4. Every trigger event must link to an unresolved gate
+Example:
+Coverage approval pending
+→ Trigger event = policy change
+
+==================================================
+BLOCKING RULES
+==================================================
+
+Do not render a Decide-page item if:
+
+- source_gate_id is missing
+- source_signal_id is missing when required
+- forecast_dependency is missing
+- derived_from_forecast is false
+
+==================================================
+CONTRADICTION CHECKS
+==================================================
+
+Add a decision integrity validator before rendering the Decide page.
+
+Validator rules:
+
+1. If gate status = STRONG
+Then matching barrier severity cannot be HIGH
+
+2. If gate status = WEAK
+Then at least one barrier or action must exist for that gate
+
+3. If final forecast is constrained by a gate
+Then Decide page must include at least one output tied to that gate
+
+4. If Brand Outlook is strong but Final Forecast is low
+Then Decide page should emphasize execution barriers, not evidence barriers
+
+5. Positive evidence cannot render as "Evidence Barrier = High"
+
+==================================================
+UI REQUIREMENTS
+==================================================
+
+On the Decide page, every item should visibly show derivation.
+
+Add a small label under each item:
+
+Derived from:
+[Gate Name] → [Signal Title]
+
+Example:
+Derived from:
+Operational Readiness → Infusion workflow burden
+
+For barriers, show:
+- Barrier name
+- Severity
+- Derived from gate
+- Why it matters
+
+For actions, show:
+- Action
+- Priority
+- Derived from gate
+- Expected forecast impact
+
+==================================================
+DECIDE PAGE SECTIONS
+==================================================
+
+Keep these sections, but make them forecast-derived:
+
+1. Adoption Segmentation
+2. Barrier Diagnosis
+3. Readiness Timeline
+4. Competitive Risk
+5. Growth Feasibility
+
+For each section:
+do not generate generic content
+only populate from valid gate-linked logic
+
+==================================================
+SECTION-SPECIFIC DERIVATION RULES
+==================================================
+
+ADOPTION SEGMENTATION
+Segment assignments must be based on gate profiles.
+
+Examples:
+- strong familiarity + strong access + strong workflow = early adopter
+- moderate familiarity + moderate access = persuadable
+- weak workflow + weak access = late mover
+- not clinically relevant / no capability = resistant
+
+BARRIER DIAGNOSIS
+Barrier severity must come from gate weakness, not signal positivity alone.
+
+READINESS TIMELINE
+Timeline must come from:
+- current gate strength
+- unresolved triggers
+- time-horizon feasibility gate
+
+COMPETITIVE RISK
+Must be tied to:
+- competitor signal family
+- gate-level vulnerability
+Do not render generic "monitor competitor" text without forecast linkage.
+
+GROWTH FEASIBILITY
+Must be tied to:
+- final forecast
+- segment size
+- access and operational gates
+Not generic optimism/pessimism.
+
+==================================================
+ADD A FORECAST MEANING PANEL
+==================================================
+
+In Step 3, under Final Forecast, add:
+
+Forecast Meaning
+
+Fields:
+1. Interpretation
+2. Primary constraint
+3. What would change the forecast
+
+Logic:
+- Interpretation = plain-language translation of Brand Outlook + weakest gates + Final Forecast
+- Primary constraint = weakest major gate
+- What would change the forecast = strongest unresolved gate or signal family
+
+Example:
+"The therapy shows strong clinical momentum, but reimbursement and prescriber readiness barriers make achieving the target within 12 months unlikely."
+
+==================================================
+ARIKAYCE / ENHERTU VALIDATION RULE
+==================================================
+
+Use the existing real cases to verify causality.
+
+Required test:
+If Evidence / Regulatory gate is strong,
+the system must not render:
+Evidence Barrier = High
+
+Required test:
+If Operational Readiness is the weakest gate,
+the top Decide-page output must reference operational constraints.
+
+Required test:
+If Reimbursement Readiness is weak,
+at least one action must target payer/access.
+
+==================================================
+FILES TO BUILD OR UPDATE
+==================================================
+
+Create or update modules such as:
+
+- lib/forecasting/decision-derivation.ts
+- lib/forecasting/decision-integrity-validator.ts
+- lib/forecasting/segment-derivation.ts
+- lib/forecasting/barrier-derivation.ts
+- lib/forecasting/readiness-derivation.ts
+- lib/forecasting/action-derivation.ts
+
+UI:
+- components/decide/DerivedByTag.tsx
+- components/decide/DecisionIntegrityWarning.tsx
+- components/forecast/ForecastMeaningPanel.tsx
+
+==================================================
+TESTS TO ADD
+==================================================
+
+Add automated tests:
+
+1. Barrier must not contradict gate polarity
+2. Decision items must have source_gate_id
+3. Weakest gate must generate at least one action
+4. Decide page items must change if weakest gate changes
+5. Strong evidence cannot produce a high evidence barrier
+6. Forecast Meaning must reflect weakest gate, not generic summary
+
+Save outputs to:
+
+/tests/decision_derivation_results.json
+/tests/decision_integrity_report.json
+/tests/forecast_meaning_results.json
+
+==================================================
+IMPLEMENTATION ORDER
+==================================================
+
+PHASE 1
+- Add DecisionItem derivation model
+- Add source_gate_id / forecast_dependency enforcement
+- Add contradiction validator
+- Block invalid Decide-page rendering
+
+PHASE 2
+- Rebuild Barrier Diagnosis from gates
+- Rebuild Actions from weak/moderate gates
+- Rebuild Segmentation from gate profiles
+
+PHASE 3
+- Add Forecast Meaning panel
+- Add derivation tags in UI
+- Run validation on current oncology and ARIKAYCE cases
+
+==================================================
+DO NOT DO YET
+==================================================
+
+Do not add:
+- new major scenario features
+- new simulation layers
+- new automation layers
+- RFP ingestion
+- more generic recommendation templates
+
+Fix causal integrity first.
+
+==================================================
+SUCCESS STANDARD
+==================================================
+
+This task is successful only if:
+
+1. Every Decide-page item is traceable to a gate and signal
+2. Contradictory barrier labels are impossible
+3. Changing the weakest gate changes the Decide page
+4. The Forecast Meaning panel explains the gap between Brand Outlook and Final Forecast
+5. The decision layer behaves like a consequence of the forecast, not a separate generator

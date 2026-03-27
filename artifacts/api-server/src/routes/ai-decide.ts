@@ -43,6 +43,15 @@ Consider:
 
 Do NOT fabricate specific data. Use research findings when available, and provide analytical assessments based on the product type and market context.
 
+CRITICAL POLARITY RULE for barrier_diagnosis:
+Each domain has TWO separate variables: "readiness" and "barrier". They are inversely correlated:
+- If evidence SUPPORTS adoption → readiness = High, barrier = Low
+- If evidence IMPEDES adoption → readiness = Low, barrier = High
+- If access is easy → readiness = High, barrier = Low
+- If access is restricted → readiness = Low, barrier = High
+A positive adoption signal must NEVER produce a High barrier. A negative signal must NEVER produce a High readiness.
+The "detail" field must be consistent with both readiness and barrier levels.
+
 Return ONLY valid JSON with this structure:
 
 {
@@ -53,10 +62,10 @@ Return ONLY valid JSON with this structure:
     "resistant": { "segments": ["segment"], "reason": "Why resistant" }
   },
   "barrier_diagnosis": {
-    "evidence": { "level": "Low|Moderate|High", "detail": "Specific assessment for this product" },
-    "access": { "level": "Low|Moderate|High", "detail": "Specific assessment" },
-    "workflow": { "level": "Low|Moderate|High", "detail": "Specific assessment" },
-    "competitive": { "level": "Low|Moderate|High", "detail": "Specific assessment" }
+    "evidence": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment for this product" },
+    "access": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment" },
+    "workflow": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment" },
+    "competitive": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment" }
   },
   "readiness_timeline": {
     "near_term_readiness": "Low|Moderate|High",
@@ -115,6 +124,33 @@ Evaluate this specific product and its market. Who are the real segments? What a
     }
 
     const parsed = JSON.parse(content);
+
+    if (parsed.barrier_diagnosis) {
+      const validLevels = new Set(["High", "Moderate", "Low"]);
+      const inverse: Record<string, string> = { High: "Low", Low: "High", Moderate: "Moderate" };
+      const allowedPairs = new Set(["High:Low", "Low:High", "Moderate:Moderate", "Moderate:Low", "Low:Moderate", "High:Moderate", "Moderate:High"]);
+      const forbiddenPairs = new Set(["High:High", "Low:Low"]);
+
+      for (const domain of Object.keys(parsed.barrier_diagnosis)) {
+        const item = parsed.barrier_diagnosis[domain];
+        if (!item) continue;
+
+        if (item.level && !item.readiness) {
+          item.readiness = item.level;
+          item.barrier = inverse[item.level] || "Moderate";
+          delete item.level;
+        }
+
+        if (!validLevels.has(item.readiness)) item.readiness = "Moderate";
+        if (!validLevels.has(item.barrier)) item.barrier = inverse[item.readiness] || "Moderate";
+
+        const pair = `${item.readiness}:${item.barrier}`;
+        if (forbiddenPairs.has(pair)) {
+          item.barrier = inverse[item.readiness];
+        }
+      }
+    }
+
     res.json(parsed);
   } catch (err: any) {
     console.error("AI decide generation error:", err);
