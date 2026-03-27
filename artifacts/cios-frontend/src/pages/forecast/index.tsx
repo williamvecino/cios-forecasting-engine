@@ -515,9 +515,6 @@ function ReadinessItem({ label, value, needed, isBoolean }: { label: string; val
 function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
 
-  const readiness = getSignalReadiness(caseId);
-  const evaluation = evaluateReadiness(readiness);
-
   if (!activeQuestion || !caseId) {
     return (
       <>
@@ -528,15 +525,6 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
             <InfoCard title="Timing" value="—" body="When the shift is likely to occur." />
           </div>
         </div>
-        <BottomLinks />
-      </>
-    );
-  }
-
-  if (!evaluation.ready) {
-    return (
-      <>
-        <ReadinessGate readiness={readiness} evaluation={evaluation} />
         <BottomLinks />
       </>
     );
