@@ -223,7 +223,7 @@ function extractOutcome(text: string): string | undefined {
   if (text.includes("demand")) return "demand";
   if (text.includes("revenue")) return "revenue";
   if (text.includes("profit")) return "profitability";
-  return "outcome";
+  return undefined;
 }
 
 function extractComparator(text: string): string | undefined {

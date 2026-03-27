@@ -1,0 +1,130 @@
+CRITICAL BUG TO FIX
+
+The Define Question engine is stuck inheriting context from the currently active Mallia case.
+
+Current problem:
+When a new question is entered, the parser/interpreter is still reading from active case state, so subject/context values persist from the previous case. This causes context bleed and makes Step 1 non-independent.
+
+This must be fixed at the state architecture level.
+
+REQUIRED CORRECTION
+
+Separate these into different state objects:
+
+1. draftQuestionState
+2. activeCaseState
+
+RULES
+
+1. Step 1 Define Question must always operate on draftQuestionState only.
+2. draftQuestionState must initialize clean with no inherited subject, outcome, groups, therapy, disease, or case-linked context.
+3. The parser must never fall back to activeCase values when extraction fails.
+4. If a field is not extracted, leave it undefined and ask for clarification.
+5. Only after the draft question is complete may the system:
+   - create a new case from the draft question
+   OR
+   - explicitly replace/update the current case if the user confirms.
+
+DO NOT auto-bind a new draft question to the existing active case before completion.
+
+STATE REQUIREMENTS
+
+Create or verify separate stores/slices for:
+- draftQuestion
+- activeCase
+- forecastWorkspace
+
+DRAFT QUESTION RESET REQUIREMENTS
+
+Implement a true resetDraftQuestion() that clears:
+- raw input
+- parsed subject
+- parsed outcome
+- parsed groups
+- parsed time horizon
+- interpreted question
+- missing fields
+- completeness status
+- question type
+- any inherited therapy/disease metadata
+
+Clear Question must call resetDraftQuestion(), not just clear the input text.
+
+PARSER RULE
+
+If parser cannot identify subject or context, return undefined.
+Do not use activeCase.subject, activeCase.therapy, or any previous-case fallback.
+
+HYDRATION RULE
+
+If the route contains an existing case ID, the Define Question screen may display:
+- currently active case summary
+but the editable draft question must still be independent unless the user explicitly chooses “edit this case question”.
+
+Add an explicit mode flag:
+- mode = "new_draft"
+- mode = "edit_existing_case"
+
+Default must be:
+mode = "new_draft"
+
+CASE CREATION RULE
+
+On Continue from Step 1:
+- if mode = new_draft, create a new case from draftQuestion
+- do not mutate the active case automatically
+- only switch active case after new case creation succeeds
+
+DEBUGGING TASKS
+
+1. Trace all places where subject/therapy/context are read during Step 1
+2. Identify any fallback to activeCase or cached forecast context
+3. Remove all fallback inheritance in Step 1
+4. Add console/debug logs temporarily showing:
+   - draftQuestion state
+   - activeCase state
+   - parser extracted fields
+   - any fallback sources used
+
+TESTS TO ADD
+
+Add tests for state isolation:
+
+Test 1:
+Given active case subject = Mallia
+When user types "Will ARIKAYCE gain first-line adoption in 12 months?"
+Then parsed subject must be ARIKAYCE, not Mallia
+
+Test 2:
+Given active case subject = Mallia
+When user types a vague question with no subject
+Then subject must remain undefined
+And the system must ask for clarification
+Not fill Mallia automatically
+
+Test 3:
+When Clear Question is clicked
+Then all draftQuestion fields reset to empty/undefined
+And no previous case values remain in the interpretation panel
+
+Test 4:
+When a completed new question is continued
+Then a new case is created from the draft
+And existing case state is not mutated unless explicitly in edit mode
+
+FILES TO REVIEW
+
+Review and fix any coupling across:
+- question-definition store/state
+- active case store/state
+- parser fallback logic
+- route hydration logic
+- Continue / Clear Question handlers
+
+SUCCESS CONDITION
+
+The bug is fixed only if:
+- Step 1 can start fresh even when a Mallia case is active
+- no previous case subject bleeds into new questions
+- vague questions remain incomplete instead of inheriting prior context
+- new questions create clean new cases

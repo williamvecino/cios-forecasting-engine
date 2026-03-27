@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { useCreateCase } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
@@ -18,6 +18,8 @@ import {
   Sparkles,
   ArrowRight,
   Info,
+  PenLine,
+  Plus,
 } from "lucide-react";
 
 const EXAMPLE_QUESTIONS = [
@@ -36,34 +38,63 @@ const QUESTION_TYPES = [
   { value: "timing", label: "Timing" },
 ];
 
+type DraftMode = "new_draft" | "edit_existing";
+
 export default function QuestionPage() {
   const [, navigate] = useLocation();
   const { activeQuestion, createQuestion, updateQuestion, clearQuestion } = useActiveQuestion();
   const createCaseMutation = useCreateCase();
 
-  const isEditing = !!activeQuestion;
+  const [mode, setMode] = useState<DraftMode>("new_draft");
 
-  const draft = typeof window !== "undefined" ? localStorage.getItem("cios.questionDraft") || "" : "";
-  const [rawInput, setRawInput] = useState(activeQuestion?.text ?? draft);
-  const [caseId, setCaseId] = useState(activeQuestion?.caseId ?? "");
-  const [synced, setSynced] = useState(false);
+  const [rawInput, setRawInput] = useState("");
+  const [caseId, setCaseId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [editingField, setEditingField] = useState<string | null>(null);
   const [clarificationValue, setClarificationValue] = useState("");
 
+  const lastPathRef = useRef("/question");
+  const [currentLocation] = useLocation();
+
+  useEffect(() => {
+    if (currentLocation === "/question" && lastPathRef.current !== "/question") {
+      setRawInput("");
+      setCaseId("");
+      setOverrides({});
+      setEditingField(null);
+      setClarificationValue("");
+      setSubmitError(null);
+      setMode("new_draft");
+    }
+    lastPathRef.current = currentLocation;
+  }, [currentLocation]);
+
   useEffect(() => {
     localStorage.removeItem("cios.questionDraft");
   }, []);
 
-  useEffect(() => {
-    if (activeQuestion && !synced) {
-      setRawInput(activeQuestion.text ?? "");
-      setCaseId(activeQuestion.caseId ?? "");
-      setSynced(true);
-    }
-  }, [activeQuestion, synced]);
+  function resetDraft() {
+    setRawInput("");
+    setCaseId("");
+    setOverrides({});
+    setEditingField(null);
+    setClarificationValue("");
+    setSubmitError(null);
+    setMode("new_draft");
+  }
+
+  function enterEditMode() {
+    if (!activeQuestion) return;
+    setMode("edit_existing");
+    setRawInput(activeQuestion.text ?? "");
+    setCaseId(activeQuestion.caseId ?? "");
+    setOverrides({});
+    setEditingField(null);
+    setClarificationValue("");
+    setSubmitError(null);
+  }
 
   const parsed = useMemo(() => {
     if (!rawInput.trim()) return null;
@@ -124,62 +155,66 @@ export default function QuestionPage() {
     if (!rawInput.trim() || submitting || !complete) return;
     setSubmitError(null);
 
-    let resolvedCaseId = caseId.trim();
+    if (mode === "edit_existing" && caseId) {
+      const payload = {
+        text: interpretedQuestion || rawInput.trim(),
+        caseId,
+        timeHorizon: enriched?.timeHorizon || "12 months",
+        questionType: enriched?.questionType || "binary",
+        entities: enriched?.populationOrEntities || [],
+        subject: enriched?.subject || undefined,
+        outcome: enriched?.outcome || undefined,
+      };
+      updateQuestion(payload);
+      navigate("/signals");
+      return;
+    }
 
-    if (!resolvedCaseId) {
-      setSubmitting(true);
-      try {
-        const dq: DecisionQuestion = {
-          id: `DQ-${Date.now()}`,
-          rawInput: rawInput.trim(),
-          questionType: enriched?.questionType || "binary",
-          subject: enriched?.subject || "",
-          outcome: enriched?.outcome || "",
-          populationOrEntities: enriched?.populationOrEntities || [],
-          comparator: enriched?.comparator,
-          timeHorizon: enriched?.timeHorizon || "12 months",
-          successMetric: enriched?.successMetric,
-          missingFields: [],
-          isComplete: true,
-          interpretedQuestion,
-          createdAt: new Date().toISOString(),
-        };
-        const caseInput = mapDecisionQuestionToCaseInput(dq);
-        const created = await createCaseMutation.mutateAsync({
-          data: caseInput as any,
-        });
-        resolvedCaseId = (created as any).caseId || (created as any).id;
-        if (!resolvedCaseId) {
-          setSubmitError("Case was created but returned no identifier.");
-          setSubmitting(false);
-          return;
-        }
-      } catch (err) {
-        console.error("Failed to create case:", err);
-        setSubmitError("Unable to create a forecast case. Check your connection and try again.");
+    setSubmitting(true);
+    try {
+      const dq: DecisionQuestion = {
+        id: `DQ-${Date.now()}`,
+        rawInput: rawInput.trim(),
+        questionType: enriched?.questionType || "binary",
+        subject: enriched?.subject || "",
+        outcome: enriched?.outcome || "",
+        populationOrEntities: enriched?.populationOrEntities || [],
+        comparator: enriched?.comparator,
+        timeHorizon: enriched?.timeHorizon || "12 months",
+        successMetric: enriched?.successMetric,
+        missingFields: [],
+        isComplete: true,
+        interpretedQuestion,
+        createdAt: new Date().toISOString(),
+      };
+      const caseInput = mapDecisionQuestionToCaseInput(dq);
+      const created = await createCaseMutation.mutateAsync({
+        data: caseInput as any,
+      });
+      const newCaseId = (created as any).caseId || (created as any).id;
+      if (!newCaseId) {
+        setSubmitError("Case was created but returned no identifier.");
         setSubmitting(false);
         return;
       }
+
+      const payload = {
+        text: interpretedQuestion || rawInput.trim(),
+        caseId: newCaseId,
+        timeHorizon: enriched?.timeHorizon || "12 months",
+        questionType: enriched?.questionType || "binary",
+        entities: enriched?.populationOrEntities || [],
+        subject: enriched?.subject || undefined,
+        outcome: enriched?.outcome || undefined,
+      };
+      createQuestion(payload);
+      navigate("/signals");
+    } catch (err) {
+      console.error("Failed to create case:", err);
+      setSubmitError("Unable to create a forecast case. Check your connection and try again.");
+    } finally {
       setSubmitting(false);
     }
-
-    const payload = {
-      text: interpretedQuestion || rawInput.trim(),
-      caseId: resolvedCaseId,
-      timeHorizon: enriched?.timeHorizon || "12 months",
-      questionType: enriched?.questionType || "binary",
-      entities: enriched?.populationOrEntities || [],
-      subject: enriched?.subject || undefined,
-      outcome: enriched?.outcome || undefined,
-    };
-
-    if (isEditing) {
-      updateQuestion(payload);
-    } else {
-      createQuestion(payload);
-    }
-
-    navigate("/signals");
   }
 
   const qt = enriched?.questionType || "binary";
@@ -208,16 +243,49 @@ export default function QuestionPage() {
       activeQuestion={activeQuestion}
       onClearQuestion={() => {
         clearQuestion();
-        setRawInput("");
-        setCaseId("");
-        setOverrides({});
-        setSynced(false);
-        setEditingField(null);
-        setClarificationValue("");
+        resetDraft();
       }}
     >
       <div className="flex flex-col gap-6 lg:flex-row">
         <section className="flex-1 space-y-5">
+          {activeQuestion && mode === "new_draft" && (
+            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-blue-200/80">
+                  Active case: <span className="font-medium text-foreground">{activeQuestion.text}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={enterEditMode}
+                    className="rounded-lg border border-blue-500/30 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-500/10 inline-flex items-center gap-1.5"
+                  >
+                    <PenLine className="w-3 h-3" />
+                    Edit this case
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mode === "edit_existing" && (
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-amber-200/80">
+                  Editing existing case — changes will update the current case.
+                </div>
+                <button
+                  type="button"
+                  onClick={resetDraft}
+                  className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/10 inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-3 h-3" />
+                  New question instead
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Step 1
@@ -426,7 +494,7 @@ export default function QuestionPage() {
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 {submitting
                   ? "Creating case..."
-                  : "Continue"}
+                  : mode === "edit_existing" ? "Update Case" : "Continue"}
                 {!submitting && <ArrowRight className="w-4 h-4" />}
               </button>
               {!complete && rawInput.trim() && (
@@ -451,7 +519,9 @@ export default function QuestionPage() {
                   key={q}
                   type="button"
                   onClick={() => {
+                    setMode("new_draft");
                     setRawInput(q);
+                    setCaseId("");
                     setOverrides({});
                     setEditingField(null);
                     setClarificationValue("");
@@ -468,4 +538,3 @@ export default function QuestionPage() {
     </WorkflowLayout>
   );
 }
-
