@@ -41,6 +41,25 @@ type Impact = "High" | "Medium" | "Low";
 type Category = "evidence" | "access" | "competition" | "guideline" | "timing" | "adoption";
 
 type SignalClass = "observed" | "derived" | "uncertainty";
+type SignalFamily = "brand_clinical_regulatory" | "payer_access" | "competitor" | "patient_demand" | "provider_behavioral" | "system_operational";
+
+const ALL_SIGNAL_FAMILIES: SignalFamily[] = [
+  "brand_clinical_regulatory",
+  "payer_access",
+  "competitor",
+  "patient_demand",
+  "provider_behavioral",
+  "system_operational",
+];
+
+const SIGNAL_FAMILY_LABELS: Record<SignalFamily, string> = {
+  brand_clinical_regulatory: "Brand / Clinical / Regulatory",
+  payer_access: "Payer / Access",
+  competitor: "Competitor",
+  patient_demand: "Patient / Demand",
+  provider_behavioral: "Provider / Behavioral",
+  system_operational: "System / Operational",
+};
 
 interface Signal {
   id: string;
@@ -54,6 +73,7 @@ interface Signal {
   source: "system" | "user";
   accepted: boolean;
   signal_class?: SignalClass;
+  signal_family?: SignalFamily;
   source_url?: string | null;
   source_type?: string;
   observed_date?: string | null;
@@ -330,7 +350,7 @@ export default function SignalsPage() {
   const VALID_STRENGTHS = new Set(["High", "Medium", "Low"]);
   const VALID_RELIABILITIES = new Set(["Confirmed", "Probable", "Speculative"]);
 
-  const contextKey = `${subject}|${questionText}|${outcome}|${questionType}`;
+  const contextKey = `${subject}|${questionText}|${outcome}|${questionType}|${entities.join(",")}|${timeHorizon}`;
 
   useEffect(() => {
     if (!subject || !questionText) return;
@@ -370,12 +390,14 @@ export default function SignalsPage() {
 
         if (data.signals && Array.isArray(data.signals)) {
           const VALID_SIGNAL_CLASSES = new Set(["observed", "derived", "uncertainty"]);
+          const VALID_SIGNAL_FAMILIES = new Set(ALL_SIGNAL_FAMILIES);
           const mapped: Signal[] = data.signals.map((s: any, i: number) => {
             const category = VALID_CATEGORIES.has(s.category) ? s.category : "evidence";
             const direction = VALID_DIRECTIONS.has(s.direction) ? s.direction : "neutral";
             const strength = VALID_STRENGTHS.has(s.strength) ? s.strength : "Medium";
             const reliability = VALID_RELIABILITIES.has(s.reliability) ? s.reliability : "Probable";
             const signal_class = VALID_SIGNAL_CLASSES.has(s.signal_class) ? s.signal_class as SignalClass : "derived";
+            const signal_family = VALID_SIGNAL_FAMILIES.has(s.signal_family) ? s.signal_family as SignalFamily : "brand_clinical_regulatory";
             return {
               id: `ai-${i + 1}`,
               text: s.text,
@@ -388,6 +410,7 @@ export default function SignalsPage() {
               source: "system" as const,
               accepted: false,
               signal_class,
+              signal_family,
               source_url: s.source_url || null,
               source_type: s.source_type || undefined,
               observed_date: s.observed_date || null,
@@ -611,6 +634,51 @@ export default function SignalsPage() {
   const pendingSupporting = supportingSignals.filter((s) => !s.accepted).length;
   const effectiveShowSupporting = showSupporting || pendingSupporting > 0;
 
+  const coverageByFamily = useMemo(() => {
+    const counts: Record<SignalFamily, number> = {
+      brand_clinical_regulatory: 0,
+      payer_access: 0,
+      competitor: 0,
+      patient_demand: 0,
+      provider_behavioral: 0,
+      system_operational: 0,
+    };
+    allSignals.forEach((s) => {
+      if (s.signal_family && counts[s.signal_family] !== undefined) {
+        counts[s.signal_family]++;
+      }
+    });
+    return counts;
+  }, [allSignals]);
+
+  const missingFamilies = useMemo(() => {
+    return ALL_SIGNAL_FAMILIES.filter((f) => coverageByFamily[f] === 0);
+  }, [coverageByFamily]);
+
+  const coveredFamilies = useMemo(() => {
+    return ALL_SIGNAL_FAMILIES.filter((f) => coverageByFamily[f] > 0);
+  }, [coverageByFamily]);
+
+  const supportingByFamily = useMemo(() => {
+    const grouped: Record<SignalFamily, Signal[]> = {
+      brand_clinical_regulatory: [],
+      payer_access: [],
+      competitor: [],
+      patient_demand: [],
+      provider_behavioral: [],
+      system_operational: [],
+    };
+    const ungrouped: Signal[] = [];
+    supportingSignals.forEach((s) => {
+      if (s.signal_family && grouped[s.signal_family]) {
+        grouped[s.signal_family].push(s);
+      } else {
+        ungrouped.push(s);
+      }
+    });
+    return { grouped, ungrouped };
+  }, [supportingSignals]);
+
   useEffect(() => {
     const confirmedDrivers = primaryDrivers.filter((s) => s.accepted).length;
     const confirmedSupporting = supportingSignals.filter((s) => s.accepted).length;
@@ -623,10 +691,13 @@ export default function SignalsPage() {
       questionType: questionType || "binary",
       entities: entities,
       updatedAt: Date.now(),
+      coveredFamilies: coveredFamilies.length,
+      totalFamilies: ALL_SIGNAL_FAMILIES.length,
+      missingFamilies: missingFamilies.map((f) => SIGNAL_FAMILY_LABELS[f]),
     };
     const caseKey = activeQuestion?.caseId || "unknown";
     localStorage.setItem(`cios.signalReadiness:${caseKey}`, JSON.stringify(readiness));
-  }, [allSignals, primaryDrivers, supportingSignals, questionType, entities]);
+  }, [allSignals, primaryDrivers, supportingSignals, questionType, entities, coveredFamilies, missingFamilies]);
 
   return (
     <WorkflowLayout
@@ -776,6 +847,46 @@ export default function SignalsPage() {
             return null;
           })()}
 
+          {!aiLoading && allSignals.length > 0 && (
+            <div className="rounded-2xl border border-slate-500/20 bg-gradient-to-r from-slate-500/5 via-card to-card p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-slate-400" />
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Signal Coverage Summary</h2>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-300 font-medium">
+                  {coveredFamilies.length}/{ALL_SIGNAL_FAMILIES.length} families
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                {ALL_SIGNAL_FAMILIES.map((fam) => {
+                  const count = coverageByFamily[fam];
+                  const isCovered = count > 0;
+                  return (
+                    <div key={fam} className={`rounded-lg border px-3 py-2 text-xs ${isCovered ? "border-emerald-500/20 bg-emerald-500/5" : "border-amber-500/20 bg-amber-500/5"}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-medium ${isCovered ? "text-emerald-300" : "text-amber-300"}`}>
+                          {SIGNAL_FAMILY_LABELS[fam]}
+                        </span>
+                        <span className={`text-[10px] font-bold ${isCovered ? "text-emerald-400" : "text-amber-400"}`}>
+                          {isCovered ? `${count} signal${count > 1 ? "s" : ""}` : "MISSING"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {missingFamilies.length > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                  <div className="text-[11px] text-amber-300">
+                    <span className="font-semibold">Coverage gap:</span> No signals for{" "}
+                    {missingFamilies.map((f) => SIGNAL_FAMILY_LABELS[f]).join(", ")}.
+                    Consider adding signals in these areas for a more complete forecast.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-card p-5">
             <div className="flex items-start gap-3">
               <BrainCircuit className="w-5 h-5 text-primary mt-0.5 shrink-0" />
@@ -829,25 +940,57 @@ export default function SignalsPage() {
             </button>
 
             {effectiveShowSupporting && (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {supportingSignals.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                     No supporting signals.
                   </div>
                 ) : (
-                  supportingSignals.map((sig) => (
-                    <SupportingSignalRow
-                      key={sig.id}
-                      signal={sig}
-                      editing={editingId === sig.id}
-                      onEdit={() => {
-                        if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); }
-                      }}
-                      onAccept={!sig.accepted ? () => acceptSignal(sig.id) : undefined}
-                      onDismiss={() => dismissSignal(sig.id)}
-                      onUpdate={(u) => updateSignal(sig.id, u)}
-                    />
-                  ))
+                  <>
+                    {ALL_SIGNAL_FAMILIES.map((fam) => {
+                      const famSignals = supportingByFamily.grouped[fam];
+                      if (famSignals.length === 0) return null;
+                      return (
+                        <div key={fam} className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <FamilyBadge family={fam} />
+                            <span className="text-[10px] text-muted-foreground">{famSignals.length} signal{famSignals.length > 1 ? "s" : ""}</span>
+                          </div>
+                          {famSignals.map((sig) => (
+                            <SupportingSignalRow
+                              key={sig.id}
+                              signal={sig}
+                              editing={editingId === sig.id}
+                              onEdit={() => {
+                                if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); }
+                              }}
+                              onAccept={!sig.accepted ? () => acceptSignal(sig.id) : undefined}
+                              onDismiss={() => dismissSignal(sig.id)}
+                              onUpdate={(u) => updateSignal(sig.id, u)}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
+                    {supportingByFamily.ungrouped.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Other</div>
+                        {supportingByFamily.ungrouped.map((sig) => (
+                          <SupportingSignalRow
+                            key={sig.id}
+                            signal={sig}
+                            editing={editingId === sig.id}
+                            onEdit={() => {
+                              if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); }
+                            }}
+                            onAccept={!sig.accepted ? () => acceptSignal(sig.id) : undefined}
+                            onDismiss={() => dismissSignal(sig.id)}
+                            onUpdate={(u) => updateSignal(sig.id, u)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -978,6 +1121,14 @@ function PrimaryDriverCard({
               <CatIcon className="w-3 h-3" />
               {catCfg.label}
             </div>
+            {signal.signal_family && (
+              <FamilyBadge family={signal.signal_family} />
+            )}
+            {signal.signal_class && signal.signal_class !== "observed" && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${signal.signal_class === "derived" ? "bg-violet-500/15 text-violet-300" : "bg-amber-500/15 text-amber-300"}`}>
+                {signal.signal_class}
+              </span>
+            )}
             {!signal.accepted && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-300 font-semibold">Pending</span>}
           </div>
         </div>
@@ -1048,6 +1199,17 @@ function SupportingSignalRow({
             <ImpactBadge impact={signal.impact} />
             <DirectionBadge direction={signal.direction} />
             <StrengthBadge strength={signal.strength} />
+            {signal.signal_class && signal.signal_class !== "observed" && (
+              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${signal.signal_class === "derived" ? "bg-violet-500/15 text-violet-300" : "bg-amber-500/15 text-amber-300"}`}>
+                {signal.signal_class}
+              </span>
+            )}
+            {signal.source_url && (
+              <a href={signal.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[9px] text-blue-400 hover:text-blue-300">
+                <ExternalLink className="w-2.5 h-2.5" />
+                Source
+              </a>
+            )}
             {!signal.accepted && <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] text-amber-300 font-semibold">Pending</span>}
           </div>
         </div>
@@ -1074,6 +1236,23 @@ function SupportingSignalRow({
         </div>
       )}
     </div>
+  );
+}
+
+const FAMILY_COLORS: Record<SignalFamily, string> = {
+  brand_clinical_regulatory: "bg-blue-500/15 text-blue-300 border-blue-500/20",
+  payer_access: "bg-emerald-500/15 text-emerald-300 border-emerald-500/20",
+  competitor: "bg-red-500/15 text-red-300 border-red-500/20",
+  patient_demand: "bg-violet-500/15 text-violet-300 border-violet-500/20",
+  provider_behavioral: "bg-amber-500/15 text-amber-300 border-amber-500/20",
+  system_operational: "bg-slate-500/15 text-slate-300 border-slate-500/20",
+};
+
+function FamilyBadge({ family }: { family: SignalFamily }) {
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${FAMILY_COLORS[family] || "bg-muted/30 text-muted-foreground border-border"}`}>
+      {SIGNAL_FAMILY_LABELS[family] || family}
+    </span>
   );
 }
 

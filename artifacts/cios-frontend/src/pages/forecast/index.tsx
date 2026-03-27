@@ -318,6 +318,9 @@ interface SignalReadiness {
   questionType: string;
   entities: string[];
   updatedAt: number;
+  coveredFamilies?: number;
+  totalFamilies?: number;
+  missingFamilies?: string[];
 }
 
 function getSignalReadiness(caseId?: string): SignalReadiness | null {
@@ -423,6 +426,13 @@ function ReadinessGate({ readiness, evaluation }: { readiness: SignalReadiness |
             needed={1}
             isBoolean
           />
+          {readiness?.coveredFamilies !== undefined && (
+            <ReadinessItem
+              label="Signal Families"
+              value={readiness.coveredFamilies}
+              needed={4}
+            />
+          )}
           {readiness?.questionType === "comparative" && (
             <ReadinessItem
               label="Groups Mapped"
@@ -431,6 +441,14 @@ function ReadinessGate({ readiness, evaluation }: { readiness: SignalReadiness |
             />
           )}
         </div>
+        {readiness?.missingFamilies && readiness.missingFamilies.length > 0 && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2 mt-3">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+            <div className="text-[11px] text-amber-300">
+              <span className="font-semibold">Coverage gaps:</span> {readiness.missingFamilies.join(", ")}
+            </div>
+          </div>
+        )}
       </div>
 
       {evaluation.missingItems.length > 0 && (

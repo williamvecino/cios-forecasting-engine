@@ -23,7 +23,7 @@ function detectTherapeuticArea(subject: string, questionText: string): string {
     { name: "cardiology", terms: ["cardiology", "cardiologist", "heart failure", "atrial fibrillation", "hypertension", "cardiovascular"] },
     { name: "psychiatry", terms: ["psychiatry", "psychiatrist", "psychiatric", "schizophrenia", "antipsychotic", "bipolar", "psychosis", "schizoaffective", "mental health", "injectable antipsychotic"] },
     { name: "neurology", terms: ["neurology", "neurologist", "alzheimer", "parkinson", "epilepsy", "migraine", "multiple sclerosis"] },
-    { name: "pulmonology", terms: ["pulmonology", "pulmonologist", "copd", "asthma", "pulmonary", "respiratory", "bronchiectasis", "arikayce"] },
+    { name: "pulmonology", terms: ["pulmonology", "pulmonologist", "copd", "asthma", "pulmonary", "respiratory", "bronchiectasis", "arikayce", "mac lung"] },
     { name: "infectious disease", terms: ["infectious disease", "antimicrobial", "antibiotic", "antifungal", "antiviral", "hospital-acquired", "nosocomial", "stewardship", "formulary", "sepsis", "pneumonia", "bacteremia", "mrsa", "c. diff"] },
     { name: "rare disease", terms: ["rare disease", "orphan drug", "orphan", "ultra-rare", "specialty center", "specialty treatment", "rare condition", "enzyme replacement", "gene therapy"] },
     { name: "medical device", terms: ["medical device", "device", "catheter", "procedural", "minimally invasive", "implant", "surgical", "procedure adoption", "ambulatory surgery", "endoscop"] },
@@ -56,7 +56,7 @@ router.post("/ai-signals/generate", async (req, res) => {
     const research = await researchBrand(body.subject, body.questionText);
     const hasResearch = research.newsHeadlines.length > 0;
 
-    const systemPrompt = `You are a pharmaceutical market intelligence analyst. Given a specific brand/therapy and a forecasting question, you must generate analytical signals that drive the forecast.
+    const systemPrompt = `You are a pharmaceutical market intelligence analyst. Given a specific brand/therapy and a forecasting question, you must generate structured, multi-source signals that drive the forecast.
 
 A BRAND DEVELOPMENT CHECK has been performed. ${hasResearch
   ? "Real-time web research found recent developments. You MUST convert these into structured signals FIRST, before generating any derived or generic signals."
@@ -66,45 +66,50 @@ CRITICAL RULES:
 
 1. Each case is unique. Do NOT apply generic templates. Evaluate this specific brand/product/question on its own merits.
 
-2. SIGNAL CLASSIFICATION — Every signal must be classified as one of:
-   - "observed": Directly sourced from verified brand developments (press releases, clinical trial results, FDA actions, investor announcements). These MUST come first and carry highest weight.
-   - "derived": Reasonable implications inferred from observed developments or established market knowledge.
-   - "uncertainty": Open questions or unknown factors that could affect the forecast.
+2. SIGNAL FAMILIES — Every signal MUST belong to exactly one of these 6 families:
+   - "brand_clinical_regulatory": trial readouts, label updates, safety signals, regulatory filings, guideline updates
+   - "payer_access": coverage criteria, prior authorization, formulary status, reimbursement, patient cost burden
+   - "competitor": competitor launches, competitor data, competitor safety issues, competitor pricing, positioning shifts
+   - "patient_demand": symptom burden, treatment dissatisfaction, patient requests, discontinuation burden, advocacy activity
+   - "provider_behavioral": specialty ownership, workflow resistance, prescribing familiarity, risk tolerance, referral dynamics, training readiness
+   - "system_operational": equipment requirements, staffing limitations, protocol readiness, pharmacy/logistics burden, administration complexity
 
-3. ORDER REQUIREMENT: Observed signals first, then derived, then uncertainties. ${hasResearch ? "If web research found developments but you output no observed signals, this is a logic failure." : "Since no web research was found, you may have mostly derived signals — but be transparent about this."}
+3. SIGNAL CLASSIFICATION — Every signal must also be classified as:
+   - "observed": Directly sourced from verified brand developments (press releases, trial results, FDA actions). MUST come first.
+   - "derived": Reasonable inference from observed data or established market knowledge.
+   - "uncertainty": Unresolved issue or open question to monitor.
 
-4. For observed signals sourced from web research, you MUST include:
-   - source_url: the URL where this was found (from the research data)
-   - observed_date: when this development occurred/was announced
-   - citation_excerpt: a brief quote or key fact from the source
-   - brand_verified: true
+4. COVERAGE REQUIREMENT: Generate signals across ALL 6 families. You MUST include at least one signal from each family. This is critical for forecast quality.
 
-5. Do NOT fabricate specific facts. For derived signals, mark brand_verified: false.
+5. ORDER: Observed signals first (from brand development check), then derived signals across all families, then uncertainties.
 
-6. What drives adoption varies by product type. Determine what matters for THIS specific product and question.
+6. For observed signals from web research, include: source_url, observed_date, citation_excerpt, brand_verified: true.
 
-7. Identify what therapeutic context this falls into (detected: ${therapeuticArea}) and reason about what adoption dynamics apply. But do not blindly apply a template.
+7. Do NOT fabricate specific facts. For derived signals, mark brand_verified: false.
+
+8. Therapeutic context (detected: ${therapeuticArea}) informs weighting and interpretation, but real brand/context signals always take precedence over archetype patterns.
 
 For each signal, provide:
 - **text**: A specific analytical driver statement. For observed signals, cite the specific development.
+- **signal_family**: one of "brand_clinical_regulatory", "payer_access", "competitor", "patient_demand", "provider_behavioral", "system_operational"
 - **signal_class**: "observed" | "derived" | "uncertainty"
 - **category**: one of "evidence", "access", "competition", "guideline", "timing", "adoption"
 - **direction**: "positive", "negative", or "neutral"
 - **strength**: "High", "Medium", or "Low"
 - **reliability**: "Confirmed" (observed from verified source), "Probable" (reasonable inference), "Speculative" (uncertain)
-- **source_type**: e.g. "press_release", "investor_relations", "clinical_data", "clinical_trials_gov", "fda", "congress", "guidelines", "market_research", "payer_landscape", "competitive_intel"
+- **source_type**: e.g. "official_company", "official_brand_site", "clinicaltrials", "guideline", "payer_policy", "scientific_publication", "conference", "inferred", "press_release", "investor_relations"
 - **source_url**: URL if available (required for observed signals), null otherwise
 - **observed_date**: date string if known (required for observed signals), null otherwise
 - **citation_excerpt**: key quote/fact from source (required for observed signals), null otherwise
 - **brand_verified**: true for observed signals from verified sources, false otherwise
 - **rationale**: Why this factor matters for this specific forecast
 
-Generate 8-12 signals. Observed brand developments first, then derived implications, then uncertainties.
+Generate 12-18 signals covering all 6 families. Observed brand developments first, then derived across all families, then uncertainties.
 
 For incoming_events, generate 5 events the forecaster should monitor:
 { "id": "ev-N", "title": "...", "type": "evidence|access|competition|guideline|adoption", "description": "...", "relevance": "..." }
 
-For market_summary: 2-3 sentences starting with the most important recent development if one exists. Do not apply generic therapeutic area templates.
+For market_summary: 2-3 sentences starting with the most important recent development if one exists.
 
 Return ONLY valid JSON:
 {
@@ -118,12 +123,12 @@ Return ONLY valid JSON:
 
     let researchSection = "";
     if (hasResearch) {
-      researchSection = `\n\n--- BRAND DEVELOPMENT CHECK RESULTS ---\n${research.combinedContext}\n--- END BRAND DEVELOPMENT CHECK ---\n\nYou MUST convert the above verified brand developments into "observed" signals with source_url, observed_date, citation_excerpt, and brand_verified: true. These must appear first in your signal list.`;
+      researchSection = `\n\n--- BRAND DEVELOPMENT CHECK RESULTS ---\n${research.combinedContext}\n--- END BRAND DEVELOPMENT CHECK ---\n\nYou MUST convert the above verified brand developments into "observed" signals with source_url, observed_date, citation_excerpt, and brand_verified: true. These must appear first in your signal list. Then generate derived and uncertainty signals across ALL 6 families.`;
     } else {
-      researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found for "${body.subject}". Generate signals based on known market dynamics, but classify them as "derived" or "uncertainty" — not "observed".`;
+      researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found for "${body.subject}". Generate signals based on known market dynamics across all 6 signal families, but classify them as "derived" or "uncertainty" — not "observed".`;
     }
 
-    const userPrompt = `Generate analytical signals for:
+    const userPrompt = `Generate multi-source structured signals for:
 
 **Brand/Subject**: ${body.subject}
 **Question**: ${body.questionText}
@@ -132,11 +137,19 @@ Return ONLY valid JSON:
 **Question Type**: ${body.questionType || "binary"}
 ${body.entities?.length ? `**Groups**: ${body.entities.join(" vs ")}` : ""}${researchSection}
 
-Evaluate this specific product and question. Convert verified brand developments into observed signals first, then add derived implications and open uncertainties.`;
+IMPORTANT: You must generate signals from ALL 6 families:
+1. brand_clinical_regulatory — what clinical/regulatory developments affect adoption?
+2. payer_access — what coverage/reimbursement factors affect adoption?
+3. competitor — what competitive dynamics affect adoption?
+4. patient_demand — what patient factors drive or limit demand?
+5. provider_behavioral — what physician behavior patterns affect adoption?
+6. system_operational — what operational/logistical factors affect adoption?
+
+Convert verified brand developments into observed signals first, then add derived implications and uncertainties across all families.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_completion_tokens: 8192,
+      max_completion_tokens: 10000,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

@@ -61,7 +61,9 @@ The signals page calls `POST /api/ai-signals/generate` which performs a **Brand 
 
 **Signal classification** (per spec): Each signal has `signal_class`: `observed` (verified from external source), `derived` (inference from known data), or `uncertainty` (open question). Observed signals carry `source_url`, `observed_date`, `citation_excerpt`, `brand_verified: true`. Observed signals appear FIRST, then derived, then uncertainties.
 
-**UI**: Step 2 shows "Latest Verified Brand Developments" section at top (blue-bordered, with dates, source types, direction indicators, source links, confirm/dismiss buttons). If no verified developments found, shows "No recent verified brand developments found" warning. Loading state says "Brand Development Check in Progress" with specific source list.
+**Signal families (Phase 1):** Every AI-generated signal belongs to one of 6 families: `brand_clinical_regulatory`, `payer_access`, `competitor`, `patient_demand`, `provider_behavioral`, `system_operational`. The AI prompt requires coverage across all 6 families (12-18 signals). Frontend maps and validates family assignment, defaulting to `brand_clinical_regulatory` if missing. Signal Coverage Summary section shows coverage per family with "MISSING" indicators for uncovered families. Coverage data (coveredFamilies, missingFamilies) is stored in localStorage `signalReadiness` and displayed on the forecast page readiness gate.
+
+**UI**: Step 2 sections in order: (1) Latest Verified Brand Developments (blue-bordered, with dates, source types, direction indicators, source links, confirm/dismiss buttons), (2) Signal Coverage Summary (6-family grid showing coverage/gaps), (3) Signal Analysis summary, (4) Primary Drivers, (5) Supporting Signals grouped by signal family with family badges, (6) Incoming Events. If no verified developments found, shows "No recent verified brand developments found" warning. Loading state says "Brand Development Check in Progress" with specific source list.
 
 **Fail condition**: If a named brand exists and the system displays generic signals without attempting a brand development check, this is a logic failure.
 
