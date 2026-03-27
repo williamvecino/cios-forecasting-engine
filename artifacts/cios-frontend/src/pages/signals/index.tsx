@@ -62,6 +62,23 @@ const SIGNAL_FAMILY_LABELS: Record<SignalFamily, string> = {
 };
 
 type TranslationConfidence = "high" | "moderate" | "low";
+type GateStatus = "strong" | "moderate" | "weak" | "unresolved";
+
+interface EventGate {
+  gate_id: string;
+  gate_label: string;
+  description: string;
+  status: GateStatus;
+  reasoning: string;
+  constrains_probability_to: number;
+}
+
+interface EventDecomposition {
+  event_gates: EventGate[];
+  brand_outlook_probability: number;
+  constrained_probability: number;
+  constraint_explanation: string;
+}
 type LineOfTherapyApplicability = "current_label" | "future_label" | "uncertain";
 type TimeHorizonApplicability = "yes" | "partial" | "unlikely";
 
@@ -356,6 +373,7 @@ export default function SignalsPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
   const [translationSummary, setTranslationSummary] = useState<string | null>(null);
+  const [eventGates, setEventGates] = useState<EventGate[] | null>(null);
   const [brandCheckDone, setBrandCheckDone] = useState(false);
   const [verifiedFound, setVerifiedFound] = useState(false);
   const aiRequestedRef = useRef<string | null>(null);
@@ -375,10 +393,16 @@ export default function SignalsPage() {
 
     const requestId = ++aiRequestIdRef.current;
 
+    const clearCaseKey = activeQuestion?.caseId || "unknown";
     setAiLoading(true);
     setAiError(null);
     setMarketSummary(null);
     setTranslationSummary(null);
+    setEventGates(null);
+    try {
+      localStorage.removeItem(`cios.eventDecomposition:${clearCaseKey}`);
+      localStorage.removeItem(`cios.translationSummary:${clearCaseKey}`);
+    } catch {}
     setIncomingEvents(fallbackEvents);
     setSignals((prev) => {
       const userSignals = prev.filter((s) => s.source === "user");
@@ -485,6 +509,33 @@ export default function SignalsPage() {
         } else {
           setTranslationSummary(null);
           localStorage.removeItem(`cios.translationSummary:${caseKey}`);
+        }
+
+        if (data.event_gates && Array.isArray(data.event_gates) && data.event_gates.length > 0) {
+          const validStatuses = new Set(["strong", "moderate", "weak", "unresolved"]);
+          const gates: EventGate[] = data.event_gates.map((g: any) => ({
+            gate_id: g.gate_id || "unknown",
+            gate_label: g.gate_label || "Unknown Gate",
+            description: g.description || "",
+            status: validStatuses.has(g.status) ? g.status : "unresolved",
+            reasoning: g.reasoning || "",
+            constrains_probability_to: typeof g.constrains_probability_to === "number" ? Math.max(0, Math.min(1, g.constrains_probability_to)) : 0.5,
+          }));
+          const computedCap = Math.min(...gates.map((g) => g.constrains_probability_to));
+          const hasWeakOrUnresolved = gates.some((g) => g.status === "weak" || g.status === "unresolved");
+          const enforcedCap = hasWeakOrUnresolved ? Math.min(computedCap, 0.40) : computedCap;
+          const brandOutlook = typeof data.brand_outlook_probability === "number" ? Math.max(0, Math.min(1, data.brand_outlook_probability)) : 0.5;
+          const decomp: EventDecomposition = {
+            event_gates: gates,
+            brand_outlook_probability: brandOutlook,
+            constrained_probability: enforcedCap,
+            constraint_explanation: data.constraint_explanation || "",
+          };
+          setEventGates(decomp.event_gates);
+          localStorage.setItem(`cios.eventDecomposition:${caseKey}`, JSON.stringify(decomp));
+        } else {
+          setEventGates(null);
+          localStorage.removeItem(`cios.eventDecomposition:${caseKey}`);
         }
 
         if (data.therapeutic_area) {

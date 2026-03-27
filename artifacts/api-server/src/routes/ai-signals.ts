@@ -134,12 +134,43 @@ For market_summary: 2-3 sentences starting with the most important recent develo
 
 For question_translation_summary: Write 2-3 sentences explaining the gap between the strongest brand signal and the specific question asked. For example: "ENCORE data strengthens the clinical case for Arikayce broadly, but the question asks about first-line adoption specifically. Current label, guidelines, and payer coverage do not yet support routine first-line use, creating a translation gap between the brand signal and the forecast outcome."
 
+EVENT DECOMPOSITION LAYER — CRITICAL
+
+For every question, you MUST decompose the asked outcome into gating conditions. The final forecast probability cannot exceed the weakest major gate. This prevents upstream brand strength from producing near-certain probability when specific conditions remain unresolved.
+
+Analyze the question and produce "event_gates" — an array of 3-6 conditions that MUST all be met for the asked outcome to occur. Each gate has:
+- **gate_id**: short identifier (e.g. "first_line_applicability")
+- **gate_label**: human-readable label (e.g. "First-line applicability")
+- **description**: 1-2 sentences explaining what this gate requires
+- **status**: "strong" (evidence clearly supports), "moderate" (some evidence, plausible), "weak" (limited evidence, unlikely in horizon), "unresolved" (no evidence either way, open question)
+- **reasoning**: 1-2 sentences explaining why this status was assigned based on current signals
+- **constrains_probability_to**: a decimal 0-1 representing the maximum probability this gate alone would allow. "strong" gates allow 0.85-0.95, "moderate" gates allow 0.50-0.75, "weak" gates allow 0.15-0.35, "unresolved" gates allow 0.20-0.40.
+
+Common gates to consider (include all that apply to the question):
+- **Regulatory/label applicability**: Does the current label support the specific use asked about (e.g. first-line, combination, pediatric)?
+- **Stakeholder applicability**: Does the signal apply to the specific prescriber type asked about?
+- **Time horizon feasibility**: Can the required changes realistically happen within the asked timeframe?
+- **Threshold attainability**: If a specific adoption target is asked about (e.g. ≥4 Rx/quarter, 20% share), can it be reached?
+- **Access/reimbursement readiness**: Is payer coverage aligned with the asked use case?
+- **Guideline/evidence support**: Do guidelines support the specific use asked about?
+
+FORECAST CONSISTENCY RULE: The "constrained_probability" field must equal the MINIMUM of all gate constrains_probability_to values. If any gate is "weak" or "unresolved", the final constrained probability MUST be below 0.40. A near-certain forecast (>0.80) requires ALL major gates to be "strong" or "moderate".
+
+Also produce:
+- **brand_outlook_probability**: 0-1, what the probability would be if we only considered brand momentum and signal strength (the unconstrained view)
+- **constrained_probability**: 0-1, the final probability after applying gate constraints (= minimum of all gate caps)
+- **constraint_explanation**: 1-2 sentences explaining why the constrained probability differs from the brand outlook
+
 Return ONLY valid JSON:
 {
   "signals": [...],
   "incoming_events": [...],
   "market_summary": "...",
   "question_translation_summary": "...",
+  "event_gates": [...],
+  "brand_outlook_probability": 0.XX,
+  "constrained_probability": 0.XX,
+  "constraint_explanation": "...",
   "therapeutic_area": "${therapeuticArea}",
   "brand_check_performed": true,
   "verified_developments_found": ${hasResearch}

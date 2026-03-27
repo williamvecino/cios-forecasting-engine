@@ -576,58 +576,139 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         </Link>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 xl:col-span-4">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5 flex flex-col items-center">
-              <div className="text-sm font-medium text-slate-300 self-start">Current Probability</div>
-              <div className="mt-4">
-                <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={200} />
-              </div>
-              <div className="flex items-center gap-4 mt-4 text-sm">
-                <div className="text-slate-400">
-                  PRIOR{" "}
-                  <span className="text-white font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
-                </div>
-                <ArrowRight className="w-4 h-4 text-slate-600" />
-                <div className="text-slate-400">
-                  SHIFT{" "}
-                  <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                    {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
-                  </span>
-                </div>
-              </div>
-              <div className={cn(
-                "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                confidenceBadgeClass[confidence]
-              )}>
-                Confidence: {confidence}
-              </div>
-              <p className="mt-3 text-sm leading-6 text-slate-300 text-center">{summary}</p>
-              <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Bayesian</div>
-            </div>
-          </div>
+      {(() => {
+        const caseKey = activeQuestion?.caseId || "unknown";
+        let decomp: { event_gates: { gate_id: string; gate_label: string; description: string; status: string; reasoning: string; constrains_probability_to: number }[]; brand_outlook_probability: number; constrained_probability: number; constraint_explanation: string } | null = null;
+        try {
+          const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
+          if (raw) decomp = JSON.parse(raw);
+        } catch {}
 
-          <div className="col-span-12 xl:col-span-8 space-y-4">
-            <div className="grid grid-cols-12 gap-4">
-              <InfoCard
-                title="Most Sensitive Driver"
-                value={topDriver?.name || "—"}
-                body={topDriver ? `Largest estimated movement: ${topDriver.probabilityImpact > 0 ? "+" : ""}${topDriver.probabilityImpact} points` : "No drivers identified yet."}
-              />
-              <InfoCard
-                title="Total Upward Pressure"
-                value={`+${upsideTotal} pts`}
-                body="Combined estimated upside effect if favorable drivers strengthen."
-              />
-              <InfoCard
-                title="Total Downward Pressure"
-                value={`-${downsideTotal} pts`}
-                body="Combined estimated downside effect if resistance drivers intensify."
-              />
-            </div>
+        const hasGates = decomp && decomp.event_gates && decomp.event_gates.length > 0;
+        const brandOutlookProb = hasGates ? decomp!.brand_outlook_probability : null;
+        let constrainedProb: number | null = null;
+        if (hasGates) {
+          const gateCaps = decomp!.event_gates.map((g) => typeof g.constrains_probability_to === "number" ? Math.max(0, Math.min(1, g.constrains_probability_to)) : 0.5);
+          const computedCap = Math.min(...gateCaps);
+          const hasWeakOrUnresolved = decomp!.event_gates.some((g) => g.status === "weak" || g.status === "unresolved");
+          constrainedProb = hasWeakOrUnresolved ? Math.min(computedCap, 0.40) : computedCap;
+        }
+        const displayProb = constrainedProb != null ? Math.min(constrainedProb, f.currentProbability ?? 0.5) : (f.currentProbability ?? 0.5);
+        const displayProbPct = Math.round(displayProb * 100);
+        const gateStatusColor: Record<string, string> = { strong: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30", moderate: "text-amber-400 bg-amber-500/15 border-amber-500/30", weak: "text-red-400 bg-red-500/15 border-red-500/30", unresolved: "text-slate-400 bg-slate-500/15 border-slate-500/30" };
+        const gateStatusIcon: Record<string, string> = { strong: "●", moderate: "◐", weak: "○", unresolved: "?" };
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+        return (
+          <>
+            {hasGates && (
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <div className="rounded-3xl border border-blue-500/20 bg-[#0A1736] p-5 space-y-3">
+                  <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
+                  <div className="text-3xl font-bold text-blue-300">{Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100)}%</div>
+                  <div className="text-xs text-slate-400 leading-relaxed">Signal-driven probability reflecting overall brand momentum and upstream evidence strength.</div>
+                  <div className="flex items-center gap-3 text-xs text-slate-500">
+                    <span>Prior: {(f.priorProbability * 100).toFixed(0)}%</span>
+                    <ArrowRight className="w-3 h-3" />
+                    <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                      {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-amber-500/20 bg-[#0A1736] p-5 space-y-3">
+                  <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Event Gates</div>
+                  <div className="space-y-2">
+                    {decomp!.event_gates.map((gate) => (
+                      <div key={gate.gate_id} className={`rounded-xl border px-3 py-2 ${gateStatusColor[gate.status] || gateStatusColor.unresolved}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold">{gate.gate_label}</span>
+                          <span className="text-[10px] font-bold uppercase flex items-center gap-1">
+                            <span>{gateStatusIcon[gate.status] || "?"}</span>
+                            {gate.status}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[10px] opacity-80 leading-snug">{gate.reasoning}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5 space-y-3 flex flex-col">
+                  <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
+                  <div className="flex-1 flex flex-col items-center justify-center">
+                    <ProbabilityGauge value={displayProb} label="Gate-Constrained" size={180} />
+                    <div className={cn(
+                      "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                      confidenceBadgeClass[confidence]
+                    )}>
+                      Confidence: {confidence}
+                    </div>
+                  </div>
+                  {decomp!.constraint_explanation && (
+                    <div className="text-[10px] text-slate-400 leading-relaxed italic">{decomp!.constraint_explanation}</div>
+                  )}
+                  <div className="text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
+                </div>
+              </div>
+            )}
+
+            {!hasGates && (
+              <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+                <div className="grid grid-cols-12 gap-6">
+                  <div className="col-span-12 xl:col-span-4">
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5 flex flex-col items-center">
+                      <div className="text-sm font-medium text-slate-300 self-start">Current Probability</div>
+                      <div className="mt-4">
+                        <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={200} />
+                      </div>
+                      <div className="flex items-center gap-4 mt-4 text-sm">
+                        <div className="text-slate-400">
+                          PRIOR{" "}
+                          <span className="text-white font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-slate-600" />
+                        <div className="text-slate-400">
+                          SHIFT{" "}
+                          <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                            {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
+                          </span>
+                        </div>
+                      </div>
+                      <div className={cn(
+                        "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                        confidenceBadgeClass[confidence]
+                      )}>
+                        Confidence: {confidence}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-300 text-center">{summary}</p>
+                      <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Bayesian</div>
+                    </div>
+                  </div>
+
+                  <div className="col-span-12 xl:col-span-8 space-y-4">
+                    <div className="grid grid-cols-12 gap-4">
+                      <InfoCard
+                        title="Most Sensitive Driver"
+                        value={topDriver?.name || "—"}
+                        body={topDriver ? `Largest estimated movement: ${topDriver.probabilityImpact > 0 ? "+" : ""}${topDriver.probabilityImpact} points` : "No drivers identified yet."}
+                      />
+                      <InfoCard
+                        title="Total Upward Pressure"
+                        value={`+${upsideTotal} pts`}
+                        body="Combined estimated upside effect if favorable drivers strengthen."
+                      />
+                      <InfoCard
+                        title="Total Downward Pressure"
+                        value={`-${downsideTotal} pts`}
+                        body="Combined estimated downside effect if resistance drivers intensify."
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5">
               <div className="text-sm font-medium text-slate-300">System Interpretation</div>
               <p className="mt-3 text-base leading-7 text-slate-200">
                 {topDriver ? (
@@ -642,26 +723,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 )}
               </p>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {(() => {
-        const caseKey = activeQuestion?.caseId || "unknown";
-        let translationText: string | null = null;
-        try { translationText = localStorage.getItem(`cios.translationSummary:${caseKey}`); } catch {}
-        if (!translationText) return null;
-        return (
-          <div className="rounded-3xl border border-violet-500/20 bg-[#0A1736] p-6 space-y-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-violet-400 mt-0.5 shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="text-[10px] text-violet-400 font-semibold uppercase tracking-wider">Question Relevance Check</div>
-                <div className="text-sm text-slate-200 leading-relaxed">{translationText}</div>
-                <div className="text-[10px] text-slate-500 italic">Strong brand signals may not directly answer the specific question. This panel explains the translation gap between signal strength and forecast applicability.</div>
-              </div>
-            </div>
-          </div>
+          </>
         );
       })()}
 
