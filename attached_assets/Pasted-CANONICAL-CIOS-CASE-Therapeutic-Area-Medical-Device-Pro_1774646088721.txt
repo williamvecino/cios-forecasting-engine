@@ -1,0 +1,386 @@
+CANONICAL CIOS CASE
+Therapeutic Area: Medical Device / Procedure
+Case Type: Procedure Adoption
+
+Archetype Definition
+
+This case represents:
+
+Adoption of a new medical device or procedural technology that requires physician training and workflow integration.
+
+It does not represent:
+
+Drug adoption
+Consumer devices
+Hospital formulary decisions
+Cosmetic treatments
+
+STEP 1 — DEFINE QUESTION
+
+(Screen: Define Question)
+
+Case Name
+
+Device — New Minimally Invasive Procedure Adoption
+
+Brand
+
+Archetype reference: catheter-based or procedural device
+
+Strategic Question
+
+Will physicians adopt the new minimally invasive procedure within 12 months of approval?
+
+Question Type
+
+Yes / No
+
+Outcome
+
+Procedure adoption
+
+Groups
+
+Specialists performing the procedure
+Hospital procedural teams
+Ambulatory surgery centers
+
+Time Horizon
+
+12 months
+
+System Interpretation (Expected)
+
+Evaluating
+
+New procedural device
+
+Outcome
+
+Routine procedural use
+
+Groups
+
+Specialists
+Procedure teams
+Surgery centers
+
+Time period
+
+12 months
+
+Device Guardrail — Domain Specificity
+
+This archetype applies when:
+
+Procedure requires physician training
+Device changes workflow
+Equipment investment is required
+
+If those conditions are absent, this logic must not be reused.
+
+STEP 2 — ADD INFORMATION
+
+(Screen: Add Information)
+
+External Data Check — Required
+
+The system must verify brand signals externally before forecasting.
+
+Valid sources:
+
+Clinical trial outcomes
+Procedure training requirements
+Device approval status
+Hospital capability
+Reimbursement policy
+
+Primary Drivers — This Device Archetype
+Driver 1 — Clinical Benefit
+
+Signal
+
+Procedure improves patient outcomes or reduces complications
+
+Impact
+
+Very High
+
+Direction
+
+Positive
+
+Reliability
+
+High
+
+Driver 2 — Training Requirement
+
+Signal
+
+Physicians must complete training before using device
+
+Impact
+
+Very High
+
+Direction
+
+Negative initially
+
+Reliability
+
+High
+
+Driver 3 — Workflow Integration
+
+Signal
+
+Procedure fits into existing clinical workflow
+
+Impact
+
+High
+
+Direction
+
+Positive
+
+Reliability
+
+High
+
+Driver 4 — Reimbursement Availability
+
+Signal
+
+Procedure reimbursement established
+
+Impact
+
+Very High
+
+Direction
+
+Positive
+
+Reliability
+
+High
+
+Supporting Signals
+
+Equipment cost
+Procedure time
+Learning curve
+Competing technologies
+
+Incoming Events — Device
+
+These should populate automatically.
+
+Device approval
+Training program launch
+Reimbursement decision
+Safety signal report
+Competitor device launch
+
+Device Extrapolation Rule — Narrow Scope
+
+In this archetype:
+
+Adoption depends primarily on:
+
+Training completion
+Workflow integration
+Reimbursement
+
+Not:
+
+Marketing awareness
+Patient demand alone
+
+STEP 3 — SEE FORECAST
+
+(Screen: See Forecast)
+
+Prior Probability
+
+40%
+
+Reason
+
+Procedural adoption requires training and workflow adaptation.
+
+Updated Forecast
+
+60%
+
+Likelihood assessment
+
+Moderately favorable case
+
+Confidence
+
+Moderate
+
+Most Sensitive Driver
+
+Training completion
+
+Total Upward Pressure
+
++13 points
+
+Total Downward Pressure
+
+−6 points
+
+System Interpretation
+
+Adoption depends primarily on:
+
+Training readiness
+Workflow compatibility
+Reimbursement
+
+Device Extrapolation — Explicit Limitation
+
+This pattern applies to:
+
+New procedural devices
+
+It does not apply to:
+
+Drug therapies
+Consumer products
+Cosmetic treatments
+
+STEP 4 — DECIDE
+
+(Screen: Decide)
+
+Adoption Segmentation
+Early Adopters
+
+High-volume specialty centers
+
+Reason
+
+Existing procedural infrastructure
+
+Persuadables
+
+Regional hospitals
+
+Reason
+
+Require training confidence
+
+Late Movers
+
+Small community hospitals
+
+Reason
+
+Limited procedural volume
+
+Resistant Segments
+
+General practitioners
+
+Reason
+
+Do not perform procedure
+
+Barrier Diagnosis
+Evidence Barrier
+
+Low
+
+Clinical benefit demonstrated
+
+Access Barrier
+
+Moderate
+
+Reimbursement required
+
+Workflow Barrier
+
+High
+
+Training and equipment required
+
+Competitive Barrier
+
+Moderate
+
+Existing procedural alternatives
+
+Readiness Timeline
+Near-Term Readiness
+
+Moderate
+
+Trigger Events
+
+Training completion
+Reimbursement approval
+Procedure success data
+
+Dependencies
+
+Training availability
+Equipment readiness
+
+Timing Risks
+
+Training delays
+Workflow disruption
+
+Competitive Risk
+Incumbent Defense
+
+Physicians continue using existing procedure
+
+Fast Follower Risk
+
+Moderate
+
+Competitor launches similar device
+
+Evidence Response
+
+High probability
+
+Competitor publishes comparative data
+
+Growth Feasibility
+Segment Size
+
+Moderate
+
+Access Expansion
+
+Gradual
+
+Dependent on training capacity
+
+Operational Scalability
+
+Moderate
+
+Requires trained specialists
+
+Revenue Translation
+
+High per procedure
+
+Actors / Segments — Device Archetype
+
+Specialists
+Procedure teams
+Hospital administrators
+Training organizations
+Payers
