@@ -39,7 +39,7 @@ import AgentMessage from "@/pages/cases/agents/message";
 import ForecastLedgerPage from "@/pages/forecast-ledger/index";
 import NotFound from "@/pages/not-found";
 import { useRoute, useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 function LegacyCaseRedirect() {
   const [, params] = useRoute("/cases/:caseId");
@@ -48,6 +48,17 @@ function LegacyCaseRedirect() {
     if (params?.caseId) navigate(`/case/${params.caseId}/question`, { replace: true });
   }, [params?.caseId, navigate]);
   return null;
+}
+
+function QuestionPageFresh() {
+  const [key, setKey] = useState(() => Date.now());
+  const [location] = useLocation();
+  useEffect(() => {
+    if (location === "/question") {
+      setKey(Date.now());
+    }
+  }, [location]);
+  return <QuestionPage key={key} />;
 }
 
 const queryClient = new QueryClient({
@@ -68,7 +79,7 @@ function Router() {
       <Route path="/library" component={LibraryPage} />
       <Route path="/system" component={SystemPage} />
 
-      <Route path="/question" component={QuestionPage} />
+      <Route path="/question"><QuestionPageFresh /></Route>
       <Route path="/signals" component={SignalsPage} />
       <Route path="/forecast" component={ForecastPage} />
       <Route path="/decide" component={DecidePage} />

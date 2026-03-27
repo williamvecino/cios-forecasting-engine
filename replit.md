@@ -43,6 +43,13 @@ The frontend employs an "Aaru-like Decision Interface" with question-driven, dec
 **Workflow Gating:**
 All pages (signals, forecast, decide) use `QuestionGate` to block content when no active question exists. The sidebar step completion checkmarks require `hasActiveQuestion` to prevent false positive indicators. The question parser (`parser.ts`) supports a comprehensive verb list for subject extraction including medical/pharma-specific actions (approve, launch, prescribe, reimburse, etc.) with a fallback pattern. The outcome extractor covers 30+ outcome categories. Both subject and outcome default to reasonable values to minimize blocked Continue buttons.
 
+**Draft vs Active Case Isolation:**
+Strict separation between `draftQuestion` (the in-progress text in the textarea/parser) and `activeCase` (the previously submitted question stored in localStorage). Key mechanisms:
+- `QuestionPageFresh` wrapper in `App.tsx` forces full remount via React `key` on every `/question` navigation, ensuring all draft state initializes clean.
+- Parser (`parser.ts`) has zero references to `activeQuestion`/`activeCase` — it only operates on raw text input.
+- `Clear Question` calls both `clearQuestion()` (removes active case from localStorage + state) and `resetDraft()` (clears textarea, overrides, mode).
+- Console logs prefixed `[CIOS State]` and `[CIOS Draft]` are present for debugging draft vs active case subject values. Remove for production.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database.
 - **Express 5:** Backend web framework.

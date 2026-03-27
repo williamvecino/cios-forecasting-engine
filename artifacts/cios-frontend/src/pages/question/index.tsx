@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useCreateCase } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
@@ -55,27 +55,18 @@ export default function QuestionPage() {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [clarificationValue, setClarificationValue] = useState("");
 
-  const lastPathRef = useRef("/question");
-  const [currentLocation] = useLocation();
-
-  useEffect(() => {
-    if (currentLocation === "/question" && lastPathRef.current !== "/question") {
-      setRawInput("");
-      setCaseId("");
-      setOverrides({});
-      setEditingField(null);
-      setClarificationValue("");
-      setSubmitError(null);
-      setMode("new_draft");
-    }
-    lastPathRef.current = currentLocation;
-  }, [currentLocation]);
-
   useEffect(() => {
     localStorage.removeItem("cios.questionDraft");
+    console.log("[CIOS State] QuestionPage mounted fresh");
+    console.log("[CIOS State]   draftQuestion subject:", undefined, "(clean)");
+    console.log("[CIOS State]   activeCase subject:", activeQuestion?.subject ?? "none");
+    console.log("[CIOS State]   activeCase text:", activeQuestion?.text ?? "none");
+    console.log("[CIOS State]   mode:", "new_draft");
+    console.log("[CIOS State]   rawInput:", '""', "(empty)");
   }, []);
 
   function resetDraft() {
+    console.log("[CIOS Draft] resetDraft called — clearing all draft state");
     setRawInput("");
     setCaseId("");
     setOverrides({});
@@ -116,6 +107,9 @@ export default function QuestionPage() {
         .map((s) => s.trim())
         .filter(Boolean);
     }
+    console.log("[CIOS Draft] Parser extracted subject:", merged.subject ?? "undefined");
+    console.log("[CIOS Draft] Parser extracted outcome:", merged.outcome ?? "undefined");
+    console.log("[CIOS Draft] activeCase subject (NOT used):", activeQuestion?.subject ?? "none");
     return merged;
   }, [parsed, overrides]);
 
