@@ -63,7 +63,6 @@ export function useActiveQuestion() {
   }, []);
 
   const clearQuestion = useCallback(() => {
-    console.log("[CIOS State] clearQuestion called — removing active case from state + localStorage");
     clearStoredActiveQuestion();
     setActiveQuestion(null);
   }, []);

@@ -336,8 +336,6 @@ export default function SignalsPage() {
     });
 
     const API = import.meta.env.VITE_API_URL || "";
-    console.log("[CIOS AI Signals] Requesting AI research for:", subject, "question:", questionText);
-
     fetch(`${API}/api/ai-signals/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -356,7 +354,6 @@ export default function SignalsPage() {
       })
       .then((data) => {
         if (aiRequestIdRef.current !== requestId) return;
-        console.log("[CIOS AI Signals] Received AI response:", data);
 
         if (data.signals && Array.isArray(data.signals)) {
           const mapped: Signal[] = data.signals.map((s: any, i: number) => {

@@ -50,7 +50,7 @@ type DraftAction =
 function draftReducer(state: DraftQuestion, action: DraftAction): DraftQuestion {
   switch (action.type) {
     case "SET_RAW_INPUT":
-      return { ...createEmptyDraft(), rawInput: action.value };
+      return { ...state, rawInput: action.value };
     case "SET_OVERRIDE":
       return {
         ...state,
@@ -85,15 +85,9 @@ export default function QuestionPage() {
 
   useEffect(() => {
     localStorage.removeItem("cios.questionDraft");
-    console.log("[CIOS State] QuestionPage mounted fresh");
-    console.log("[CIOS State]   draftQuestion subject: (none — clean init)");
-    console.log("[CIOS State]   activeCase subject:", activeQuestion?.subject ?? "(no active case)");
-    console.log("[CIOS State]   activeCase text:", activeQuestion?.text ?? "(no active case)");
-    console.log("[CIOS State]   mode: new_draft");
   }, []);
 
   function resetDraft() {
-    console.log("[CIOS Draft] resetDraft — clearing all draft state to empty");
     dispatch({ type: "RESET" });
     setEditCaseId("");
     setSubmitError(null);
@@ -128,9 +122,6 @@ export default function QuestionPage() {
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    console.log("[CIOS Draft] Parser extracted subject:", merged.subject ?? "(none)");
-    console.log("[CIOS Draft] Parser extracted outcome:", merged.outcome ?? "(none)");
-    console.log("[CIOS Draft] activeCase subject (NOT used by parser):", activeQuestion?.subject ?? "(no active case)");
     return merged;
   }, [parsed, draft.overrides]);
 
@@ -179,7 +170,6 @@ export default function QuestionPage() {
         subject: enriched?.subject || undefined,
         outcome: enriched?.outcome || undefined,
       };
-      console.log("[CIOS Submit] Updating existing case:", editCaseId, "subject:", payload.subject);
       updateQuestion(payload);
       navigate("/signals");
       return;
@@ -222,7 +212,6 @@ export default function QuestionPage() {
         subject: enriched?.subject || undefined,
         outcome: enriched?.outcome || undefined,
       };
-      console.log("[CIOS Submit] New case created:", newCaseId, "subject:", payload.subject, "(draft bound to case now)");
       createQuestion(payload);
       navigate("/signals");
     } catch (err) {
@@ -258,7 +247,6 @@ export default function QuestionPage() {
       currentStep="question"
       activeQuestion={activeQuestion}
       onClearQuestion={() => {
-        console.log("[CIOS State] Clear Question — resetting both activeCase and draft");
         clearQuestion();
         resetDraft();
       }}

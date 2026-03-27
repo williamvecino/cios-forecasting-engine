@@ -281,7 +281,7 @@ function useScenariosFromForecast(forecast: any, drivers: Driver[]) {
       {
         id: "upside",
         name: "Upside Scenario",
-        probability: Math.min(95, prob + Math.max(upsideShift, 12)),
+        probability: Math.min(95, prob + (upsideShift > 0 ? upsideShift : 0)),
         confidence: confLevel as Confidence,
         summary: "Favorable drivers strengthen while constraining forces stabilize or weaken.",
         changedDrivers: upDriverIds,
@@ -291,7 +291,7 @@ function useScenariosFromForecast(forecast: any, drivers: Driver[]) {
       {
         id: "downside",
         name: "Downside Scenario",
-        probability: Math.max(5, prob + Math.min(downsideShift, -10)),
+        probability: Math.max(5, prob + (downsideShift < 0 ? downsideShift : 0)),
         confidence: confLevel as Confidence,
         summary: "Resistance drivers intensify while supportive signals fail to convert.",
         changedDrivers: downDriverIds,
@@ -304,44 +304,10 @@ function useScenariosFromForecast(forecast: any, drivers: Driver[]) {
   }, [forecast, drivers]);
 }
 
-function useSegmentsFromCase(caseData: any) {
+function useSegmentsFromCase(_caseData: any): AdoptionSegment[] {
   return useMemo(() => {
-    const segments: AdoptionSegment[] = [
-      {
-        id: "seg-academic",
-        name: "Academic specialist centers",
-        adoptionLikelihood: 71,
-        timing: "Early",
-        rationale: "Highest tolerance for complexity, strongest ability to interpret data, and greater readiness to act on differentiated evidence.",
-        blockers: ["Institutional review speed", "Access pathway complexity"],
-      },
-      {
-        id: "seg-highvol",
-        name: "High-volume specialists",
-        adoptionLikelihood: 61,
-        timing: "Early",
-        rationale: "Likely to adopt earlier when efficacy is clear and operational burden is manageable.",
-        blockers: ["Reimbursement uncertainty", "Existing treatment habits"],
-      },
-      {
-        id: "seg-existing",
-        name: "Centers with existing usage",
-        adoptionLikelihood: 56,
-        timing: "Middle",
-        rationale: "Familiarity lowers behavioral resistance, but expanded use still requires confidence in evidence.",
-        blockers: ["Label interpretation", "Account policy timing"],
-      },
-      {
-        id: "seg-community",
-        name: "Community practitioners",
-        adoptionLikelihood: 29,
-        timing: "Late",
-        rationale: "More likely to wait for social proof, simplification, and operational clarity.",
-        blockers: ["Low exposure", "Limited infrastructure", "Higher perceived risk"],
-      },
-    ];
-    return segments;
-  }, [caseData]);
+    return [];
+  }, [_caseData]);
 }
 
 interface SignalReadiness {
@@ -950,11 +916,11 @@ function ScenarioPlanningContent({ activeQuestion }: { activeQuestion: any }) {
               Who is likely to adopt first?
             </h4>
             <p className="mt-2 text-slate-300">
-              The question is segmental, so the forecast surface should show likely adopters, not probability alone.
+              Case-specific adoption segmentation is available on the Decide page (Step 4).
             </p>
 
             <div className="mt-6 space-y-4">
-              {segments
+              {segments.length > 0 ? segments
                 .slice()
                 .sort((a, b) => b.adoptionLikelihood - a.adoptionLikelihood)
                 .map((segment) => (
@@ -985,7 +951,11 @@ function ScenarioPlanningContent({ activeQuestion }: { activeQuestion: any }) {
                       </div>
                     </div>
                   </div>
-                ))}
+                )) : (
+                <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-6 text-center">
+                  <p className="text-sm text-slate-400">Proceed to the Decide step for case-specific adoption segmentation, barrier diagnosis, and readiness analysis.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
