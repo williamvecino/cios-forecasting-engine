@@ -6,6 +6,8 @@ export interface ActiveQuestion {
   createdAt: string;
   caseId?: string;
   timeHorizon?: string;
+  questionType?: string;
+  entities?: string[];
 }
 
 const ACTIVE_QUESTION_STORAGE_KEY = "cios.activeQuestion";

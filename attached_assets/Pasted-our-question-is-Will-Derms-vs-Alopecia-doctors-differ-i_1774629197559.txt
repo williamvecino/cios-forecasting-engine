@@ -1,0 +1,236 @@
+our question is:
+
+Will Derms vs Alopecia doctors differ in adoption for Mallia within 12 months?
+
+But the drivers shown are:
+
+Phase 3 efficacy data
+Standard of care switching inertia
+Guideline committee review
+Payer friction
+Early adopter interest
+
+Those are general adoption drivers, not comparative segment drivers.
+They belong to a different question type.
+
+The Root Cause
+
+The system is currently treating every question as:
+
+"What affects adoption?"
+
+Instead of:
+
+"What explains the difference between groups?"
+
+Your question is comparative, not general adoption.
+
+That changes the required evidence structure.
+
+What the Screen Should Show for This Question
+
+The question is:
+
+Will dermatologists and alopecia specialists differ in adoption within 12 months?
+
+So the system must display difference drivers, not generic adoption drivers.
+
+Correct Driver Types for This Question
+
+These are the categories that should appear.
+
+Clinical Fit Differences
+
+Examples:
+
+familiarity with mechanism of action
+relevance to alopecia patient population
+comfort prescribing similar therapies
+Patient Mix Differences
+
+Examples:
+
+proportion of severe cases
+referral patterns
+treatment eligibility
+Workflow Differences
+
+Examples:
+
+diagnostic capability
+monitoring requirements
+clinic visit structure
+Economic Differences
+
+Examples:
+
+reimbursement familiarity
+prior authorization experience
+financial risk tolerance
+Behavioral Differences
+
+Examples:
+
+risk tolerance
+innovation adoption tendency
+guideline adherence
+What the System Should Do Automatically
+
+When the question is comparative, the driver structure must switch modes.
+
+Current Mode
+
+General adoption
+
+Required Mode
+
+Group difference
+
+Implementation Rule
+
+If:
+
+Question type = Comparative
+
+Then:
+
+Driver mode = Difference drivers
+
+Not:
+
+Adoption drivers
+
+What the Header Should Say Instead
+
+Current:
+
+What new information do we have?
+
+Better:
+
+What explains the difference between these groups?
+
+That single sentence aligns the user mentally with the task.
+
+The System Interpretation Should Also Change
+
+Current:
+
+Strong evidence signal is driving adoption potential, but competition friction is limiting near-term uptake.
+
+That describes:
+
+Adoption dynamics
+
+Not:
+
+Group differences
+
+Correct Interpretation Example
+
+Clinical familiarity and patient mix differences suggest alopecia specialists may adopt earlier than general dermatologists, while workflow constraints may slow uptake in dermatology practices.
+
+That is difference-focused reasoning.
+
+What Needs to Change in the Logic
+
+You need a simple routing rule.
+
+Routing Rule
+
+IF question_type = comparative
+THEN driver_template = comparative
+
+ELSE driver_template = adoption
+
+Comparative Driver Template
+
+Use this structure.
+
+Primary Drivers:
+
+Clinical Fit Difference
+Patient Population Difference
+Workflow Difference
+Economic Difference
+Behavioral Difference
+
+Supporting Signals:
+
+Evidence attached to each difference
+
+UI Change Required
+
+Very small.
+
+Not a redesign.
+
+Step 2 Title Logic
+
+Binary / threshold / timing:
+
+What new information do we have?
+
+Comparative:
+
+What explains the difference between groups?
+
+Ranking:
+
+What will make one group lead?
+
+What Should Happen to Existing Signals
+
+Do not delete them.
+
+Reclassify them.
+
+Example:
+
+Phase 3 efficacy data
+
+Becomes:
+
+Clinical confidence difference between groups
+
+Payer friction
+
+Becomes:
+
+Access burden difference between groups
+
+Guideline review
+
+Becomes:
+
+Guideline influence difference between groups
+
+One More Necessary Change
+
+You must show the comparison explicitly at the top.
+
+Add This Line Under the Question
+
+Comparing:
+
+Dermatologists
+vs
+Alopecia specialists
+
+That prevents ambiguity.
+
+What This Fix Achieves
+
+After this change:
+
+The system will feel:
+
+Relevant
+Focused
+Intent-aware
+
+Instead of:
+
+Generic
+Template-driven
+Disconnected

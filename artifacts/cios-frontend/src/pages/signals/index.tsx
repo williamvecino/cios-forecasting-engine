@@ -24,6 +24,11 @@ import {
   BrainCircuit,
   ChevronDown,
   ChevronUp,
+  GitCompareArrows,
+  Activity,
+  Briefcase,
+  Brain,
+  Stethoscope,
 } from "lucide-react";
 
 type Direction = "positive" | "negative" | "neutral";
@@ -76,7 +81,22 @@ function computeImpact(s: { strength: Strength; reliability: Reliability }): Imp
   return "Low";
 }
 
-function generateSuggestions(questionText: string): Signal[] {
+function generateComparativeSuggestions(entities: string[]): Signal[] {
+  const groupA = entities[0] || "Group A";
+  const groupB = entities[1] || "Group B";
+
+  const raw: Omit<Signal, "impact">[] = [
+    { id: "sys-c1", text: `Clinical familiarity difference: ${groupA} may have more experience with this mechanism of action than ${groupB}`, caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "evidence", source: "system", accepted: false },
+    { id: "sys-c2", text: `Patient mix difference: ${groupA} sees a different proportion of eligible patients compared to ${groupB}`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "adoption", source: "system", accepted: false },
+    { id: "sys-c3", text: `Workflow difference: monitoring and diagnostic capabilities vary between ${groupA} and ${groupB} practices`, caveat: "", direction: "negative", strength: "Medium", reliability: "Confirmed", category: "access", source: "system", accepted: false },
+    { id: "sys-c4", text: `Economic difference: reimbursement familiarity and prior authorization burden differs between groups`, caveat: "", direction: "negative", strength: "High", reliability: "Probable", category: "access", source: "system", accepted: false },
+    { id: "sys-c5", text: `Behavioral difference: innovation adoption tendency and risk tolerance may vary between ${groupA} and ${groupB}`, caveat: "", direction: "neutral", strength: "Medium", reliability: "Speculative", category: "adoption", source: "system", accepted: false },
+  ];
+
+  return raw.map((s) => ({ ...s, impact: computeImpact(s) }));
+}
+
+function generateAdoptionSuggestions(questionText: string): Signal[] {
   const q = (questionText || "").toLowerCase();
 
   const raw: Omit<Signal, "impact">[] = [
@@ -100,12 +120,34 @@ function generateSuggestions(questionText: string): Signal[] {
   return raw.map((s) => ({ ...s, impact: computeImpact(s) }));
 }
 
-function generateSummary(signals: Signal[]): string {
+function generateSuggestions(questionText: string, questionType?: string, entities?: string[]): Signal[] {
+  if (questionType === "comparative" && entities && entities.length >= 2) {
+    return generateComparativeSuggestions(entities);
+  }
+  return generateAdoptionSuggestions(questionText);
+}
+
+function generateSummary(signals: Signal[], questionType?: string, entities?: string[]): string {
   const accepted = signals.filter((s) => s.accepted || s.source === "system");
   const positiveHigh = accepted.filter((s) => s.direction === "positive" && s.impact === "High");
   const negativeHigh = accepted.filter((s) => s.direction === "negative" && s.impact === "High");
   const posCount = accepted.filter((s) => s.direction === "positive").length;
   const negCount = accepted.filter((s) => s.direction === "negative").length;
+
+  if (questionType === "comparative" && entities && entities.length >= 2) {
+    const groupA = entities[0];
+    const groupB = entities[1];
+    if (positiveHigh.length > 0 && negativeHigh.length > 0) {
+      return `Clinical familiarity and patient mix differences suggest ${groupA} may adopt earlier than ${groupB}, while workflow and economic constraints may slow uptake differently. ${posCount} difference signals favoring divergence vs. ${negCount} converging.`;
+    }
+    if (positiveHigh.length > 0) {
+      return `Strong difference signals suggest ${groupA} and ${groupB} will diverge in adoption. ${posCount} signals point to meaningful group differences.`;
+    }
+    if (negativeHigh.length > 0) {
+      return `Shared constraints may reduce the gap between ${groupA} and ${groupB}. ${negCount} signals suggest convergence.`;
+    }
+    return `${accepted.length} difference signals registered between ${groupA} and ${groupB}. Confirm or add signals to sharpen the comparison.`;
+  }
 
   if (positiveHigh.length > 0 && negativeHigh.length > 0) {
     const posDriver = positiveHigh[0].category;
@@ -123,13 +165,32 @@ function generateSummary(signals: Signal[]): string {
   return `${accepted.length} signals registered. The balance is moderately uncertain — confirm or add signals to sharpen the forecast.`;
 }
 
+function getStepHeading(questionType?: string): string {
+  switch (questionType) {
+    case "comparative": return "What explains the difference between groups?";
+    case "ranking": return "What will make one group lead?";
+    default: return "What new information do we have?";
+  }
+}
+
+function getDriverLabel(questionType?: string): string {
+  return questionType === "comparative" ? "Difference Drivers" : "Primary Drivers";
+}
+
+function getDriverSubtitle(questionType?: string): string {
+  return questionType === "comparative" ? "Key factors explaining group differences" : "Highest forecast impact";
+}
+
 export default function SignalsPage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const questionText = activeQuestion?.text || "";
+  const questionType = activeQuestion?.questionType;
+  const entities = activeQuestion?.entities || [];
+  const isComparative = questionType === "comparative" && entities.length >= 2;
 
   const systemSuggestions = useMemo(
-    () => generateSuggestions(questionText),
-    [questionText]
+    () => generateSuggestions(questionText, questionType, entities),
+    [questionText, questionType, entities]
   );
 
   const [signals, setSignals] = useState<Signal[]>(systemSuggestions);
@@ -244,7 +305,7 @@ export default function SignalsPage() {
   const supportingSignals = allSignals.filter((s) => s.impact !== "High");
   const pending = allSignals.filter((s) => !s.accepted);
   const accepted = allSignals.filter((s) => s.accepted);
-  const summary = generateSummary(allSignals);
+  const summary = generateSummary(allSignals, questionType, entities);
   const pendingSupporting = supportingSignals.filter((s) => !s.accepted).length;
   const effectiveShowSupporting = showSupporting || pendingSupporting > 0;
 
@@ -261,9 +322,28 @@ export default function SignalsPage() {
               Step 2
             </div>
             <h1 className="mt-2 text-2xl font-semibold text-foreground">
-              What new information do we have?
+              {getStepHeading(questionType)}
             </h1>
           </div>
+
+          {isComparative && (
+            <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/5 via-card to-card p-4">
+              <div className="flex items-center gap-3">
+                <GitCompareArrows className="w-5 h-5 text-violet-400 shrink-0" />
+                <div>
+                  <div className="text-[10px] text-violet-400 font-semibold uppercase tracking-wider mb-1">Comparing</div>
+                  <div className="text-sm font-medium text-foreground">
+                    {entities.map((e, i) => (
+                      <span key={e}>
+                        {i > 0 && <span className="text-muted-foreground mx-1.5">vs</span>}
+                        <span className="text-violet-300">{e}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-card p-5">
             <div className="flex items-start gap-3">
@@ -278,8 +358,8 @@ export default function SignalsPage() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-amber-400" />
-              <h2 className="text-sm font-bold text-foreground">Primary Drivers</h2>
-              <span className="text-xs text-muted-foreground">Highest forecast impact</span>
+              <h2 className="text-sm font-bold text-foreground">{getDriverLabel(questionType)}</h2>
+              <span className="text-xs text-muted-foreground">{getDriverSubtitle(questionType)}</span>
             </div>
 
             {primaryDrivers.length === 0 ? (

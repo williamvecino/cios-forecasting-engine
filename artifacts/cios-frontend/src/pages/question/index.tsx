@@ -167,6 +167,8 @@ export default function QuestionPage() {
       text: interpretedQuestion || rawInput.trim(),
       caseId: resolvedCaseId,
       timeHorizon: enriched?.timeHorizon || "12 months",
+      questionType: enriched?.questionType || "binary",
+      entities: enriched?.populationOrEntities || [],
     };
 
     if (isEditing) {

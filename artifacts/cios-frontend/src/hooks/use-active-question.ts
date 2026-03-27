@@ -11,6 +11,8 @@ export interface CreateQuestionInput {
   text: string;
   caseId?: string;
   timeHorizon?: string;
+  questionType?: string;
+  entities?: string[];
 }
 
 export function useActiveQuestion() {
@@ -30,6 +32,8 @@ export function useActiveQuestion() {
       createdAt: new Date().toISOString(),
       caseId: input.caseId?.trim() || undefined,
       timeHorizon: input.timeHorizon?.trim() || undefined,
+      questionType: input.questionType || undefined,
+      entities: input.entities || undefined,
     };
 
     storeActiveQuestion(next);
@@ -45,6 +49,8 @@ export function useActiveQuestion() {
       createdAt: prev?.createdAt ?? new Date().toISOString(),
       caseId: input.caseId?.trim() || undefined,
       timeHorizon: input.timeHorizon?.trim() || undefined,
+      questionType: input.questionType || undefined,
+      entities: input.entities || undefined,
     };
     storeActiveQuestion(updated);
     setActiveQuestion(updated);
