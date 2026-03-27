@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { researchBrand } from "../lib/web-research";
 
 const router = Router();
 
@@ -52,6 +53,9 @@ router.post("/ai-signals/generate", async (req, res) => {
 
     const therapeuticArea = detectTherapeuticArea(body.subject, body.questionText);
 
+    const research = await researchBrand(body.subject, body.questionText);
+    const hasResearch = research.combinedContext.length > 0;
+
     const systemPrompt = `You are a pharmaceutical market intelligence analyst. Given a specific brand/therapy and a forecasting question, generate analytical signals that drive the forecast.
 
 CRITICAL RULES:
@@ -64,27 +68,29 @@ CRITICAL RULES:
    - Others are driven by payer coverage and reimbursement (e.g. specialty drugs with high cost).
    Determine what matters for THIS specific product and question.
 
-3. Do NOT fabricate specific facts. Do not invent FDA approval dates, trial results, response rates, or guideline mentions you are unsure about. If you recognize the brand and know real facts, state them with "Confirmed" reliability. If you don't recognize the brand, frame signals as analytical considerations for what WOULD drive adoption for this type of product.
+3. REAL-TIME WEB RESEARCH HAS BEEN PERFORMED. You will be given recent news headlines and page content about this brand/product gathered from the web. USE THIS INFORMATION to ground your signals in real, current facts. If the research includes recent clinical trial results, FDA actions, press releases, or regulatory updates, these should appear as high-strength "Confirmed" signals. ${hasResearch ? "Research was found — prioritize these real findings over general knowledge." : "No recent web results were found — rely on your training knowledge but mark reliability accordingly."}
 
-4. Signals should be specific analytical drivers — concrete factors that move the forecast up or down. Not generic advice like "investigate whether..."
+4. Do NOT fabricate specific facts beyond what is provided in the research context or what you know with high confidence. When citing research findings, mark them "Confirmed". When making reasonable inferences, mark "Probable". When uncertain, mark "Speculative".
 
-5. Identify what therapeutic context this falls into (detected: ${therapeuticArea}) and reason about what adoption dynamics apply to this specific type of product. But do not blindly apply a template — a hair restoration adjunct therapy has completely different adoption drivers than an oncology biologic, even if both are in "dermatology."
+5. Signals should be specific analytical drivers — concrete factors that move the forecast up or down. Not generic advice like "investigate whether..."
+
+6. Identify what therapeutic context this falls into (detected: ${therapeuticArea}) and reason about what adoption dynamics apply to this specific type of product. But do not blindly apply a template — a hair restoration adjunct therapy has completely different adoption drivers than an oncology biologic, even if both are in "dermatology."
 
 For each signal, provide:
-- **text**: A specific analytical driver statement. If you know real facts about this brand, state them. If not, describe the type of factor that matters (e.g. "Documented improvement in clinical outcomes" not "investigate whether outcomes exist").
+- **text**: A specific analytical driver statement grounded in real data when available. Cite specific findings from the research (trial names, dates, results) when present.
 - **category**: one of "evidence", "access", "competition", "guideline", "timing", "adoption"
 - **direction**: "positive", "negative", or "neutral"
 - **strength**: "High", "Medium", or "Low"
-- **reliability**: "Confirmed" (known fact or well-established market dynamic), "Probable" (reasonable inference), "Speculative" (uncertain)
-- **source_type**: What data source informs this (e.g. "clinical_data", "market_research", "payer_landscape", "prescribing_data", "competitive_intel", "guidelines")
+- **reliability**: "Confirmed" (from web research or well-established fact), "Probable" (reasonable inference), "Speculative" (uncertain)
+- **source_type**: What data source informs this (e.g. "clinical_data", "market_research", "payer_landscape", "prescribing_data", "competitive_intel", "guidelines", "press_release", "investor_relations")
 - **rationale**: Why this factor matters for this specific forecast
 
-Generate 8-12 signals. Put highest-impact drivers first.
+Generate 8-12 signals. Put highest-impact drivers first. Signals grounded in real research findings should come first.
 
 For incoming_events, generate 5 events the forecaster should monitor:
 { "id": "ev-N", "title": "...", "type": "evidence|access|competition|guideline|adoption", "description": "...", "relevance": "..." }
 
-For market_summary: 2-3 sentences describing what dynamics matter most for THIS specific product and question. Do not apply generic therapeutic area templates.
+For market_summary: 2-3 sentences describing what dynamics matter most for THIS specific product and question. Reference specific recent developments from research if available. Do not apply generic therapeutic area templates.
 
 Return ONLY valid JSON:
 {
@@ -94,6 +100,11 @@ Return ONLY valid JSON:
   "therapeutic_area": "${therapeuticArea}"
 }`;
 
+    let researchSection = "";
+    if (hasResearch) {
+      researchSection = `\n\n--- REAL-TIME WEB RESEARCH ---\nThe following was gathered by searching the web for recent news about "${body.subject}":\n\n${research.combinedContext}\n--- END RESEARCH ---\n\nUse the above research to ground your signals in real, current facts. These are real headlines and page content from the web.`;
+    }
+
     const userPrompt = `Generate analytical signals for:
 
 **Brand/Subject**: ${body.subject}
@@ -101,9 +112,9 @@ Return ONLY valid JSON:
 **Outcome**: ${body.outcome || "adoption"}
 **Time Horizon**: ${body.timeHorizon || "12 months"}
 **Question Type**: ${body.questionType || "binary"}
-${body.entities?.length ? `**Groups**: ${body.entities.join(" vs ")}` : ""}
+${body.entities?.length ? `**Groups**: ${body.entities.join(" vs ")}` : ""}${researchSection}
 
-Evaluate this specific product and question. What are the primary factors that would drive or block the forecasted outcome? Consider the product type, the target prescribers, the market dynamics, and what evidence would matter most.`;
+Evaluate this specific product and question. What are the primary factors that would drive or block the forecasted outcome? Consider the product type, the target prescribers, the market dynamics, and what evidence would matter most. Prioritize signals grounded in the real-time research findings above.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",

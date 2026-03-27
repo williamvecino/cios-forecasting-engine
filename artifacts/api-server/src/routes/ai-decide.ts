@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { researchBrand } from "../lib/web-research";
 
 const router = Router();
 
@@ -24,17 +25,23 @@ router.post("/ai-decide/generate", async (req, res) => {
 
     const area = body.therapeuticArea || "general";
 
+    const research = await researchBrand(body.subject, body.questionText);
+    const hasResearch = research.combinedContext.length > 0;
+
     const systemPrompt = `You are a pharmaceutical commercial strategy analyst. Generate a structured decision analysis for a specific brand/product and forecasting question.
 
 CRITICAL: Each case is unique. Evaluate this specific product on its own merits. Do not apply generic templates. A hair restoration adjunct therapy has different segmentation, barriers, and competitive dynamics than an oncology biologic — even within the same therapeutic area.
+
+${hasResearch ? "REAL-TIME WEB RESEARCH was performed and is included below. Ground your analysis in these real, current findings. Reference specific recent developments (trial results, FDA actions, press releases) when they affect segmentation, barriers, or timeline." : "No recent web research was found. Rely on your training knowledge but be transparent about uncertainty."}
 
 Consider:
 - What type of product is this? (novel drug, adjunct therapy, diagnostic, device, etc.)
 - Who are the actual prescribers/users? (specialists, generalists, surgeons, etc.)
 - What drives adoption for THIS type of product? (evidence? guidelines? patient demand? visible results? payer coverage?)
 - What is the relevant payment model? (insurance-covered? cash-pay? buy-and-bill?)
+- What recent developments (from research) change the adoption outlook?
 
-Do NOT fabricate specific data. Provide analytical assessments based on the product type and market context.
+Do NOT fabricate specific data. Use research findings when available, and provide analytical assessments based on the product type and market context.
 
 Return ONLY valid JSON with this structure:
 
@@ -74,6 +81,11 @@ Return ONLY valid JSON with this structure:
 
 Name real segment types specific to this product (e.g. "Hair restoration surgeons", "Community oncologists", "Large cardiology practices") — not generic labels.`;
 
+    let researchSection = "";
+    if (hasResearch) {
+      researchSection = `\n\n--- REAL-TIME WEB RESEARCH ---\n${research.combinedContext}\n--- END RESEARCH ---\n\nUse the above research to ground your decision analysis in real, current developments.`;
+    }
+
     const userPrompt = `Generate decision analysis for:
 
 **Brand/Subject**: ${body.subject}
@@ -82,7 +94,7 @@ Name real segment types specific to this product (e.g. "Hair restoration surgeon
 **Time Horizon**: ${body.timeHorizon || "12 months"}
 **Question Type**: ${body.questionType || "binary"}
 **Therapeutic Context**: ${area}
-${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}
+${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${researchSection}
 
 Evaluate this specific product and its market. Who are the real segments? What are the actual barriers? What would trigger adoption?`;
 
