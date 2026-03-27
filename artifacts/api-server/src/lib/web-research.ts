@@ -1,6 +1,6 @@
 const SEARCH_TIMEOUT_MS = 8000;
 const FETCH_TIMEOUT_MS = 6000;
-const MAX_CONTEXT_CHARS = 4000;
+const MAX_CONTEXT_CHARS = 5000;
 
 const ALLOWED_FETCH_DOMAINS = new Set([
   "news.google.com",
@@ -22,6 +22,7 @@ const ALLOWED_FETCH_DOMAINS = new Set([
   "www.fda.gov",
   "clinicaltrials.gov",
   "www.clinicaltrials.gov",
+  "classic.clinicaltrials.gov",
   "accessdata.fda.gov",
   "statnews.com",
   "www.statnews.com",
@@ -51,24 +52,55 @@ function isAllowedUrl(urlStr: string): boolean {
   }
 }
 
-interface NewsItem {
+export interface NewsItem {
   title: string;
   description: string;
   pubDate: string;
   link: string;
   dateMs: number;
+  sourceType: string;
+  sourcePriority: number;
 }
 
-interface ResearchResult {
+export interface FetchedPage {
+  url: string;
+  content: string;
+  sourceType: string;
+}
+
+export interface ResearchResult {
   newsHeadlines: NewsItem[];
-  fetchedContent: string[];
+  fetchedPages: FetchedPage[];
   combinedContext: string;
+  brandCheckPerformed: boolean;
+  sourcesSearched: string[];
 }
 
 function parsePubDate(dateStr: string): number {
   if (!dateStr) return 0;
   const ms = Date.parse(dateStr);
   return isNaN(ms) ? 0 : ms;
+}
+
+function classifySource(url: string, title: string): { sourceType: string; priority: number } {
+  const lower = url.toLowerCase();
+  const titleLower = title.toLowerCase();
+  if (lower.includes("investor.") || lower.includes("investors.") || lower.includes("ir.") || titleLower.includes("investor")) {
+    return { sourceType: "investor_relations", priority: 1 };
+  }
+  if (lower.includes("clinicaltrials.gov")) {
+    return { sourceType: "clinical_trials_gov", priority: 3 };
+  }
+  if (lower.includes(".fda.gov")) {
+    return { sourceType: "fda", priority: 2 };
+  }
+  if (lower.includes("prnewswire") || lower.includes("businesswire") || lower.includes("globenewswire")) {
+    return { sourceType: "press_release", priority: 1 };
+  }
+  if (lower.includes("congress") || lower.includes("asco") || lower.includes("aacr") || lower.includes("esmo")) {
+    return { sourceType: "congress", priority: 4 };
+  }
+  return { sourceType: "news", priority: 5 };
 }
 
 async function searchGoogleNewsRSS(query: string): Promise<NewsItem[]> {
@@ -86,7 +118,8 @@ async function searchGoogleNewsRSS(query: string): Promise<NewsItem[]> {
         item.match(/<description>(.*?)<\/description>/))?.[1]?.replace(/<[^>]+>/g, "") || "";
       const link = item.match(/<link>(.*?)<\/link>/)?.[1] || "";
       const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || "";
-      return { title, description, pubDate, link, dateMs: parsePubDate(pubDate) };
+      const { sourceType, priority } = classifySource(link, title);
+      return { title, description, pubDate, link, dateMs: parsePubDate(pubDate), sourceType, sourcePriority: priority };
     }).filter((n) => n.title.length > 0);
   } catch {
     return [];
@@ -145,8 +178,7 @@ async function fetchPageText(url: string, maxChars = 2000): Promise<string> {
     const contentType = resp.headers.get("content-type") || "";
     if (!contentType.includes("html") && !contentType.includes("xml") && !contentType.includes("text")) return "";
     const html = await resp.text();
-    const text = stripHtml(html);
-    return text.slice(0, maxChars);
+    return stripHtml(html).slice(0, maxChars);
   } catch {
     return "";
   }
@@ -156,18 +188,40 @@ export async function researchBrand(
   subject: string,
   questionText: string,
 ): Promise<ResearchResult> {
-  const empty: ResearchResult = { newsHeadlines: [], fetchedContent: [], combinedContext: "" };
+  const empty: ResearchResult = {
+    newsHeadlines: [],
+    fetchedPages: [],
+    combinedContext: "",
+    brandCheckPerformed: true,
+    sourcesSearched: [],
+  };
 
-  if (!subject || subject.length < 2) return empty;
+  if (!subject || subject.length < 2) {
+    return { ...empty, brandCheckPerformed: false };
+  }
+
+  const sourcesSearched: string[] = [];
 
   const searchQueries = [
-    `${subject} latest news 2026`,
-    `${subject} FDA approval clinical trial results`,
-    `${subject} press release investor`,
+    { query: `"${subject}" investor press release site:prnewswire.com OR site:businesswire.com OR site:globenewswire.com`, label: "Company investor/press releases" },
+    { query: `"${subject}" official site`, label: "Official brand website" },
+    { query: `"${subject}" clinical trial results`, label: "ClinicalTrials.gov / clinical data" },
+    { query: `"${subject}" congress presentation ASCO ESMO ATS`, label: "Congress/company presentations" },
+    { query: `${subject} latest news 2026`, label: "Recent news" },
+    { query: `${subject} FDA approval regulatory`, label: "FDA/regulatory" },
   ];
 
-  const searchPromises = searchQueries.map((q) => searchGoogleNewsRSS(q));
+  const searchPromises = searchQueries.map((q) => searchGoogleNewsRSS(q.query));
   const searchResults = await Promise.allSettled(searchPromises);
+
+  searchQueries.forEach((q, i) => {
+    const result = searchResults[i];
+    if (result.status === "fulfilled" && result.value.length > 0) {
+      sourcesSearched.push(`${q.label} (${result.value.length} results)`);
+    } else {
+      sourcesSearched.push(`${q.label} (no results)`);
+    }
+  });
 
   const allNews: NewsItem[] = [];
   const seenTitles = new Set<string>();
@@ -183,39 +237,57 @@ export async function researchBrand(
     }
   }
 
-  allNews.sort((a, b) => b.dateMs - a.dateMs);
+  allNews.sort((a, b) => {
+    if (a.sourcePriority !== b.sourcePriority) return a.sourcePriority - b.sourcePriority;
+    return b.dateMs - a.dateMs;
+  });
 
-  const topNews = allNews.slice(0, 8);
+  const topNews = allNews.slice(0, 10);
 
   const pageUrls = topNews
-    .map((n) => n.link)
-    .filter((link) => link.startsWith("http") && isAllowedUrl(link))
-    .slice(0, 3);
+    .map((n) => ({ url: n.link, sourceType: n.sourceType }))
+    .filter((p) => p.url.startsWith("http") && isAllowedUrl(p.url))
+    .slice(0, 4);
 
-  const fetchPromises = pageUrls.map((url) => fetchPageText(url, 1500));
+  const fetchPromises = pageUrls.map(async (p): Promise<FetchedPage | null> => {
+    const content = await fetchPageText(p.url, 1500);
+    if (content.length > 100) {
+      return { url: p.url, content, sourceType: p.sourceType };
+    }
+    return null;
+  });
+
   const fetchResults = await Promise.allSettled(fetchPromises);
-  const fetchedContent: string[] = [];
+  const fetchedPages: FetchedPage[] = [];
   for (const result of fetchResults) {
-    if (result.status === "fulfilled" && result.value.length > 100) {
-      fetchedContent.push(result.value);
+    if (result.status === "fulfilled" && result.value) {
+      fetchedPages.push(result.value);
     }
   }
 
   let context = "";
+
+  context += `BRAND DEVELOPMENT CHECK for "${subject}"\n`;
+  context += `Sources searched: ${sourcesSearched.join("; ")}\n\n`;
+
   if (topNews.length > 0) {
-    context += "RECENT NEWS HEADLINES (sorted newest first):\n";
+    context += "VERIFIED BRAND DEVELOPMENTS (sorted by source priority, then date):\n";
     for (const item of topNews) {
-      const date = item.pubDate ? `[${item.pubDate}] ` : "";
-      context += `- ${date}${item.title}`;
+      const date = item.pubDate ? `[${item.pubDate}]` : "[date unknown]";
+      context += `- ${date} [${item.sourceType}] ${item.title}`;
       if (item.description) context += ` — ${item.description.slice(0, 200)}`;
+      if (item.link) context += ` (source: ${item.link})`;
       context += "\n";
     }
+  } else {
+    context += "No recent verified brand developments found.\n";
   }
 
-  if (fetchedContent.length > 0) {
-    context += "\nFETCHED PAGE CONTENT:\n";
-    for (const content of fetchedContent) {
-      context += content.slice(0, 1200) + "\n---\n";
+  if (fetchedPages.length > 0) {
+    context += "\nFETCHED PAGE CONTENT (from priority sources):\n";
+    for (const page of fetchedPages) {
+      context += `[Source: ${page.sourceType}] ${page.url}\n`;
+      context += page.content.slice(0, 1200) + "\n---\n";
     }
   }
 
@@ -225,8 +297,10 @@ export async function researchBrand(
 
   return {
     newsHeadlines: topNews,
-    fetchedContent,
+    fetchedPages,
     combinedContext: context,
+    brandCheckPerformed: true,
+    sourcesSearched,
   };
 }
 

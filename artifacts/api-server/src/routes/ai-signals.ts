@@ -54,55 +54,73 @@ router.post("/ai-signals/generate", async (req, res) => {
     const therapeuticArea = detectTherapeuticArea(body.subject, body.questionText);
 
     const research = await researchBrand(body.subject, body.questionText);
-    const hasResearch = research.combinedContext.length > 0;
+    const hasResearch = research.newsHeadlines.length > 0;
 
-    const systemPrompt = `You are a pharmaceutical market intelligence analyst. Given a specific brand/therapy and a forecasting question, generate analytical signals that drive the forecast.
+    const systemPrompt = `You are a pharmaceutical market intelligence analyst. Given a specific brand/therapy and a forecasting question, you must generate analytical signals that drive the forecast.
+
+A BRAND DEVELOPMENT CHECK has been performed. ${hasResearch
+  ? "Real-time web research found recent developments. You MUST convert these into structured signals FIRST, before generating any derived or generic signals."
+  : "No recent verified brand developments were found from web research."}
 
 CRITICAL RULES:
 
 1. Each case is unique. Do NOT apply generic templates. Evaluate this specific brand/product/question on its own merits.
 
-2. What drives adoption varies by product type:
-   - Some products are driven by clinical trial evidence and guidelines (e.g. oncology drugs with survival endpoints).
-   - Others are driven by visible patient outcomes, workflow simplicity, and patient demand (e.g. aesthetic/adjunct therapies).
-   - Others are driven by payer coverage and reimbursement (e.g. specialty drugs with high cost).
-   Determine what matters for THIS specific product and question.
+2. SIGNAL CLASSIFICATION — Every signal must be classified as one of:
+   - "observed": Directly sourced from verified brand developments (press releases, clinical trial results, FDA actions, investor announcements). These MUST come first and carry highest weight.
+   - "derived": Reasonable implications inferred from observed developments or established market knowledge.
+   - "uncertainty": Open questions or unknown factors that could affect the forecast.
 
-3. REAL-TIME WEB RESEARCH HAS BEEN PERFORMED. You will be given recent news headlines and page content about this brand/product gathered from the web. USE THIS INFORMATION to ground your signals in real, current facts. If the research includes recent clinical trial results, FDA actions, press releases, or regulatory updates, these should appear as high-strength "Confirmed" signals. ${hasResearch ? "Research was found — prioritize these real findings over general knowledge." : "No recent web results were found — rely on your training knowledge but mark reliability accordingly."}
+3. ORDER REQUIREMENT: Observed signals first, then derived, then uncertainties. ${hasResearch ? "If web research found developments but you output no observed signals, this is a logic failure." : "Since no web research was found, you may have mostly derived signals — but be transparent about this."}
 
-4. Do NOT fabricate specific facts beyond what is provided in the research context or what you know with high confidence. When citing research findings, mark them "Confirmed". When making reasonable inferences, mark "Probable". When uncertain, mark "Speculative".
+4. For observed signals sourced from web research, you MUST include:
+   - source_url: the URL where this was found (from the research data)
+   - observed_date: when this development occurred/was announced
+   - citation_excerpt: a brief quote or key fact from the source
+   - brand_verified: true
 
-5. Signals should be specific analytical drivers — concrete factors that move the forecast up or down. Not generic advice like "investigate whether..."
+5. Do NOT fabricate specific facts. For derived signals, mark brand_verified: false.
 
-6. Identify what therapeutic context this falls into (detected: ${therapeuticArea}) and reason about what adoption dynamics apply to this specific type of product. But do not blindly apply a template — a hair restoration adjunct therapy has completely different adoption drivers than an oncology biologic, even if both are in "dermatology."
+6. What drives adoption varies by product type. Determine what matters for THIS specific product and question.
+
+7. Identify what therapeutic context this falls into (detected: ${therapeuticArea}) and reason about what adoption dynamics apply. But do not blindly apply a template.
 
 For each signal, provide:
-- **text**: A specific analytical driver statement grounded in real data when available. Cite specific findings from the research (trial names, dates, results) when present.
+- **text**: A specific analytical driver statement. For observed signals, cite the specific development.
+- **signal_class**: "observed" | "derived" | "uncertainty"
 - **category**: one of "evidence", "access", "competition", "guideline", "timing", "adoption"
 - **direction**: "positive", "negative", or "neutral"
 - **strength**: "High", "Medium", or "Low"
-- **reliability**: "Confirmed" (from web research or well-established fact), "Probable" (reasonable inference), "Speculative" (uncertain)
-- **source_type**: What data source informs this (e.g. "clinical_data", "market_research", "payer_landscape", "prescribing_data", "competitive_intel", "guidelines", "press_release", "investor_relations")
+- **reliability**: "Confirmed" (observed from verified source), "Probable" (reasonable inference), "Speculative" (uncertain)
+- **source_type**: e.g. "press_release", "investor_relations", "clinical_data", "clinical_trials_gov", "fda", "congress", "guidelines", "market_research", "payer_landscape", "competitive_intel"
+- **source_url**: URL if available (required for observed signals), null otherwise
+- **observed_date**: date string if known (required for observed signals), null otherwise
+- **citation_excerpt**: key quote/fact from source (required for observed signals), null otherwise
+- **brand_verified**: true for observed signals from verified sources, false otherwise
 - **rationale**: Why this factor matters for this specific forecast
 
-Generate 8-12 signals. Put highest-impact drivers first. Signals grounded in real research findings should come first.
+Generate 8-12 signals. Observed brand developments first, then derived implications, then uncertainties.
 
 For incoming_events, generate 5 events the forecaster should monitor:
 { "id": "ev-N", "title": "...", "type": "evidence|access|competition|guideline|adoption", "description": "...", "relevance": "..." }
 
-For market_summary: 2-3 sentences describing what dynamics matter most for THIS specific product and question. Reference specific recent developments from research if available. Do not apply generic therapeutic area templates.
+For market_summary: 2-3 sentences starting with the most important recent development if one exists. Do not apply generic therapeutic area templates.
 
 Return ONLY valid JSON:
 {
   "signals": [...],
   "incoming_events": [...],
   "market_summary": "...",
-  "therapeutic_area": "${therapeuticArea}"
+  "therapeutic_area": "${therapeuticArea}",
+  "brand_check_performed": true,
+  "verified_developments_found": ${hasResearch}
 }`;
 
     let researchSection = "";
     if (hasResearch) {
-      researchSection = `\n\n--- REAL-TIME WEB RESEARCH ---\nThe following was gathered by searching the web for recent news about "${body.subject}":\n\n${research.combinedContext}\n--- END RESEARCH ---\n\nUse the above research to ground your signals in real, current facts. These are real headlines and page content from the web.`;
+      researchSection = `\n\n--- BRAND DEVELOPMENT CHECK RESULTS ---\n${research.combinedContext}\n--- END BRAND DEVELOPMENT CHECK ---\n\nYou MUST convert the above verified brand developments into "observed" signals with source_url, observed_date, citation_excerpt, and brand_verified: true. These must appear first in your signal list.`;
+    } else {
+      researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found for "${body.subject}". Generate signals based on known market dynamics, but classify them as "derived" or "uncertainty" — not "observed".`;
     }
 
     const userPrompt = `Generate analytical signals for:
@@ -114,7 +132,7 @@ Return ONLY valid JSON:
 **Question Type**: ${body.questionType || "binary"}
 ${body.entities?.length ? `**Groups**: ${body.entities.join(" vs ")}` : ""}${researchSection}
 
-Evaluate this specific product and question. What are the primary factors that would drive or block the forecasted outcome? Consider the product type, the target prescribers, the market dynamics, and what evidence would matter most. Prioritize signals grounded in the real-time research findings above.`;
+Evaluate this specific product and question. Convert verified brand developments into observed signals first, then add derived implications and open uncertainties.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -134,6 +152,9 @@ Evaluate this specific product and question. What are the primary factors that w
 
     const parsed = JSON.parse(content);
     parsed.therapeutic_area = therapeuticArea;
+    parsed.brand_check_performed = true;
+    parsed.verified_developments_found = hasResearch;
+    parsed.sources_searched = research.sourcesSearched;
     res.json(parsed);
   } catch (err: any) {
     console.error("AI signal generation error:", err);

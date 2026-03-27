@@ -29,6 +29,9 @@ import {
   Briefcase,
   Brain,
   Stethoscope,
+  ExternalLink,
+  Globe,
+  AlertTriangle,
 } from "lucide-react";
 
 type Direction = "positive" | "negative" | "neutral";
@@ -36,6 +39,8 @@ type Strength = "High" | "Medium" | "Low";
 type Reliability = "Confirmed" | "Probable" | "Speculative";
 type Impact = "High" | "Medium" | "Low";
 type Category = "evidence" | "access" | "competition" | "guideline" | "timing" | "adoption";
+
+type SignalClass = "observed" | "derived" | "uncertainty";
 
 interface Signal {
   id: string;
@@ -48,6 +53,12 @@ interface Signal {
   category: Category;
   source: "system" | "user";
   accepted: boolean;
+  signal_class?: SignalClass;
+  source_url?: string | null;
+  source_type?: string;
+  observed_date?: string | null;
+  citation_excerpt?: string | null;
+  brand_verified?: boolean;
 }
 
 interface IncomingEvent {
@@ -309,6 +320,8 @@ export default function SignalsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
+  const [brandCheckDone, setBrandCheckDone] = useState(false);
+  const [verifiedFound, setVerifiedFound] = useState(false);
   const aiRequestedRef = useRef<string | null>(null);
   const aiRequestIdRef = useRef(0);
 
@@ -356,11 +369,13 @@ export default function SignalsPage() {
         if (aiRequestIdRef.current !== requestId) return;
 
         if (data.signals && Array.isArray(data.signals)) {
+          const VALID_SIGNAL_CLASSES = new Set(["observed", "derived", "uncertainty"]);
           const mapped: Signal[] = data.signals.map((s: any, i: number) => {
             const category = VALID_CATEGORIES.has(s.category) ? s.category : "evidence";
             const direction = VALID_DIRECTIONS.has(s.direction) ? s.direction : "neutral";
             const strength = VALID_STRENGTHS.has(s.strength) ? s.strength : "Medium";
             const reliability = VALID_RELIABILITIES.has(s.reliability) ? s.reliability : "Probable";
+            const signal_class = VALID_SIGNAL_CLASSES.has(s.signal_class) ? s.signal_class as SignalClass : "derived";
             return {
               id: `ai-${i + 1}`,
               text: s.text,
@@ -372,6 +387,12 @@ export default function SignalsPage() {
               category,
               source: "system" as const,
               accepted: false,
+              signal_class,
+              source_url: s.source_url || null,
+              source_type: s.source_type || undefined,
+              observed_date: s.observed_date || null,
+              citation_excerpt: s.citation_excerpt || null,
+              brand_verified: !!s.brand_verified,
             };
           });
           setSignals((prev) => {
@@ -379,6 +400,9 @@ export default function SignalsPage() {
             return [...mapped, ...userSignals];
           });
         }
+
+        setBrandCheckDone(true);
+        setVerifiedFound(data.verified_developments_found === true);
 
         if (data.incoming_events && Array.isArray(data.incoming_events)) {
           const iconMap: Record<string, React.ElementType> = {
@@ -644,12 +668,12 @@ export default function SignalsPage() {
             <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 via-card to-card p-5">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <BrainCircuit className="w-5 h-5 text-cyan-400 animate-pulse" />
+                  <Globe className="w-5 h-5 text-cyan-400 animate-pulse" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-[10px] text-cyan-400 font-semibold uppercase tracking-wider mb-1">AI Research in Progress</div>
+                  <div className="text-[10px] text-cyan-400 font-semibold uppercase tracking-wider mb-1">Brand Development Check in Progress</div>
                   <div className="text-sm text-foreground leading-relaxed">
-                    Analyzing {subject} — checking clinical data, competitors, payer landscape, physician behavior, guidelines, and patient factors...
+                    Searching for latest verified developments on {subject} — checking company investor/press releases, official brand site, ClinicalTrials.gov, congress presentations, and news sources...
                   </div>
                   <div className="mt-2 h-1.5 w-full rounded-full bg-muted/30 overflow-hidden">
                     <div className="h-full rounded-full bg-cyan-500/60 animate-[loading_2s_ease-in-out_infinite]" style={{ width: "60%" }} />
@@ -676,6 +700,81 @@ export default function SignalsPage() {
               </div>
             </div>
           )}
+
+          {brandCheckDone && !aiLoading && (() => {
+            const observedSignals = allSignals.filter((s) => s.signal_class === "observed" && s.brand_verified);
+            if (observedSignals.length > 0) {
+              return (
+                <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-500/10 via-card to-card p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-blue-400" />
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-blue-400">Latest Verified Brand Developments</h2>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-medium">{observedSignals.length} found</span>
+                  </div>
+                  <div className="space-y-2">
+                    {observedSignals.slice(0, 5).map((sig) => (
+                      <div key={sig.id} className="rounded-xl border border-blue-500/15 bg-blue-500/5 p-3">
+                        <div className="flex items-start gap-2">
+                          <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${sig.direction === "positive" ? "bg-emerald-400" : sig.direction === "negative" ? "bg-red-400" : "bg-slate-400"}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground leading-snug">{sig.text}</div>
+                            {sig.citation_excerpt && (
+                              <div className="mt-1 text-xs text-muted-foreground italic">"{sig.citation_excerpt}"</div>
+                            )}
+                            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px]">
+                              {sig.observed_date && (
+                                <span className="text-blue-300">{sig.observed_date}</span>
+                              )}
+                              {sig.source_type && (
+                                <span className="px-1.5 py-0.5 rounded bg-muted/30 text-muted-foreground">{sig.source_type.replace(/_/g, " ")}</span>
+                              )}
+                              <span className={`px-1.5 py-0.5 rounded font-medium ${sig.direction === "positive" ? "bg-emerald-500/15 text-emerald-400" : sig.direction === "negative" ? "bg-red-500/15 text-red-400" : "bg-slate-500/15 text-slate-400"}`}>
+                                {sig.direction === "positive" ? "↑ Positive" : sig.direction === "negative" ? "↓ Negative" : "— Neutral"}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">Confirmed</span>
+                              {sig.source_url && (
+                                <a href={sig.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300">
+                                  <ExternalLink className="w-3 h-3" />
+                                  Source
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0 ml-2">
+                            {!sig.accepted ? (
+                              <>
+                                <button type="button" onClick={() => acceptSignal(sig.id)} className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400" title="Confirm">
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button type="button" onClick={() => dismissSignal(sig.id)} className="p-1 rounded hover:bg-red-500/20 text-muted-foreground" title="Dismiss">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">Confirmed</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            } else if (!verifiedFound) {
+              return (
+                <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-r from-amber-500/5 via-card to-card p-4">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div>
+                      <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider mb-0.5">Brand Development Check</div>
+                      <div className="text-xs text-muted-foreground">No recent verified brand developments found for {subject}. Signals below are derived from market knowledge and general analysis.</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-card p-5">
             <div className="flex items-start gap-3">

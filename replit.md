@@ -53,8 +53,19 @@ Strict separation between `draftQuestion` (the in-progress text in the textarea/
 - `Clear Question` calls both `clearQuestion()` (removes active case from localStorage + state) and `resetDraft()` (dispatches `RESET` to clear all draft state).
 - Debug console logs (`[CIOS State]`, `[CIOS Draft]`, `[CIOS AI Signals]`, `[CIOS Submit]`) have been removed.
 
-**AI-Powered Signal Generation (Case-Specific, Web-Research-Grounded):**
-The signals page calls `POST /api/ai-signals/generate` which: (1) detects the therapeutic area as context, (2) performs real-time web research via `researchBrand()` in `lib/web-research.ts` to find latest news, press releases, and clinical trial results for the brand, (3) passes research findings + question to GPT-4o for case-specific signal generation. Web research searches Google News RSS with multiple queries, sorts results newest-first, and fetches page content from an allowlist of trusted domains (pharma news, press releases, .gov, investor relations). Research context is injected into the AI prompt so signals are grounded in real, current facts (e.g. recent trial results marked "Confirmed"). The user's raw question input (with clinical specifics like "first-line" or "refractory") is preserved via `rawInput` field on `ActiveQuestion` and passed to the AI — the interpreted question template is only used for display. ARCHITECTURAL RULE: Never hardcode domain-specific signal templates — the AI must evaluate brand-specific signals for each new case.
+**AI-Powered Signal Generation (Case-Specific, Brand Development Check):**
+The signals page calls `POST /api/ai-signals/generate` which performs a **Brand Development Check** before generating signals:
+1. Detects therapeutic area as context
+2. Performs real-time web research via `researchBrand()` in `lib/web-research.ts` following source priority: company investor/press releases → official brand site → ClinicalTrials.gov → congress/presentations → news sources
+3. Passes research findings + question to GPT-4o for case-specific signal generation
+
+**Signal classification** (per spec): Each signal has `signal_class`: `observed` (verified from external source), `derived` (inference from known data), or `uncertainty` (open question). Observed signals carry `source_url`, `observed_date`, `citation_excerpt`, `brand_verified: true`. Observed signals appear FIRST, then derived, then uncertainties.
+
+**UI**: Step 2 shows "Latest Verified Brand Developments" section at top (blue-bordered, with dates, source types, direction indicators, source links, confirm/dismiss buttons). If no verified developments found, shows "No recent verified brand developments found" warning. Loading state says "Brand Development Check in Progress" with specific source list.
+
+**Fail condition**: If a named brand exists and the system displays generic signals without attempting a brand development check, this is a logic failure.
+
+The user's raw question input (with clinical specifics like "first-line" or "refractory") is preserved via `rawInput` field on `ActiveQuestion` and passed to the AI. ARCHITECTURAL RULE: Never hardcode domain-specific signal templates — the AI must evaluate brand-specific signals for each new case.
 
 **Signal Persistence Flow (Critical):**
 When users accept signals on the Signals page (Step 2), the `persistSignalToDb` function saves each accepted signal to the database via `POST /api/cases/:caseId/signals`. This is essential because the Bayesian forecast engine (Step 3) reads signals from the database, not from frontend state. Signals are saved with `createdByType: "human"` (even for AI-generated ones) so they get `status: "active"` — the forecast engine only considers active signals. The mapping converts frontend categories to database signal types (evidence→"Phase III clinical", access→"Access / commercial", etc.) and frontend strength/reliability labels to numeric scores (High→4, Medium→3, Low→2).
