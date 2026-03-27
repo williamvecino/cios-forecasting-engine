@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useListCases } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
@@ -23,24 +23,42 @@ const WEAK_EXAMPLES = [
 
 export default function QuestionPage() {
   const [, navigate] = useLocation();
-  const { activeQuestion, createQuestion, clearQuestion } = useActiveQuestion();
+  const { activeQuestion, createQuestion, updateQuestion, clearQuestion } = useActiveQuestion();
   const { data: cases } = useListCases();
+
+  const isEditing = !!activeQuestion;
 
   const [questionText, setQuestionText] = useState(activeQuestion?.text ?? "");
   const [caseId, setCaseId] = useState(activeQuestion?.caseId ?? "");
   const [timeHorizon, setTimeHorizon] = useState(
     activeQuestion?.timeHorizon ?? "12 months"
   );
+  const [synced, setSynced] = useState(false);
 
-  function handleCreateQuestion() {
+  useEffect(() => {
+    if (activeQuestion && !synced) {
+      setQuestionText(activeQuestion.text ?? "");
+      setCaseId(activeQuestion.caseId ?? "");
+      setTimeHorizon(activeQuestion.timeHorizon ?? "12 months");
+      setSynced(true);
+    }
+  }, [activeQuestion, synced]);
+
+  function handleSubmit() {
     const text = questionText.trim();
     if (!text) return;
 
-    createQuestion({
+    const payload = {
       text,
       caseId: caseId.trim() || undefined,
       timeHorizon: timeHorizon.trim() || undefined,
-    });
+    };
+
+    if (isEditing) {
+      updateQuestion(payload);
+    } else {
+      createQuestion(payload);
+    }
 
     navigate("/signals");
   }
@@ -89,11 +107,11 @@ export default function QuestionPage() {
 
             <button
               type="button"
-              onClick={handleCreateQuestion}
+              onClick={handleSubmit}
               disabled={!questionText.trim()}
               className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Continue to Add Information
+              {isEditing ? "Update & Continue" : "Continue to Add Information"}
             </button>
           </div>
         </section>

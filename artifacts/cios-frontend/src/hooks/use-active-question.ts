@@ -37,6 +37,19 @@ export function useActiveQuestion() {
     return next;
   }, []);
 
+  const updateQuestion = useCallback((input: CreateQuestionInput) => {
+    const prev = getStoredActiveQuestion();
+    const updated: ActiveQuestion = {
+      id: prev?.id ?? createQuestionId(),
+      text: input.text.trim(),
+      createdAt: prev?.createdAt ?? new Date().toISOString(),
+      caseId: input.caseId?.trim() || undefined,
+      timeHorizon: input.timeHorizon?.trim() || undefined,
+    };
+    storeActiveQuestion(updated);
+    setActiveQuestion(updated);
+  }, []);
+
   const clearQuestion = useCallback(() => {
     clearStoredActiveQuestion();
     setActiveQuestion(null);
@@ -49,9 +62,10 @@ export function useActiveQuestion() {
       activeQuestion,
       hasActiveQuestion,
       createQuestion,
+      updateQuestion,
       clearQuestion,
       setActiveQuestion,
     }),
-    [activeQuestion, hasActiveQuestion, createQuestion, clearQuestion]
+    [activeQuestion, hasActiveQuestion, createQuestion, updateQuestion, clearQuestion]
   );
 }
