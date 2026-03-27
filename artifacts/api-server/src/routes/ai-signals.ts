@@ -12,25 +12,6 @@ interface SignalGenerationRequest {
   entities?: string[];
 }
 
-interface GeneratedSignal {
-  id: string;
-  text: string;
-  category: "evidence" | "access" | "competition" | "guideline" | "timing" | "adoption";
-  direction: "positive" | "negative" | "neutral";
-  strength: "High" | "Medium" | "Low";
-  reliability: "Confirmed" | "Probable" | "Speculative";
-  source_type: string;
-  rationale: string;
-}
-
-interface GeneratedEvent {
-  id: string;
-  title: string;
-  type: string;
-  description: string;
-  relevance: string;
-}
-
 router.post("/ai-signals/generate", async (req, res) => {
   try {
     const body = req.body as SignalGenerationRequest;
@@ -40,52 +21,56 @@ router.post("/ai-signals/generate", async (req, res) => {
       return;
     }
 
-    const systemPrompt = `You are a pharmaceutical market intelligence analyst specializing in HCP (Healthcare Professional) adoption forecasting. Given a drug/therapy name and a forecasting question, you must research and generate evidence-based signals by analyzing:
+    const systemPrompt = `You are an analytical framework assistant for HCP (Healthcare Professional) adoption forecasting. Your job is to identify the CATEGORIES of evidence and factors that would matter for a forecasting question — NOT to provide specific data points or facts.
 
-1. **Clinical & Preclinical Data**: FDA approval status, clinical trial phases, efficacy data, safety profile, mechanism of action
-2. **Competitor Landscape**: Approved competitors in the same category, pipeline competitors approaching approval, competitive differentiation
-3. **Payer & Market Access**: Formulary status, prior authorization requirements, reimbursement landscape, cost-effectiveness data
-4. **Physician Behavior**: Prescribing patterns in the category, KOL sentiment, specialty adoption patterns, switching behavior
-5. **Guidelines**: Treatment guideline positioning, NCCN/ASCO/society recommendations, evidence grading
-6. **Patient Factors**: Patient attitudes, adherence patterns, demand-side dynamics, patient advocacy
+CRITICAL RULES:
+1. You do NOT have access to real-time data, FDA databases, clinical trial registries, or any live pharmaceutical data sources.
+2. You MUST NOT fabricate specific facts: no made-up approval dates, no invented trial results, no fictional response rates, no fabricated guideline mentions, no made-up formulary statuses.
+3. You MUST NOT present speculative statements as confirmed facts.
+4. If you genuinely know a well-established public fact about a drug (e.g., aspirin reduces inflammation), you may state it and mark reliability as "Confirmed". But if you are not certain, mark it "Speculative" and phrase it as a question or hypothesis.
+5. Every signal should be framed as: "The user should investigate whether..." or "A key factor is..." or "Consider the impact of..." — NOT as "Drug X received FDA approval on [date]" unless you are absolutely certain.
 
-Each signal must have:
-- **text**: A specific, factual statement (not generic)
+For each signal, generate:
+- **text**: A statement framed as an analytical consideration, NOT a fabricated fact. Frame as what the user needs to verify or consider.
 - **category**: one of "evidence", "access", "competition", "guideline", "timing", "adoption"
-- **direction**: "positive" (favors the outcome), "negative" (opposes), or "neutral"
-- **strength**: "High", "Medium", or "Low" — based on how much this factor impacts the forecast
-- **reliability**: "Confirmed" (published/verified data), "Probable" (strong indicators), "Speculative" (early signals)
-- **source_type**: Where this signal comes from (e.g. "clinical_trial", "fda_database", "payer_landscape", "kol_sentiment", "guidelines", "competitive_intel", "patient_data")
-- **rationale**: Brief explanation of WHY this signal has the assigned strength and direction
+- **direction**: "positive" (would favor the outcome if true), "negative" (would oppose), or "neutral" (depends on findings)
+- **strength**: "High", "Medium", or "Low" — how much this factor WOULD impact the forecast if confirmed
+- **reliability**: 
+  - "Confirmed" — ONLY for universally known facts you are certain about
+  - "Probable" — for reasonable inferences based on how the market generally works
+  - "Speculative" — for anything you are unsure about or that requires verification
+- **source_type**: What type of source the user should check (e.g. "clinical_trials_gov", "fda_database", "payer_data", "kol_interviews", "guidelines_review", "competitive_intel", "prescribing_data")
+- **rationale**: Why this factor matters for the forecast and what the user should look for
 
 WEIGHT LOGIC:
-- Clinical efficacy data with Phase 3 results → High strength, Confirmed reliability
-- Competitor approaching approval → High strength, Probable reliability
-- KOL sentiment from conferences → Medium strength, Probable reliability
-- Patient advocacy movements → Low-Medium strength, Speculative reliability
-- Guideline inclusion → High strength, Confirmed reliability
-- Payer step-therapy barriers → High strength (negative), Confirmed reliability
-- Early prescribing trend data → Medium strength, Probable reliability
+- Phase 3 efficacy data (if it exists) → High strength, but mark reliability based on YOUR actual knowledge
+- Competitive landscape dynamics → High strength, Probable reliability (general market knowledge)
+- Payer/access considerations → High strength, Probable reliability (structural market factors)
+- KOL sentiment → Medium strength, Speculative reliability (requires primary research)
+- Guideline positioning → High strength, but Speculative reliability unless you know for certain
+- Patient factors → Medium strength, Speculative reliability
 
-Generate 8-12 signals covering ALL six categories. Be specific to the actual drug/therapy — use real pharmaceutical knowledge. If you don't know the specific drug, generate realistic signals for a therapy in that therapeutic category.
+Generate 8-12 signals covering these six categories: evidence, access, competition, guideline, timing, adoption.
 
-Return ONLY valid JSON with this structure:
-{
-  "signals": [...],
-  "incoming_events": [...],
-  "market_summary": "Brief 2-3 sentence market context summary"
-}
-
-For incoming_events, generate 5 context-specific events that could generate new signals:
+For incoming_events, generate 5 events framed as things the user should WATCH FOR — not things that have happened:
 {
   "id": "ev-N",
   "title": "Short event title",
   "type": "evidence|access|competition|guideline|adoption",
-  "description": "What is expected and when",
-  "relevance": "Why this matters for the forecast"
+  "description": "What to watch for and why",
+  "relevance": "Why this would matter for the forecast"
+}
+
+For market_summary: Describe the ANALYTICAL FRAMEWORK — what categories of evidence matter most for this type of question, and what the user should prioritize investigating. Do NOT state facts about the specific drug unless you are certain they are true.
+
+Return ONLY valid JSON:
+{
+  "signals": [...],
+  "incoming_events": [...],
+  "market_summary": "..."
 }`;
 
-    const userPrompt = `Generate intelligence signals for:
+    const userPrompt = `Generate an analytical signal framework for:
 
 **Subject/Brand**: ${body.subject}
 **Forecasting Question**: ${body.questionText}
@@ -94,15 +79,9 @@ For incoming_events, generate 5 context-specific events that could generate new 
 **Question Type**: ${body.questionType || "binary"}
 ${body.entities?.length ? `**Comparison Groups**: ${body.entities.join(" vs ")}` : ""}
 
-Research this therapy/brand thoroughly. Check:
-- Is it FDA-approved? What phase? What indication?
-- Who are the direct competitors (approved and pipeline)?
-- What is the payer landscape?
-- What do physicians think about it?
-- Are there relevant guidelines?
-- What are patient attitudes?
+Identify the key factors and considerations that would drive this forecast. Frame each signal as an analytical consideration — what evidence the user needs to find, what market dynamics to evaluate, what data to verify.
 
-Generate specific, evidence-informed signals with logical comparative weights.`;
+DO NOT invent specific facts, dates, trial results, or approval statuses. If you don't recognize this drug/therapy, say so in the market summary and frame signals as "the user should investigate whether..." style considerations.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
