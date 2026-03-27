@@ -53,9 +53,13 @@ Strict separation between `draftQuestion` (the in-progress text in the textarea/
 - `Clear Question` calls both `clearQuestion()` (removes active case from localStorage + state) and `resetDraft()` (dispatches `RESET` to clear all draft state).
 - Console logs prefixed `[CIOS State]` and `[CIOS Draft]` are present for debugging draft vs active case subject values. Remove for production.
 
+**AI-Powered Signal Generation:**
+The signals page calls `POST /api/ai-signals/generate` (in `api-server/src/routes/ai-signals.ts`) which uses OpenAI to research the subject/brand and generate evidence-based signals covering: clinical/preclinical data, competitor landscape (approved + pipeline), payer/market access, physician behavior, treatment guidelines, and patient factors. Each signal has AI-assigned strength, reliability, direction, and category with logical comparative weights. A market intelligence summary and context-aware incoming events are also returned. Falls back to template signals on API failure. Request de-duplication uses a composite key of `subject|questionText|outcome|questionType` and stale responses are discarded via request ID matching.
+
 ## External Dependencies
 - **PostgreSQL:** Primary database.
 - **Express 5:** Backend web framework.
 - **React, Vite, Tailwind, Recharts, React Query:** Frontend development stack.
 - **Drizzle ORM:** Object-Relational Mapper.
 - **OpenAPI 3.1 & orval:** API specification and code generation.
+- **OpenAI (via Replit AI Integrations):** Powers AI signal generation for market intelligence research. Uses `@workspace/integrations-openai-ai-server` package.

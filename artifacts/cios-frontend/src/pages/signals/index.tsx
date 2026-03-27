@@ -294,28 +294,144 @@ export default function SignalsPage() {
     timeHorizon,
   }), [questionText, questionType, entities, subject, outcome, timeHorizon]);
 
-  const systemSuggestions = useMemo(
+  const fallbackSuggestions = useMemo(
     () => generateSuggestions(questionCtx),
     [questionCtx]
   );
 
-  const incomingEvents = useMemo(
+  const fallbackEvents = useMemo(
     () => generateIncomingEvents(questionCtx),
     [questionCtx]
   );
 
-  const [signals, setSignals] = useState<Signal[]>(systemSuggestions);
+  const [signals, setSignals] = useState<Signal[]>(fallbackSuggestions);
+  const [incomingEvents, setIncomingEvents] = useState<IncomingEvent[]>(fallbackEvents);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [marketSummary, setMarketSummary] = useState<string | null>(null);
+  const aiRequestedRef = useRef<string | null>(null);
+  const aiRequestIdRef = useRef(0);
+
+  const VALID_CATEGORIES = new Set(["evidence", "access", "competition", "guideline", "timing", "adoption"]);
+  const VALID_DIRECTIONS = new Set(["positive", "negative", "neutral"]);
+  const VALID_STRENGTHS = new Set(["High", "Medium", "Low"]);
+  const VALID_RELIABILITIES = new Set(["Confirmed", "Probable", "Speculative"]);
+
+  const contextKey = `${subject}|${questionText}|${outcome}|${questionType}`;
+
+  useEffect(() => {
+    if (!subject || !questionText) return;
+    if (aiRequestedRef.current === contextKey) return;
+    aiRequestedRef.current = contextKey;
+
+    const requestId = ++aiRequestIdRef.current;
+
+    setAiLoading(true);
+    setAiError(null);
+    setMarketSummary(null);
+    setIncomingEvents(fallbackEvents);
+    setSignals((prev) => {
+      const userSignals = prev.filter((s) => s.source === "user");
+      return [...fallbackSuggestions, ...userSignals];
+    });
+
+    const API = import.meta.env.VITE_API_URL || "";
+    console.log("[CIOS AI Signals] Requesting AI research for:", subject, "question:", questionText);
+
+    fetch(`${API}/api/ai-signals/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject,
+        outcome,
+        questionType,
+        questionText,
+        timeHorizon,
+        entities,
+      }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`API returned ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (aiRequestIdRef.current !== requestId) return;
+        console.log("[CIOS AI Signals] Received AI response:", data);
+
+        if (data.signals && Array.isArray(data.signals)) {
+          const mapped: Signal[] = data.signals.map((s: any, i: number) => {
+            const category = VALID_CATEGORIES.has(s.category) ? s.category : "evidence";
+            const direction = VALID_DIRECTIONS.has(s.direction) ? s.direction : "neutral";
+            const strength = VALID_STRENGTHS.has(s.strength) ? s.strength : "Medium";
+            const reliability = VALID_RELIABILITIES.has(s.reliability) ? s.reliability : "Probable";
+            return {
+              id: `ai-${i + 1}`,
+              text: s.text,
+              caveat: s.rationale || "",
+              direction,
+              strength,
+              reliability,
+              impact: computeImpact({ strength, reliability }),
+              category,
+              source: "system" as const,
+              accepted: false,
+            };
+          });
+          setSignals((prev) => {
+            const userSignals = prev.filter((s) => s.source === "user");
+            return [...mapped, ...userSignals];
+          });
+        }
+
+        if (data.incoming_events && Array.isArray(data.incoming_events)) {
+          const iconMap: Record<string, React.ElementType> = {
+            evidence: FlaskConical,
+            access: Shield,
+            competition: Swords,
+            guideline: BookOpen,
+            timing: Clock,
+            adoption: Users,
+          };
+          const mappedEvents: IncomingEvent[] = data.incoming_events.map((e: any) => ({
+            id: e.id || `ev-${Math.random().toString(36).slice(2, 6)}`,
+            title: e.title,
+            type: VALID_CATEGORIES.has(e.type) ? e.type : "evidence",
+            description: e.description,
+            icon: iconMap[e.type] || Sparkles,
+          }));
+          setIncomingEvents(mappedEvents);
+        }
+
+        if (data.market_summary) {
+          setMarketSummary(data.market_summary);
+        }
+      })
+      .catch((err) => {
+        if (aiRequestIdRef.current !== requestId) return;
+        console.error("[CIOS AI Signals] AI research failed, using template signals:", err);
+        setAiError("AI research unavailable — showing template signals. You can still add signals manually.");
+        setIncomingEvents(fallbackEvents);
+      })
+      .finally(() => {
+        if (aiRequestIdRef.current === requestId) {
+          setAiLoading(false);
+        }
+      });
+  }, [contextKey]);
+
   const prevQuestionRef = useRef(questionText);
   useEffect(() => {
     if (questionText !== prevQuestionRef.current) {
       prevQuestionRef.current = questionText;
-      setSignals((prev) => {
-        const userSignals = prev.filter((s) => s.source === "user");
-        return [...systemSuggestions, ...userSignals];
-      });
+      if (!aiLoading) {
+        setSignals((prev) => {
+          const userSignals = prev.filter((s) => s.source === "user");
+          return [...fallbackSuggestions, ...userSignals];
+        });
+      }
       setEditingId(null);
     }
-  }, [questionText, systemSuggestions]);
+  }, [questionText, fallbackSuggestions]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -473,11 +589,48 @@ export default function SignalsPage() {
             </div>
           )}
 
+          {aiLoading && (
+            <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 via-card to-card p-5">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <BrainCircuit className="w-5 h-5 text-cyan-400 animate-pulse" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] text-cyan-400 font-semibold uppercase tracking-wider mb-1">AI Research in Progress</div>
+                  <div className="text-sm text-foreground leading-relaxed">
+                    Analyzing {subject} — checking clinical data, competitors, payer landscape, physician behavior, guidelines, and patient factors...
+                  </div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-muted/30 overflow-hidden">
+                    <div className="h-full rounded-full bg-cyan-500/60 animate-[loading_2s_ease-in-out_infinite]" style={{ width: "60%" }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {aiError && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-300">
+              {aiError}
+            </div>
+          )}
+
+          {marketSummary && !aiLoading && (
+            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/5 via-card to-card p-5">
+              <div className="flex items-start gap-3">
+                <Activity className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-1">Market Intelligence Summary</div>
+                  <div className="text-sm text-foreground leading-relaxed">{marketSummary}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-card p-5">
             <div className="flex items-start gap-3">
               <BrainCircuit className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div>
-                <div className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-1">System Interpretation</div>
+                <div className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-1">Signal Analysis</div>
                 <div className="text-sm text-foreground leading-relaxed">{summary}</div>
               </div>
             </div>

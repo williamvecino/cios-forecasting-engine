@@ -28,6 +28,7 @@ import adopterDiscoveryRouter from "./adopter-discovery.js";
 import auditLogsRouter from "./audit-logs.js";
 import signalDetectionRouter from "./signal-detection.js";
 import recalculateRouter from "./recalculate.js";
+import aiSignalsRouter from "./ai-signals.js";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(adopterDiscoveryRouter);
 router.use(auditLogsRouter);
 router.use(signalDetectionRouter);
 router.use(recalculateRouter);
+router.use(aiSignalsRouter);
 
 export default router;
