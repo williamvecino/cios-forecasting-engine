@@ -7,7 +7,6 @@ import {
   parseQuestion,
   getMissingFields,
   isQuestionComplete,
-  getClarificationPrompt,
   buildInterpretedQuestion,
   mapDecisionQuestionToCaseInput,
   QUESTION_TYPE_LABELS,
@@ -101,7 +100,7 @@ export default function QuestionPage() {
     const field = missing[0];
     return {
       field,
-      prompt: getClarificationPrompt(field, enriched.questionType || "binary"),
+      prompt: `Please provide: ${FIELD_LABELS[field] || field}`,
     };
   }, [missing, enriched]);
 

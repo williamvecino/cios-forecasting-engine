@@ -1,93 +1,43 @@
-import type { DecisionQuestion, QuestionType } from "./types";
+import { DecisionQuestion } from "./types";
 
-type PartialDQ = Partial<DecisionQuestion>;
-
-const REQUIRED_BY_TYPE: Record<QuestionType, string[]> = {
-  binary: ["subject", "outcome", "populationOrEntities", "timeHorizon"],
-  comparative: ["subject", "outcome", "populationOrEntities", "timeHorizon", "comparator"],
-  ranking: ["subject", "outcome", "populationOrEntities", "timeHorizon"],
-  threshold: ["subject", "outcome", "populationOrEntities", "timeHorizon", "successMetric"],
-  timing: ["subject", "outcome", "populationOrEntities"],
-};
-
-const MIN_ENTITIES: Record<QuestionType, number> = {
-  binary: 1,
-  comparative: 2,
-  ranking: 1,
-  threshold: 1,
-  timing: 1,
-};
-
-function isGenericEntity(e: string): boolean {
-  const generic = [
-    "regions", "geographic areas", "segments", "markets",
-    "centers", "groups", "stakeholders", "populations",
-  ];
-  return generic.includes(e.toLowerCase());
-}
-
-export function getMissingFields(question: PartialDQ): string[] {
-  const qt = question.questionType || "binary";
-  const required = REQUIRED_BY_TYPE[qt];
+export function getMissingFields(q: Partial<DecisionQuestion>): string[] {
   const missing: string[] = [];
 
-  for (const field of required) {
-    if (field === "populationOrEntities") {
-      const entities = question.populationOrEntities || [];
-      const minRequired = MIN_ENTITIES[qt];
+  if (!q.subject) missing.push("subject");
+  if (!q.outcome) missing.push("outcome");
 
-      if (entities.length === 0) {
+  switch (q.questionType) {
+    case "binary":
+      if (!q.populationOrEntities) missing.push("populationOrEntities");
+      if (!q.timeHorizon) missing.push("timeHorizon");
+      break;
+
+    case "comparative":
+      if (!q.populationOrEntities || q.populationOrEntities.length < 2)
         missing.push("populationOrEntities");
-      } else if (entities.length < minRequired) {
+      if (!q.timeHorizon) missing.push("timeHorizon");
+      break;
+
+    case "ranking":
+      if (!q.populationOrEntities || q.populationOrEntities.length < 2)
         missing.push("populationOrEntities");
-      } else if (
-        qt === "comparative" &&
-        entities.length <= 1 &&
-        entities.every(isGenericEntity)
-      ) {
-        missing.push("populationOrEntities");
-      }
-    } else {
-      const val = (question as any)[field];
-      if (!val || (typeof val === "string" && !val.trim())) {
-        missing.push(field);
-      }
-    }
+      if (!q.timeHorizon) missing.push("timeHorizon");
+      break;
+
+    case "threshold":
+      if (!q.populationOrEntities) missing.push("populationOrEntities");
+      if (!q.timeHorizon) missing.push("timeHorizon");
+      if (!q.successMetric) missing.push("successMetric");
+      break;
+
+    case "timing":
+      if (!q.populationOrEntities) missing.push("populationOrEntities");
+      break;
   }
 
   return missing;
 }
 
-export function isQuestionComplete(question: PartialDQ): boolean {
-  return getMissingFields(question).length === 0;
-}
-
-export function getClarificationPrompt(field: string, questionType: QuestionType): string {
-  const prompts: Record<string, Record<string, string>> = {
-    subject: {
-      default: "What product, strategy, or topic is this about?",
-    },
-    outcome: {
-      default: "What outcome are you trying to predict?",
-    },
-    populationOrEntities: {
-      comparative: "Which specific groups should be compared?",
-      ranking: "Which specific groups or regions should be ranked?",
-      default: "Who is the target population?",
-    },
-    comparator: {
-      default: "What are you comparing against?",
-    },
-    timeHorizon: {
-      default: "What time horizon should be used?",
-    },
-    successMetric: {
-      threshold: "What threshold should count as success?",
-      default: "What defines success?",
-    },
-  };
-
-  const fieldPrompts = prompts[field];
-  if (!fieldPrompts) return `Please provide: ${field}`;
-  return fieldPrompts[questionType] || fieldPrompts.default;
+export function isQuestionComplete(q: Partial<DecisionQuestion>): boolean {
+  return getMissingFields(q).length === 0;
 }
