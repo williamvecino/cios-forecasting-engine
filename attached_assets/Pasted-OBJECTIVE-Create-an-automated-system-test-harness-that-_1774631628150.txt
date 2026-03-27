@@ -1,0 +1,140 @@
+OBJECTIVE
+
+Create an automated system test harness that validates whether the workflow
+from Question → Information → Forecast → Decision is functioning correctly.
+
+The test should run 10 predefined questions and verify that the system
+parses context, generates relevant signals, and produces a forecast.
+
+Do not simulate UI clicks.
+Call the underlying services directly.
+
+---
+
+TEST QUESTIONS
+
+Use the following questions:
+
+1. Will dermatologists adopt Mallia within 12 months?
+
+2. Will alopecia specialists adopt faster than dermatologists within 12 months?
+
+3. Which segment will adopt first: academic centers, private dermatology clinics, or specialty hair-loss clinics?
+
+4. Will first-line adoption exceed 20% within 12 months?
+
+5. When will commercial payers begin restricting coverage?
+
+6. Will payer prior authorization requirements delay adoption in community practices?
+
+7. Will a competing therapy reduce adoption within 6 months of launch?
+
+8. Will high-volume clinics adopt faster than low-volume clinics?
+
+9. Will positive Phase 3 safety data increase prescribing among dermatologists?
+
+10. Will monitoring requirements limit adoption in small practices?
+
+---
+
+TEST WORKFLOW
+
+For each question:
+
+Step 1
+Call the question parser
+
+Step 2
+Verify extracted fields
+
+subject must exist
+outcome must exist
+time horizon must exist
+
+Step 3
+Generate signal suggestions
+
+Step 4
+Add one minimal driver and signal
+
+Example:
+
+Driver:
+Clinical familiarity
+
+Signal:
+Early adopter segment showing interest
+
+Step 5
+Run forecast
+
+Step 6
+Capture outputs
+
+---
+
+CAPTURE THESE FIELDS
+
+question
+questionType
+subject
+outcome
+groups
+timeHorizon
+
+driverCount
+signalCount
+
+forecastGenerated
+
+probability
+confidence
+
+mostSensitiveDriver
+
+decisionRecommendation
+
+---
+
+FAIL CONDITIONS
+
+Mark test as failed if:
+
+subject is missing
+outcome is missing
+time horizon is missing
+no signals generated
+forecast runs with zero drivers
+most sensitive driver is null
+probability does not change after adding signals
+decision recommendation is empty
+
+---
+
+OUTPUT FORMAT
+
+Return results as JSON.
+
+Example:
+
+{
+  "question": "...",
+  "status": "PASS",
+  "probability": 0.42,
+  "confidence": "Low",
+  "mostSensitiveDriver": "Clinical familiarity"
+}
+
+---
+
+SAVE RESULTS
+
+Store results in:
+
+/tests/workflow_test_results.json
+
+---
+
+RUN COMMAND
+
+npm run test:workflow

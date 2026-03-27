@@ -13,6 +13,9 @@ import {
   AlertTriangle,
   ShieldAlert,
   Zap,
+  CircleAlert,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 type Tab = "forecast" | "scenarios" | "drivers" | "library";
@@ -338,12 +341,179 @@ function useSegmentsFromCase(caseData: any) {
   }, [caseData]);
 }
 
+interface SignalReadiness {
+  confirmedDrivers: number;
+  confirmedSupporting: number;
+  totalConfirmed: number;
+  hasDirection: boolean;
+  questionType: string;
+  entities: string[];
+  updatedAt: number;
+}
+
+function getSignalReadiness(caseId?: string): SignalReadiness | null {
+  try {
+    const key = `cios.signalReadiness:${caseId || "unknown"}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function evaluateReadiness(readiness: SignalReadiness | null): {
+  ready: boolean;
+  missingItems: string[];
+  score: number;
+  total: number;
+} {
+  if (!readiness) {
+    return { ready: false, missingItems: ["No signals have been reviewed yet"], score: 0, total: 4 };
+  }
+
+  const missing: string[] = [];
+  let score = 0;
+  const total = readiness.questionType === "comparative" ? 4 : 3;
+
+  if (readiness.confirmedDrivers >= 1) {
+    score++;
+  } else {
+    missing.push("At least 1 confirmed primary driver");
+  }
+
+  if (readiness.confirmedSupporting >= 1) {
+    score++;
+  } else {
+    missing.push("At least 1 confirmed supporting signal");
+  }
+
+  if (readiness.hasDirection) {
+    score++;
+  } else {
+    missing.push("At least 1 signal with a clear direction (positive or negative)");
+  }
+
+  if (readiness.questionType === "comparative") {
+    if (readiness.entities && readiness.entities.length >= 2) {
+      score++;
+    } else {
+      missing.push("Group-level differences for comparative analysis");
+    }
+  }
+
+  return { ready: missing.length === 0, missingItems: missing, score, total };
+}
+
+function ReadinessGate({ readiness, evaluation }: { readiness: SignalReadiness | null; evaluation: ReturnType<typeof evaluateReadiness> }) {
+  const pct = evaluation.total > 0 ? Math.round((evaluation.score / evaluation.total) * 100) : 0;
+
+  return (
+    <div className="rounded-3xl border border-amber-500/20 bg-[#0A1736] p-8 space-y-6">
+      <div className="flex items-start gap-4">
+        <div className="shrink-0 w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+          <CircleAlert className="w-6 h-6 text-amber-400" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-white">Forecast not ready</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Add at least one primary driver and supporting signal to run the forecast.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-slate-400">Forecast readiness</span>
+          <span className="font-semibold text-amber-400">{pct}%</span>
+        </div>
+        <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-amber-500 transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Inputs Status</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <ReadinessItem
+            label="Confirmed Drivers"
+            value={readiness?.confirmedDrivers ?? 0}
+            needed={1}
+          />
+          <ReadinessItem
+            label="Supporting Signals"
+            value={readiness?.confirmedSupporting ?? 0}
+            needed={1}
+          />
+          <ReadinessItem
+            label="Direction Set"
+            value={readiness?.hasDirection ? 1 : 0}
+            needed={1}
+            isBoolean
+          />
+          {readiness?.questionType === "comparative" && (
+            <ReadinessItem
+              label="Groups Mapped"
+              value={readiness?.entities?.length ?? 0}
+              needed={2}
+            />
+          )}
+        </div>
+      </div>
+
+      {evaluation.missingItems.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Missing Required Inputs</div>
+          {evaluation.missingItems.map((item, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm">
+              <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span className="text-slate-300">{item}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Link
+        href="/signals"
+        className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition"
+      >
+        <Zap className="w-4 h-4" />
+        Go to Add Information
+      </Link>
+    </div>
+  );
+}
+
+function ReadinessItem({ label, value, needed, isBoolean }: { label: string; value: number; needed: number; isBoolean?: boolean }) {
+  const met = value >= needed;
+  return (
+    <div className={cn(
+      "rounded-xl border p-3",
+      met ? "border-emerald-500/20 bg-emerald-500/5" : "border-white/10 bg-white/[0.02]"
+    )}>
+      <div className="text-[10px] uppercase tracking-wider text-slate-400">{label}</div>
+      <div className="mt-1 flex items-center gap-2">
+        {met ? (
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        ) : (
+          <XCircle className="w-4 h-4 text-slate-500" />
+        )}
+        <span className={cn("text-sm font-semibold", met ? "text-emerald-300" : "text-slate-500")}>
+          {isBoolean ? (value >= needed ? "Yes" : "No") : value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
-  const queryClient = useQueryClient();
-  const { data: forecast, isLoading } = useRunForecast(caseId);
-  const { data: caseData } = useGetCase(caseId);
-  const drivers = useDriversFromForecast(forecast);
+
+  const readiness = getSignalReadiness(caseId);
+  const evaluation = evaluateReadiness(readiness);
 
   if (!activeQuestion || !caseId) {
     return (
@@ -359,6 +529,25 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
       </>
     );
   }
+
+  if (!evaluation.ready) {
+    return (
+      <>
+        <ReadinessGate readiness={readiness} evaluation={evaluation} />
+        <BottomLinks />
+      </>
+    );
+  }
+
+  return <ForecastContent activeQuestion={activeQuestion} />;
+}
+
+function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
+  const caseId = activeQuestion?.caseId || "";
+  const queryClient = useQueryClient();
+  const { data: forecast, isLoading } = useRunForecast(caseId);
+  const { data: caseData } = useGetCase(caseId);
+  const drivers = useDriversFromForecast(forecast);
 
   if (isLoading) {
     return (
@@ -474,7 +663,7 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
                     changing the trajectory meaningfully.
                   </>
                 ) : (
-                  "Add signals to generate a sensitivity analysis."
+                  "Confirm drivers in Step 2 to generate a sensitivity analysis."
                 )}
               </p>
             </div>
@@ -579,6 +768,27 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
 
 function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
+  const readiness = getSignalReadiness(caseId);
+  const evaluation = evaluateReadiness(readiness);
+
+  if (!activeQuestion || !caseId) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+        <h3 className="text-2xl font-semibold tracking-tight text-white">Scenario Planning</h3>
+        <p className="mt-2 text-slate-300">Link a case and add signals to generate scenarios.</p>
+      </div>
+    );
+  }
+
+  if (!evaluation.ready) {
+    return <ReadinessGate readiness={readiness} evaluation={evaluation} />;
+  }
+
+  return <ScenarioPlanningContent activeQuestion={activeQuestion} />;
+}
+
+function ScenarioPlanningContent({ activeQuestion }: { activeQuestion: any }) {
+  const caseId = activeQuestion?.caseId || "";
   const { data: forecast, isLoading, isError } = useRunForecast(caseId);
   const { data: caseData } = useGetCase(caseId);
   const drivers = useDriversFromForecast(forecast);
@@ -593,15 +803,6 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
       .map((did) => drivers.find((d) => d.id === did))
       .filter(Boolean) as Driver[];
   }, [selectedScenario, drivers]);
-
-  if (!activeQuestion || !caseId) {
-    return (
-      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-        <h3 className="text-2xl font-semibold tracking-tight text-white">Scenario Planning</h3>
-        <p className="mt-2 text-slate-300">Link a case and add signals to generate scenarios.</p>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -626,7 +827,7 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
     return (
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
         <h3 className="text-2xl font-semibold tracking-tight text-white">Scenario Planning</h3>
-        <p className="mt-2 text-slate-300">Add signals to generate scenario projections.</p>
+        <p className="mt-2 text-slate-300">Confirm drivers in Step 2 to generate scenario projections.</p>
       </div>
     );
   }
@@ -804,12 +1005,8 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
 
 function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
-  const { data: forecast, isLoading, isError } = useRunForecast(caseId);
-  const { data: caseData } = useGetCase(caseId);
-  const drivers = useDriversFromForecast(forecast);
-  const segments = useSegmentsFromCase(caseData);
-
-  const topDriver = drivers[0];
+  const readiness = getSignalReadiness(caseId);
+  const evaluation = evaluateReadiness(readiness);
 
   if (!activeQuestion || !caseId) {
     return (
@@ -819,6 +1016,22 @@ function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
       </div>
     );
   }
+
+  if (!evaluation.ready) {
+    return <ReadinessGate readiness={readiness} evaluation={evaluation} />;
+  }
+
+  return <DriverImpactContent activeQuestion={activeQuestion} />;
+}
+
+function DriverImpactContent({ activeQuestion }: { activeQuestion: any }) {
+  const caseId = activeQuestion?.caseId || "";
+  const { data: forecast, isLoading, isError } = useRunForecast(caseId);
+  const { data: caseData } = useGetCase(caseId);
+  const drivers = useDriversFromForecast(forecast);
+  const segments = useSegmentsFromCase(caseData);
+
+  const topDriver = drivers[0];
 
   if (isLoading) {
     return (

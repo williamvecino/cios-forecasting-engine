@@ -309,6 +309,23 @@ export default function SignalsPage() {
   const pendingSupporting = supportingSignals.filter((s) => !s.accepted).length;
   const effectiveShowSupporting = showSupporting || pendingSupporting > 0;
 
+  useEffect(() => {
+    const confirmedDrivers = primaryDrivers.filter((s) => s.accepted).length;
+    const confirmedSupporting = supportingSignals.filter((s) => s.accepted).length;
+    const hasDirection = allSignals.some((s) => s.accepted && s.direction !== "neutral");
+    const readiness = {
+      confirmedDrivers,
+      confirmedSupporting,
+      totalConfirmed: confirmedDrivers + confirmedSupporting,
+      hasDirection,
+      questionType: questionType || "binary",
+      entities: entities,
+      updatedAt: Date.now(),
+    };
+    const caseKey = activeQuestion?.caseId || "unknown";
+    localStorage.setItem(`cios.signalReadiness:${caseKey}`, JSON.stringify(readiness));
+  }, [allSignals, primaryDrivers, supportingSignals, questionType, entities]);
+
   return (
     <WorkflowLayout
       currentStep="signals"
