@@ -92,7 +92,7 @@ export default function QuestionPage() {
 
   const interpretedQuestion = useMemo(() => {
     if (!enriched) return "";
-    return buildInterpretedQuestion(enriched);
+    return buildInterpretedQuestion(enriched as DecisionQuestion);
   }, [enriched]);
 
   const currentClarification = useMemo(() => {
