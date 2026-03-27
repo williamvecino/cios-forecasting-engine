@@ -24,7 +24,7 @@ export default function WorkflowStepsSidebar({ currentStep, hasActiveQuestion }:
       <div className="sticky top-6 space-y-2">
         {STEPS.map((step, i) => {
           const isActive = location.startsWith(step.path);
-          const isCompleted = currentIdx > i;
+          const isCompleted = hasActiveQuestion && currentIdx > i;
           const isGated = !hasActiveQuestion && i > 0;
 
           const stepNumber = (
