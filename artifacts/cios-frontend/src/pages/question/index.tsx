@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useListCases } from "@workspace/api-client-react";
+import { useListCases, useCreateCase } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
 import { useActiveQuestion } from "@/hooks/use-active-question";
-import { CheckCircle2, AlertTriangle, ChevronDown, Search, X } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ChevronDown, Search, X, Loader2 } from "lucide-react";
 
 const STRONG_EXAMPLES = [
   "Will adoption increase after indication expansion within 12 months?",
@@ -25,6 +25,7 @@ export default function QuestionPage() {
   const [, navigate] = useLocation();
   const { activeQuestion, createQuestion, updateQuestion, clearQuestion } = useActiveQuestion();
   const { data: cases } = useListCases();
+  const createCaseMutation = useCreateCase();
 
   const isEditing = !!activeQuestion;
 
@@ -34,6 +35,8 @@ export default function QuestionPage() {
     activeQuestion?.timeHorizon ?? "12 months"
   );
   const [synced, setSynced] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeQuestion && !synced) {
@@ -44,13 +47,43 @@ export default function QuestionPage() {
     }
   }, [activeQuestion, synced]);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const text = questionText.trim();
-    if (!text) return;
+    if (!text || submitting) return;
+    setSubmitError(null);
+
+    let resolvedCaseId = caseId.trim();
+
+    if (!resolvedCaseId) {
+      setSubmitting(true);
+      try {
+        const created = await createCaseMutation.mutateAsync({
+          data: {
+            strategicQuestion: text,
+            timeHorizon: timeHorizon.trim() || "12 months",
+            priorProbability: 0.5,
+            primaryBrand: "Custom",
+            assetName: "Custom",
+          } as any,
+        });
+        resolvedCaseId = (created as any).caseId || (created as any).id;
+        if (!resolvedCaseId) {
+          setSubmitError("Case was created but returned no identifier. Please try again.");
+          setSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to create case:", err);
+        setSubmitError("Unable to create a forecast case. Check your connection and try again.");
+        setSubmitting(false);
+        return;
+      }
+      setSubmitting(false);
+    }
 
     const payload = {
       text,
-      caseId: caseId.trim() || undefined,
+      caseId: resolvedCaseId,
       timeHorizon: timeHorizon.trim() || undefined,
     };
 
@@ -105,13 +138,21 @@ export default function QuestionPage() {
               />
             </div>
 
+            {submitError && (
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {submitError}
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!questionText.trim()}
-              className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!questionText.trim() || submitting}
+              className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
             >
-              {isEditing ? "Update & Continue" : "Continue to Add Information"}
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {submitting ? "Creating case..." : isEditing ? "Update & Continue" : "Continue to Add Information"}
             </button>
           </div>
         </section>

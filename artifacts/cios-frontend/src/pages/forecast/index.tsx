@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
@@ -929,7 +929,6 @@ function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
 }
 
 function CaseLibraryTab() {
-  const [, navigate] = useLocation();
   const { createQuestion } = useActiveQuestion();
   const { data: casesData, isLoading, isError } = useListCases();
   const cases = (casesData as any[]) || [];
@@ -941,7 +940,7 @@ function CaseLibraryTab() {
       caseId: cid,
       timeHorizon: item.timeHorizon || "12 months",
     });
-    navigate("/question");
+    window.location.href = "/forecast";
   }
 
   if (isLoading) {
