@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+import { ProbabilityGauge } from "@/components/ui-components";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import {
+  ArrowRight,
   BookOpen,
   BrainCircuit,
   AlertTriangle,
@@ -386,6 +388,7 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
 
   const f = forecast as any;
   const prob = Math.round((f.currentProbability ?? 0) * 100);
+  const delta = (f.currentProbability ?? 0) - (f.priorProbability ?? 0);
   const confidence: Confidence = (f.confidenceLevel ?? "Moderate") as Confidence;
   const interpretation = f.interpretation;
   const summary = interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window.";
@@ -412,18 +415,32 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 xl:col-span-4">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
-              <div className="text-sm font-medium text-slate-300">Current Probability</div>
-              <div className="mt-3 text-6xl font-semibold tracking-tight text-white">
-                {prob}%
+            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5 flex flex-col items-center">
+              <div className="text-sm font-medium text-slate-300 self-start">Current Probability</div>
+              <div className="mt-4">
+                <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={200} />
+              </div>
+              <div className="flex items-center gap-4 mt-4 text-sm">
+                <div className="text-slate-400">
+                  PRIOR{" "}
+                  <span className="text-white font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-600" />
+                <div className="text-slate-400">
+                  SHIFT{" "}
+                  <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                    {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
+                  </span>
+                </div>
               </div>
               <div className={cn(
-                "mt-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
                 confidenceBadgeClass[confidence]
               )}>
                 Confidence: {confidence}
               </div>
-              <p className="mt-4 text-sm leading-6 text-slate-300">{summary}</p>
+              <p className="mt-3 text-sm leading-6 text-slate-300 text-center">{summary}</p>
+              <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Bayesian</div>
             </div>
           </div>
 
@@ -912,8 +929,20 @@ function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
 }
 
 function CaseLibraryTab() {
+  const [, navigate] = useLocation();
+  const { createQuestion } = useActiveQuestion();
   const { data: casesData, isLoading, isError } = useListCases();
   const cases = (casesData as any[]) || [];
+
+  function handleOpenCase(item: any) {
+    const cid = item.caseId || item.id;
+    createQuestion({
+      text: item.strategicQuestion || "Untitled",
+      caseId: cid,
+      timeHorizon: item.timeHorizon || "12 months",
+    });
+    navigate("/question");
+  }
 
   if (isLoading) {
     return (
@@ -949,7 +978,7 @@ function CaseLibraryTab() {
     <section className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
       <h3 className="text-2xl font-semibold tracking-tight text-white">Case Library</h3>
       <p className="mt-2 text-slate-300">
-        Active forecast cases with current probabilities and status.
+        Select a case to open it as your active question and begin forecasting.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -960,7 +989,12 @@ function CaseLibraryTab() {
             ? Math.round(item.priorProbability * 100)
             : null;
           return (
-            <div key={item.id || item.caseId} className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+            <button
+              key={item.id || item.caseId}
+              type="button"
+              onClick={() => handleOpenCase(item)}
+              className="w-full rounded-3xl border border-white/10 bg-white/[0.02] p-5 text-left transition hover:border-blue-400/40 hover:bg-blue-500/5"
+            >
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
                   <div className="font-medium text-white">{item.strategicQuestion || "Untitled"}</div>
@@ -970,14 +1004,17 @@ function CaseLibraryTab() {
                     <span>Status: {item.status || "Open"}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-4xl font-semibold tracking-tight text-white">
-                    {prob != null ? `${prob}%` : "—"}
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="text-4xl font-semibold tracking-tight text-white">
+                      {prob != null ? `${prob}%` : "—"}
+                    </div>
+                    <div className="text-xs text-slate-400">current probability</div>
                   </div>
-                  <div className="text-xs text-slate-400">current probability</div>
+                  <ArrowRight className="w-5 h-5 text-slate-500" />
                 </div>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
