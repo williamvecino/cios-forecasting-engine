@@ -67,13 +67,57 @@ const CATEGORY_CONFIG: Record<Category, { icon: React.ElementType; label: string
   adoption: { icon: Users, label: "Adoption", color: "text-cyan-400" },
 };
 
-const INCOMING_EVENTS: IncomingEvent[] = [
-  { id: "ev-1", title: "Guideline Update", type: "guideline", description: "NCCN/ASCO recommendation cycle pending", icon: BookOpen },
-  { id: "ev-2", title: "Trial Readout", type: "evidence", description: "Phase 3 data expected this quarter", icon: FlaskConical },
-  { id: "ev-3", title: "Payer Decision", type: "access", description: "Regional formulary review in progress", icon: Shield },
-  { id: "ev-4", title: "Competitor Launch", type: "competition", description: "Competing asset approaching approval", icon: Swords },
-  { id: "ev-5", title: "Campaign Shift", type: "adoption", description: "Medical affairs messaging update planned", icon: Users },
-];
+function generateIncomingEvents(ctx: QuestionContext): IncomingEvent[] {
+  const subjectLabel = ctx.subject || "this therapy";
+  const outcomeLabel = ctx.outcome || "adoption";
+  const q = (ctx.text || "").toLowerCase();
+
+  const events: IncomingEvent[] = [];
+
+  if (q.includes("payer") || q.includes("coverage") || q.includes("restrict") || q.includes("access") || q.includes("formulary")) {
+    events.push(
+      { id: "ev-1", title: "Formulary Review", type: "access", description: `Regional payer formulary committee reviewing ${subjectLabel} coverage`, icon: Shield },
+      { id: "ev-2", title: "HEOR Data Release", type: "evidence", description: `Health economics data package for ${subjectLabel} expected this quarter`, icon: FlaskConical },
+      { id: "ev-3", title: "Prior Auth Policy", type: "access", description: `Step-therapy requirements under review for ${subjectLabel}`, icon: BookOpen },
+      { id: "ev-4", title: "Competitor Pricing", type: "competition", description: `Competing therapy pricing announcement anticipated`, icon: Swords },
+      { id: "ev-5", title: "Patient Advocacy", type: "adoption", description: `Patient advocacy group lobbying for ${subjectLabel} access`, icon: Users },
+    );
+  } else if (q.includes("compet") || q.includes("rival") || q.includes("displace")) {
+    events.push(
+      { id: "ev-1", title: "Competitor Filing", type: "competition", description: `Competing asset regulatory submission expected`, icon: Swords },
+      { id: "ev-2", title: "Head-to-Head Data", type: "evidence", description: `Comparative efficacy data for ${subjectLabel} vs competitor pending`, icon: FlaskConical },
+      { id: "ev-3", title: "Market Entry", type: "competition", description: `New entrant approaching approval in ${subjectLabel}'s space`, icon: Swords },
+      { id: "ev-4", title: "KOL Endorsement", type: "guideline", description: `Key opinion leaders expected to comment on ${subjectLabel} differentiation`, icon: BookOpen },
+      { id: "ev-5", title: "Switching Analysis", type: "adoption", description: `Real-world switching pattern data expected`, icon: Users },
+    );
+  } else if (q.includes("safety") || q.includes("phase 3") || q.includes("phase iii") || q.includes("tolerab")) {
+    events.push(
+      { id: "ev-1", title: "Safety Data Release", type: "evidence", description: `Phase 3 safety analysis for ${subjectLabel} expected`, icon: FlaskConical },
+      { id: "ev-2", title: "REMS Update", type: "access", description: `Risk management program review for ${subjectLabel}`, icon: Shield },
+      { id: "ev-3", title: "Conference Presentation", type: "guideline", description: `${subjectLabel} tolerability data to be presented at upcoming conference`, icon: BookOpen },
+      { id: "ev-4", title: "Post-Market Surveillance", type: "evidence", description: `Real-world safety monitoring report for ${subjectLabel} due`, icon: FlaskConical },
+      { id: "ev-5", title: "Prescriber Survey", type: "adoption", description: `Safety perception survey among ${subjectLabel} prescribers planned`, icon: Users },
+    );
+  } else if (q.includes("guideline") || q.includes("nccn") || q.includes("asco")) {
+    events.push(
+      { id: "ev-1", title: "Guideline Update", type: "guideline", description: `Treatment guideline committee reviewing ${subjectLabel} positioning`, icon: BookOpen },
+      { id: "ev-2", title: "Evidence Review", type: "evidence", description: `Systematic review incorporating ${subjectLabel} clinical data`, icon: FlaskConical },
+      { id: "ev-3", title: "Expert Panel", type: "guideline", description: `Expert consensus panel on ${subjectLabel} role in treatment`, icon: BookOpen },
+      { id: "ev-4", title: "Payer Response", type: "access", description: `Payer coverage anticipated to follow guideline update for ${subjectLabel}`, icon: Shield },
+      { id: "ev-5", title: "Practice Update", type: "adoption", description: `Clinical practice adaptation to new ${subjectLabel} recommendations`, icon: Users },
+    );
+  } else {
+    events.push(
+      { id: "ev-1", title: "Guideline Update", type: "guideline", description: `Treatment guidelines under review for ${subjectLabel}`, icon: BookOpen },
+      { id: "ev-2", title: "Trial Readout", type: "evidence", description: `Clinical data readout expected for ${subjectLabel}`, icon: FlaskConical },
+      { id: "ev-3", title: "Payer Decision", type: "access", description: `Formulary review in progress for ${subjectLabel}`, icon: Shield },
+      { id: "ev-4", title: "Competitor Activity", type: "competition", description: `Competing therapy activity in ${subjectLabel}'s segment`, icon: Swords },
+      { id: "ev-5", title: "Field Intelligence", type: "adoption", description: `${subjectLabel} ${outcomeLabel} tracking update expected`, icon: Users },
+    );
+  }
+
+  return events;
+}
 
 function computeImpact(s: { strength: Strength; reliability: Reliability }): Impact {
   if (s.strength === "High" && s.reliability === "Confirmed") return "High";
@@ -252,6 +296,11 @@ export default function SignalsPage() {
 
   const systemSuggestions = useMemo(
     () => generateSuggestions(questionCtx),
+    [questionCtx]
+  );
+
+  const incomingEvents = useMemo(
+    () => generateIncomingEvents(questionCtx),
     [questionCtx]
   );
 
@@ -549,7 +598,7 @@ export default function SignalsPage() {
               <span className="text-xs text-muted-foreground">Potential signal sources</span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-5">
-              {INCOMING_EVENTS.map((ev) => {
+              {incomingEvents.map((ev) => {
                 const EvIcon = ev.icon;
                 return (
                   <button
