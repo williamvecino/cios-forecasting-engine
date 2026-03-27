@@ -1,0 +1,511 @@
+PROJECT: Make CIOS generate real, structured, multi-source signals before forecasting
+
+OBJECTIVE
+
+Fix the signal-ingestion architecture so CIOS does not rely on generic placeholder signals and does not run weak forecasts from empty or incomplete signal sets.
+
+The system must generate signals from multiple independent signal families, starting with the latest verified brand developments, then payer, competitor, patient, provider/behavioral, and operational sources.
+
+This must work for any named brand or asset.
+Archetype logic should guide interpretation, not replace real brand-specific evidence.
+
+CORE PRINCIPLE
+
+For any named brand case:
+
+real current brand state first
+then multi-source signal ingestion
+then forecast
+then decision output
+
+Do not generate generic signals before attempting real brand/context retrieval.
+
+==================================================
+1. SIGNAL ARCHITECTURE TO IMPLEMENT
+==================================================
+
+Create 6 core signal families.
+
+Every case should ingest candidate signals from these families:
+
+1. Brand / Clinical / Regulatory
+2. Payer / Access
+3. Competitor
+4. Patient / Demand
+5. Provider / Behavioral
+6. System / Operational
+
+Each generated signal must belong to exactly one signal family.
+
+Add this field:
+- signal_family
+
+Allowed values:
+- brand_clinical_regulatory
+- payer_access
+- competitor
+- patient_demand
+- provider_behavioral
+- system_operational
+
+==================================================
+2. BRAND DEVELOPMENT CHECK — MANDATORY FIRST STEP
+==================================================
+
+For any question containing a named brand, asset, or therapy, run a Brand Development Check before generating other signals.
+
+SOURCE PRIORITY
+
+For named brands/assets, search in this order:
+
+1. Official company investor / press release site
+2. Official brand website
+3. ClinicalTrials.gov
+4. Official congress / company presentation pages
+5. Other high-quality public sources only if needed
+
+RULES
+
+1. If the brand is recognized, attempt external lookup first.
+2. Latest dated, verified developments must be converted into structured signals first.
+3. Generic signals may be added only after observed brand developments are captured.
+4. If no verified development is found, say so explicitly.
+5. Do not fabricate specifics.
+
+Create a top Step 2 section:
+"Latest Verified Brand Developments"
+
+This should show 1–5 most recent verified items before other signals.
+
+==================================================
+3. SIGNAL CLASSES
+==================================================
+
+Add a field:
+- signal_class
+
+Allowed values:
+- observed
+- derived
+- uncertainty
+
+Definitions:
+
+observed
+= directly sourced, dated, externally verified event or fact
+
+derived
+= inference from observed developments
+
+uncertainty
+= unresolved issue to monitor
+
+Observed signals should carry more weight than derived signals.
+Derived signals should carry more weight than uncertainties.
+
+==================================================
+4. SIGNAL DATA MODEL
+==================================================
+
+Every signal must include these fields:
+
+- signal_id
+- title
+- signal_family
+- signal_class
+- source_url
+- source_type
+- observed_date
+- citation_excerpt
+- brand_verified (true/false)
+- direction (positive/negative/neutral)
+- impact (low/medium/high/very_high)
+- reliability (low/moderate/high)
+- implication
+- confirmation_status (pending/confirmed/rejected)
+
+source_type allowed examples:
+- official_company
+- official_brand_site
+- clinicaltrials
+- guideline
+- payer_policy
+- scientific_publication
+- conference
+- inferred
+
+==================================================
+5. MULTI-SOURCE SIGNAL INGESTION FLOW
+==================================================
+
+For each new case, run signal generation in this order:
+
+Step 1
+Detect named brand / asset / therapy
+
+Step 2
+Run Brand Development Check
+
+Step 3
+Generate payer/access signals
+
+Step 4
+Generate competitor signals
+
+Step 5
+Generate patient/demand signals
+
+Step 6
+Generate provider/behavioral signals
+
+Step 7
+Generate system/operational signals
+
+Step 8
+Normalize into structured signals
+
+Step 9
+Map signals to drivers
+
+Step 10
+Run forecast
+
+==================================================
+6. WHAT EACH SIGNAL FAMILY SHOULD COVER
+==================================================
+
+A. Brand / Clinical / Regulatory
+Examples:
+- trial readout
+- label update
+- safety signal
+- regulatory filing
+- guideline update
+
+B. Payer / Access
+Examples:
+- coverage criteria
+- prior authorization
+- formulary status
+- reimbursement restrictions
+- patient cost burden
+
+C. Competitor
+Examples:
+- competitor launch
+- competitor data release
+- competitor safety issue
+- competitor price move
+- competitor positioning shift
+
+D. Patient / Demand
+Examples:
+- symptom burden
+- treatment dissatisfaction
+- patient requests
+- discontinuation burden
+- advocacy activity
+
+E. Provider / Behavioral
+Examples:
+- specialty ownership conflict
+- workflow resistance
+- prescribing familiarity
+- risk tolerance
+- referral dynamics
+- training readiness
+
+F. System / Operational
+Examples:
+- equipment requirements
+- staffing limitations
+- protocol readiness
+- pharmacy/logistics burden
+- administration complexity
+
+==================================================
+7. SIGNAL COVERAGE CHECK — MANDATORY
+==================================================
+
+Before running a forecast, run a Signal Coverage Check.
+
+RULE
+
+The forecast can still render a prior probability if needed, but the system must explicitly check and display signal-family coverage.
+
+Minimum desired coverage:
+- at least 1 signal from each family
+
+If any families are missing, show:
+"Missing signal families: ..."
+and list them.
+
+Example:
+Missing signal families:
+- payer_access
+- provider_behavioral
+- system_operational
+
+This must appear clearly in Step 2 and Step 3.
+
+==================================================
+8. DRIVER MAPPING RULES
+==================================================
+
+Signals do not go directly to forecast math.
+They must map into structured drivers first.
+
+Each driver must include:
+- driver_id
+- driver_name
+- related_signal_ids
+- direction
+- impact
+- reliability
+- is_primary_driver (true/false)
+- validation_status
+
+Primary drivers should only be created when:
+- at least one structured signal supports them
+- direction exists
+- impact exists
+- reliability exists
+
+No forecast sensitivity analysis unless at least one validated primary driver exists.
+
+==================================================
+9. STEP 2 UI REQUIREMENTS — ADD INFORMATION
+==================================================
+
+Rebuild Step 2 so it shows signals in this order:
+
+Section 1
+Latest Verified Brand Developments
+
+Section 2
+Signal Coverage Summary
+- show count per signal family
+- show missing families
+
+Section 3
+Primary Drivers
+
+Section 4
+Supporting Signals grouped by family:
+- Brand / Clinical / Regulatory
+- Payer / Access
+- Competitor
+- Patient / Demand
+- Provider / Behavioral
+- System / Operational
+
+Section 5
+Incoming Events
+
+For each signal row show:
+- title
+- family
+- class
+- date
+- direction
+- impact
+- reliability
+- source type
+- source link
+- implication
+- confirm / reject actions
+
+Do not bury source provenance.
+
+==================================================
+10. STEP 3 UI REQUIREMENTS — SEE FORECAST
+==================================================
+
+If no validated primary drivers exist, show:
+
+- prior probability
+- low confidence
+- missing validated drivers message
+- signal family coverage status
+
+Do not pretend sensitivity exists.
+
+Text should say:
+"No validated primary drivers yet. Forecast currently reflects baseline prior and limited structured evidence."
+
+If validated primary drivers do exist, show:
+- current probability
+- most sensitive driver
+- total upward pressure
+- total downward pressure
+- short interpretation grounded in the actual drivers
+
+==================================================
+11. QUESTION-TYPE AWARE SIGNAL GENERATION
+==================================================
+
+The signal generator must adapt to question type.
+
+If question type = comparative
+then generate comparative signals:
+- group differences
+- specialty differences
+- workflow differences
+- access differences
+- behavior differences
+
+If question type = ranking
+then generate leader/laggard signals:
+- what makes one group lead
+- what delays others
+
+If question type = threshold
+then generate threshold-relevant signals
+
+If question type = timing
+then generate timing and trigger-event signals
+
+Do not use the same signal template for all question types.
+
+==================================================
+12. CASE-TYPE / THERAPEUTIC-AREA GUARDRAILS
+==================================================
+
+Archetype cases are examples for reasoning patterns, not generic rules.
+
+Implement this rule:
+Archetype logic informs weighting and interpretation, but real brand/context signals always take precedence.
+
+Examples:
+- oncology archetype should prioritize evidence/guideline/access patterns
+- dermatology adjunct archetype should prioritize visible results/safety/workflow/patient demand
+- CNS LAI archetype should prioritize infrastructure/adherence/coverage
+- ID hospital archetype should prioritize institutional approval/stewardship/workflow
+
+But no archetype should overwrite actual brand developments or live signals.
+
+==================================================
+13. ARIKAYCE TEST CASE — REQUIRED
+==================================================
+
+Question:
+"Will ID, pulmonologists differ in adoption for ARIKAYCE within 12 months?"
+
+Expected behavior in Step 2:
+The top signal section must include the March 23, 2026 official Insmed ENCORE topline result and related observed signals before generic placeholders.
+
+Required observed brand signals for this test:
+- positive Phase 3b ENCORE topline results
+- significant endpoint results
+- no new safety signals
+- planned sNDA filing in 2H 2026
+
+Then derived implications may include:
+- increased ID specialist confidence
+- increased probability of earlier-line adoption
+- increased guideline attention
+- increased payer review relevance
+
+The system should also generate non-brand signals from the other families:
+- payer/access
+- competitor
+- provider/behavioral
+- patient/demand
+- operational
+
+==================================================
+14. REPAIR LOOP REQUIREMENT
+==================================================
+
+Do not just implement this and stop.
+
+Process:
+1. Run the ARIKAYCE case
+2. Inspect Step 2 generated signals
+3. Verify all six signal families are present or explicitly flagged missing
+4. Verify at least one validated primary driver is created when sufficient signals exist
+5. Run forecast
+6. If failures occur, identify root cause and fix reusable logic
+7. Re-run case
+8. Repeat until signal ingestion and forecast flow work correctly
+
+==================================================
+15. ROOT CAUSE CATEGORIES FOR FAILURES
+==================================================
+
+Use these failure categories:
+- brand lookup failure
+- source retrieval failure
+- missing brand verification
+- signal family coverage failure
+- driver mapping failure
+- question-type routing failure
+- forecast sensitivity failure
+- UI-to-logic wiring failure
+- archetype override failure
+
+==================================================
+16. TESTS TO ADD
+==================================================
+
+Add automated tests for:
+
+Test 1
+Named brand case must run Brand Development Check first
+
+Test 2
+Observed brand developments must appear before generic signals
+
+Test 3
+Signals must include source metadata
+
+Test 4
+Signal Coverage Check must identify missing families
+
+Test 5
+Forecast without validated drivers must show prior-only / low-confidence state
+
+Test 6
+Comparative questions must generate comparative signal framing
+
+Test 7
+Archetype logic must not overwrite live brand developments
+
+==================================================
+17. OUTPUT FILES
+==================================================
+
+Save structured debug outputs to:
+
+/tests/signal_ingestion_results.json
+/tests/signal_coverage_report.json
+/tests/brand_development_log.json
+/tests/driver_mapping_report.json
+/tests/remaining_signal_blockers.md
+
+==================================================
+18. SUCCESS STANDARD
+==================================================
+
+This implementation is successful only if:
+
+1. Named brand cases start with latest verified brand developments
+2. Signals are generated from multiple independent signal families
+3. Each signal has source provenance
+4. Signal coverage is visible and checked
+5. Drivers are mapped from signals before forecasting
+6. Forecast interpretation reflects actual structured drivers
+7. Archetype logic supports but does not replace brand-specific evidence
+
+IMPORTANT
+
+Do not solve this by hardcoding ARIKAYCE only.
+Fix the universal architecture for named brand cases.
+
+FINAL RULE
+
+Real brand developments first.
+Then multi-source signals.
+Then drivers.
+Then forecast.
+Then decision output.

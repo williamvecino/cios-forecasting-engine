@@ -1,29 +1,31 @@
 import { DecisionQuestion } from "./types";
 
 export function buildInterpretedQuestion(q: DecisionQuestion): string {
-  const subject = q.subject || "the subject";
-  const outcome = q.outcome || "the outcome";
-  const entities = q.populationOrEntities?.join(", ") || "the population";
-  const time = q.timeHorizon || "the defined time horizon";
-  const metric = q.successMetric;
+  if (q.rawInput?.trim()) {
+    return q.rawInput.trim();
+  }
+
+  const subject = q.subject || "";
+  const outcome = q.outcome || "";
+  const entities = q.populationOrEntities?.join(", ") || "";
+  const time = q.timeHorizon || "";
+
+  if (!subject && !outcome && !entities) return "";
 
   switch (q.questionType) {
-    case "binary":
-      return `Will ${entities} achieve ${outcome} for ${subject} within ${time}?`;
-
     case "comparative":
-      return `Will ${entities} differ in ${outcome} for ${subject} within ${time}?`;
-
+      if (entities && subject && time) {
+        return `Will ${entities} differ in adoption of ${subject} within ${time}?`;
+      }
+      break;
     case "ranking":
-      return `Which of ${entities} is most likely to lead ${outcome} for ${subject} within ${time}?`;
-
-    case "threshold":
-      return `Will ${outcome} for ${subject} reach ${metric} among ${entities} within ${time}?`;
-
-    case "timing":
-      return `When will ${entities} achieve ${outcome} for ${subject}?`;
-
+      if (entities && subject) {
+        return `Which of ${entities} will lead adoption of ${subject}?`;
+      }
+      break;
     default:
-      return q.rawInput;
+      break;
   }
+
+  return q.rawInput || "";
 }
