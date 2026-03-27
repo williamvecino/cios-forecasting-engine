@@ -53,11 +53,11 @@ Strict separation between `draftQuestion` (the in-progress text in the textarea/
 - `Clear Question` calls both `clearQuestion()` (removes active case from localStorage + state) and `resetDraft()` (dispatches `RESET` to clear all draft state).
 - Console logs prefixed `[CIOS State]` and `[CIOS Draft]` are present for debugging draft vs active case subject values. Remove for production.
 
-**AI-Powered Signal Generation (Domain-Aware):**
-The signals page calls `POST /api/ai-signals/generate` which detects the therapeutic area (oncology, dermatology, pulmonology, immunology, cardiology, neurology, infectious disease, endocrinology) from the question context and generates domain-specific analytical signals. For oncology: survival benefit, NCCN guidelines, payer coverage, toxicity profile. For dermatology: PASI scores, patient demand, KOL influence. Each signal has AI-assigned strength, reliability, direction, and category with domain-appropriate weighting. Signals are framed as analytical drivers (not fabricated facts). Therapeutic area is stored in `localStorage.cios.therapeuticArea` for downstream use.
+**AI-Powered Signal Generation (Case-Specific):**
+The signals page calls `POST /api/ai-signals/generate` which detects the therapeutic area as context but evaluates each case independently on its own merits. Canonical cases (oncology, dermatology/Mallia) are archetypes that teach adoption dynamics, NOT templates to copy. The AI reasons about what drives adoption for the specific product type (e.g. adjunct cosmetic therapy vs. oncology biologic have completely different drivers). Signals are framed as analytical drivers (not fabricated facts). Therapeutic area is stored in `localStorage.cios.therapeuticArea` for downstream use. ARCHITECTURAL RULE: Never hardcode domain-specific signal templates — the AI must evaluate brand-specific signals for each new case.
 
-**AI-Powered Decision Analysis:**
-The Decide page calls `POST /api/ai-decide/generate` (in `api-server/src/routes/ai-decide.ts`) which generates structured commercial decision analysis: adoption segmentation (early adopters, persuadables, late movers, resistant), barrier diagnosis (evidence/access/workflow/competitive with Low/Moderate/High levels), readiness timeline (trigger events, dependencies, timing risks), competitive risk (incumbent defense, fast follower risk), and growth feasibility (segment size, scalability, revenue translation). All analysis is domain-specific to the therapeutic area.
+**AI-Powered Decision Analysis (Case-Specific):**
+The Decide page calls `POST /api/ai-decide/generate` which generates structured analysis: adoption segmentation, barrier diagnosis, readiness timeline, competitive risk, growth feasibility, and recommended actions. Analysis is specific to the actual product/brand — segments use real names (e.g. "Hair restoration surgeons" not "Specialist clinics"). ARCHITECTURAL RULE: Canonical cases are archetypes, not rules. Generalizing one case to all cases in that therapeutic area is incorrect behavior.
 
 ## External Dependencies
 - **PostgreSQL:** Primary database.

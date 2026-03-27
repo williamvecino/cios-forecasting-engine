@@ -24,35 +24,29 @@ router.post("/ai-decide/generate", async (req, res) => {
 
     const area = body.therapeuticArea || "general";
 
-    const systemPrompt = `You are a pharmaceutical commercial strategy analyst. Given a forecasting question about HCP adoption, generate a structured decision analysis.
+    const systemPrompt = `You are a pharmaceutical commercial strategy analyst. Generate a structured decision analysis for a specific brand/product and forecasting question.
 
-You must generate analysis for ALL FIVE sections below. Each section must have specific, actionable content — not generic placeholders.
+CRITICAL: Each case is unique. Evaluate this specific product on its own merits. Do not apply generic templates. A hair restoration adjunct therapy has different segmentation, barriers, and competitive dynamics than an oncology biologic — even within the same therapeutic area.
 
-THERAPEUTIC AREA: ${area}
+Consider:
+- What type of product is this? (novel drug, adjunct therapy, diagnostic, device, etc.)
+- Who are the actual prescribers/users? (specialists, generalists, surgeons, etc.)
+- What drives adoption for THIS type of product? (evidence? guidelines? patient demand? visible results? payer coverage?)
+- What is the relevant payment model? (insurance-covered? cash-pay? buy-and-bill?)
 
-Return ONLY valid JSON with this exact structure:
+Do NOT fabricate specific data. Provide analytical assessments based on the product type and market context.
+
+Return ONLY valid JSON with this structure:
 
 {
   "adoption_segmentation": {
-    "early_adopters": {
-      "segments": ["segment name 1", "segment name 2"],
-      "reason": "Why these segments move first"
-    },
-    "persuadables": {
-      "segments": ["segment name"],
-      "reason": "Why these segments are persuadable"
-    },
-    "late_movers": {
-      "segments": ["segment name"],
-      "reason": "Why these segments are slow"
-    },
-    "resistant": {
-      "segments": ["segment name"],
-      "reason": "Why these segments resist"
-    }
+    "early_adopters": { "segments": ["segment 1", "segment 2"], "reason": "Why these move first" },
+    "persuadables": { "segments": ["segment"], "reason": "Why persuadable" },
+    "late_movers": { "segments": ["segment"], "reason": "Why slow" },
+    "resistant": { "segments": ["segment"], "reason": "Why resistant" }
   },
   "barrier_diagnosis": {
-    "evidence": { "level": "Low|Moderate|High", "detail": "Specific assessment" },
+    "evidence": { "level": "Low|Moderate|High", "detail": "Specific assessment for this product" },
     "access": { "level": "Low|Moderate|High", "detail": "Specific assessment" },
     "workflow": { "level": "Low|Moderate|High", "detail": "Specific assessment" },
     "competitive": { "level": "Low|Moderate|High", "detail": "Specific assessment" }
@@ -64,42 +58,33 @@ Return ONLY valid JSON with this exact structure:
     "timing_risks": ["risk 1", "risk 2"]
   },
   "competitive_risk": {
-    "incumbent_defense": "Description of expected incumbent response",
+    "incumbent_defense": "What existing alternatives will do",
     "fast_follower_risk": "Low|Moderate|High",
-    "evidence_response": "Description of expected evidence counter-messaging",
-    "access_response": "Description of expected payer/access competitive actions"
+    "evidence_response": "How competitors may counter with evidence",
+    "access_response": "Competitive payer/access actions"
   },
   "growth_feasibility": {
     "segment_size": "Small|Medium|Large",
-    "access_expansion": "Description of coverage growth potential",
+    "access_expansion": "Coverage growth potential for this product",
     "operational_scalability": "Low|Moderate|High",
     "revenue_translation": "Low|Moderate|High"
   },
-  "recommended_actions": [
-    "Action 1",
-    "Action 2",
-    "Action 3"
-  ]
+  "recommended_actions": ["Action 1", "Action 2", "Action 3"]
 }
 
-RULES:
-1. Be specific to the therapeutic area and question context.
-2. Name real segment types (e.g. "Academic oncology centers", "Community oncologists", "High-volume dermatology practices") — not generic labels.
-3. Barrier levels should reflect realistic pharmaceutical market dynamics.
-4. Do NOT fabricate specific data points, but DO provide domain-specific strategic assessments.
-5. Recommended actions should be concrete and actionable.`;
+Name real segment types specific to this product (e.g. "Hair restoration surgeons", "Community oncologists", "Large cardiology practices") — not generic labels.`;
 
-    const userPrompt = `Generate a structured decision analysis for:
+    const userPrompt = `Generate decision analysis for:
 
-**Subject/Brand**: ${body.subject}
+**Brand/Subject**: ${body.subject}
 **Question**: ${body.questionText}
 **Outcome**: ${body.outcome || "adoption"}
 **Time Horizon**: ${body.timeHorizon || "12 months"}
 **Question Type**: ${body.questionType || "binary"}
-**Therapeutic Area**: ${area}
+**Therapeutic Context**: ${area}
 ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}
 
-Provide domain-specific analysis covering adoption segmentation, barrier diagnosis, readiness timeline, competitive risk, and growth feasibility.`;
+Evaluate this specific product and its market. Who are the real segments? What are the actual barriers? What would trigger adoption?`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
