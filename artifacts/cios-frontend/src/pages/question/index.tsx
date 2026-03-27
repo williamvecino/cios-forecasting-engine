@@ -334,7 +334,15 @@ export default function QuestionPage() {
                       ) : (
                         <div className="mt-1 text-sm font-medium text-foreground">
                           {f.value || (
-                            <span className="text-amber-400 italic text-xs">Click to add</span>
+                            <span className="text-amber-400 italic text-xs">
+                              {f.key === "subject" ? "e.g. ARIKAYCE" :
+                               f.key === "outcome" ? "e.g. adoption" :
+                               f.key === "populationOrEntities" ? "e.g. derms, GPs" :
+                               f.key === "timeHorizon" ? "e.g. 12 months" :
+                               f.key === "comparator" ? "e.g. competitor" :
+                               f.key === "successMetric" ? "e.g. 20%" :
+                               "Click to add"}
+                            </span>
                           )}
                         </div>
                       )}
