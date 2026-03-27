@@ -232,22 +232,37 @@ export default function QuestionPage() {
             </div>
           </div>
 
-          {enriched && rawInput.trim() && (
+          {enriched && rawInput.trim() && (() => {
+            const totalFields = fields.length;
+            const filledFields = fields.filter((f) => !f.isMissing).length;
+            const pct = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
+            return (
             <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-blue-400" />
-                  <span className="text-sm font-semibold text-foreground">System Interpretation</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-semibold text-foreground">System Interpretation</span>
+                  </div>
+                  <span className={`text-xs font-semibold ${complete ? "text-emerald-400" : "text-muted-foreground"}`}>
+                    {complete ? "Ready" : `${pct}%`}
+                  </span>
                 </div>
-                <span
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    complete
-                      ? "bg-emerald-500/10 text-emerald-400"
-                      : "bg-amber-500/10 text-amber-400"
-                  }`}
-                >
-                  {complete ? "Ready" : `${missing.length} still needed`}
-                </span>
+                <div className="space-y-1.5">
+                  <div className="h-2 w-full rounded-full bg-muted/30 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        complete ? "bg-emerald-500" : "bg-primary"
+                      }`}
+                      style={{ width: `${complete ? 100 : pct}%` }}
+                    />
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {complete
+                      ? "All fields complete — ready to continue"
+                      : `${filledFields} of ${totalFields} fields complete`}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -362,7 +377,8 @@ export default function QuestionPage() {
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           <div className="rounded-2xl border border-border bg-card p-6">
             {submitError && (

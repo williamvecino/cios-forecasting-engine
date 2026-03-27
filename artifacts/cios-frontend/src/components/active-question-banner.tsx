@@ -41,7 +41,7 @@ export default function ActiveQuestionBanner({ activeQuestion, onClear }: Props)
                 No question is active yet.
               </div>
               <div className="mt-2 text-sm text-muted-foreground/70">
-                Start with your own case or open <span className="text-foreground/80">See Mock Case</span> to explore the workflow.
+                Type a question below or browse the <a href="/library" className="text-foreground/80 underline underline-offset-2">Library</a> for sample forecasts.
               </div>
             </>
           )}
