@@ -13,7 +13,7 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Bayesian Forecast Engine:** Calculates posterior probabilities using prior odds, correlation-aware signal likelihood ratio products, and an exponential net actor translation.
 - **Signal Detection & Review:** AI-powered extraction of candidate signals with a workflow for review, confirmation, or rejection, ensuring 14-domain coverage and data validation.
 - **Actor Behavioral Model:** A 6-actor model (KOL, HCP, Payer, Patient, Administrator, Competitor) adjusts forecasts based on reactions to signals.
-- **Calibration Learning Loop:** Tracks outcomes, computes Brier scores and forecast errors, and applies `lr_corrections` and `bucket_corrections` for bias adjustment.
+- **Calibration Learning Loop:** Tracks outcomes, computes Brier scores and forecast errors, and applies bias adjustments.
 - **Hierarchical Calibration Fallback:** Ensures robust calibration in low-data regions through a 4-level deterministic hierarchy.
 - **Learning Coverage Expansion:** An adaptive learning system including a `Case Acquisition Planner`, `Question-Type Taxonomy`, `Resolved-Case Ingestion`, and `Learning Impact Simulation`.
 - **Analog Retrieval:** Provides a 30-case calibrated analog library for matching cases via Jaccard token scoring.
@@ -23,14 +23,13 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Forecast Ledger:** Tracks predictions and compares them with real outcomes for calibration measurement.
 - **Strategic Narrative Generator:** Converts forecast outputs into publication-ready analytical narratives using a deterministic template.
 - **Signal Watchlist:** Tracks upcoming external events likely to generate meaningful forecast signals.
-- **Weekly Strategic Brief:** Provides an aggregated read-only summary of current system state.
 - **Competitor Behavior Register:** Structured intelligence layer for tracking competitor strategic behaviors.
 - **Target Resolution Layer:** Manages hierarchical targeting (market → specialty → subspecialty → institution → physician) with scope-based signal filtering.
-- **Forecast Interpretation Panel:** Provides confidence-sensitive summaries, driver-aware next actions, and refinement suggestions on the case detail page.
+- **Forecast Interpretation Panel:** Provides confidence-sensitive summaries, driver-aware next actions, and refinement suggestions.
 - **National Adopter Discovery Agent:** A bounded agent for discovering U.S. physician/institution adoption candidates based on strategic questions and structured signals.
-- **Signal Lifecycle & Audit System:** Manages signal status transitions (`candidate → reviewed → validated → active → archived/rejected`) with audit logging for all changes.
+- **Signal Lifecycle & Audit System:** Manages signal status transitions with audit logging for all changes.
 - **Signal Taxonomy:** Defines 10 core signal types organized into 3 groups (evidence, market, execution) with a mapping for legacy types.
-- **Signal Review Queue:** A dedicated frontend page for managing the full signal lifecycle from candidate to activation.
+- **Signal Review Queue:** A dedicated frontend page for managing the full signal lifecycle.
 - **Forecast Environment Adjustment Layer:** A post-calibration module that applies safe multipliers based on 7 environmental factors to refine forecasts.
 - **Signal Detection Agent:** A bounded agent that scans user-provided source text to extract and classify candidate signals for human review.
 
@@ -38,56 +37,38 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 Top-level navigation includes Home, Forecasts, Library, and System, organizing various tools and workflows. A 4-step workflow (Define Question → Add Information → See Forecast → Decide) guides users through the forecasting process.
 
 **UI/UX Decisions:**
-The frontend employs an "Aaru-like Decision Interface" with question-driven, decision-oriented language. Key design patterns include a question definition layer for structuring user input, a workflow test harness, a forecast readiness gate, a redesigned forecast page with a dark panel theme and four tabs (Current Forecast, Scenario Planning, Driver Impact, Case Library), an "Evidence Register" for signals, and a 6-panel enterprise decision layout for question details. Information is presented using structured tables, collapsible sections, and color-coded indicators.
+The frontend employs an "Aaru-like Decision Interface" with question-driven, decision-oriented language. Key design patterns include a question definition layer, a workflow test harness, a forecast readiness gate, a redesigned forecast page with a dark panel theme and four tabs (Current Forecast, Scenario Planning, Driver Impact, Case Library), an "Evidence Register" for signals, and a 6-panel enterprise decision layout for question details. Information is presented using structured tables, collapsible sections, and color-coded indicators.
 
 **Workflow Gating:**
-All pages (signals, forecast, decide) use `QuestionGate` to block content when no active question exists. The sidebar step completion checkmarks require `hasActiveQuestion` to prevent false positive indicators. The question parser (`parser.ts`) supports a comprehensive verb list for subject extraction including medical/pharma-specific actions (approve, launch, prescribe, reimburse, etc.) with a fallback pattern. The outcome extractor covers 30+ outcome categories. Both subject and outcome default to reasonable values to minimize blocked Continue buttons.
+All pages use `QuestionGate` to block content when no active question exists. The sidebar step completion checkmarks require `hasActiveQuestion` to prevent false positive indicators. The question parser supports a comprehensive verb list for subject extraction, including medical/pharma-specific actions, with a fallback pattern. The outcome extractor covers 30+ outcome categories. Both subject and outcome default to reasonable values to minimize blocked Continue buttons.
 
 **Draft vs Active Case Isolation:**
-Strict separation between `draftQuestion` (the in-progress text in the textarea/parser) and `activeCase` (the previously submitted question stored in localStorage). Key mechanisms:
-- `DraftQuestion` interface + `createEmptyDraft()` factory in `lib/question-definition/types.ts` — formal type separate from `ActiveQuestion`.
-- `useReducer(draftReducer)` in `QuestionPage` manages all draft state (`rawInput`, `overrides`, `editingField`, `clarificationValue`) as a single unit. `SET_RAW_INPUT` resets overrides to enforce clean-slate on new input.
-- `QuestionPageFresh` wrapper in `App.tsx` forces full remount via React `key` on every `/question` navigation.
-- Parser (`parser.ts`) has zero references to `activeQuestion`/`activeCase` — it only operates on raw text input.
-- Case binding only happens inside `handleSubmit` after the draft question is complete — never before.
-- `Clear Question` calls both `clearQuestion()` (removes active case from localStorage + state) and `resetDraft()` (dispatches `RESET` to clear all draft state).
-- Debug console logs (`[CIOS State]`, `[CIOS Draft]`, `[CIOS AI Signals]`, `[CIOS Submit]`) have been removed.
+Strict separation between `draftQuestion` (in-progress text) and `activeCase` (previously submitted question stored in localStorage). This ensures the parser only operates on raw text input and case binding only happens after the draft question is complete.
 
-**AI-Powered Signal Generation (Case-Specific, Brand Development Check):**
-The signals page calls `POST /api/ai-signals/generate` which performs a **Brand Development Check** before generating signals:
-1. Detects therapeutic area as context
-2. Performs real-time web research via `researchBrand()` in `lib/web-research.ts` following source priority: company investor/press releases → official brand site → ClinicalTrials.gov → congress/presentations → news sources
-3. Passes research findings + question to GPT-4o for case-specific signal generation
+**AI-Powered Signal Generation:**
+The signals page calls `POST /api/ai-signals/generate` which performs a **Brand Development Check** before generating signals. This involves detecting therapeutic area, performing real-time web research, and passing findings to GPT-4o for case-specific signal generation. Signals are classified as `observed`, `derived`, or `uncertainty`. Each AI-generated signal includes translation fields (`applies_to_line_of_therapy`, `applies_to_stakeholder_group`, `applies_within_time_horizon`, `translation_confidence`) and a `question_relevance_note`. Signals with low `translation_confidence` have capped impact.
 
-**Signal classification** (per spec): Each signal has `signal_class`: `observed` (verified from external source), `derived` (inference from known data), or `uncertainty` (open question). Observed signals carry `source_url`, `observed_date`, `citation_excerpt`, `brand_verified: true`. Observed signals appear FIRST, then derived, then uncertainties.
+**Event Decomposition Layer (CRITICAL):**
+The AI decomposes each question into 3-6 "event gates"—conditions that must be met for the asked outcome. Each gate has a `status` and `constrains_probability_to`. The AI returns `brand_outlook_probability` (unconstrained) and `constrained_probability` (minimum of all gate caps). If any gate is weak/unresolved, the constrained probability is capped.
 
-**Signal families (Phase 1):** Every AI-generated signal belongs to one of 6 families: `brand_clinical_regulatory`, `payer_access`, `competitor`, `patient_demand`, `provider_behavioral`, `system_operational`. The AI prompt requires coverage across all 6 families (12-18 signals). Frontend maps and validates family assignment, defaulting to `brand_clinical_regulatory` if missing. Signal Coverage Summary section shows coverage per family with "MISSING" indicators for uncovered families. Coverage data (coveredFamilies, missingFamilies) is stored in localStorage `signalReadiness` and displayed on the forecast page readiness gate.
+**Engine Guardrails (CRITICAL):**
+A set of guardrails are applied at the API boundary before and after the core engine:
+1.  **Driver Deduplication:** Identifies and removes duplicate drivers.
+2.  **Max Single-driver Shift:** Caps each driver's marginal probability contribution to ±15 percentage points.
+3.  **Total Shift Normalization:** Normalizes total shift from prior if it exceeds ±40 percentage points.
+4.  **Event Gating Constraint:** Caps probability at 70% if any required gate is weak/unresolved/missing.
+5.  **Relevance Penalty:** Reduces LR impact by 50% for signals with low `translation_confidence` or indirect applicability.
+6.  **Recalculation Consistency:** Uses a state hash for 30-second caching of identical inputs.
+7.  **Engine Input Validation:** Validates prior and signal fields, returning HTTP 400 for invalid inputs.
+A diagnostic panel provides system validation information.
 
-**Question Relevance Translation Layer:** Prevents upstream brand signals from dominating the forecast when they don't directly answer the specific question. Each AI-generated signal includes 4 translation fields: `applies_to_line_of_therapy` (current_label/future_label/uncertain), `applies_to_stakeholder_group` (string), `applies_within_time_horizon` (yes/partial/unlikely), `translation_confidence` (high/moderate/low), plus `question_relevance_note` (sentence). AI also returns `question_translation_summary` (top-level). FORECAST IMPACT RULE: signals with `translation_confidence: "low"` have impact capped (may not have "High" strength). Frontend `computeImpact()` enforces this cap. UI shows: Translation Summary panel (violet-bordered, between brand developments and coverage summary) with confidence distribution badges; per-signal TranslationBadge + relevance note + metadata tags.
+**Signal Persistence Flow:**
+When users accept signals on the Signals page, `persistSignalToDb` saves them to the database. The Bayesian forecast engine reads signals from the database. Signals are saved with `createdByType: "human"` and `status: "active"`, with frontend categories mapped to database signal types and numeric scores.
 
-**Event Decomposition Layer (CRITICAL):** Prevents near-certain forecasts when gating conditions remain unresolved. The AI decomposes each question into 3-6 "event gates" — conditions that MUST all be met for the asked outcome. Each gate has: `gate_id`, `gate_label`, `description`, `status` (strong/moderate/weak/unresolved), `reasoning`, `constrains_probability_to` (0-1). The AI also returns `brand_outlook_probability` (unconstrained), `constrained_probability` (minimum of all gate caps), and `constraint_explanation`. FORECAST CONSISTENCY RULE: if any gate is weak/unresolved, constrained probability MUST be <0.40. Near-certain (>0.80) requires ALL gates strong/moderate. Step 3 shows 3-panel layout: Brand Outlook (blue, unconstrained prob) → Event Gates (amber, individual gate status cards) → Final Forecast (gauge, gate-constrained prob). The Final Forecast probability = min(constrained_probability, engine_probability). Stored in localStorage `cios.eventDecomposition:${caseId}`. Falls back to legacy single-gauge view when no gates exist.
+**AI-Powered Decision Analysis:**
+The Decide page calls `POST /api/ai-decide/generate` to produce structured analysis including adoption segmentation, barrier diagnosis, readiness timeline, competitive risk, growth feasibility, and recommended actions. Analysis is specific to the actual product/brand.
 
-**UI**: Step 2 sections in order: (1) Latest Verified Brand Developments (blue-bordered, with dates, source types, direction indicators, source links, confirm/dismiss buttons), (2) Question Relevance Translation (violet-bordered, translation summary + confidence distribution), (3) Signal Coverage Summary (6-family grid showing coverage/gaps), (4) Signal Analysis summary, (5) Primary Drivers (with translation badges + metadata tags), (6) Supporting Signals grouped by signal family with family badges, (7) Incoming Events. If no verified developments found, shows "No recent verified brand developments found" warning. Loading state says "Brand Development Check in Progress" with specific source list.
-
-**Engine Guardrails (CRITICAL — `engine-guardrails.ts` at API boundary, never in core engine):**
-1. **Driver Deduplication** — Before engine: identifies duplicates by signalId or Jaccard similarity >0.75; keeps highest reliability instance, discards rest. Logged: `duplicate_driver_detected`, `duplicate_driver_removed`.
-2. **Max Single-driver Shift = 15pp** — Post-engine: caps each driver's marginal probability contribution to ±15 percentage points. If any driver exceeds, all LRs are soft-capped. Logged: `driver_shift_capped`.
-3. **Total Shift Normalization = 40pp** — Post-engine: if total shift from prior exceeds ±40pp, normalizes proportionally. Logged: `total_shift_normalized`.
-4. **Event Gating Constraint = 70% cap** — Post-engine: if any required gate (line_of_therapy_applicability, stakeholder_applicability, time_horizon_feasibility, threshold_attainment) is weak/unresolved/missing, caps probability at 70%. Logged: `probability_limited_by_gate`.
-5. **Relevance Penalty** — Pre-engine: signals with `translation_confidence: "low"` or relevance notes indicating indirect applicability have LR impact reduced by 50%. Logged: `relevance_penalty_applied`.
-6. **Recalculation Consistency** — State hash (SHA-256 of all forecast inputs including environment fields) used for 30-second cache. Identical inputs return cached result. Logged: `recalculation_skipped`.
-7. **Engine Input Validation** — Pre-engine: validates prior (0-1), signal fields (direction, strength, reliability, LR). Invalid inputs return HTTP 400 with `INVALID DRIVER INPUT`. Logged: `input_validation_errors`.
-8. **Diagnostic Panel** — Hidden `<details>` element at bottom of forecast page showing: driver count, duplicates, largest single shift, total shift, cap/normalization status, gate constraints, relevance penalties, cache status, state hash, and limit reason. For system validation, not end users.
-
-**Fail condition**: If a named brand exists and the system displays generic signals without attempting a brand development check, this is a logic failure.
-
-The user's raw question input (with clinical specifics like "first-line" or "refractory") is preserved via `rawInput` field on `ActiveQuestion` and passed to the AI. ARCHITECTURAL RULE: Never hardcode domain-specific signal templates — the AI must evaluate brand-specific signals for each new case.
-
-**Signal Persistence Flow (Critical):**
-When users accept signals on the Signals page (Step 2), the `persistSignalToDb` function saves each accepted signal to the database via `POST /api/cases/:caseId/signals`. This is essential because the Bayesian forecast engine (Step 3) reads signals from the database, not from frontend state. Signals are saved with `createdByType: "human"` (even for AI-generated ones) so they get `status: "active"` — the forecast engine only considers active signals. The mapping converts frontend categories to database signal types (evidence→"Phase III clinical", access→"Access / commercial", etc.) and frontend strength/reliability labels to numeric scores (High→4, Medium→3, Low→2).
-
-**AI-Powered Decision Analysis (Case-Specific):**
-The Decide page calls `POST /api/ai-decide/generate` which generates structured analysis: adoption segmentation, barrier diagnosis, readiness timeline, competitive risk, growth feasibility, and recommended actions. Analysis is specific to the actual product/brand — segments use real names (e.g. "Hair restoration surgeons" not "Specialist clinics"). ARCHITECTURAL RULE: Canonical cases are archetypes, not rules. Generalizing one case to all cases in that therapeutic area is incorrect behavior.
+**Forecast Meaning Panel:** Placed directly below the 3-panel grid (Brand Outlook / Event Gates / Final Forecast) in Step 3. Indigo-bordered panel with three fields: (1) **Interpretation** — plain-language sentence dynamically selected from 6 logic branches based on brand outlook vs final forecast levels: brand high + final low → barriers not product; brand low + final low → clinical/regulatory uncertainty; brand high + final high → evidence + readiness aligned; moderate + moderate → depends on resolving barriers; brand high + final moderate → partially limited by gates; fallback. (2) **Primary Constraint** — the weakest gate (sorted by status: unresolved < weak < moderate < strong), shown with status badge and probability cap. (3) **What Would Change the Forecast** — the strongest unresolved/weak gate (highest constrains_probability_to), with estimated upside if resolved.
 
 ## External Dependencies
 - **PostgreSQL:** Primary database.
@@ -95,4 +76,4 @@ The Decide page calls `POST /api/ai-decide/generate` which generates structured 
 - **React, Vite, Tailwind, Recharts, React Query:** Frontend development stack.
 - **Drizzle ORM:** Object-Relational Mapper.
 - **OpenAPI 3.1 & orval:** API specification and code generation.
-- **OpenAI (via Replit AI Integrations):** Powers AI signal generation for market intelligence research. Uses `@workspace/integrations-openai-ai-server` package.
+- **OpenAI (via Replit AI Integrations):** Powers AI signal generation for market intelligence research.

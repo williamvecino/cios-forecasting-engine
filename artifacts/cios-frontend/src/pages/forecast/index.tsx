@@ -600,57 +600,125 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
         return (
           <>
-            {hasGates && (
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                <div className="rounded-3xl border border-blue-500/20 bg-[#0A1736] p-5 space-y-3">
-                  <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
-                  <div className="text-3xl font-bold text-blue-300">{Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100)}%</div>
-                  <div className="text-xs text-slate-400 leading-relaxed">Signal-driven probability reflecting overall brand momentum and upstream evidence strength.</div>
-                  <div className="flex items-center gap-3 text-xs text-slate-500">
-                    <span>Prior: {(f.priorProbability * 100).toFixed(0)}%</span>
-                    <ArrowRight className="w-3 h-3" />
-                    <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                      {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
-                    </span>
-                  </div>
-                </div>
+            {hasGates && (() => {
+              const brandPct = Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100);
+              const finalPct = displayProbPct;
+              const brandHigh = brandPct >= 60;
+              const brandLow = brandPct < 40;
+              const finalHigh = finalPct >= 60;
+              const finalLow = finalPct < 40;
 
-                <div className="rounded-3xl border border-amber-500/20 bg-[#0A1736] p-5 space-y-3">
-                  <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Event Gates</div>
-                  <div className="space-y-2">
-                    {decomp!.event_gates.map((gate) => (
-                      <div key={gate.gate_id} className={`rounded-xl border px-3 py-2 ${gateStatusColor[gate.status] || gateStatusColor.unresolved}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold">{gate.gate_label}</span>
-                          <span className="text-[10px] font-bold uppercase flex items-center gap-1">
-                            <span>{gateStatusIcon[gate.status] || "?"}</span>
-                            {gate.status}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[10px] opacity-80 leading-snug">{gate.reasoning}</div>
+              const statusRank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
+              const sortedGates = [...decomp!.event_gates].sort((a, b) => (statusRank[a.status] ?? 0) - (statusRank[b.status] ?? 0));
+              const weakestGate = sortedGates[0];
+              const unresolvedOrWeak = sortedGates.filter((g) => g.status === "unresolved" || g.status === "weak");
+              const strongestUnresolved = unresolvedOrWeak.length > 0
+                ? [...unresolvedOrWeak].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
+                : sortedGates.find((g) => g.status === "moderate") || weakestGate;
+
+              let interpretation = "";
+              if (brandHigh && finalLow) {
+                interpretation = `The therapy shows strong clinical momentum (${brandPct}% brand outlook), but current barriers make achieving the target adoption within the forecast window unlikely. The gap between brand strength and forecast reflects unresolved operational or market conditions, not product weakness.`;
+              } else if (brandLow && finalLow) {
+                interpretation = `Both clinical evidence strength and operational readiness remain limited. The forecast reflects genuine uncertainty in the underlying data — regulatory, clinical, or competitive factors have not yet resolved in a favorable direction.`;
+              } else if (brandHigh && finalHigh) {
+                interpretation = `Both evidence strength and operational readiness support adoption. The clinical profile is strong and the key conditions for market uptake are largely in place. Monitor for emerging headwinds.`;
+              } else if (!brandHigh && !brandLow && !finalHigh && !finalLow) {
+                interpretation = `Adoption depends on resolving remaining barriers. The therapy has a moderate evidence base, but key gating conditions have not fully cleared. Progress on the primary constraint below could meaningfully shift the forecast.`;
+              } else if (brandHigh && !finalHigh && !finalLow) {
+                interpretation = `The therapy has strong upstream signals (${brandPct}% brand outlook), but event gates are partially limiting the forecast to ${finalPct}%. Clearing the primary constraint below would allow the forecast to better reflect the underlying brand strength.`;
+              } else {
+                interpretation = `The forecast reflects the current balance between evidence strength and operational readiness. The primary constraint below identifies the most important barrier to monitor.`;
+              }
+
+              return (
+                <>
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                    <div className="rounded-3xl border border-blue-500/20 bg-[#0A1736] p-5 space-y-3">
+                      <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
+                      <div className="text-3xl font-bold text-blue-300">{brandPct}%</div>
+                      <div className="text-xs text-slate-400 leading-relaxed">Signal-driven probability reflecting overall brand momentum and upstream evidence strength.</div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span>Prior: {(f.priorProbability * 100).toFixed(0)}%</span>
+                        <ArrowRight className="w-3 h-3" />
+                        <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                          {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
 
-                <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5 space-y-3 flex flex-col">
-                  <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
-                  <div className="flex-1 flex flex-col items-center justify-center">
-                    <ProbabilityGauge value={displayProb} label="Gate-Constrained" size={180} />
-                    <div className={cn(
-                      "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                      confidenceBadgeClass[confidence]
-                    )}>
-                      Confidence: {confidence}
+                    <div className="rounded-3xl border border-amber-500/20 bg-[#0A1736] p-5 space-y-3">
+                      <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Event Gates</div>
+                      <div className="space-y-2">
+                        {decomp!.event_gates.map((gate) => (
+                          <div key={gate.gate_id} className={`rounded-xl border px-3 py-2 ${gateStatusColor[gate.status] || gateStatusColor.unresolved}`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold">{gate.gate_label}</span>
+                              <span className="text-[10px] font-bold uppercase flex items-center gap-1">
+                                <span>{gateStatusIcon[gate.status] || "?"}</span>
+                                {gate.status}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[10px] opacity-80 leading-snug">{gate.reasoning}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5 space-y-3 flex flex-col">
+                      <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
+                      <div className="flex-1 flex flex-col items-center justify-center">
+                        <ProbabilityGauge value={displayProb} label="Gate-Constrained" size={180} />
+                        <div className={cn(
+                          "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                          confidenceBadgeClass[confidence]
+                        )}>
+                          Confidence: {confidence}
+                        </div>
+                      </div>
+                      {decomp!.constraint_explanation && (
+                        <div className="text-[10px] text-slate-400 leading-relaxed italic">{decomp!.constraint_explanation}</div>
+                      )}
+                      <div className="text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
                     </div>
                   </div>
-                  {decomp!.constraint_explanation && (
-                    <div className="text-[10px] text-slate-400 leading-relaxed italic">{decomp!.constraint_explanation}</div>
-                  )}
-                  <div className="text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
-                </div>
-              </div>
-            )}
+
+                  <div className="rounded-3xl border border-indigo-500/20 bg-[#0A1736] p-6 space-y-5">
+                    <div className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Forecast Meaning</div>
+
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Interpretation</div>
+                      <p className="text-sm text-slate-200 leading-relaxed">{interpretation}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 space-y-1">
+                        <div className="text-[10px] text-red-400 font-semibold uppercase tracking-wider">Primary Constraint</div>
+                        <div className="text-sm font-semibold text-white">{weakestGate?.gate_label || "—"}</div>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border ${gateStatusColor[weakestGate?.status || "unresolved"]}`}>
+                            {gateStatusIcon[weakestGate?.status || "unresolved"]} {weakestGate?.status || "unresolved"}
+                          </span>
+                          {weakestGate?.constrains_probability_to != null && (
+                            <span className="text-[10px] text-slate-500">caps at {Math.round(weakestGate.constrains_probability_to * 100)}%</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-1">
+                        <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">What Would Change the Forecast</div>
+                        <div className="text-sm font-semibold text-white">{strongestUnresolved?.gate_label || "—"}</div>
+                        {strongestUnresolved && (
+                          <div className="text-[10px] text-slate-400 leading-snug">
+                            Resolving this gate could raise the forecast to ~{Math.min(Math.round((strongestUnresolved.constrains_probability_to ?? 0.5) * 100 + 15), brandPct)}%
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {!hasGates && (
               <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
