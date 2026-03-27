@@ -26,6 +26,28 @@ interface BarrierItem {
   barrier: string;
   detail: string;
   level?: string;
+  source_gate_id?: string | null;
+}
+
+interface RecommendedAction {
+  action: string;
+  source_gate_id?: string | null;
+  forecast_dependency?: string | null;
+}
+
+interface IntegrityReport {
+  gate_linked: boolean;
+  warnings: string[];
+  valid: boolean;
+}
+
+interface ForecastGate {
+  gate_id: string;
+  gate_label: string;
+  description: string;
+  status: string;
+  reasoning: string;
+  constrains_probability_to: number;
 }
 
 interface DecideData {
@@ -59,7 +81,8 @@ interface DecideData {
     operational_scalability: string;
     revenue_translation: string;
   };
-  recommended_actions: string[];
+  recommended_actions: (string | RecommendedAction)[];
+  _integrity?: IntegrityReport;
 }
 
 function levelColor(level: string) {
@@ -81,6 +104,21 @@ function LevelBadge({ level }: { level: string }) {
   );
 }
 
+function loadForecastGates(caseId: string): { gates: ForecastGate[]; brandOutlook: number | null; constrained: number | null } {
+  try {
+    const raw = localStorage.getItem(`cios.eventDecomposition:${caseId}`);
+    if (!raw) return { gates: [], brandOutlook: null, constrained: null };
+    const decomp = JSON.parse(raw);
+    return {
+      gates: decomp.event_gates || [],
+      brandOutlook: decomp.brand_outlook_probability ?? null,
+      constrained: decomp.constrained_probability ?? null,
+    };
+  } catch {
+    return { gates: [], brandOutlook: null, constrained: null };
+  }
+}
+
 export default function DecisionPanels() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const [data, setData] = useState<DecideData | null>(null);
@@ -92,6 +130,9 @@ export default function DecisionPanels() {
   const questionText = activeQuestion?.rawInput || activeQuestion?.text || activeQuestion?.question || "";
   const contextKey = `${subject}|${questionText}`;
 
+  const caseId = activeQuestion?.caseId || "unknown";
+  const { gates: forecastGates, brandOutlook, constrained } = loadForecastGates(caseId);
+
   useEffect(() => {
     if (!subject || !questionText) return;
     if (requestedRef.current === contextKey) return;
@@ -102,6 +143,7 @@ export default function DecisionPanels() {
 
     const API = import.meta.env.VITE_API_URL || "";
     const therapeuticArea = localStorage.getItem("cios.therapeuticArea") || "general";
+    const { gates, brandOutlook: bo, constrained: cp } = loadForecastGates(caseId);
 
     fetch(`${API}/api/ai-decide/generate`, {
       method: "POST",
@@ -114,6 +156,9 @@ export default function DecisionPanels() {
         timeHorizon: activeQuestion?.timeHorizon || "12 months",
         entities: activeQuestion?.entities || [],
         therapeuticArea,
+        forecastGates: gates,
+        brandOutlookProbability: bo,
+        constrainedProbability: cp,
       }),
     })
       .then((r) => {
@@ -130,7 +175,7 @@ export default function DecisionPanels() {
       .finally(() => {
         setLoading(false);
       });
-  }, [contextKey]);
+  }, [contextKey, caseId]);
 
   return (
     <WorkflowLayout
@@ -169,26 +214,59 @@ export default function DecisionPanels() {
 
           {data && (
             <>
+              {data._integrity && !data._integrity.valid && data._integrity.gate_linked && (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-sm font-semibold text-amber-300">Decision Integrity Warning</div>
+                    <div className="text-xs text-amber-200/70 mt-1">Some decisions could not be traced to forecast gates. Items without gate linkage may not reflect the current forecast state.</div>
+                  </div>
+                </div>
+              )}
+
               {data.recommended_actions && data.recommended_actions.length > 0 && (
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <Target className="w-4 h-4 text-emerald-400" />
                     <div className="text-sm font-semibold text-emerald-300">Recommended Actions</div>
+                    {data._integrity?.gate_linked && (
+                      <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Forecast-derived</span>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    {data.recommended_actions.map((action, i) => (
-                      <div key={i} className="flex items-start gap-2.5">
-                        <Zap className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-                        <div className="text-sm text-slate-200">{action}</div>
-                      </div>
-                    ))}
+                    {data.recommended_actions.map((raw, i) => {
+                      const a = typeof raw === "string" ? { action: raw, source_gate_id: null, forecast_dependency: null } : raw;
+                      const linkedGate = a.source_gate_id ? forecastGates.find((g) => g.gate_id === a.source_gate_id) : null;
+                      return (
+                        <div key={i} className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-3">
+                          <div className="flex items-start gap-2.5">
+                            <Zap className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                            <div className="flex-1">
+                              <div className="text-sm text-slate-200">{a.action}</div>
+                              {linkedGate && (
+                                <div className="mt-1.5 flex items-center gap-2">
+                                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Gate:</span>
+                                  <span className="text-[10px] text-blue-400 font-medium">{linkedGate.gate_label}</span>
+                                </div>
+                              )}
+                              {a.forecast_dependency && (
+                                <div className="mt-1 text-[11px] text-slate-400 italic">{a.forecast_dependency}</div>
+                              )}
+                              {!linkedGate && data._integrity?.gate_linked && (
+                                <div className="mt-1 text-[10px] text-amber-500/70">No gate linkage</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <AdoptionSegmentationPanel data={data.adoption_segmentation} />
-                <BarrierDiagnosisPanel data={data.barrier_diagnosis} />
+                <BarrierDiagnosisPanel data={data.barrier_diagnosis} gates={forecastGates} />
                 <ReadinessTimelinePanel data={data.readiness_timeline} />
                 <CompetitiveRiskPanel data={data.competitive_risk} />
               </div>
@@ -238,7 +316,7 @@ function AdoptionSegmentationPanel({ data }: { data: DecideData["adoption_segmen
   );
 }
 
-function BarrierDiagnosisPanel({ data }: { data: DecideData["barrier_diagnosis"] }) {
+function BarrierDiagnosisPanel({ data, gates }: { data: DecideData["barrier_diagnosis"]; gates: ForecastGate[] }) {
   const domains = [
     { key: "evidence", label: "Evidence", data: data.evidence },
     { key: "access", label: "Access", data: data.access },
@@ -251,14 +329,25 @@ function BarrierDiagnosisPanel({ data }: { data: DecideData["barrier_diagnosis"]
       <div className="flex items-center gap-2 mb-4">
         <ShieldAlert className="w-4 h-4 text-amber-400" />
         <div className="text-sm font-semibold text-foreground">Barrier Diagnosis</div>
+        {gates.length > 0 && (
+          <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-derived</span>
+        )}
       </div>
       <div className="space-y-3">
         {domains.map((d) => {
           const readiness = d.data.readiness || d.data.level || "—";
           const barrier = d.data.barrier || (d.data.level ? ({ High: "Low", Moderate: "Moderate", Low: "High" }[d.data.level] || "—") : "—");
+          const linkedGate = d.data.source_gate_id ? gates.find((g) => g.gate_id === d.data.source_gate_id) : null;
           return (
             <div key={d.key} className="rounded-xl border border-border/50 bg-muted/5 p-3">
-              <div className="text-xs font-semibold text-foreground/90 mb-2">{d.label}</div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-semibold text-foreground/90">{d.label}</div>
+                {linkedGate && (
+                  <span className="text-[10px] text-blue-400 font-medium truncate max-w-[180px]" title={linkedGate.gate_label}>
+                    {linkedGate.gate_label}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-3 mb-1.5">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] text-muted-foreground">Readiness</span>

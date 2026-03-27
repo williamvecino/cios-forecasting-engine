@@ -4,6 +4,15 @@ import { researchBrand } from "../lib/web-research";
 
 const router = Router();
 
+interface ForecastGate {
+  gate_id: string;
+  gate_label: string;
+  description: string;
+  status: string;
+  reasoning: string;
+  constrains_probability_to: number;
+}
+
 interface DecideRequest {
   subject: string;
   outcome?: string;
@@ -12,6 +21,9 @@ interface DecideRequest {
   timeHorizon?: string;
   entities?: string[];
   therapeuticArea?: string;
+  forecastGates?: ForecastGate[];
+  brandOutlookProbability?: number;
+  constrainedProbability?: number;
 }
 
 router.post("/ai-decide/generate", async (req, res) => {
@@ -52,6 +64,14 @@ Each domain has TWO separate variables: "readiness" and "barrier". They are inve
 A positive adoption signal must NEVER produce a High barrier. A negative signal must NEVER produce a High readiness.
 The "detail" field must be consistent with both readiness and barrier levels.
 
+FORECAST-DERIVED DECISION RULE:
+If forecast gates are provided below, ALL barrier assessments and recommended actions MUST be derived from those gates.
+- Each barrier_diagnosis domain MUST include "source_gate_id" referencing the most relevant gate.
+- If a gate status is "strong", the corresponding barrier CANNOT be "High".
+- If a gate status is "weak" or "unresolved", at least one recommended_action must address it.
+- Each recommended_action MUST include a "source_gate_id" and "forecast_dependency" explaining how it connects to the forecast.
+- Do NOT invent barriers or actions that have no basis in the forecast gates.
+
 Return ONLY valid JSON with this structure:
 
 {
@@ -62,10 +82,10 @@ Return ONLY valid JSON with this structure:
     "resistant": { "segments": ["segment"], "reason": "Why resistant" }
   },
   "barrier_diagnosis": {
-    "evidence": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment for this product" },
-    "access": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment" },
-    "workflow": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment" },
-    "competitive": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "detail": "Specific assessment" }
+    "evidence": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "source_gate_id": "gate ID from forecast gates or null", "detail": "Specific assessment for this product" },
+    "access": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "source_gate_id": "gate ID or null", "detail": "Specific assessment" },
+    "workflow": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "source_gate_id": "gate ID or null", "detail": "Specific assessment" },
+    "competitive": { "readiness": "Low|Moderate|High", "barrier": "Low|Moderate|High", "source_gate_id": "gate ID or null", "detail": "Specific assessment" }
   },
   "readiness_timeline": {
     "near_term_readiness": "Low|Moderate|High",
@@ -85,7 +105,9 @@ Return ONLY valid JSON with this structure:
     "operational_scalability": "Low|Moderate|High",
     "revenue_translation": "Low|Moderate|High"
   },
-  "recommended_actions": ["Action 1", "Action 2", "Action 3"]
+  "recommended_actions": [
+    { "action": "Action text", "source_gate_id": "gate ID or null", "forecast_dependency": "How this action connects to and could improve the forecast" }
+  ]
 }
 
 Name real segment types specific to this product (e.g. "Hair restoration surgeons", "Community oncologists", "Large cardiology practices") — not generic labels.`;
@@ -93,6 +115,14 @@ Name real segment types specific to this product (e.g. "Hair restoration surgeon
     let researchSection = "";
     if (hasResearch) {
       researchSection = `\n\n--- REAL-TIME WEB RESEARCH ---\n${research.combinedContext}\n--- END RESEARCH ---\n\nUse the above research to ground your decision analysis in real, current developments.`;
+    }
+
+    let gatesSection = "";
+    if (body.forecastGates && body.forecastGates.length > 0) {
+      const gateLines = body.forecastGates.map((g) =>
+        `- ${g.gate_id}: "${g.gate_label}" | status=${g.status} | constrains_to=${Math.round(g.constrains_probability_to * 100)}% | ${g.description}`
+      ).join("\n");
+      gatesSection = `\n\n--- FORECAST GATES (from Step 3) ---\n${gateLines}\nBrand Outlook: ${body.brandOutlookProbability != null ? Math.round(body.brandOutlookProbability * 100) + "%" : "unknown"}\nConstrained Forecast: ${body.constrainedProbability != null ? Math.round(body.constrainedProbability * 100) + "%" : "unknown"}\n--- END GATES ---\n\nYou MUST derive all barrier_diagnosis and recommended_actions from these gates. Reference gate IDs in source_gate_id fields.`;
     }
 
     const userPrompt = `Generate decision analysis for:
@@ -103,7 +133,7 @@ Name real segment types specific to this product (e.g. "Hair restoration surgeon
 **Time Horizon**: ${body.timeHorizon || "12 months"}
 **Question Type**: ${body.questionType || "binary"}
 **Therapeutic Context**: ${area}
-${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${researchSection}
+${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${researchSection}${gatesSection}
 
 Evaluate this specific product and its market. Who are the real segments? What are the actual barriers? What would trigger adoption?`;
 
@@ -150,6 +180,76 @@ Evaluate this specific product and its market. Who are the real segments? What a
         }
       }
     }
+
+    if (body.forecastGates && body.forecastGates.length > 0) {
+      const gateMap = new Map(body.forecastGates.map((g) => [g.gate_id, g]));
+      const gateStatusToMaxBarrier: Record<string, string> = { strong: "Low", moderate: "Moderate", weak: "High", unresolved: "High" };
+
+      if (parsed.barrier_diagnosis) {
+        for (const domain of Object.keys(parsed.barrier_diagnosis)) {
+          const item = parsed.barrier_diagnosis[domain];
+          if (!item) continue;
+          if (item.source_gate_id && gateMap.has(item.source_gate_id)) {
+            const gate = gateMap.get(item.source_gate_id)!;
+            const maxBarrier = gateStatusToMaxBarrier[gate.status] || "Moderate";
+            if (item.barrier === "High" && maxBarrier !== "High") {
+              item.barrier = maxBarrier;
+            }
+          }
+        }
+      }
+
+      if (parsed.recommended_actions && Array.isArray(parsed.recommended_actions)) {
+        parsed.recommended_actions = parsed.recommended_actions.map((a: any) => {
+          if (typeof a === "string") {
+            return { action: a, source_gate_id: null, forecast_dependency: null };
+          }
+          return a;
+        });
+      }
+
+      const weakOrUnresolved = body.forecastGates.filter((g) => g.status === "weak" || g.status === "unresolved");
+      const actions = parsed.recommended_actions || [];
+      for (const gate of weakOrUnresolved) {
+        const hasLinkedAction = actions.some((a: any) => a?.source_gate_id === gate.gate_id);
+        if (!hasLinkedAction) {
+          actions.push({
+            action: `Address ${gate.gate_label}: ${gate.description}`,
+            source_gate_id: gate.gate_id,
+            forecast_dependency: `This gate is ${gate.status} and constrains the forecast to ${Math.round(gate.constrains_probability_to * 100)}%. Resolving it could lift the cap.`,
+          });
+        }
+      }
+      parsed.recommended_actions = actions;
+    }
+
+    const integrityWarnings: string[] = [];
+    if (body.forecastGates && body.forecastGates.length > 0) {
+      const gateIds = new Set(body.forecastGates.map((g) => g.gate_id));
+
+      if (parsed.barrier_diagnosis) {
+        for (const [domain, item] of Object.entries(parsed.barrier_diagnosis)) {
+          const bi = item as any;
+          if (!bi?.source_gate_id || !gateIds.has(bi.source_gate_id)) {
+            integrityWarnings.push(`barrier_diagnosis.${domain}: missing or invalid source_gate_id`);
+          }
+        }
+      }
+
+      if (parsed.recommended_actions && Array.isArray(parsed.recommended_actions)) {
+        parsed.recommended_actions.forEach((a: any, i: number) => {
+          if (!a?.source_gate_id || !gateIds.has(a.source_gate_id)) {
+            integrityWarnings.push(`recommended_actions[${i}]: missing or invalid source_gate_id`);
+          }
+        });
+      }
+    }
+
+    parsed._integrity = {
+      gate_linked: body.forecastGates && body.forecastGates.length > 0,
+      warnings: integrityWarnings,
+      valid: integrityWarnings.length === 0,
+    };
 
     res.json(parsed);
   } catch (err: any) {
