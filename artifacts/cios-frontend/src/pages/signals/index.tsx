@@ -405,6 +405,10 @@ export default function SignalsPage() {
         if (data.market_summary) {
           setMarketSummary(data.market_summary);
         }
+
+        if (data.therapeutic_area) {
+          localStorage.setItem("cios.therapeuticArea", data.therapeutic_area);
+        }
       })
       .catch((err) => {
         if (aiRequestIdRef.current !== requestId) return;

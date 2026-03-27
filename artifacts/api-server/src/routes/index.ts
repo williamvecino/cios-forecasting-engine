@@ -29,6 +29,7 @@ import auditLogsRouter from "./audit-logs.js";
 import signalDetectionRouter from "./signal-detection.js";
 import recalculateRouter from "./recalculate.js";
 import aiSignalsRouter from "./ai-signals.js";
+import aiDecideRouter from "./ai-decide.js";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(auditLogsRouter);
 router.use(signalDetectionRouter);
 router.use(recalculateRouter);
 router.use(aiSignalsRouter);
+router.use(aiDecideRouter);
 
 export default router;
