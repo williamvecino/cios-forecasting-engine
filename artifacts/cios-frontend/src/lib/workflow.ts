@@ -8,6 +8,8 @@ export interface ActiveQuestion {
   timeHorizon?: string;
   questionType?: string;
   entities?: string[];
+  subject?: string;
+  outcome?: string;
 }
 
 const ACTIVE_QUESTION_STORAGE_KEY = "cios.activeQuestion";

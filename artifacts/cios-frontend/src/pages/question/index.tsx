@@ -169,6 +169,8 @@ export default function QuestionPage() {
       timeHorizon: enriched?.timeHorizon || "12 months",
       questionType: enriched?.questionType || "binary",
       entities: enriched?.populationOrEntities || [],
+      subject: enriched?.subject || undefined,
+      outcome: enriched?.outcome || undefined,
     };
 
     if (isEditing) {

@@ -81,50 +81,100 @@ function computeImpact(s: { strength: Strength; reliability: Reliability }): Imp
   return "Low";
 }
 
-function generateComparativeSuggestions(entities: string[]): Signal[] {
-  const groupA = entities[0] || "Group A";
-  const groupB = entities[1] || "Group B";
+interface QuestionContext {
+  text: string;
+  questionType?: string;
+  entities?: string[];
+  subject?: string;
+  outcome?: string;
+  timeHorizon?: string;
+}
+
+function generateComparativeSuggestions(ctx: QuestionContext): Signal[] {
+  const groupA = ctx.entities?.[0] || "Group A";
+  const groupB = ctx.entities?.[1] || "Group B";
+  const subjectLabel = ctx.subject || "this therapy";
 
   const raw: Omit<Signal, "impact">[] = [
-    { id: "sys-c1", text: `Clinical familiarity difference: ${groupA} may have more experience with this mechanism of action than ${groupB}`, caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "evidence", source: "system", accepted: false },
+    { id: "sys-c1", text: `Clinical familiarity difference: ${groupA} may have more experience with ${subjectLabel}'s mechanism of action than ${groupB}`, caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "evidence", source: "system", accepted: false },
     { id: "sys-c2", text: `Patient mix difference: ${groupA} sees a different proportion of eligible patients compared to ${groupB}`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "adoption", source: "system", accepted: false },
     { id: "sys-c3", text: `Workflow difference: monitoring and diagnostic capabilities vary between ${groupA} and ${groupB} practices`, caveat: "", direction: "negative", strength: "Medium", reliability: "Confirmed", category: "access", source: "system", accepted: false },
-    { id: "sys-c4", text: `Economic difference: reimbursement familiarity and prior authorization burden differs between groups`, caveat: "", direction: "negative", strength: "High", reliability: "Probable", category: "access", source: "system", accepted: false },
+    { id: "sys-c4", text: `Economic difference: reimbursement and prior authorization burden differs between ${groupA} and ${groupB}`, caveat: "", direction: "negative", strength: "High", reliability: "Probable", category: "access", source: "system", accepted: false },
     { id: "sys-c5", text: `Behavioral difference: innovation adoption tendency and risk tolerance may vary between ${groupA} and ${groupB}`, caveat: "", direction: "neutral", strength: "Medium", reliability: "Speculative", category: "adoption", source: "system", accepted: false },
   ];
 
   return raw.map((s) => ({ ...s, impact: computeImpact(s) }));
 }
 
-function generateAdoptionSuggestions(questionText: string): Signal[] {
-  const q = (questionText || "").toLowerCase();
+function generateContextualSuggestions(ctx: QuestionContext): Signal[] {
+  const q = (ctx.text || "").toLowerCase();
+  const subjectLabel = ctx.subject || "this therapy";
+  const outcomeLabel = ctx.outcome || "adoption";
+  const timeLabel = ctx.timeHorizon || "the forecast window";
+  const raw: Omit<Signal, "impact">[] = [];
 
-  const raw: Omit<Signal, "impact">[] = [
-    { id: "sys-1", text: "Positive phase 3 efficacy data supports clinical differentiation", caveat: "", direction: "positive", strength: "High", reliability: "Confirmed", category: "evidence", source: "system", accepted: false },
-    { id: "sys-2", text: "Guideline committee reviewing updated treatment recommendations", caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "guideline", source: "system", accepted: false },
-    { id: "sys-3", text: "Moderate payer friction observed in early access negotiations", caveat: "", direction: "negative", strength: "Medium", reliability: "Confirmed", category: "access", source: "system", accepted: false },
-    { id: "sys-4", text: "Entrenched standard of care creating switching inertia", caveat: "", direction: "negative", strength: "High", reliability: "Confirmed", category: "competition", source: "system", accepted: false },
-  ];
-
-  if (q.includes("adoption") || q.includes("indication"))
-    raw.push({ id: "sys-5", text: "Early adopter segment showing interest after recent conference data", caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "adoption", source: "system", accepted: false });
-  if (q.includes("competitor") || q.includes("share"))
-    raw.push({ id: "sys-6", text: "Competitor pipeline readout expected within next quarter", caveat: "", direction: "negative", strength: "High", reliability: "Speculative", category: "competition", source: "system", accepted: false });
-  if (q.includes("payer") || q.includes("restriction") || q.includes("access"))
-    raw.push({ id: "sys-7", text: "Key regional payer expanding coverage criteria", caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "access", source: "system", accepted: false });
-  if (q.includes("guideline") || q.includes("prescribing"))
-    raw.push({ id: "sys-8", text: "NCCN guideline update draft circulating among committee members", caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "guideline", source: "system", accepted: false });
-  if (q.includes("launch") || q.includes("segment"))
-    raw.push({ id: "sys-9", text: "Launch readiness assessments underway in priority markets", caveat: "", direction: "positive", strength: "Medium", reliability: "Confirmed", category: "timing", source: "system", accepted: false });
+  if (q.includes("payer") || q.includes("prior auth") || q.includes("coverage") || q.includes("restrict")) {
+    raw.push(
+      { id: "sys-pa1", text: `Payer advisory boards actively reviewing ${subjectLabel} coverage criteria`, caveat: "", direction: "negative", strength: "High", reliability: "Probable", category: "access", source: "system", accepted: false },
+      { id: "sys-pa2", text: `Prior authorization step-therapy requirements being implemented in key plans`, caveat: "", direction: "negative", strength: "High", reliability: "Confirmed", category: "access", source: "system", accepted: false },
+      { id: "sys-pa3", text: `Health economics data package supporting favorable cost-effectiveness for ${subjectLabel}`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "evidence", source: "system", accepted: false },
+      { id: "sys-pa4", text: `Regional payer expanding formulary access in select geographies`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "access", source: "system", accepted: false },
+    );
+    if (q.includes("community") || q.includes("small"))
+      raw.push({ id: "sys-pa5", text: `Community practices reporting increased administrative burden from authorization requirements`, caveat: "", direction: "negative", strength: "Medium", reliability: "Confirmed", category: "access", source: "system", accepted: false });
+  } else if (q.includes("compet") || q.includes("rival") || q.includes("threat")) {
+    raw.push(
+      { id: "sys-cp1", text: `Competing therapy approaching regulatory decision within ${timeLabel}`, caveat: "", direction: "negative", strength: "High", reliability: "Probable", category: "competition", source: "system", accepted: false },
+      { id: "sys-cp2", text: `Competitor's clinical profile may fragment ${subjectLabel}'s addressable market`, caveat: "", direction: "negative", strength: "High", reliability: "Speculative", category: "competition", source: "system", accepted: false },
+      { id: "sys-cp3", text: `${subjectLabel} retains differentiated efficacy advantage in head-to-head comparisons`, caveat: "", direction: "positive", strength: "High", reliability: "Confirmed", category: "evidence", source: "system", accepted: false },
+      { id: "sys-cp4", text: `Early adopters likely to maintain ${subjectLabel} if switching costs are high`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "adoption", source: "system", accepted: false },
+    );
+  } else if (q.includes("safety") || q.includes("phase 3") || q.includes("phase iii") || q.includes("tolerab") || q.includes("monitor")) {
+    raw.push(
+      { id: "sys-sf1", text: `Phase 3 safety data showing favorable tolerability profile for ${subjectLabel}`, caveat: "", direction: "positive", strength: "High", reliability: "Confirmed", category: "evidence", source: "system", accepted: false },
+      { id: "sys-sf2", text: `Monitoring requirements may create workflow friction in smaller practice settings`, caveat: "", direction: "negative", strength: "Medium", reliability: "Confirmed", category: "access", source: "system", accepted: false },
+      { id: "sys-sf3", text: `KOL endorsements citing manageable safety profile at recent conferences`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "guideline", source: "system", accepted: false },
+      { id: "sys-sf4", text: `Post-marketing surveillance plan may reassure hesitant prescribers`, caveat: "", direction: "positive", strength: "Medium", reliability: "Speculative", category: "adoption", source: "system", accepted: false },
+    );
+    if (q.includes("monitor") || q.includes("small practice"))
+      raw.push({ id: "sys-sf5", text: `Small practices lacking infrastructure for required monitoring protocols`, caveat: "", direction: "negative", strength: "High", reliability: "Probable", category: "access", source: "system", accepted: false });
+  } else if (q.includes("segment") || q.includes("academic") || q.includes("clinic") || q.includes("which")) {
+    raw.push(
+      { id: "sys-sg1", text: `Academic centers initiating formulary review processes for ${subjectLabel}`, caveat: "", direction: "positive", strength: "High", reliability: "Confirmed", category: "adoption", source: "system", accepted: false },
+      { id: "sys-sg2", text: `Specialty clinics showing higher intent-to-prescribe in early surveys`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "adoption", source: "system", accepted: false },
+      { id: "sys-sg3", text: `Community practices slower to adopt due to workflow complexity`, caveat: "", direction: "negative", strength: "Medium", reliability: "Confirmed", category: "access", source: "system", accepted: false },
+      { id: "sys-sg4", text: `KOL influence strongest in academic and specialty settings`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "guideline", source: "system", accepted: false },
+    );
+  } else if (q.includes("exceed") || q.includes("threshold") || q.includes("%")) {
+    raw.push(
+      { id: "sys-th1", text: `Early launch trajectory for ${subjectLabel} tracking above historical comparators`, caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "adoption", source: "system", accepted: false },
+      { id: "sys-th2", text: `Market access barriers may cap penetration below target threshold`, caveat: "", direction: "negative", strength: "Medium", reliability: "Probable", category: "access", source: "system", accepted: false },
+      { id: "sys-th3", text: `Favorable guideline positioning supporting rapid initial uptake`, caveat: "", direction: "positive", strength: "High", reliability: "Confirmed", category: "guideline", source: "system", accepted: false },
+      { id: "sys-th4", text: `Patient awareness campaigns driving demand-side pull`, caveat: "", direction: "positive", strength: "Medium", reliability: "Speculative", category: "adoption", source: "system", accepted: false },
+    );
+  } else {
+    raw.push(
+      { id: "sys-1", text: `Clinical evidence supports ${subjectLabel} differentiation for ${outcomeLabel}`, caveat: "", direction: "positive", strength: "High", reliability: "Confirmed", category: "evidence", source: "system", accepted: false },
+      { id: "sys-2", text: `Guideline committee reviewing ${subjectLabel} for updated treatment recommendations`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "guideline", source: "system", accepted: false },
+      { id: "sys-3", text: `Payer friction observed in early ${subjectLabel} access negotiations`, caveat: "", direction: "negative", strength: "Medium", reliability: "Confirmed", category: "access", source: "system", accepted: false },
+      { id: "sys-4", text: `Entrenched standard of care creating switching inertia against ${subjectLabel}`, caveat: "", direction: "negative", strength: "High", reliability: "Confirmed", category: "competition", source: "system", accepted: false },
+    );
+    if (q.includes("adoption") || q.includes("indication"))
+      raw.push({ id: "sys-5", text: `Early adopter segment showing interest in ${subjectLabel} after recent conference data`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "adoption", source: "system", accepted: false });
+    if (q.includes("prescri"))
+      raw.push({ id: "sys-8", text: `KOL prescribing pattern shifting toward ${subjectLabel} in target population`, caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "guideline", source: "system", accepted: false });
+    if (q.includes("launch") || q.includes("segment"))
+      raw.push({ id: "sys-9", text: `Launch readiness assessments underway for ${subjectLabel} in priority markets`, caveat: "", direction: "positive", strength: "Medium", reliability: "Confirmed", category: "timing", source: "system", accepted: false });
+  }
 
   return raw.map((s) => ({ ...s, impact: computeImpact(s) }));
 }
 
-function generateSuggestions(questionText: string, questionType?: string, entities?: string[]): Signal[] {
-  if (questionType === "comparative" && entities && entities.length >= 2) {
-    return generateComparativeSuggestions(entities);
+function generateSuggestions(ctx: QuestionContext): Signal[] {
+  if (ctx.questionType === "comparative" && ctx.entities && ctx.entities.length >= 2) {
+    return generateComparativeSuggestions(ctx);
   }
-  return generateAdoptionSuggestions(questionText);
+  return generateContextualSuggestions(ctx);
 }
 
 function generateSummary(signals: Signal[], questionType?: string, entities?: string[]): string {
@@ -186,11 +236,23 @@ export default function SignalsPage() {
   const questionText = activeQuestion?.text || "";
   const questionType = activeQuestion?.questionType;
   const entities = activeQuestion?.entities || [];
+  const subject = activeQuestion?.subject;
+  const outcome = activeQuestion?.outcome;
+  const timeHorizon = activeQuestion?.timeHorizon;
   const isComparative = questionType === "comparative" && entities.length >= 2;
 
+  const questionCtx: QuestionContext = useMemo(() => ({
+    text: questionText,
+    questionType,
+    entities,
+    subject,
+    outcome,
+    timeHorizon,
+  }), [questionText, questionType, entities, subject, outcome, timeHorizon]);
+
   const systemSuggestions = useMemo(
-    () => generateSuggestions(questionText, questionType, entities),
-    [questionText, questionType, entities]
+    () => generateSuggestions(questionCtx),
+    [questionCtx]
   );
 
   const [signals, setSignals] = useState<Signal[]>(systemSuggestions);

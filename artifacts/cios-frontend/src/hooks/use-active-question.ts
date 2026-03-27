@@ -13,6 +13,8 @@ export interface CreateQuestionInput {
   timeHorizon?: string;
   questionType?: string;
   entities?: string[];
+  subject?: string;
+  outcome?: string;
 }
 
 export function useActiveQuestion() {
@@ -34,6 +36,8 @@ export function useActiveQuestion() {
       timeHorizon: input.timeHorizon?.trim() || undefined,
       questionType: input.questionType || undefined,
       entities: input.entities || undefined,
+      subject: input.subject || undefined,
+      outcome: input.outcome || undefined,
     };
 
     storeActiveQuestion(next);
@@ -51,6 +55,8 @@ export function useActiveQuestion() {
       timeHorizon: input.timeHorizon?.trim() || undefined,
       questionType: input.questionType || undefined,
       entities: input.entities || undefined,
+      subject: input.subject || undefined,
+      outcome: input.outcome || undefined,
     };
     storeActiveQuestion(updated);
     setActiveQuestion(updated);
