@@ -591,7 +591,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           const gateCaps = decomp!.event_gates.map((g) => typeof g.constrains_probability_to === "number" ? Math.max(0, Math.min(1, g.constrains_probability_to)) : 0.5);
           const computedCap = Math.min(...gateCaps);
           const hasWeakOrUnresolved = decomp!.event_gates.some((g) => g.status === "weak" || g.status === "unresolved");
-          constrainedProb = hasWeakOrUnresolved ? Math.min(computedCap, 0.40) : computedCap;
+          constrainedProb = hasWeakOrUnresolved ? Math.min(computedCap, 0.70) : computedCap;
         }
         const displayProb = constrainedProb != null ? Math.min(constrainedProb, f.currentProbability ?? 0.5) : (f.currentProbability ?? 0.5);
         const displayProbPct = Math.round(displayProb * 100);
@@ -817,7 +817,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         </div>
       )}
 
-      <BottomLinks />
+      <BottomLinks forecastData={f} />
     </>
   );
 }
@@ -1304,7 +1304,9 @@ function InfoCard({ title, value, body }: { title: string; value: string; body: 
   );
 }
 
-function BottomLinks() {
+function BottomLinks({ forecastData }: { forecastData?: any }) {
+  const gl = forecastData?._guardrailLog;
+  const stateHash = forecastData?._stateHash;
   return (
     <>
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
@@ -1331,6 +1333,51 @@ function BottomLinks() {
           <Link href="/workbench" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Workbench</Link>
         </div>
       </div>
+
+      {gl && (() => {
+        const d = gl.diagnostics;
+        return (
+          <details className="rounded-3xl border border-slate-700/50 bg-[#060E24] p-4">
+            <summary className="cursor-pointer text-xs font-mono text-slate-500 select-none">Engine Diagnostics</summary>
+            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs font-mono">
+              <div className="text-slate-500">Drivers</div>
+              <div className="text-slate-300">{d?.driver_count ?? "—"}</div>
+              <div className="text-slate-500">Duplicates detected</div>
+              <div className={`${(d?.duplicate_drivers_detected ?? 0) > 0 ? "text-amber-400" : "text-slate-300"}`}>{d?.duplicate_drivers_detected ?? 0}</div>
+              <div className="text-slate-500">Largest single shift</div>
+              <div className={`${(d?.largest_single_shift ?? 0) > 15 ? "text-red-400" : "text-slate-300"}`}>{d?.largest_single_shift ?? 0} pp</div>
+              <div className="text-slate-500">Total shift</div>
+              <div className={`${(d?.total_shift ?? 0) > 40 ? "text-red-400" : "text-slate-300"}`}>{d?.total_shift ?? 0} pp</div>
+              <div className="text-slate-500">Shift capped</div>
+              <div className="text-slate-300">{gl.driver_shift_capped?.length > 0 ? `Yes (${gl.driver_shift_capped.length} drivers)` : "No"}</div>
+              <div className="text-slate-500">Total shift normalized</div>
+              <div className={`${gl.total_shift_normalized ? "text-amber-400" : "text-slate-300"}`}>{gl.total_shift_normalized ? "Yes" : "No"}</div>
+              <div className="text-slate-500">Gate constraints triggered</div>
+              <div className={`${gl.probability_limited_by_gate ? "text-red-400" : "text-slate-300"}`}>
+                {gl.probability_limited_by_gate ? `Yes (${(d?.gating_constraints_triggered ?? []).join(", ")})` : "No"}
+              </div>
+              <div className="text-slate-500">Relevance penalties</div>
+              <div className="text-slate-300">{gl.relevance_penalty_applied?.length > 0 ? `${gl.relevance_penalty_applied.length} signals` : "None"}</div>
+              <div className="text-slate-500">Recalc skipped (cached)</div>
+              <div className="text-slate-300">{gl.recalculation_skipped ? "Yes" : "No"}</div>
+              <div className="text-slate-500">State hash</div>
+              <div className="text-slate-400 truncate">{stateHash ?? "—"}</div>
+              {d?.final_probability_limit_reason && (
+                <>
+                  <div className="text-slate-500">Limit reason</div>
+                  <div className="text-red-400 col-span-1">{d.final_probability_limit_reason}</div>
+                </>
+              )}
+              {gl.input_validation_errors?.length > 0 && (
+                <>
+                  <div className="text-slate-500">Validation errors</div>
+                  <div className="text-red-400 col-span-1">{gl.input_validation_errors.join("; ")}</div>
+                </>
+              )}
+            </div>
+          </details>
+        );
+      })()}
     </>
   );
 }

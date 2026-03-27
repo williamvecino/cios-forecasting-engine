@@ -20,6 +20,15 @@ import {
   type AdoptionPhase,
   type ForecastHorizonMonths,
 } from "../lib/forecast-environment.js";
+import {
+  runAllPreEngineGuardrails,
+  runAllPostEngineGuardrails,
+  computeStateHash,
+  getCachedResult,
+  setCachedResult,
+  type GuardrailLog,
+  type GateStatus,
+} from "../lib/engine-guardrails.js";
 
 function resolveSpecialtyProfile(raw: string | null): SpecialtyActorProfile {
   const map: Record<string, SpecialtyActorProfile> = {
@@ -79,6 +88,61 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     return res.status(400).json({ error: "No actors configured. Please seed the database first." });
   }
 
+  // ── GUARDRAIL: State hash for recalculation consistency (Rule 6) ──────
+  const guardrailLog: GuardrailLog = {
+    duplicate_driver_detected: [],
+    duplicate_driver_removed: [],
+    driver_shift_capped: [],
+    total_shift_normalized: false,
+    probability_limited_by_gate: false,
+    relevance_penalty_applied: [],
+    recalculation_skipped: false,
+    input_validation_errors: [],
+    diagnostics: {
+      driver_count: 0,
+      duplicate_drivers_detected: 0,
+      largest_single_shift: 0,
+      total_shift: 0,
+      gating_constraints_triggered: [],
+      final_probability_limit_reason: null,
+    },
+  };
+
+  const stateHash = computeStateHash({
+    caseId: req.params.caseId,
+    prior: caseData.priorProbability,
+    specialty: caseData.primarySpecialtyProfile,
+    payer: caseData.payerEnvironment,
+    guideline: caseData.guidelineLeverage,
+    competitor: caseData.competitorProfile,
+    timeHorizon: caseData.timeHorizon,
+    therapeuticArea: caseData.therapeuticArea,
+    signals: allSignals
+      .map((s) => ({
+        id: s.signalId,
+        lr: s.likelihoodRatio,
+        str: s.strengthScore,
+        rel: s.reliabilityScore,
+        dir: s.direction,
+      }))
+      .sort((a, b) => (a.id ?? "").localeCompare(b.id ?? "")),
+  });
+
+  const cached = getCachedResult(stateHash);
+  if (cached) {
+    guardrailLog.recalculation_skipped = true;
+    return res.json({ ...cached, _guardrailLog: guardrailLog, _stateHash: stateHash });
+  }
+
+  // ── GUARDRAIL: Pre-engine validation, dedup, relevance penalty (Rules 1,5,7) ──
+  const preResult = runAllPreEngineGuardrails(caseData.priorProbability, allSignals, guardrailLog);
+  if (!preResult.valid) {
+    return res.status(400).json({
+      error: "INVALID DRIVER INPUT",
+      validation_errors: guardrailLog.input_validation_errors,
+    });
+  }
+
   // ── Apply target-scope eligibility filter ─────────────────────────────────
   const caseTargetContext = {
     targetType: caseData.targetType ?? "market",
@@ -88,7 +152,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     institutionName: caseData.institutionName ?? null,
     geography: caseData.geography ?? null,
   };
-  const eligibleSignals = filterEligibleSignals(allSignals, caseTargetContext);
+  const eligibleSignals = filterEligibleSignals(preResult.signals, caseTargetContext);
   const signals = applyEventFamilyGuardrail(eligibleSignals);
 
   // ── Apply LR corrections and freshness decay ─────────────────────────────
@@ -161,7 +225,23 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     forecastHorizonMonths: resolveHorizonMonths(caseData.timeHorizon),
   };
   const envAdjustments = computeEnvironmentAdjustments(envConfig);
-  const environmentAdjustedProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
+  let environmentAdjustedProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
+
+  // ── GUARDRAIL: Post-engine constraints (Rules 2,3,4) ──────────────────────
+  const eventGates: GateStatus[] = (caseData as any).eventGates ?? [];
+  const guardrailedProbability = runAllPostEngineGuardrails(
+    caseData.priorProbability,
+    environmentAdjustedProbability,
+    result.signalDetails?.map((sd: any) => ({
+      signalId: sd.signalId,
+      likelihoodRatio: sd.likelihoodRatio,
+      effectiveLikelihoodRatio: sd.effectiveLikelihoodRatio,
+      description: sd.description,
+    })) ?? [],
+    eventGates,
+    guardrailLog,
+  );
+  environmentAdjustedProbability = guardrailedProbability;
 
   // Keep bucket field for backward compatibility with downstream consumers
   const bucket = getBucket(rawProbability);
@@ -226,7 +306,16 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     snapshotJson: JSON.stringify(finalResult),
   }).onConflictDoNothing();
 
-  res.json({ ...finalResult, forecastId, savedAt: new Date().toISOString() });
+  const responsePayload = {
+    ...finalResult,
+    forecastId,
+    savedAt: new Date().toISOString(),
+    _guardrailLog: guardrailLog,
+    _stateHash: stateHash,
+  };
+
+  setCachedResult(stateHash, responsePayload);
+  res.json(responsePayload);
 });
 
 export default router;

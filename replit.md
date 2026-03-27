@@ -69,6 +69,16 @@ The signals page calls `POST /api/ai-signals/generate` which performs a **Brand 
 
 **UI**: Step 2 sections in order: (1) Latest Verified Brand Developments (blue-bordered, with dates, source types, direction indicators, source links, confirm/dismiss buttons), (2) Question Relevance Translation (violet-bordered, translation summary + confidence distribution), (3) Signal Coverage Summary (6-family grid showing coverage/gaps), (4) Signal Analysis summary, (5) Primary Drivers (with translation badges + metadata tags), (6) Supporting Signals grouped by signal family with family badges, (7) Incoming Events. If no verified developments found, shows "No recent verified brand developments found" warning. Loading state says "Brand Development Check in Progress" with specific source list.
 
+**Engine Guardrails (CRITICAL — `engine-guardrails.ts` at API boundary, never in core engine):**
+1. **Driver Deduplication** — Before engine: identifies duplicates by signalId or Jaccard similarity >0.75; keeps highest reliability instance, discards rest. Logged: `duplicate_driver_detected`, `duplicate_driver_removed`.
+2. **Max Single-driver Shift = 15pp** — Post-engine: caps each driver's marginal probability contribution to ±15 percentage points. If any driver exceeds, all LRs are soft-capped. Logged: `driver_shift_capped`.
+3. **Total Shift Normalization = 40pp** — Post-engine: if total shift from prior exceeds ±40pp, normalizes proportionally. Logged: `total_shift_normalized`.
+4. **Event Gating Constraint = 70% cap** — Post-engine: if any required gate (line_of_therapy_applicability, stakeholder_applicability, time_horizon_feasibility, threshold_attainment) is weak/unresolved/missing, caps probability at 70%. Logged: `probability_limited_by_gate`.
+5. **Relevance Penalty** — Pre-engine: signals with `translation_confidence: "low"` or relevance notes indicating indirect applicability have LR impact reduced by 50%. Logged: `relevance_penalty_applied`.
+6. **Recalculation Consistency** — State hash (SHA-256 of all forecast inputs including environment fields) used for 30-second cache. Identical inputs return cached result. Logged: `recalculation_skipped`.
+7. **Engine Input Validation** — Pre-engine: validates prior (0-1), signal fields (direction, strength, reliability, LR). Invalid inputs return HTTP 400 with `INVALID DRIVER INPUT`. Logged: `input_validation_errors`.
+8. **Diagnostic Panel** — Hidden `<details>` element at bottom of forecast page showing: driver count, duplicates, largest single shift, total shift, cap/normalization status, gate constraints, relevance penalties, cache status, state hash, and limit reason. For system validation, not end users.
+
 **Fail condition**: If a named brand exists and the system displays generic signals without attempting a brand development check, this is a logic failure.
 
 The user's raw question input (with clinical specifics like "first-line" or "refractory") is preserved via `rawInput` field on `ActiveQuestion` and passed to the AI. ARCHITECTURAL RULE: Never hardcode domain-specific signal templates — the AI must evaluate brand-specific signals for each new case.

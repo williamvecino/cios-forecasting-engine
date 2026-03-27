@@ -523,7 +523,7 @@ export default function SignalsPage() {
           }));
           const computedCap = Math.min(...gates.map((g) => g.constrains_probability_to));
           const hasWeakOrUnresolved = gates.some((g) => g.status === "weak" || g.status === "unresolved");
-          const enforcedCap = hasWeakOrUnresolved ? Math.min(computedCap, 0.40) : computedCap;
+          const enforcedCap = hasWeakOrUnresolved ? Math.min(computedCap, 0.70) : computedCap;
           const brandOutlook = typeof data.brand_outlook_probability === "number" ? Math.max(0, Math.min(1, data.brand_outlook_probability)) : 0.5;
           const decomp: EventDecomposition = {
             event_gates: gates,
