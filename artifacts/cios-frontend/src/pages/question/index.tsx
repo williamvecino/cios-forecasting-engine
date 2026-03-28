@@ -58,12 +58,38 @@ export default function QuestionPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
-  const [showImportProject, setShowImportProject] = useState(false);
+  const [showImportProject, setShowImportProject] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("import") === "file";
+  });
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [syncedCaseId, setSyncedCaseId] = useState<string | null>(activeQuestion?.caseId ?? null);
   const [userCleared, setUserCleared] = useState(false);
 
   useEffect(() => {
     localStorage.removeItem("cios.questionDraft");
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("import") === "file") {
+      try {
+        const dataUrl = localStorage.getItem("cios.pendingImportData");
+        const fileName = localStorage.getItem("cios.pendingImportFile") || "uploaded-file";
+        if (dataUrl) {
+          fetch(dataUrl)
+            .then((res) => res.blob())
+            .then((blob) => {
+              const file = new File([blob], fileName, { type: blob.type });
+              setPendingImportFile(file);
+              setShowImportProject(true);
+            });
+          localStorage.removeItem("cios.pendingImportData");
+          localStorage.removeItem("cios.pendingImportFile");
+        }
+      } catch {}
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
@@ -428,8 +454,10 @@ export default function QuestionPage() {
             {showImportProject ? (
               <ImportProjectDialog
                 onImportComplete={handleImportComplete}
+                initialFile={pendingImportFile}
                 onClose={() => {
                   setShowImportProject(false);
+                  setPendingImportFile(null);
                   setSubmitError(null);
                 }}
               />

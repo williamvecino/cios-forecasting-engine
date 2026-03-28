@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { useListCases } from "@workspace/api-client-react";
 import TopNav from "@/components/top-nav";
@@ -10,6 +10,8 @@ import {
   Sparkles,
   Target,
   X,
+  Upload,
+  Paperclip,
 } from "lucide-react";
 
 const GOOD_QUESTIONS = [
@@ -31,9 +33,51 @@ export default function HomePage() {
   const { data: cases } = useListCases();
   const { activeQuestion, createQuestion } = useActiveQuestion();
   const [input, setInput] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   const allCases = (cases as any[]) || [];
   const recentCases = allCases.slice(0, 5);
+
+  function handleFileSelected(file: File) {
+    localStorage.setItem("cios.pendingImportFile", file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        localStorage.setItem("cios.pendingImportData", reader.result as string);
+      } catch {}
+      navigate("/question?import=file");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileSelected(file);
+  }
+
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounterRef.current++;
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      setIsDragging(false);
+      dragCounterRef.current = 0;
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+  }
 
   const openCase = useCallback((c: any) => {
     const cid = c.caseId || c.id;
@@ -85,12 +129,18 @@ export default function HomePage() {
             Frame a critical business question and receive a structured forecast with clear decision guidance.
           </p>
 
-          <div className="max-w-2xl mx-auto">
-            <div className="relative">
+          <div
+            className="max-w-2xl mx-auto"
+            onDrop={handleDrop}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+          >
+            <div className={`relative rounded-2xl transition ${isDragging ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}>
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Example: Which regions will adopt first-line ARIKAYCE fastest in 12 months?"
+                placeholder="Type or paste a question, or drop a file (PDF, PPTX, JPG, PNG, Excel...)"
                 rows={3}
                 className="w-full rounded-2xl border border-border bg-card px-5 py-4 pr-12 text-foreground placeholder:text-muted-foreground/50 resize-none text-lg"
                 onKeyDown={(e) => {
@@ -110,16 +160,45 @@ export default function HomePage() {
                   <X className="w-4 h-4" />
                 </button>
               )}
+              {isDragging && (
+                <div className="absolute inset-0 rounded-2xl bg-primary/10 border-2 border-dashed border-primary flex items-center justify-center pointer-events-none">
+                  <div className="flex items-center gap-2 text-primary font-medium">
+                    <Upload className="w-5 h-5" />
+                    Drop file to import
+                  </div>
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={handleStart}
-              disabled={!input.trim()}
-              className="mt-4 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 text-base"
-            >
-              Start Forecast
-              <ArrowRight className="w-5 h-5" />
-            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="*/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileSelected(file);
+                e.target.value = "";
+              }}
+            />
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleStart}
+                disabled={!input.trim()}
+                className="rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 text-base"
+              >
+                Start Forecast
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-xl border border-border px-5 py-3 font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 inline-flex items-center gap-2 text-sm transition"
+              >
+                <Paperclip className="w-4 h-4" />
+                Attach file
+              </button>
+            </div>
           </div>
         </section>
 

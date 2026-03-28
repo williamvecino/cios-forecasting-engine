@@ -85,6 +85,7 @@ interface ImportResult {
 interface Props {
   onImportComplete: (result: ImportResult) => void;
   onClose: () => void;
+  initialFile?: File | null;
 }
 
 type ImportPhase = "upload" | "processing" | "summary";
@@ -100,11 +101,14 @@ function isImageType(file: File): boolean {
   return file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
 }
 
-export default function ImportProjectDialog({ onImportComplete, onClose }: Props) {
+export default function ImportProjectDialog({ onImportComplete, onClose, initialFile }: Props) {
   const [phase, setPhase] = useState<ImportPhase>("upload");
   const [pasteText, setPasteText] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(initialFile ?? null);
+  const [imagePreview, setImagePreview] = useState<string | null>(() => {
+    if (initialFile && isImageType(initialFile)) return URL.createObjectURL(initialFile);
+    return null;
+  });
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
