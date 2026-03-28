@@ -4,45 +4,18 @@ import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import {
   Loader2,
-  Target,
   AlertTriangle,
-  Zap,
-  BarChart3,
-  Crosshair,
   Copy,
   Check,
   RefreshCw,
 } from "lucide-react";
 
-interface PriorityAction {
-  sequence: number;
-  action: string;
-  rationale: string;
-}
-
-interface SuccessMeasure {
-  metric: string;
-  target: string;
-  timeframe: string;
-}
-
 interface RespondResult {
-  strategic_recommendation: {
-    headline: string;
-    rationale: string;
-  };
-  why_this_matters: {
-    key_drivers: string[];
-    key_risks: string[];
-    summary: string;
-  };
-  priority_actions: PriorityAction[];
-  success_measures: SuccessMeasure[];
-  execution_focus: {
-    primary_focus: string;
-    secondary_focus: string;
-    avoid: string;
-  };
+  strategic_recommendation: string;
+  why_this_matters: string;
+  priority_actions: string[];
+  success_measures: string[];
+  execution_focus: string;
 }
 
 function getApiBase() {
@@ -67,9 +40,16 @@ export default function RespondPage() {
     const cached = localStorage.getItem(`cios.respondResult:${caseId}`);
     if (cached) {
       try {
-        setData(JSON.parse(cached));
-        return;
-      } catch {}
+        const raw = JSON.parse(cached);
+        const normalized = normalizeResult(raw);
+        if (normalized) {
+          setData(normalized);
+          return;
+        }
+        localStorage.removeItem(`cios.respondResult:${caseId}`);
+      } catch {
+        localStorage.removeItem(`cios.respondResult:${caseId}`);
+      }
     }
 
     generate();
@@ -95,6 +75,24 @@ export default function RespondPage() {
         }
       } catch {}
 
+      let signals: any[] = [];
+      try {
+        const sigRaw = localStorage.getItem(`cios.signals:${caseId}`);
+        if (sigRaw) {
+          const allSigs = JSON.parse(sigRaw);
+          signals = (allSigs || [])
+            .filter((s: any) => s.accepted && !s.dismissed)
+            .map((s: any) => ({
+              text: s.text,
+              direction: s.direction,
+              importance: s.importance,
+              confidence: s.confidence,
+              source: s.source,
+              signal_source: s.signal_source,
+            }));
+        }
+      } catch {}
+
       const payload = {
         subject: activeQuestion.subject || activeQuestion.text,
         questionText: activeQuestion.text,
@@ -102,6 +100,7 @@ export default function RespondPage() {
         timeHorizon: activeQuestion.timeHorizon || "12 months",
         probability,
         constrainedProbability,
+        signals,
         derived_decisions: decideData?.derived_decisions || null,
         adoption_segmentation: decideData?.adoption_segmentation || null,
         readiness_timeline: decideData?.readiness_timeline || null,
@@ -154,7 +153,7 @@ export default function RespondPage() {
             <div>
               <h1 className="text-xl font-bold text-foreground">Respond</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Client-ready response derived from your decision analysis.
+                Executive brief derived from your decision analysis.
               </p>
             </div>
             {data && (
@@ -181,7 +180,7 @@ export default function RespondPage() {
           {loading && (
             <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">Generating executive response...</p>
+              <p className="text-sm text-muted-foreground">Generating executive brief...</p>
             </div>
           )}
 
@@ -202,123 +201,53 @@ export default function RespondPage() {
           )}
 
           {data && !loading && (
-            <div className="space-y-5">
-              <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
-                <div className="flex items-start gap-3">
-                  <Target className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-2">Strategic Recommendation</h2>
-                    <p className="text-base font-semibold text-foreground">{data.strategic_recommendation.headline}</p>
-                    <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{data.strategic_recommendation.rationale}</p>
-                  </div>
-                </div>
-              </div>
+            <div className="space-y-6">
+              <section>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Strategic Recommendation</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.strategic_recommendation}</p>
+              </section>
 
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                  <div className="w-full">
-                    <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Why This Matters</h2>
-                    <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{data.why_this_matters.summary}</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">Key Drivers</h3>
-                        <ul className="space-y-1.5">
-                          {data.why_this_matters.key_drivers.map((d, i) => (
-                            <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5" />
-                              {d}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-semibold text-rose-400 uppercase tracking-wider mb-2">Key Risks</h3>
-                        <ul className="space-y-1.5">
-                          {data.why_this_matters.key_risks.map((r, i) => (
-                            <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0 mt-1.5" />
-                              {r}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <div className="border-t border-border/40" />
 
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="flex items-start gap-3">
-                  <Zap className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-                  <div className="w-full">
-                    <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Priority Actions</h2>
-                    <div className="space-y-3">
-                      {data.priority_actions.map((a) => (
-                        <div key={a.sequence} className="flex items-start gap-3">
-                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold shrink-0">
-                            {a.sequence}
-                          </span>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{a.action}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">{a.rationale}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <section>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why This Matters</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.why_this_matters}</p>
+              </section>
 
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="flex items-start gap-3">
-                  <BarChart3 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div className="w-full">
-                    <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Success Measures</h2>
-                    <div className="space-y-2">
-                      {data.success_measures.map((m, i) => (
-                        <div key={i} className="rounded-lg border border-border/50 bg-muted/10 px-4 py-3 grid grid-cols-3 gap-3">
-                          <div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Metric</p>
-                            <p className="text-sm text-foreground mt-0.5">{m.metric}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Target</p>
-                            <p className="text-sm text-foreground mt-0.5">{m.target}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Timeframe</p>
-                            <p className="text-sm text-foreground mt-0.5">{m.timeframe}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <div className="border-t border-border/40" />
 
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="flex items-start gap-3">
-                  <Crosshair className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
-                  <div className="w-full">
-                    <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Execution Focus</h2>
-                    <div className="space-y-3">
-                      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-                        <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Primary Focus</p>
-                        <p className="text-sm text-foreground mt-1">{data.execution_focus.primary_focus}</p>
-                      </div>
-                      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3">
-                        <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Secondary Focus</p>
-                        <p className="text-sm text-foreground mt-1">{data.execution_focus.secondary_focus}</p>
-                      </div>
-                      <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3">
-                        <p className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider">Avoid</p>
-                        <p className="text-sm text-foreground mt-1">{data.execution_focus.avoid}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <section>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Priority Actions</h2>
+                <ul className="space-y-2">
+                  {data.priority_actions.map((action, i) => (
+                    <li key={i} className="flex items-start gap-3 text-[15px] text-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-2" />
+                      {action}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <div className="border-t border-border/40" />
+
+              <section>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Success Measures</h2>
+                <ul className="space-y-2">
+                  {data.success_measures.map((measure, i) => (
+                    <li key={i} className="flex items-start gap-3 text-[15px] text-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-2" />
+                      {measure}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <div className="border-t border-border/40" />
+
+              <section>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Execution Focus</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.execution_focus}</p>
+              </section>
             </div>
           )}
         </div>
@@ -327,40 +256,59 @@ export default function RespondPage() {
   );
 }
 
+function normalizeResult(raw: any): RespondResult | null {
+  if (!raw || typeof raw !== "object") return null;
+
+  const sr = raw.strategic_recommendation;
+  const strategic_recommendation = typeof sr === "string"
+    ? sr
+    : (sr?.headline || sr?.text || "");
+  if (!strategic_recommendation) return null;
+
+  const wm = raw.why_this_matters;
+  const why_this_matters = typeof wm === "string"
+    ? wm
+    : (wm?.summary || wm?.text || "");
+
+  const pa = raw.priority_actions;
+  const priority_actions = Array.isArray(pa)
+    ? pa.map((a: any) => typeof a === "string" ? a : (a?.action || a?.text || "")).filter(Boolean)
+    : [];
+
+  const sm = raw.success_measures;
+  const success_measures = Array.isArray(sm)
+    ? sm.map((m: any) => typeof m === "string" ? m : (m?.metric || m?.text || "")).filter(Boolean)
+    : [];
+
+  const ef = raw.execution_focus;
+  const execution_focus = typeof ef === "string"
+    ? ef
+    : (ef?.primary_focus || ef?.text || "");
+
+  return { strategic_recommendation, why_this_matters, priority_actions, success_measures, execution_focus };
+}
+
 function formatAsText(data: RespondResult): string {
   const lines: string[] = [];
 
   lines.push("STRATEGIC RECOMMENDATION");
-  lines.push(data.strategic_recommendation.headline);
-  lines.push(data.strategic_recommendation.rationale);
+  lines.push(data.strategic_recommendation);
   lines.push("");
 
   lines.push("WHY THIS MATTERS");
-  lines.push(data.why_this_matters.summary);
-  lines.push("");
-  lines.push("Key Drivers:");
-  data.why_this_matters.key_drivers.forEach(d => lines.push(`  • ${d}`));
-  lines.push("Key Risks:");
-  data.why_this_matters.key_risks.forEach(r => lines.push(`  • ${r}`));
+  lines.push(data.why_this_matters);
   lines.push("");
 
   lines.push("PRIORITY ACTIONS");
-  data.priority_actions.forEach(a => {
-    lines.push(`  ${a.sequence}. ${a.action}`);
-    lines.push(`     ${a.rationale}`);
-  });
+  data.priority_actions.forEach(a => lines.push(`• ${a}`));
   lines.push("");
 
   lines.push("SUCCESS MEASURES");
-  data.success_measures.forEach(m => {
-    lines.push(`  • ${m.metric}: ${m.target} (${m.timeframe})`);
-  });
+  data.success_measures.forEach(m => lines.push(`• ${m}`));
   lines.push("");
 
   lines.push("EXECUTION FOCUS");
-  lines.push(`  Primary: ${data.execution_focus.primary_focus}`);
-  lines.push(`  Secondary: ${data.execution_focus.secondary_focus}`);
-  lines.push(`  Avoid: ${data.execution_focus.avoid}`);
+  lines.push(data.execution_focus);
 
   return lines.join("\n");
 }

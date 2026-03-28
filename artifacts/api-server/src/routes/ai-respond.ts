@@ -10,6 +10,7 @@ interface RespondRequest {
   timeHorizon?: string;
   probability?: number | null;
   constrainedProbability?: number | null;
+  signals?: { text: string; direction: string; importance: string; confidence: string; source: string; signal_source?: string }[];
   derived_decisions?: {
     barriers: { title: string; rationale: string; severity_or_priority: string }[];
     actions: { title: string; rationale: string; severity_or_priority: string }[];
@@ -42,62 +43,48 @@ router.post("/ai-respond/generate", async (req, res) => {
       return;
     }
 
-    const systemPrompt = `You are a senior strategy consultant producing a client-ready executive response. You translate decision analysis into clear, actionable recommendations.
+    const systemPrompt = `You are a senior strategy advisor writing a concise executive brief. Your output will be read by a decision-maker who needs to act, not analyze.
 
-RULES:
-- Write in executive language — direct, confident, no hedging
-- Never use technical terms like "Bayesian", "posterior", "Brier score", "likelihood ratio"
-- The word "probability" is allowed
-- Structure your output as a JSON object with exactly 5 sections
-- Each section must be substantive — no filler or generic advice
-- Ground every recommendation in the specific decision context provided
-- Priority actions must be concrete and sequenced (first, then, then)
-- Success measures must be observable and measurable
-- Keep each section concise — 2-4 sentences for narrative sections, 3-5 bullet items for lists
+VOICE:
+- Write like a trusted advisor speaking directly to the executive
+- Short, declarative sentences. No filler. No hedging.
+- State what is happening, what matters, what to do. Nothing else.
+- Never use: "Bayesian", "posterior", "Brier score", "likelihood ratio", "prior odds"
+- "Probability" is allowed
 
-OUTPUT FORMAT (return valid JSON only):
+STRUCTURE — return valid JSON with exactly these 5 keys:
 {
-  "strategic_recommendation": {
-    "headline": "One sentence — the core recommendation",
-    "rationale": "2-3 sentences explaining why this is the right call given the evidence and probability"
-  },
-  "why_this_matters": {
-    "key_drivers": ["Driver 1", "Driver 2", "Driver 3"],
-    "key_risks": ["Risk 1", "Risk 2", "Risk 3"],
-    "summary": "1-2 sentences connecting drivers and risks to the strategic stakes"
-  },
-  "priority_actions": [
-    { "sequence": 1, "action": "What to do first", "rationale": "Why this comes first" },
-    { "sequence": 2, "action": "What to do next", "rationale": "Why this follows" },
-    { "sequence": 3, "action": "What to do after", "rationale": "Why this is third" }
-  ],
-  "success_measures": [
-    { "metric": "What to measure", "target": "What good looks like", "timeframe": "When to check" }
-  ],
-  "execution_focus": {
-    "primary_focus": "Where resources go first — one clear area",
-    "secondary_focus": "Where resources go next",
-    "avoid": "What NOT to spend resources on right now and why"
-  }
-}`;
+  "strategic_recommendation": "One to two sentences. The core strategic call — what is likely to happen and what it means for the decision. Be specific to the case, not generic.",
+  "why_this_matters": "Two to three sentences. Name the specific limiting factors or driving forces. Do NOT list drivers and risks separately — weave them into a single narrative paragraph that explains what is actually constraining or enabling the outcome.",
+  "priority_actions": ["First action", "Second action", "Third action", "Fourth action"],
+  "success_measures": ["First observable milestone", "Second observable milestone", "Third observable milestone", "Fourth observable milestone"],
+  "execution_focus": "One sentence. Where resources and attention should go first — and implicitly, what NOT to focus on. Be specific."
+}
+
+CRITICAL RULES:
+- strategic_recommendation: State the expected outcome trajectory and its primary constraint. Not a generic recommendation.
+- why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks from the signals and decision analysis. Do not split into sub-categories.
+- priority_actions: 3-5 short action phrases. No numbering, no rationale — just what to do. Each should be one line.
+- success_measures: 3-5 observable outcomes that indicate progress. Not KPIs with targets — just clear milestones stated as phrases.
+- execution_focus: ONE sentence. Where resources go first, framed as what to prioritize over what.`;
 
     const decisionContext = buildDecisionContext(body);
 
-    const userPrompt = `Generate a client-ready executive response for this decision:
+    const userPrompt = `Write an executive response brief for:
 
-**Subject**: ${body.subject}
-**Question**: ${body.questionText}
-**Outcome**: ${body.outcome || "adoption"}
-**Time Horizon**: ${body.timeHorizon || "12 months"}
-**Current Probability**: ${body.constrainedProbability != null ? `${Math.round(body.constrainedProbability * 100)}%` : body.probability != null ? `${Math.round(body.probability * 100)}%` : "Not calculated"}
+Subject: ${body.subject}
+Question: ${body.questionText}
+Outcome: ${body.outcome || "adoption"}
+Time Horizon: ${body.timeHorizon || "12 months"}
+Current Probability: ${body.constrainedProbability != null ? `${Math.round(body.constrainedProbability * 100)}%` : body.probability != null ? `${Math.round(body.probability * 100)}%` : "Not yet calculated"}
 
 ${decisionContext}
 
-Generate the response. Every recommendation must flow from the decision analysis above — do not introduce new analysis or recalculate anything. Translate what exists into action.`;
+Translate this into a brief. Do not reanalyze — summarize what the evidence says, what should be done, and how to know it is working.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_completion_tokens: 4000,
+      max_completion_tokens: 2000,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -114,30 +101,21 @@ Generate the response. Every recommendation must flow from the decision analysis
     const parsed = JSON.parse(content);
 
     const validated = {
-      strategic_recommendation: {
-        headline: parsed.strategic_recommendation?.headline || "Recommendation pending",
-        rationale: parsed.strategic_recommendation?.rationale || "",
-      },
-      why_this_matters: {
-        key_drivers: Array.isArray(parsed.why_this_matters?.key_drivers) ? parsed.why_this_matters.key_drivers : [],
-        key_risks: Array.isArray(parsed.why_this_matters?.key_risks) ? parsed.why_this_matters.key_risks : [],
-        summary: parsed.why_this_matters?.summary || "",
-      },
-      priority_actions: Array.isArray(parsed.priority_actions) ? parsed.priority_actions.map((a: any, i: number) => ({
-        sequence: a.sequence || i + 1,
-        action: a.action || "",
-        rationale: a.rationale || "",
-      })) : [],
-      success_measures: Array.isArray(parsed.success_measures) ? parsed.success_measures.map((m: any) => ({
-        metric: m.metric || "",
-        target: m.target || "",
-        timeframe: m.timeframe || "",
-      })) : [],
-      execution_focus: {
-        primary_focus: parsed.execution_focus?.primary_focus || "",
-        secondary_focus: parsed.execution_focus?.secondary_focus || "",
-        avoid: parsed.execution_focus?.avoid || "",
-      },
+      strategic_recommendation: typeof parsed.strategic_recommendation === "string"
+        ? parsed.strategic_recommendation
+        : parsed.strategic_recommendation?.headline || parsed.strategic_recommendation?.text || "Recommendation pending",
+      why_this_matters: typeof parsed.why_this_matters === "string"
+        ? parsed.why_this_matters
+        : parsed.why_this_matters?.summary || parsed.why_this_matters?.text || "",
+      priority_actions: Array.isArray(parsed.priority_actions)
+        ? parsed.priority_actions.map((a: any) => typeof a === "string" ? a : a.action || a.text || "")
+        : [],
+      success_measures: Array.isArray(parsed.success_measures)
+        ? parsed.success_measures.map((m: any) => typeof m === "string" ? m : m.metric || m.text || "")
+        : [],
+      execution_focus: typeof parsed.execution_focus === "string"
+        ? parsed.execution_focus
+        : parsed.execution_focus?.primary_focus || parsed.execution_focus?.text || "",
     };
 
     res.json(validated);
@@ -150,60 +128,67 @@ Generate the response. Every recommendation must flow from the decision analysis
 function buildDecisionContext(body: RespondRequest): string {
   const parts: string[] = [];
 
+  if (body.signals?.length) {
+    parts.push("ACTIVE SIGNALS:");
+    body.signals.forEach(s => {
+      parts.push(`- [${s.direction}] [${s.importance}] ${s.text} (${s.confidence}, ${s.source}${s.signal_source ? `, ${s.signal_source}` : ""})`);
+    });
+  }
+
   if (body.derived_decisions) {
     const dd = body.derived_decisions;
     if (dd.barriers?.length) {
-      parts.push("**Key Barriers:**");
+      parts.push("\nBARRIERS:");
       dd.barriers.forEach(b => parts.push(`- [${b.severity_or_priority}] ${b.title}: ${b.rationale}`));
     }
     if (dd.actions?.length) {
-      parts.push("\n**Required Actions:**");
+      parts.push("\nREQUIRED ACTIONS:");
       dd.actions.forEach(a => parts.push(`- [${a.severity_or_priority}] ${a.title}: ${a.rationale}`));
     }
     if (dd.segments?.length) {
-      parts.push("\n**Target Segments:**");
+      parts.push("\nTARGET SEGMENTS:");
       dd.segments.forEach(s => parts.push(`- ${s.title}: ${s.rationale}`));
     }
     if (dd.trigger_events?.length) {
-      parts.push("\n**Trigger Events:**");
+      parts.push("\nTRIGGER EVENTS:");
       dd.trigger_events.forEach(t => parts.push(`- ${t.title}: ${t.rationale}`));
     }
     if (dd.monitoring?.length) {
-      parts.push("\n**Monitoring Items:**");
+      parts.push("\nMONITORING:");
       dd.monitoring.forEach(m => parts.push(`- ${m.title}: ${m.rationale}`));
     }
   }
 
   if (body.readiness_timeline) {
     const rt = body.readiness_timeline;
-    if (rt.near_term_readiness) parts.push(`\n**Readiness**: ${rt.near_term_readiness}`);
+    if (rt.near_term_readiness) parts.push(`\nREADINESS: ${rt.near_term_readiness}`);
     if (rt.timing_risks?.length) {
-      parts.push("**Timing Risks:**");
+      parts.push("TIMING RISKS:");
       rt.timing_risks.forEach(r => parts.push(`- ${r}`));
     }
     if (rt.dependencies?.length) {
-      parts.push("**Dependencies:**");
+      parts.push("DEPENDENCIES:");
       rt.dependencies.forEach(d => parts.push(`- ${d}`));
     }
   }
 
   if (body.competitive_risk) {
     const cr = body.competitive_risk;
-    if (cr.incumbent_defense) parts.push(`\n**Incumbent Defense**: ${cr.incumbent_defense}`);
-    if (cr.fast_follower_risk) parts.push(`**Fast-Follower Risk**: ${cr.fast_follower_risk}`);
+    if (cr.incumbent_defense) parts.push(`\nINCUMBENT DEFENSE: ${cr.incumbent_defense}`);
+    if (cr.fast_follower_risk) parts.push(`FAST-FOLLOWER RISK: ${cr.fast_follower_risk}`);
   }
 
   if (body.adoption_segmentation) {
     const as_ = body.adoption_segmentation;
     if (as_.early_adopters?.segments?.length) {
-      parts.push(`\n**Early Adopters**: ${as_.early_adopters.segments.join(", ")} — ${as_.early_adopters.reason}`);
+      parts.push(`\nEARLY ADOPTERS: ${as_.early_adopters.segments.join(", ")} — ${as_.early_adopters.reason}`);
     }
     if (as_.persuadables?.segments?.length) {
-      parts.push(`**Persuadables**: ${as_.persuadables.segments.join(", ")} — ${as_.persuadables.reason}`);
+      parts.push(`PERSUADABLES: ${as_.persuadables.segments.join(", ")} — ${as_.persuadables.reason}`);
     }
   }
 
-  return parts.length > 0 ? `--- DECISION ANALYSIS INPUT ---\n${parts.join("\n")}` : "No decision analysis available — generate a response based on the question and probability alone.";
+  return parts.length > 0 ? parts.join("\n") : "No prior decision analysis available. Generate response from the question and probability alone.";
 }
 
 export default router;
