@@ -14,8 +14,11 @@ import {
   TrendingUp,
   BookOpen,
   ExternalLink,
+  Layers,
+  ShieldAlert,
 } from "lucide-react";
 import type { ExecutiveJudgmentResult, AnalogCaseDetail } from "@/lib/judgment-engine";
+import type { SignalTier } from "@/lib/signal-differentiation";
 import { AnalogModal } from "./AnalogModal";
 
 interface ExecutiveJudgmentProps {
@@ -208,6 +211,79 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {(judgment.signalHierarchy.dominant.length > 0 || judgment.signalHierarchy.supporting.length > 0 || judgment.signalHierarchy.neutral.length > 0 || judgment.signalHierarchy.contradictory.length > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-violet-400" />
+            <h3 className="text-[10px] font-bold text-violet-300 uppercase tracking-wider">Evidence Hierarchy</h3>
+          </div>
+
+          {(["dominant", "supporting", "neutral", "contradictory"] as SignalTier[]).map(tier => {
+            const signals = judgment.signalHierarchy[tier];
+            if (signals.length === 0) return null;
+            const tierConfig: Record<SignalTier, { label: string; color: string; bg: string; border: string }> = {
+              dominant: { label: "Dominant Evidence", color: "text-emerald-300", bg: "bg-emerald-500/5", border: "border-emerald-500/15" },
+              supporting: { label: "Supporting Evidence", color: "text-blue-300", bg: "bg-blue-500/5", border: "border-blue-500/15" },
+              neutral: { label: "Neutral", color: "text-slate-400", bg: "bg-slate-500/5", border: "border-slate-500/15" },
+              contradictory: { label: "Weak or Non-Confirmatory", color: "text-rose-300", bg: "bg-rose-500/5", border: "border-rose-500/15" },
+            };
+            const tc = tierConfig[tier];
+            return (
+              <div key={tier} className={`rounded-xl ${tc.bg} border ${tc.border} p-3 space-y-2`}>
+                <div className={`text-[10px] font-bold uppercase tracking-wider ${tc.color}`}>{tc.label}</div>
+                <div className="space-y-1.5">
+                  {signals.map((sig, si) => (
+                    <div key={si} className="flex items-start gap-3 pl-1">
+                      {sig.direction === "Upward" ? (
+                        <ArrowUpRight className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <ArrowDownRight className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs text-white font-medium">{sig.name}</span>
+                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{sig.rationale}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="rounded-xl bg-violet-500/5 border border-violet-500/15 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-wider text-violet-400 mb-1">Strategic implication</div>
+            <p className="text-xs text-slate-200 leading-relaxed">{judgment.signalHierarchy.strategicImplication}</p>
+          </div>
+
+          {judgment._audit.signalImbalance.detected && (
+            <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 px-3 py-2.5 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Signal Imbalance Detected</span>
+              </div>
+              <div className="space-y-1 pl-5">
+                {judgment._audit.signalImbalance.strongDomain && (
+                  <div className="text-[11px] text-slate-300">
+                    <span className="text-emerald-400 font-medium">Strong: </span>{judgment._audit.signalImbalance.strongDomain}
+                  </div>
+                )}
+                {judgment._audit.signalImbalance.weakDomain && (
+                  <div className="text-[11px] text-slate-300">
+                    <span className="text-rose-400 font-medium">Weak: </span>{judgment._audit.signalImbalance.weakDomain}
+                  </div>
+                )}
+                <div className="text-[11px] text-slate-400">
+                  <span className="text-amber-400 font-medium">Confidence impact: </span>{judgment._audit.signalImbalance.confidenceImpact}
+                </div>
+                {judgment._audit.signalImbalance.strategicRisk && (
+                  <div className="text-[11px] text-amber-200/70 mt-1 leading-relaxed">{judgment._audit.signalImbalance.strategicRisk}</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

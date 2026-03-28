@@ -564,3 +564,113 @@ describe("NARRATIVE INTEGRITY", () => {
     }
   });
 });
+
+describe("SIGNAL DIFFERENTIATION", () => {
+  it("Signal hierarchy contains all four tiers", () => {
+    const result = run({});
+    expect(result.signalHierarchy).toBeDefined();
+    expect(result.signalHierarchy).toHaveProperty("dominant");
+    expect(result.signalHierarchy).toHaveProperty("supporting");
+    expect(result.signalHierarchy).toHaveProperty("neutral");
+    expect(result.signalHierarchy).toHaveProperty("contradictory");
+    expect(result.signalHierarchy).toHaveProperty("strategicImplication");
+    expect(typeof result.signalHierarchy.strategicImplication).toBe("string");
+    expect(result.signalHierarchy.strategicImplication.length).toBeGreaterThan(0);
+  });
+
+  it("Every driver is classified into exactly one tier", () => {
+    const inputDrivers = [
+      driver("Culture Conversion", "Upward", 12, "High"),
+      driver("Respiratory Improvement", "Upward", 5, "Medium"),
+      driver("Fatigue PRO", "Downward", -2, "Low"),
+      driver("Guideline Support", "Upward", 3, "Low"),
+    ];
+    const result = run({ drivers: inputDrivers });
+    const sh = result.signalHierarchy;
+    const allClassified = [...sh.dominant, ...sh.supporting, ...sh.neutral, ...sh.contradictory];
+    expect(allClassified.length).toBe(inputDrivers.length);
+    for (const d of inputDrivers) {
+      expect(allClassified.some(s => s.name === d.name)).toBe(true);
+    }
+  });
+
+  it("High-strength high-contribution driver is classified as dominant", () => {
+    const inputDrivers = [
+      driver("Culture Conversion", "Upward", 12, "High"),
+      driver("Minor Factor", "Upward", 1, "Low"),
+    ];
+    const result = run({ drivers: inputDrivers });
+    expect(result.signalHierarchy.dominant.some(s => s.name === "Culture Conversion")).toBe(true);
+  });
+
+  it("Low-strength downward driver is classified as contradictory", () => {
+    const inputDrivers = [
+      driver("Efficacy Data", "Upward", 10, "High"),
+      driver("Fatigue PRO", "Downward", -2, "Low"),
+    ];
+    const result = run({ drivers: inputDrivers });
+    expect(result.signalHierarchy.contradictory.some(s => s.name === "Fatigue PRO")).toBe(true);
+  });
+
+  it("Each classified signal has tier label and rationale", () => {
+    const result = run({});
+    const all = [
+      ...result.signalHierarchy.dominant,
+      ...result.signalHierarchy.supporting,
+      ...result.signalHierarchy.neutral,
+      ...result.signalHierarchy.contradictory,
+    ];
+    for (const sig of all) {
+      expect(sig.tierLabel).toBeDefined();
+      expect(sig.tierLabel.length).toBeGreaterThan(0);
+      expect(sig.rationale).toBeDefined();
+      expect(sig.rationale.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("Signal imbalance detected when dominant upward + contradictory present", () => {
+    const inputDrivers = [
+      driver("Culture Conversion", "Upward", 12, "High"),
+      driver("Fatigue PRO", "Downward", -2, "Low"),
+    ];
+    const result = run({ drivers: inputDrivers });
+    expect(result._audit.signalImbalance.detected).toBe(true);
+    expect(result._audit.signalImbalance.strongDomain).toContain("Culture Conversion");
+    expect(result._audit.signalImbalance.weakDomain).toContain("Fatigue PRO");
+    expect(result._audit.signalImbalance.confidenceImpact).toBe("Moderate");
+    expect(result._audit.signalImbalance.strategicRisk).toBeDefined();
+    expect(result._audit.signalImbalance.strategicRisk!.length).toBeGreaterThan(0);
+  });
+
+  it("Signal imbalance not detected when evidence is balanced", () => {
+    const inputDrivers = [
+      driver("Efficacy Data", "Upward", 8, "High"),
+      driver("KOL Support", "Upward", 6, "High"),
+      driver("Access Progress", "Upward", 4, "Medium"),
+    ];
+    const result = run({ drivers: inputDrivers });
+    expect(result._audit.signalImbalance.detected).toBe(false);
+  });
+
+  it("Empty drivers produce empty hierarchy with explanatory implication", () => {
+    const result = run({ drivers: [] });
+    expect(result.signalHierarchy.dominant.length).toBe(0);
+    expect(result.signalHierarchy.supporting.length).toBe(0);
+    expect(result.signalHierarchy.neutral.length).toBe(0);
+    expect(result.signalHierarchy.contradictory.length).toBe(0);
+    expect(result.signalHierarchy.strategicImplication).toContain("No signals");
+  });
+
+  it("Strategic implication references dominant signal names", () => {
+    const inputDrivers = [
+      driver("Culture Conversion", "Upward", 12, "High"),
+      driver("Respiratory Improvement", "Upward", 5, "Medium"),
+      driver("Fatigue PRO", "Downward", -2, "Low"),
+    ];
+    const result = run({ drivers: inputDrivers });
+    const sh = result.signalHierarchy;
+    if (sh.dominant.length > 0 && sh.contradictory.length > 0) {
+      expect(sh.strategicImplication).toMatch(/Culture Conversion|Fatigue PRO/);
+    }
+  });
+});

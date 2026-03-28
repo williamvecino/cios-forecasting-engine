@@ -66,6 +66,12 @@ const TERM_DEFINITIONS: Record<string, string> = {
   "posture": "The recommended strategic stance — the system's suggestion for how to act given the current probability, confidence, and constraints.",
   "convergence": "How closely different data sources (signals, gates, analogues) agree on the outlook. Higher convergence supports higher confidence.",
   "signal": "An observed or derived piece of evidence that shifts the forecast probability upward or downward.",
+  "signal hierarchy": "The ranked ordering of evidence signals from dominant (strongest) through supporting, neutral, to weak/non-confirmatory (contradictory). Every endpoint is evaluated individually before overall judgment.",
+  "evidence hierarchy": "The ranked ordering of evidence signals from dominant (strongest) through supporting, neutral, to weak/non-confirmatory (contradictory). Every endpoint is evaluated individually before overall judgment.",
+  "dominant signal": "A signal classified as the primary driver of the forecast — high strength with strong relative contribution. Messaging and adoption strategy should emphasize dominant signals.",
+  "supporting signal": "A signal that reinforces the outlook but is not independently decisive. It supports the dominant evidence pattern.",
+  "contradictory signal": "A signal that is weak, non-confirmatory, or acts against the primary evidence direction. Claims based on contradictory signals should be avoided.",
+  "signal imbalance": "A detected mismatch between strong and weak evidence domains — indicates potential strategic risk where objections may arise in areas with non-confirmatory evidence.",
   "lever": "The highest-impact action available to change the forecast — the single change expected to produce the largest improvement.",
   "integrity check": "An internal validation rule that ensures the judgment output is logically consistent (e.g., strong evidence cannot produce a contradictory outlook).",
   "audit trail": "The complete record of inputs, scoring breakdowns, rule traces, and integrity check results that produced the current judgment.",
@@ -82,7 +88,7 @@ function classifyQuestion(q: string): AnswerCategory {
     return "resolution";
   }
 
-  if (lower.match(/why is|why does|why did|why the|why are|reason|because|what caused|what led to|how did .+ arrive|how was .+ calculated|what drove|what explains/)) {
+  if (lower.match(/why is|why does|why did|why the|why are|reason|because|what caused|what led to|how did .+ arrive|how was .+ calculated|what drove|what explains|where.+(strong|weak)|which.+(dominant|supporting|contradictory)|signal.+(hierarchy|balance|imbalance)|evidence.+hierarchy|endpoint.+strength/)) {
     return "explanation";
   }
 
@@ -200,6 +206,7 @@ function handleExplanation(question: string, judgment: ExecutiveJudgmentResult, 
         directionalEffect: null,
         sourceLabel: "Gate Status Summary",
         followUp: null,
+        followUpQuery: null,
       };
     }
 
@@ -263,6 +270,39 @@ function handleExplanation(question: string, judgment: ExecutiveJudgmentResult, 
     };
   }
 
+  if (lower.match(/why.+signal|where.+strong|where.+weak|which.+dominant|which.+supporting|signal.+hierarchy|evidence.+hierarchy|signal.+balance|signal.+imbalance|endpoint.+strength/)) {
+    const sh = judgment.signalHierarchy;
+    const imb = audit.signalImbalance;
+    const domNames = sh.dominant.map(s => s.name).join(", ") || "None identified";
+    const supNames = sh.supporting.map(s => s.name).join(", ") || "None";
+    const contraNames = sh.contradictory.map(s => s.name).join(", ") || "None";
+
+    const evidence: string[] = [
+      `Dominant signals: ${domNames}`,
+      `Supporting signals: ${supNames}`,
+      `Weak/non-confirmatory: ${contraNames}`,
+    ];
+    if (imb.detected && imb.strategicRisk) {
+      evidence.push(`Signal imbalance: ${imb.strategicRisk}`);
+    }
+
+    return {
+      category: "explanation",
+      categoryLabel: CATEGORY_LABELS.explanation,
+      answer: sh.strategicImplication,
+      evidence,
+      affectedVariable: "Evidence Hierarchy",
+      directionalEffect: null,
+      sourceLabel: "Signal Differentiation",
+      followUp: sh.contradictory.length > 0
+        ? `Ask "What happens if ${sh.contradictory[0].name} improves?" to see the projected effect.`
+        : null,
+      followUpQuery: sh.contradictory.length > 0
+        ? `What happens if ${sh.contradictory[0].name} improves?`
+        : null,
+    };
+  }
+
   if (lower.match(/why.+uncertainty|why.+uncertain/)) {
     return {
       category: "explanation",
@@ -310,6 +350,7 @@ function handleExplanation(question: string, judgment: ExecutiveJudgmentResult, 
     directionalEffect: null,
     sourceLabel: "Executive Judgment",
     followUp: null,
+    followUpQuery: null,
   };
 }
 
@@ -337,6 +378,7 @@ function handleCounterfactual(question: string, judgment: ExecutiveJudgmentResul
         directionalEffect: delta >= 0 ? `↑ +${delta} points` : `↓ ${delta} points`,
         sourceLabel: "Gate Scenario Projection",
         followUp: null,
+        followUpQuery: null,
       };
     }
 
@@ -356,6 +398,7 @@ function handleCounterfactual(question: string, judgment: ExecutiveJudgmentResul
         directionalEffect: `↓ ${delta} points`,
         sourceLabel: "Gate Scenario Projection",
         followUp: null,
+        followUpQuery: null,
       };
     }
 
@@ -372,6 +415,7 @@ function handleCounterfactual(question: string, judgment: ExecutiveJudgmentResul
         directionalEffect: gateMatch.delta >= 0 ? `↑ +${gateMatch.delta} points` : `↓ ${gateMatch.delta} points`,
         sourceLabel: "Gate Scenario Projection",
         followUp: null,
+        followUpQuery: null,
       };
     }
   }
@@ -395,6 +439,7 @@ function handleCounterfactual(question: string, judgment: ExecutiveJudgmentResul
           directionalEffect: `${oppositeDir === "upward" ? "↑" : "↓"} ~${Math.abs(driverData.contributionPoints)} points if reversed`,
           sourceLabel: "Driver Analysis",
           followUp: null,
+          followUpQuery: null,
         };
       }
     }
@@ -428,6 +473,7 @@ function handleCounterfactual(question: string, judgment: ExecutiveJudgmentResul
         directionalEffect: "Extending the horizon generally improves gate resolution probability; shortening it increases execution risk.",
         sourceLabel: "Gate Analysis",
         followUp: null,
+        followUpQuery: null,
       };
     }
 
@@ -490,6 +536,7 @@ function handleResolution(question: string, judgment: ExecutiveJudgmentResult, c
         directionalEffect: null,
         sourceLabel: "Constraint Decomposition — Lever Analysis",
         followUp: null,
+        followUpQuery: null,
       };
     }
 
@@ -517,6 +564,7 @@ function handleResolution(question: string, judgment: ExecutiveJudgmentResult, c
         directionalEffect: null,
         sourceLabel: "Executive Judgment",
         followUp: null,
+        followUpQuery: null,
       };
     }
 
@@ -547,6 +595,7 @@ function handleResolution(question: string, judgment: ExecutiveJudgmentResult, c
       directionalEffect: null,
       sourceLabel: "Constraint Decomposition — Lever Analysis",
       followUp: `Ask "What happens if ${matchedConstraint.label} improves?" to see the projected effect.`,
+      followUpQuery: null,
     };
   }
 
@@ -578,6 +627,7 @@ function handleResolution(question: string, judgment: ExecutiveJudgmentResult, c
     directionalEffect: null,
     sourceLabel: "Executive Judgment",
     followUp: null,
+    followUpQuery: null,
   };
 }
 

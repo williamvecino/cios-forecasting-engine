@@ -1,4 +1,5 @@
 import { decomposeConstraints, enforceDecomposition, type ConstraintDecomposition } from "./constraint-drivers";
+import { differentiateSignals, detectSignalImbalance, type SignalHierarchy, type SignalImbalance, type DifferentiatedSignal, type SignalTier } from "./signal-differentiation";
 
 interface EventGate {
   gate_id: string;
@@ -156,6 +157,7 @@ export interface JudgmentAudit {
   integrityChecks: IntegrityCheck[];
   integrityPassed: boolean;
   constraintDecomposition: ConstraintDecompositionAudit[];
+  signalImbalance: SignalImbalance;
 }
 
 export interface PrimaryConstraintDriver {
@@ -178,6 +180,7 @@ export interface ExecutiveJudgmentResult {
   reasoning: string;
   keyDrivers: string[];
   primaryConstraints: PrimaryConstraint[];
+  signalHierarchy: SignalHierarchy;
   analogCases: AnalogCaseDetail[];
   analogPattern: AnalogPatternSummary | null;
   reversalTriggers: ReversalTrigger[];
@@ -810,6 +813,9 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
 
   const primaryConstraints = buildPrimaryConstraints(constraintDecompositions, adjustedFinalPct, brandOutlookPct);
 
+  const signalHierarchy = differentiateSignals(drivers, correctedGates.map(g => ({ gate_label: g.gate_label, status: g.status })));
+  const signalImbalance = detectSignalImbalance(signalHierarchy);
+
   const constraintDecompositionAudit = constraintDecompositions.map(cd => ({
     gateId: cd.gateId,
     gateLabel: cd.gateLabel,
@@ -837,6 +843,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     integrityChecks,
     integrityPassed: integrityChecks.every(c => c.passed),
     constraintDecomposition: constraintDecompositionAudit,
+    signalImbalance,
   };
 
   return {
@@ -846,6 +853,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     reasoning,
     keyDrivers,
     primaryConstraints,
+    signalHierarchy,
     analogCases,
     analogPattern,
     reversalTriggers,
