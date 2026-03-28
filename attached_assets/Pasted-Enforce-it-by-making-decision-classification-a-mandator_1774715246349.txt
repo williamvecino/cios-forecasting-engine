@@ -1,0 +1,223 @@
+Enforce it by making decision classification a mandatory gated layer for every ingestion path, not a prompt preference.
+
+What to make mandatory
+
+For every imported file type — PDF, PPT, DOC, image, screenshot, pasted text, bundle — the system must always produce these in order:
+
+Domain
+Decision archetype
+Primary decision
+Secondary decisions
+Signals found
+Signals to investigate
+Confidence
+Why this classification was chosen
+
+If any of the first 4 are missing, the ingestion is incomplete and cannot proceed silently.
+
+The enforcement rule
+
+Before the system shows a proposed decision, it must pass this internal check:
+
+Is this a strategy problem, operational problem, access problem, competitive problem, behavior problem, or vendor-selection problem?
+What evidence in the document supports that choice?
+Was vendor selection explicitly requested, or is the document actually about solving a launch/business problem through an agency?
+
+That last question is critical.
+
+The universal architecture
+
+For any ingestion doc, build this fixed pipeline:
+
+Content recovery
+→ Document type detection
+→ Domain classification
+→ Decision archetype classification
+→ Primary decision generation
+→ Signal extraction
+→ Missing signal generation
+→ Confidence scoring
+→ User confirmation
+
+Never skip archetype classification.
+
+The key design principle
+
+The system must distinguish between:
+
+Document wrapper
+Actual business decision
+
+Example:
+
+RFP is the wrapper.
+Launch strategy is the decision.
+
+Slide deck is the wrapper.
+Competitive differentiation is the decision.
+
+Clinical paper is the wrapper.
+Adoption evidence relevance is the decision.
+
+This rule generalizes across all docs.
+
+What to tell Replit
+
+Use this exactly:
+
+For every ingestion path, implement a mandatory Decision Classification Layer before question generation. The system must first identify the document type, then classify the underlying business decision archetype, then generate the primary decision. It must never infer a vendor-selection or agency-selection decision unless the document explicitly requests evaluation or selection of vendors as the core business decision. The system should distinguish the wrapper document type from the real decision being supported.
+
+The decision archetype library
+
+Lock a finite set.
+
+Suggested v1:
+
+Launch Readiness
+Adoption Forecast
+Competitive Positioning
+Market Access
+Evidence Positioning
+Operational Readiness
+Resource Allocation
+Stakeholder Engagement
+Vendor Selection
+Portfolio Prioritization
+Technology Implementation
+RFP / Action Translation
+
+Every ingested document must map to one primary archetype and optional secondary archetypes.
+
+How to build it so it generalizes
+1. Add explicit evidence spans
+
+For every classification, store the exact text snippets that support it.
+
+Example for the Roche RFP:
+
+“pre-launch and launch objectives”
+“focus on developing a campaign for patients”
+“launch a best in class anti-PDL1 mAB”
+“competitive landscape”
+These support Launch Readiness / Competitive Positioning, not vendor selection.
+2. Add negative rules
+
+Not just what supports a class, but what disqualifies it.
+
+Example:
+If vendor selection is not explicitly the main ask, do not classify as Vendor Selection.
+
+3. Add confidence thresholds
+
+If confidence is low, the system must say:
+
+“Likely decision archetype: Launch Readiness
+Alternative: Stakeholder Engagement”
+
+and ask for confirmation.
+
+4. Add adjudication rules
+
+If two archetypes compete, prefer the one tied to the core business objective, not the procurement format.
+
+The four checks every ingestion must pass
+Check 1 — Wrapper vs decision
+
+What is the file?
+What is the actual business decision?
+
+Check 2 — Explicit ask vs implied ask
+
+What is directly requested?
+What is strategically implied?
+
+Check 3 — Primary vs secondary decisions
+
+One main decision, others subordinate.
+
+Check 4 — Evidence support
+
+What text proves the classification?
+
+How to test it across all docs
+
+Create a gold set of 20 documents across formats:
+
+oncology RFP
+launch brief
+market research summary
+medical strategy deck
+clinical paper
+access memo
+competitor update
+operations plan
+screenshot of slide
+image-heavy PPT
+old DOC
+old PPT
+mixed bundle
+
+For each one, pre-label:
+
+document type
+domain
+decision archetype
+primary decision
+secondary decisions
+expected signals
+
+Then run autotests and compare.
+
+Pass/fail rules
+
+Fail if:
+
+vendor selection is inferred without explicit support
+the primary decision is generic
+the classification ignores obvious business context
+no evidence spans are attached
+the same document yields inconsistent archetypes on rerun
+What the UI should show
+
+In the ingestion summary, add:
+
+Detected decision type
+Launch Readiness
+
+Why we classified it this way
+
+pre-launch and launch objectives
+competitive landscape
+patient/caregiver campaign development
+commercial readiness activities
+
+That forces transparency.
+
+The one thing that will make this stick
+
+Make classification output persisted and auditable.
+
+Every ingestion should save:
+
+detected document type
+detected archetype
+evidence spans
+confidence
+alternative archetype
+final user-confirmed archetype
+
+That way the system learns and you can audit failures.
+
+Bottom line
+
+To enforce this across any ingestion doc:
+
+make classification mandatory
+separate wrapper from real decision
+require evidence spans
+lock archetype choices
+add negative rules
+autotest against a gold set
+persist every classification decision
+
+That is how you build the same judgment across the whole platform

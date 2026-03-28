@@ -99,6 +99,14 @@ interface Contradiction {
   resolution_suggestion: string;
 }
 
+interface DecisionArchetypeResult {
+  primary: string;
+  secondary: string[];
+  framing: string;
+  guardrailApplied: boolean;
+  guardrailReason?: string | null;
+}
+
 interface ImportResult {
   question: ExtractedQuestion;
   signals: ExtractedSignal[];
@@ -111,6 +119,7 @@ interface ImportResult {
   fileManifest?: FileManifestEntry[];
   contradictions?: Contradiction[];
   primaryFile?: string;
+  decisionArchetype?: DecisionArchetypeResult;
 }
 
 interface Props {
@@ -506,6 +515,30 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
             </div>
           );
         })()}
+
+        {result.decisionArchetype && (
+          <div className="rounded-xl border border-indigo-400/30 bg-indigo-400/5 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="text-xs font-semibold text-indigo-400">{result.decisionArchetype.primary}</div>
+              {result.decisionArchetype.secondary.length > 0 && (
+                <div className="flex gap-1">
+                  {result.decisionArchetype.secondary.map((s, i) => (
+                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-400/10 text-indigo-300 border border-indigo-400/20">{s}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {result.decisionArchetype.framing && (
+              <div className="text-[11px] text-indigo-300/80 mt-1">{result.decisionArchetype.framing}</div>
+            )}
+            {result.decisionArchetype.guardrailApplied && result.decisionArchetype.guardrailReason && (
+              <div className="text-[10px] text-amber-400/90 mt-1.5 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {result.decisionArchetype.guardrailReason}
+              </div>
+            )}
+          </div>
+        )}
 
         {result.contradictions && result.contradictions.length > 0 && (
           <div>

@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-03-28T16:32:37.175Z",
+  "passed": 5,
+  "failed": 1,
+  "total": 6,
+  "results": [
+    {
+      "name": "Oncology Launch RFP (Roche PD-L1)",
+      "pass": true,
+      "details": "Question: What strategic approach will maximize the probability of a successful commercial launch of Anti-PDL1 in the US market?\n  Archetype: Launch Strategy (expected: Launch Strategy)\n  Environment: Commercial Launch\n  Framing: Determine the optimal agency partner to support the brand positioning and commercial launch strategy for the Anti-PDL1 product.\n  Guardrail: none\n  Signals: 5\n  Confidence: High\n  ALL CHECKS PASSED"
+    },
+    {
+      "name": "Digital Transformation RFP",
+      "pass": true,
+      "details": "Question: What strategic approach should ACME Pharmaceuticals adopt to address organizational capability gaps and ensure successful deployment and adoption of the digital transformation initiative?\n  Archetype: Capability Gap (expected: Capability Gap)\n  Environment: Technology Implementation\n  Framing: Determine the strategic approach and partner to address organizational capability gaps for enterprise-wide digital transformation, ensuring high adoption and operational effectiveness.\n  Guardrail: none\n  Signals: 5\n  Confidence: High\n  ALL CHECKS PASSED"
+    },
+    {
+      "name": "Market Research Brief",
+      "pass": true,
+      "details": "Question: What competitive positioning strategy will maximize JAK-X's market share in the atopic dermatitis market over the next 24 months?\n  Archetype: Competitive Positioning (expected: Competitive Positioning)\n  Environment: Commercial Launch\n  Framing: Determine how to position JAK-X competitively in the evolving atopic dermatitis market to capture market share and address safety concerns.\n  Guardrail: none\n  Signals: 5\n  Confidence: High\n  ALL CHECKS PASSED"
+    },
+    {
+      "name": "Clinical Trial Recruitment Plan",
+      "pass": true,
+      "details": "Question: What strategy should be implemented to address recruitment capability gaps and ensure the clinical trial meets its enrollment target within the designated timeline?\n  Archetype: Capability Gap (expected: Capability Gap)\n  Environment: Operational Deployment\n  Framing: The organization must address recruitment capability gaps to meet enrollment targets and avoid delays that could impact competitive positioning in the treatment-resistant depression market.\n  Guardrail: none\n  Signals: 5\n  Confidence: High\n  ALL CHECKS PASSED"
+    },
+    {
+      "name": "Competitive Response Memo",
+      "pass": false,
+      "details": "Question: Should we accelerate the regulatory filing timeline for OUR-201 by 3 months to compete with Competitor X's CX-401 in the NSCLC 2L market?\n  Archetype: Competitive Positioning (expected: Competitive Positioning)\n  Environment: Regulatory Approval\n  Framing: Determine how to respond to a competitor's accelerated approval filing in NSCLC 2L by adjusting filing timelines, evidence strategy, and payer differentiation to defend market position.\n  Guardrail: none\n  Signals: 5\n  Confidence: High\n  FAILURES:\n  Question missing required term \"competitive\": \"Should we accelerate the regulatory filing timeline for OUR-201 by 3 months to compete with Competitor X's CX-401 in the NSCLC 2L market?\""
+    },
+    {
+      "name": "Operational Readiness Checklist",
+      "pass": true,
+      "details": "Question: Is Product ABC ready for launch, and what critical gaps must be resolved to ensure a successful launch?\n  Archetype: Launch Strategy (expected: Launch Strategy)\n  Environment: Operational Deployment\n  Framing: Assess whether Product ABC is ready for launch and identify critical gaps to resolve before committing to the launch timeline.\n  Guardrail: none\n  Signals: 8\n  Confidence: High\n  ALL CHECKS PASSED"
+    }
+  ]
+}

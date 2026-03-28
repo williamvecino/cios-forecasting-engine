@@ -229,6 +229,201 @@ const SIGNAL_LIBRARIES: Record<DecisionContext, { categories: string[]; guidance
   },
 };
 
+type DecisionArchetype =
+  | "launch_strategy"
+  | "adoption_risk"
+  | "market_access"
+  | "competitive_positioning"
+  | "operational_readiness"
+  | "resource_allocation"
+  | "stakeholder_behavior"
+  | "capability_gap"
+  | "vendor_selection"
+  | "portfolio_strategy"
+  | "evidence_positioning";
+
+interface ArchetypeClassification {
+  primaryArchetype: DecisionArchetype;
+  label: string;
+  secondaryArchetypes: string[];
+  decisionFraming: string;
+  guardrailApplied: boolean;
+  guardrailReason?: string;
+}
+
+const DECISION_ARCHETYPES: Record<DecisionArchetype, { label: string; markers: string; notThisIf: string }> = {
+  launch_strategy: {
+    label: "Launch Strategy",
+    markers: "Launch timing, go-to-market planning, launch sequencing, market entry, geographic rollout, launch readiness assessment, pre-launch preparation, brand strategy, commercial readiness, indication prioritization for launch",
+    notThisIf: "The document is primarily about ongoing market competition without a launch event, or about operational/supply chain readiness in isolation",
+  },
+  adoption_risk: {
+    label: "Adoption Risk",
+    markers: "Provider uptake uncertainty, prescribing behavior change, switching barriers, clinical inertia, KOL sentiment, treatment algorithm positioning, formulary placement impact on prescribing, real-world adoption patterns",
+    notThisIf: "The focus is on market share/revenue (competitive_positioning) or launch timing (launch_strategy) rather than whether providers will actually use the product",
+  },
+  market_access: {
+    label: "Market Access",
+    markers: "Payer negotiations, reimbursement strategy, formulary positioning, prior authorization, step therapy, patient affordability, value-based contracting, HEOR evidence requirements, coverage decisions, cost-effectiveness thresholds",
+    notThisIf: "Payer dynamics are mentioned as background context for a launch or adoption decision",
+  },
+  competitive_positioning: {
+    label: "Competitive Positioning",
+    markers: "Head-to-head differentiation, market share defense/capture, competitive response planning, mechanism-of-action comparison, label differentiation, pipeline threats, generic/biosimilar entry, competitive intelligence, share of voice",
+    notThisIf: "Competition is mentioned as one factor among many in a broader launch or adoption decision",
+  },
+  operational_readiness: {
+    label: "Operational Readiness",
+    markers: "Manufacturing scale-up, supply chain qualification, distribution logistics, cold chain, facility build-out, staffing plans, process implementation, quality systems, go/no-go for production, inventory management",
+    notThisIf: "Operational factors are mentioned as supporting details for a commercial launch decision",
+  },
+  resource_allocation: {
+    label: "Resource Allocation",
+    markers: "Budget prioritization, headcount allocation, field force sizing, investment trade-offs, portfolio resource distribution, program funding decisions, capacity constraints across programs",
+    notThisIf: "Resource needs are mentioned as part of launch planning (launch_strategy) or operational readiness",
+  },
+  stakeholder_behavior: {
+    label: "Stakeholder Behavior",
+    markers: "Patient behavior patterns, physician decision-making, institutional buying committees, advocacy group influence, patient journey mapping, referral patterns, care pathway decisions, patient preference studies",
+    notThisIf: "Stakeholder behavior is discussed as part of adoption forecasting (adoption_risk) rather than as the primary analytical focus",
+  },
+  capability_gap: {
+    label: "Capability Gap",
+    markers: "Organizational capability assessment, skills gap analysis, infrastructure gaps, technology readiness, talent acquisition needs, training requirements, partnership/outsourcing decisions to fill gaps, build-vs-buy decisions",
+    notThisIf: "The document is primarily a vendor/agency evaluation (vendor_selection) or resource allocation decision",
+  },
+  vendor_selection: {
+    label: "Vendor Selection",
+    markers: "Vendor evaluation criteria, agency pitch/selection, RFP responses being evaluated, supplier comparison, outsourcing partner selection, explicit vendor shortlisting, contract award decision",
+    notThisIf: "The document is an RFP ISSUED BY the organization seeking capabilities — that typically indicates capability_gap, launch_strategy, or the strategic problem the vendor would solve, NOT vendor selection itself. Vendor selection applies only when the PRIMARY decision is literally 'which vendor/agency should we choose' and the document contains explicit evaluation criteria, scoring, or shortlisting.",
+  },
+  portfolio_strategy: {
+    label: "Portfolio Strategy",
+    markers: "Pipeline prioritization, indication sequencing, lifecycle management, asset valuation, portfolio optimization, development-stage trade-offs, therapeutic area strategy, in-licensing/out-licensing, M&A target evaluation",
+    notThisIf: "The focus is on a single product's launch or adoption rather than cross-portfolio decisions",
+  },
+  evidence_positioning: {
+    label: "Evidence Positioning",
+    markers: "Publication strategy, data dissemination planning, congress strategy, medical affairs evidence plan, real-world evidence generation, ISR strategy, guideline influence, evidence gap analysis, clinical narrative development",
+    notThisIf: "Evidence is mentioned as supporting a launch or adoption decision rather than being the primary strategic question",
+  },
+};
+
+const ARCHETYPE_LABELS: Record<DecisionArchetype, string> = Object.fromEntries(
+  Object.entries(DECISION_ARCHETYPES).map(([k, v]) => [k, v.label])
+) as Record<DecisionArchetype, string>;
+
+async function classifyDecisionArchetype(
+  text: string,
+  environmentLabel: string,
+  imageBase64?: string | null,
+  imageMimeType?: string | null,
+): Promise<ArchetypeClassification> {
+  const archetypeDescriptions = Object.entries(DECISION_ARCHETYPES)
+    .map(([key, val]) => `${key} (${val.label})\n   MARKERS: ${val.markers}\n   NOT THIS IF: ${val.notThisIf}`)
+    .join("\n\n");
+
+  const classifyPrompt = `You are a decision archetype classifier for a strategic judgment system. Your job is to identify WHAT TYPE OF DECISION these materials represent — not to generate a question, not to summarize, just to classify the decision type.
+
+DECISION ENVIRONMENT: ${environmentLabel}
+
+DECISION ARCHETYPES — read ALL descriptions carefully before classifying:
+
+${archetypeDescriptions}
+
+CLASSIFICATION RULES:
+1. Read the materials deeply. Identify what DECISION the organization is actually trying to make.
+2. Distinguish between the SURFACE FORMAT of the document (e.g., "this is an RFP") and the ACTUAL DECISION it represents (e.g., "how to launch successfully").
+3. An RFP that describes a strategic problem is NOT a vendor selection decision — it is the strategic decision described in the RFP. The vendor/agency is a means, not the end.
+4. Choose the archetype that best captures the PRIMARY decision. List up to 2 secondary archetypes if relevant.
+5. Write a "decisionFraming" sentence that captures the real decision in executive language.
+
+CRITICAL GUARDRAIL:
+If you are tempted to classify as "vendor_selection", STOP and verify:
+- Does the document contain explicit vendor evaluation criteria, scoring matrices, or shortlists?
+- Is the document COMPARING vendors/agencies against each other?
+- Or is the document describing a STRATEGIC PROBLEM that a vendor would help solve?
+If the document describes a strategic problem (launch readiness, competitive positioning, capability gap), classify under THAT archetype, not vendor_selection.
+
+Respond in JSON:
+{
+  "primaryArchetype": "one of the archetype keys",
+  "secondaryArchetypes": ["up to 2 other relevant archetypes"],
+  "decisionFraming": "One sentence describing the real decision in executive language",
+  "vendorSelectionExplicit": false
+}`;
+
+  const messages: any[] = [{ role: "system", content: classifyPrompt }];
+  const contentSnippet = text ? text.slice(0, 4000) : "";
+  let userMsg = contentSnippet
+    ? `MATERIALS EXCERPT:\n---\n${contentSnippet}\n---`
+    : "No text materials available.";
+
+  if (imageBase64 && imageMimeType && !contentSnippet) {
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: userMsg },
+        { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "low" } },
+      ],
+    });
+  } else {
+    messages.push({ role: "user", content: userMsg });
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      response_format: { type: "json_object" },
+      temperature: 0,
+      max_tokens: 300,
+    });
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("Empty archetype response");
+    const parsed = JSON.parse(content);
+
+    let primary: DecisionArchetype = parsed.primaryArchetype;
+    let guardrailApplied = false;
+    let guardrailReason: string | undefined;
+
+    const vendorExplicit = parsed.vendorSelectionExplicit === true;
+
+    if (primary === "vendor_selection" && !vendorExplicit) {
+      const secondaries = (parsed.secondaryArchetypes || []) as string[];
+      const fallback = (secondaries.find((a: string) => a !== "vendor_selection" && DECISION_ARCHETYPES[a as DecisionArchetype]) as DecisionArchetype) || "launch_strategy";
+      guardrailReason = `Vendor selection downgraded: document describes a strategic problem, not explicit vendor evaluation. Reclassified from vendor_selection to ${ARCHETYPE_LABELS[fallback]}.`;
+      primary = fallback;
+      guardrailApplied = true;
+      console.log(`[archetype-guardrail] ${guardrailReason}`);
+    }
+
+    if (!DECISION_ARCHETYPES[primary]) {
+      primary = "launch_strategy";
+      guardrailApplied = true;
+      guardrailReason = `Unknown archetype "${parsed.primaryArchetype}" — defaulted to launch_strategy.`;
+    }
+
+    return {
+      primaryArchetype: primary,
+      label: ARCHETYPE_LABELS[primary],
+      secondaryArchetypes: (parsed.secondaryArchetypes || []).filter((a: string) => DECISION_ARCHETYPES[a as DecisionArchetype]),
+      decisionFraming: parsed.decisionFraming || "",
+      guardrailApplied,
+      guardrailReason,
+    };
+  } catch (e) {
+    console.error("Decision archetype classification failed, defaulting:", e);
+    return {
+      primaryArchetype: "launch_strategy",
+      label: "Launch Strategy",
+      secondaryArchetypes: [],
+      decisionFraming: "",
+      guardrailApplied: false,
+    };
+  }
+}
+
 async function classifyEnvironment(
   text: string,
   questionContext: string,
@@ -454,15 +649,31 @@ router.post("/import-project", async (req, res) => {
 
     const env = await classifyEnvironment(extractedText, "", imageBase64, imageMimeType);
     console.log(`[import-project] Environment classified: ${env.label} — ${env.rationale}`);
+
+    const archetype = await classifyDecisionArchetype(extractedText, env.label, imageBase64, imageMimeType);
+    console.log(`[import-project] Decision archetype: ${archetype.label} — ${archetype.decisionFraming}${archetype.guardrailApplied ? ` [GUARDRAIL: ${archetype.guardrailReason}]` : ""}`);
+
     const lib = SIGNAL_LIBRARIES[env.context];
+
+    const archetypeInstruction = `
+DECISION ARCHETYPE CLASSIFICATION (use this to frame the question):
+Primary Archetype: ${archetype.label}
+${archetype.secondaryArchetypes.length > 0 ? `Secondary Archetypes: ${archetype.secondaryArchetypes.map(a => ARCHETYPE_LABELS[a as DecisionArchetype] || a).join(", ")}` : ""}
+Decision Framing: ${archetype.decisionFraming}
+${archetype.guardrailApplied ? `GUARDRAIL APPLIED: ${archetype.guardrailReason}` : ""}
+
+MANDATORY FRAMING RULE: The decision question you generate MUST align with the "${archetype.label}" archetype. Frame the question around the strategic decision described by the archetype, NOT around surface-level document format.
+${archetype.primaryArchetype !== "vendor_selection" ? `
+VENDOR/AGENCY PROHIBITION: The archetype is "${archetype.label}", NOT "Vendor Selection". Do NOT frame the decision question as "which agency/vendor to select" or "how to choose an agency." Agency/vendor selection is a downstream operational decision, not the primary strategic question. The question must focus on the strategic outcome: e.g., "What strategy will maximize the probability of a successful launch?" not "Which agency should be selected to support the launch?"` : ""}`;
 
     const systemPrompt = `You are a decision intelligence analyst specializing in ${env.label} environments. You receive unstructured project materials and extract a structured forecasting case from them.
 
 DETECTED DECISION ENVIRONMENT: ${env.label}
 ${env.rationale}
+${archetypeInstruction}
 
 Your job:
-1. Identify the core DECISION QUESTION the materials are about
+1. Identify the core DECISION QUESTION the materials are about — guided by the archetype classification above. The question must be about the STRATEGIC OUTCOME, not about procurement or vendor selection unless the archetype is explicitly "Vendor Selection"
 2. Extract KEY SIGNALS — concrete facts, data points, or observations from the materials
 3. Identify MISSING SIGNALS — things the team should investigate but aren't in the materials
 4. Determine the subject (brand/therapy/product), outcome, time horizon, and question type
@@ -621,6 +832,13 @@ Do NOT skip readable text. If text is partially obscured or low resolution, extr
         context: env.context,
         label: env.label,
         rationale: env.rationale,
+      },
+      decisionArchetype: {
+        primary: archetype.label,
+        secondary: archetype.secondaryArchetypes.map(a => ARCHETYPE_LABELS[a as DecisionArchetype] || a),
+        framing: archetype.decisionFraming,
+        guardrailApplied: archetype.guardrailApplied,
+        guardrailReason: archetype.guardrailReason || null,
       },
     });
   } catch (err) {
@@ -884,20 +1102,36 @@ router.post("/import-project/bundle", bundleUpload.array("files", 20), async (re
       primaryImage?.imageMimeType || null,
     );
     console.log(`[bundle] Environment classified: ${env.label} — ${env.rationale}`);
+
+    const archetype = await classifyDecisionArchetype(combinedText, env.label, primaryImage?.imageBase64 || null, primaryImage?.imageMimeType || null);
+    console.log(`[bundle] Decision archetype: ${archetype.label} — ${archetype.decisionFraming}${archetype.guardrailApplied ? ` [GUARDRAIL: ${archetype.guardrailReason}]` : ""}`);
+
     const lib = SIGNAL_LIBRARIES[env.context];
 
     const fileManifest = fileResults.map(f => `- ${f.fileName}: ${f.textLength} characters extracted, confidence: ${f.confidence}`).join("\n");
+
+    const bundleArchetypeInstruction = `
+DECISION ARCHETYPE CLASSIFICATION (use this to frame the question):
+Primary Archetype: ${archetype.label}
+${archetype.secondaryArchetypes.length > 0 ? `Secondary Archetypes: ${archetype.secondaryArchetypes.map(a => ARCHETYPE_LABELS[a as DecisionArchetype] || a).join(", ")}` : ""}
+Decision Framing: ${archetype.decisionFraming}
+${archetype.guardrailApplied ? `GUARDRAIL APPLIED: ${archetype.guardrailReason}` : ""}
+
+MANDATORY FRAMING RULE: The decision question you synthesize MUST align with the "${archetype.label}" archetype. Frame the question around the strategic decision, NOT around surface-level document format.
+${archetype.primaryArchetype !== "vendor_selection" ? `
+VENDOR/AGENCY PROHIBITION: The archetype is "${archetype.label}", NOT "Vendor Selection". Do NOT frame the decision question as "which agency/vendor to select" or "how to choose an agency." Agency/vendor selection is a downstream operational decision, not the primary strategic question. The question must focus on the strategic outcome.` : ""}`;
 
     const systemPrompt = `You are a decision intelligence analyst specializing in ${env.label} environments. You receive a BUNDLE of project materials from multiple sources and must synthesize them into ONE unified forecasting case.
 
 DETECTED DECISION ENVIRONMENT: ${env.label}
 ${env.rationale}
+${bundleArchetypeInstruction}
 
 FILE MANIFEST:
 ${fileManifest}
 
 Your job:
-1. Read ALL source materials and synthesize the core DECISION QUESTION across the bundle
+1. Read ALL source materials and synthesize the core DECISION QUESTION across the bundle — guided by the archetype classification above. The question must be about the STRATEGIC OUTCOME, not about procurement or vendor selection unless the archetype is explicitly "Vendor Selection"
 2. Extract KEY SIGNALS from EACH source — tag every signal with its source file
 3. Identify CONTRADICTIONS between files — surface these as opposing signals with clear source attribution
 4. Identify MISSING SIGNALS — gaps the team should investigate
@@ -1065,6 +1299,13 @@ Respond in JSON:
         context: env.context,
         label: env.label,
         rationale: env.rationale,
+      },
+      decisionArchetype: {
+        primary: archetype.label,
+        secondary: archetype.secondaryArchetypes.map(a => ARCHETYPE_LABELS[a as DecisionArchetype] || a),
+        framing: archetype.decisionFraming,
+        guardrailApplied: archetype.guardrailApplied,
+        guardrailReason: archetype.guardrailReason || null,
       },
       fileManifest: fileResults.map(f => ({
         fileName: f.fileName,
