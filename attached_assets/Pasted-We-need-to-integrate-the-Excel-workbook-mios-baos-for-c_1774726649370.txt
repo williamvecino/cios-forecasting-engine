@@ -1,0 +1,380 @@
+We need to integrate the Excel workbook mios_baos_for_cios.xlsx as a behind-the-scenes upstream intelligence layer for CIOS.
+
+Objective:
+CIOS must not read raw clinical evidence or raw belief sheets directly. It must read only the structured, filtered output from the workbook and use that to populate the current forecast case.
+
+Build this in a narrow, deterministic way.
+
+1. Integration goal
+
+When a workbook is uploaded or selected, CIOS should:
+
+Read the active program from Program_Header
+Read only the rows for that active program
+Read only the signals from CIOS_Signal_Export
+Import those rows into the CIOS Signal Register / active case state
+Preserve traceability back to MIOS/BAOS source rows
+Not expose the workbook logic in the main UI unless requested
+
+CIOS is consuming interpreted signals, not running MIOS itself.
+
+2. Sheets to support
+
+Use these sheets from the workbook:
+
+Program_Header
+Belief_Bridge
+Statement_Blueprint
+Evidence_Register
+Evidence_Interpretation
+BAOS_Profile
+CIOS_Signal_Export
+Traceability_Map
+CIOS_Readiness
+
+But for forecast generation, CIOS should read directly only from:
+
+Program_Header
+CIOS_Signal_Export
+CIOS_Readiness
+
+Everything else is support and traceability.
+
+3. Active program selection rule
+
+In Program_Header, find the row where:
+
+ActiveFlag = Yes
+
+Use that row as the only active program for the current import.
+
+If multiple rows are active:
+
+fail gracefully
+show: “Workbook has multiple active programs. Select one active program before import.”
+
+If no row is active:
+
+fail gracefully
+show: “No active program found in Program_Header.”
+4. Only import CIOS-ready signals
+
+In CIOS_Signal_Export, import only rows where all of these are true:
+
+ProgramID matches active program
+ActiveFlag = Yes
+signal is not blank
+SignalLabel is populated
+Direction is populated
+Strength is populated
+Confidence is populated
+
+Optional:
+
+require WhyItMatters
+require SourceLayer
+
+If required fields are missing, skip the row and log it in import warnings.
+
+5. Map workbook columns into CIOS fields
+
+Map these workbook columns from CIOS_Signal_Export into the active forecast case:
+
+Workbook column -> CIOS field
+
+ProgramID -> programId
+Brand -> brand
+StrategicQuestion -> questionText
+SignalID -> externalSignalId
+SignalLabel -> label
+SignalCategory -> category
+Direction -> direction
+Strength -> strength
+Confidence -> confidence
+SourceLayer -> sourceLayer
+SourceReference -> sourceReference
+WhyItMatters -> rationale
+ForecastDomain -> forecastDomain
+Rank -> rank
+ActiveFlag -> isActive
+
+Do not infer missing values.
+
+6. Preserve traceability
+
+For every imported signal, also store hidden metadata:
+
+sourceWorkbook = "mios_baos_for_cios.xlsx"
+sourceSheet = "CIOS_Signal_Export"
+programId
+signalId
+sourceReference
+matching BridgeID / StatementID / EvidenceID if available via Traceability_Map
+
+This is required so later the user can click a signal and see where it came from.
+
+7. Add import mode: Replace vs Merge
+
+Add two deterministic import modes:
+
+Replace mode
+clear current active signals in the case
+import all valid workbook signals fresh
+Merge mode
+keep existing manual signals
+add imported signals that do not already exist by SignalID
+if same SignalID exists, workbook version wins
+
+Default:
+
+Replace mode
+8. Add readiness check before import
+
+Before allowing import, check CIOS_Readiness.
+
+If readiness sheet exists, read these items:
+
+workbook ready
+export ready
+active program defined
+signal export populated
+
+If any readiness item is marked not ready:
+
+show warning
+allow user to continue only if they explicitly confirm
+
+If the sheet does not exist:
+
+continue, but show “Readiness sheet not found.”
+9. Do not let CIOS read upstream raw sheets for judgment
+
+Important rule:
+
+CIOS must not use:
+
+Belief_Bridge
+Statement_Blueprint
+Evidence_Register
+Evidence_Interpretation
+BAOS_Profile
+
+for direct scoring or direct forecast logic.
+
+Those sheets exist for:
+
+traceability
+signal provenance
+future explainability
+
+Forecast logic must only use the imported signal set.
+
+10. Add an import summary panel
+
+After import, show a compact summary:
+
+Program imported
+Brand
+Strategic question
+Number of signals imported
+Positive signals
+Negative signals
+Top 5 by rank
+Import warnings count
+
+Example:
+
+Imported program: ARIKAYCE first-line MAC
+Signals imported: 11
+Positive: 7
+Negative: 4
+Warnings: 2 skipped rows due to missing Strength
+
+11. Add a signal provenance drawer
+
+When the user clicks any imported signal, show a small provenance panel:
+
+Signal label
+Source layer
+Source reference
+Why it matters
+Rank
+If available: related bridge / statement / evidence IDs
+
+Do not show the full workbook unless explicitly requested.
+
+12. Graceful failure rules
+
+Fail gracefully in these cases:
+
+Missing workbook
+
+Show:
+“No MIOS/BAOS workbook found.”
+
+Missing required sheets
+
+Show:
+“Workbook is missing required sheet: CIOS_Signal_Export.”
+
+Multiple active programs
+
+Show:
+“Multiple active programs found. Set only one ActiveFlag = Yes.”
+
+No valid export rows
+
+Show:
+“No valid CIOS signals found for the active program.”
+
+Invalid field values
+
+Show warnings, skip invalid rows, continue import if enough valid rows remain.
+
+Never crash the forecast page.
+
+13. Technical implementation plan
+
+Build these components:
+
+Parser
+
+lib/workbook/parseMiosBaosWorkbook.ts
+
+reads xlsx
+validates required sheets
+extracts active program
+extracts export rows
+extracts readiness rows
+returns normalized JSON
+Normalizer
+
+lib/workbook/normalizeCiosSignals.ts
+
+converts workbook values into CIOS enums/fields
+validates strength/direction/confidence
+sorts by rank ascending or descending as defined
+Import service
+
+lib/cios/importSignalsFromWorkbook.ts
+
+handles Replace or Merge mode
+writes normalized signals into current case state
+records import summary
+UI entry point
+
+Add button in Step 2 / Add Information:
+Import MIOS / BAOS Signals
+
+Clicking it:
+
+uploads or selects workbook
+runs parser
+shows import summary
+lets user confirm
+writes signals into case
+14. Enum normalization rules
+
+Normalize these values strictly:
+
+Direction:
+
+Supports adoption
+Slows adoption
+Positive
+Negative
+Neutral
+
+Map to CIOS canonical values only.
+
+Strength:
+
+Dominant
+High
+Moderate
+Low
+Weak
+
+Map to numeric weight or current CIOS scale.
+
+Confidence:
+
+High
+Moderate
+Low
+
+Do not allow free text to flow into the scoring engine.
+
+15. Ranking rule
+
+Use workbook Rank if present.
+
+If Rank is missing:
+
+sort by strength descending, then confidence descending
+mark imported row with warning: “Rank missing; fallback sort used.”
+
+Do not invent a complex ranking algorithm here.
+
+16. Current question alignment rule
+
+If StrategicQuestion in the workbook does not match the current CIOS case question:
+
+Show warning:
+“Workbook strategic question differs from current case question.”
+
+Options:
+
+import anyway
+create new case from workbook question
+
+Default:
+
+import anyway with warning
+17. Keep the architecture clean
+
+This is the key rule:
+
+Workbook = upstream interpreted intelligence
+CIOS = downstream decision engine
+
+Do not add raw evidence interpretation into CIOS during this integration.
+
+The workbook integration is an input adapter, not a rewrite of the forecast engine.
+
+18. Definition of done
+
+This integration is complete when:
+
+User can import mios_baos_for_cios.xlsx
+CIOS finds the active program automatically
+CIOS imports only valid rows from CIOS_Signal_Export
+Signals appear in Step 2 / Add Information
+Forecast runs using those imported signals
+Each imported signal has provenance metadata
+Errors fail gracefully
+No raw MIOS/BAOS sheets are used directly in forecast math
+19. First test case
+
+Use the uploaded workbook and verify:
+
+one active program is detected
+exported signals load into Step 2
+imported signals preserve rank and direction
+Judge page uses imported signals
+clicking a signal shows source layer and rationale
+removing one required field causes warning, not crash
+20. Keep this narrow
+
+Do not build:
+
+full MIOS execution in app
+full BAOS execution in app
+dynamic statement generation
+evidence search from workbook
+automatic belief bridge generation
+
+This task is only:
+import workbook -> normalize signals -> run CIOS
+
+If you want, I can also give you a second paste-ready block with the exact JSON shape Replit should return from the workbook parser.

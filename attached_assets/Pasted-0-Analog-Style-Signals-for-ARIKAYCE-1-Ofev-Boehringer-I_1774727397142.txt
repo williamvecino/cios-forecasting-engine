@@ -1,0 +1,169 @@
+0 Analog-Style Signals for ARIKAYCE
+1) Ofev — Boehringer Ingelheim
+
+SignalLabel: Slowing disease progression without immediate symptom relief required expectation reframing
+SignalCategory: Analog — Symptom vs Disease Control
+Direction: Slows early adoption
+Strength: High
+Confidence: High
+WhyItMatters: Physicians initially hesitated because patients did not feel dramatically better, even though disease progression slowed.
+AnalogLesson: When clinical benefit is biologically meaningful but not strongly perceptible, adoption depends on physician understanding rather than patient experience.
+
+2) Trikafta — Vertex Pharmaceuticals
+
+SignalLabel: Durable physiologic improvement drove rapid adoption despite variability in symptom response
+SignalCategory: Analog — Durable Response Credibility
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Durable improvement in lung function created strong confidence even when individual symptoms varied.
+AnalogLesson: Durable objective outcomes can outweigh imperfect symptom consistency.
+
+3) Esbriet — Genentech
+
+SignalLabel: Modest symptom benefit but clear disease-modifying effect required education to drive uptake
+SignalCategory: Analog — Evidence Interpretation
+Direction: Slows early adoption
+Strength: Moderate
+Confidence: High
+WhyItMatters: Physicians needed reassurance that slowing decline was clinically meaningful even without dramatic symptom relief.
+AnalogLesson: Adoption accelerates when clinicians understand the clinical significance of stabilization.
+
+4) Repatha — Amgen
+
+SignalLabel: Strong biomarker improvement preceded widespread confidence in clinical outcomes
+SignalCategory: Analog — Evidence Maturity
+Direction: Slows early adoption
+Strength: High
+Confidence: High
+WhyItMatters: Clinicians waited for outcome confirmation before changing prescribing behavior.
+AnalogLesson: Objective signal strength alone does not guarantee immediate adoption.
+
+5) Dupixent — Sanofi / Regeneron
+
+SignalLabel: Consistent improvement across multiple endpoints built rapid confidence in treatment value
+SignalCategory: Analog — Endpoint Consistency
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Alignment between symptom improvement and objective measures reinforced trust.
+AnalogLesson: Consistency across domains accelerates adoption.
+
+6) Entresto — Novartis
+
+SignalLabel: Mortality benefit did not immediately overcome physician inertia
+SignalCategory: Analog — Clinical Inertia
+Direction: Slows adoption
+Strength: High
+Confidence: High
+WhyItMatters: Even strong outcome data required time for clinicians to change established practice patterns.
+AnalogLesson: Evidence strength alone does not eliminate behavior change friction.
+
+7) Spinraza — Biogen
+
+SignalLabel: Transformational efficacy outweighed concerns about administration burden
+SignalCategory: Analog — Benefit vs Burden
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Clear clinical benefit justified logistical complexity.
+AnalogLesson: When benefit is perceived as meaningful, operational barriers become secondary.
+
+8) Xeljanz — Pfizer
+
+SignalLabel: Safety signal emergence reduced clinician confidence despite strong efficacy
+SignalCategory: Analog — Risk Perception
+Direction: Slows adoption
+Strength: High
+Confidence: High
+WhyItMatters: Risk perception can outweigh positive efficacy signals.
+AnalogLesson: A single negative signal can disproportionately influence adoption behavior.
+
+9) Kalydeco — Vertex Pharmaceuticals
+
+SignalLabel: Targeted efficacy in a defined population accelerated physician confidence
+SignalCategory: Analog — Population Targeting
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Clear patient selection criteria reduced uncertainty in prescribing decisions.
+AnalogLesson: Precision targeting strengthens early adoption.
+
+10) Zolgensma — Novartis
+
+SignalLabel: High perceived clinical value overcame initial payer hesitation
+SignalCategory: Analog — Value vs Access
+Direction: Supports adoption
+Strength: Moderate
+Confidence: Moderate
+WhyItMatters: Strong perceived benefit can drive system-level alignment.
+AnalogLesson: High clinical value can resolve structural barriers over time.
+
+Why these analogs are specifically relevant to ARIKAYCE
+
+They share one or more of the following structural patterns:
+
+Strong objective outcomes with mixed symptom signals
+Disease stabilization rather than dramatic symptom change
+Endpoint asymmetry requiring interpretation
+Behavior change lag despite positive evidence
+Adoption shaped by perception, not data alone
+
+That is the exact pattern you identified with:
+
+Fatigue not significant
+Durability very strong
+
+How these should be used in your system
+
+In the workbook:
+
+Sheet:
+
+CIOS_Signal_Export
+
+Add:
+
+SourceLayer = Analog
+
+Then CIOS can do three things:
+
+recognize comparable precedent
+estimate adoption trajectory more realistically
+explain its reasoning transparently
+Example of how one analog would appear in the system
+
+SignalLabel
+Expectation reframing required when symptom improvement is limited
+
+SourceLayer
+Analog
+
+AnalogBrand
+Ofev
+
+AnalogCompany
+Boehringer Ingelheim
+
+Direction
+Slows early adoption
+
+Strength
+High
+
+Confidence
+High
+
+WhyItMatters
+Disease control benefit must be understood even if symptom relief is modest
+
+The strategic value
+
+These analog signals help CIOS answer questions like:
+
+Why is adoption slower than expected?
+Is this a perception problem or an evidence problem?
+Will adoption recover over time?
+What behavior change is required?
+
+That is where analogs become powerful — not as examples, but as behavioral precedent.

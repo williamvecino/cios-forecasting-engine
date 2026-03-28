@@ -1,0 +1,214 @@
+A. 10 MIOS-derived signals using real brands
+
+(Evidence / clinical / positioning signals)
+
+1) Entresto — Novartis
+
+SignalLabel: Mortality and hospitalization reduction established strong outcome credibility
+SignalCategory: Evidence Positioning
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Demonstrated survival benefit shifted heart failure treatment from symptomatic control to outcome modification
+
+2) Repatha — Amgen
+
+SignalLabel: LDL reduction was dramatic but early outcome evidence lag created adoption hesitation
+SignalCategory: Evidence Maturity
+Direction: Slows adoption
+Strength: Moderate
+Confidence: High
+WhyItMatters: Strong biomarker effect alone was insufficient until cardiovascular outcomes data matured
+
+3) Dupixent — Sanofi / Regeneron
+
+SignalLabel: Consistent efficacy across multiple inflammatory endpoints strengthened platform credibility
+SignalCategory: Evidence Consistency
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Multi-indication success created perception of a dependable mechanism rather than a niche therapy
+
+4) Keytruda — Merck & Co.
+
+SignalLabel: Durable survival benefit established trust in immunotherapy mechanism
+SignalCategory: Evidence Durability
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Durable response shifted oncology practice patterns toward checkpoint inhibitors
+
+5) Ofev — Boehringer Ingelheim
+
+SignalLabel: Slowing disease progression without symptom reversal required reframing clinical expectations
+SignalCategory: Evidence Interpretation
+Direction: Slows adoption
+Strength: Moderate
+Confidence: High
+WhyItMatters: Benefit was meaningful but not immediately perceptible to patients
+
+6) Spinraza — Biogen
+
+SignalLabel: Transformational efficacy in rare disease justified rapid adoption despite high cost
+SignalCategory: Evidence Impact
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Magnitude of benefit outweighed economic barriers
+
+7) Trikafta — Vertex Pharmaceuticals
+
+SignalLabel: Broad genotype coverage dramatically expanded eligible patient population
+SignalCategory: Population Expansion
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Expanded eligibility accelerated market penetration
+
+8) Zepbound — Eli Lilly
+
+SignalLabel: Weight loss magnitude exceeded historical expectations for pharmacologic therapy
+SignalCategory: Evidence Differentiation
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Effect size reset clinician expectations for obesity treatment
+
+9) Jardiance — Boehringer Ingelheim
+
+SignalLabel: Cardiovascular mortality reduction expanded positioning beyond glycemic control
+SignalCategory: Evidence Expansion
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Outcome benefit redefined therapeutic value proposition
+
+10) Xeljanz — Pfizer
+
+SignalLabel: Safety signal emergence constrained long-term adoption trajectory
+SignalCategory: Safety Risk
+Direction: Slows adoption
+Strength: High
+Confidence: High
+WhyItMatters: Risk perception can override efficacy in chronic disease settings
+
+B. 10 BAOS-derived signals using real brands
+
+(Behavioral / adoption / perception signals)
+
+1) Entresto — Novartis
+
+SignalLabel: Physician inertia slowed switching from ACE inhibitors despite superior outcomes
+SignalCategory: Habit / Inertia
+Direction: Slows adoption
+Strength: High
+Confidence: High
+WhyItMatters: Clinical superiority does not automatically overcome established prescribing routines
+
+2) Repatha — Amgen
+
+SignalLabel: Prior authorization complexity reduced prescribing enthusiasm
+SignalCategory: Access Friction
+Direction: Slows adoption
+Strength: High
+Confidence: High
+WhyItMatters: Administrative burden can suppress uptake regardless of clinical value
+
+3) Dupixent — Sanofi
+
+SignalLabel: Visible patient improvement reinforced clinician confidence and accelerated adoption
+SignalCategory: Behavioral Reinforcement
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Observable benefit strengthens prescribing momentum
+
+4) Keytruda — Merck & Co.
+
+SignalLabel: Strong KOL advocacy normalized checkpoint inhibitor use
+SignalCategory: Stakeholder Influence
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Expert endorsement accelerates guideline acceptance
+
+5) Ofev — Boehringer Ingelheim
+
+SignalLabel: Patient perception of limited symptom improvement reduced adherence motivation
+SignalCategory: Patient Perception
+Direction: Slows adoption
+Strength: Moderate
+Confidence: High
+WhyItMatters: Lack of felt benefit can weaken persistence
+
+6) Spinraza — Biogen
+
+SignalLabel: Parent advocacy created strong demand pressure for early treatment
+SignalCategory: Stakeholder Pressure
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Advocacy groups can accelerate therapy uptake
+
+7) Trikafta — Vertex Pharmaceuticals
+
+SignalLabel: Rapid visible improvement created strong word-of-mouth momentum among patients
+SignalCategory: Social Proof
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: Peer experience strongly influences treatment demand
+
+8) Zepbound — Eli Lilly
+
+SignalLabel: High patient demand exceeded supply capacity, constraining adoption speed
+SignalCategory: Operational Constraint
+Direction: Slows adoption
+Strength: High
+Confidence: High
+WhyItMatters: Supply limitations can cap early uptake
+
+9) Jardiance — Boehringer Ingelheim
+
+SignalLabel: Cardiologist adoption expanded use beyond endocrinology
+SignalCategory: Specialty Expansion
+Direction: Supports adoption
+Strength: High
+Confidence: High
+WhyItMatters: New prescriber segments increase growth velocity
+
+10) Xeljanz — Pfizer
+
+SignalLabel: Safety warnings increased clinician caution in long-term prescribing
+SignalCategory: Risk Perception
+Direction: Slows adoption
+Strength: High
+Confidence: High
+WhyItMatters: Risk perception can quickly change prescribing behavior
+
+Why this matters for your system
+
+Using real brands does three important things:
+
+Anchors signals in observable history
+Improves analog credibility
+Enables calibration later
+How these should be used in your architecture
+
+MIOS produces signals like:
+
+Evidence strength
+Endpoint asymmetry
+Claim vulnerability
+
+BAOS produces signals like:
+
+Objection risk
+Perception friction
+Behavioral inertia
+
+CIOS then evaluates:
+
+Impact on adoption
+Impact on timing
+Impact on confidence

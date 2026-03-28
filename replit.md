@@ -47,6 +47,7 @@ The CIOS platform is built as a monorepo using pnpm workspaces. The frontend is 
 - **Simulate Adoption Reaction:** Allows testing segment responses to materials.
 - **Extraction Validation Framework:** A platform-wide reliability layer ensuring minimally viable case generation through graceful degradation.
 - **Assumption Registry (DB-backed):** Automatically extracts and tracks all inferred/explicit assumptions.
+- **MIOS/BAOS Workbook Import:** Client-side Excel workbook parser (`artifacts/cios-frontend/src/lib/workbook/`) that ingests MIOS/BAOS workbooks as upstream signal adapters. Parses `Program_Header`, `CIOS_Signal_Export`, `CIOS_Readiness`, and `Traceability_Map` sheets (header-in-row-2 pattern). Normalizes direction/strength/confidence/category enums with strict validation (unknown values are skipped). Supports Replace (full clear) and Merge (update existing + add new) import modes. Each imported signal carries `workbook_meta` provenance (signalId, sourceLayer, sourceReference, whyItMatters, traceability chain). UI includes `WorkbookImportDialog` (drag-drop upload, parse summary, readiness checks, question mismatch detection) and `SignalProvenanceDrawer` (traceability chain visualization). Signal cards show MIOS/BAOS badge with clickable provenance link.
 
 ## External Dependencies
 - **PostgreSQL:** Relational database management system.

@@ -41,9 +41,13 @@ import {
   Lock,
   Upload,
   Search,
+  FileSpreadsheet,
 } from "lucide-react";
 import DataImportDialog from "@/components/signals/DataImportDialog";
+import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog";
+import { SignalProvenanceDrawer } from "@/components/signals/SignalProvenanceDrawer";
 import type { ImportedRow } from "@/lib/data-import";
+import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 
 type Direction = "positive" | "negative" | "neutral";
 type Strength = "High" | "Medium" | "Low";
@@ -133,6 +137,7 @@ interface Signal {
   conflict_with?: string;
   superseded_by?: string;
   superseded?: boolean;
+  workbook_meta?: WorkbookMeta;
 }
 
 interface IncomingEvent {
@@ -776,6 +781,8 @@ export default function SignalsPage() {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showWorkbookImport, setShowWorkbookImport] = useState(false);
+  const [provenanceSignal, setProvenanceSignal] = useState<Signal | null>(null);
   const [showFindPanel, setShowFindPanel] = useState(false);
   const [findKeywords, setFindKeywords] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1058,6 +1065,23 @@ export default function SignalsPage() {
     setNewStrength("Medium");
     setNewReliability("Probable");
     setShowAddForm(false);
+  }
+
+  function handleWorkbookImport(importedSignals: any[]) {
+    const existingIds = new Set(signals.map((s: any) => s.workbook_meta?.signalId).filter(Boolean));
+    const newOrUpdated = importedSignals.filter((s: any) => {
+      const wbId = s.workbook_meta?.signalId;
+      return wbId && !existingIds.has(wbId);
+    });
+
+    setSignals(() => {
+      persistSignals(importedSignals);
+      if (importedSignals.length > 0) {
+        setTimeout(() => triggerGateRecalculation(importedSignals, `Imported ${importedSignals.length} workbook signals`), 0);
+      }
+      newOrUpdated.forEach((sig: any) => persistSignalToDb(sig));
+      return importedSignals;
+    });
   }
 
   function handleImportedRows(rows: ImportedRow[]) {
@@ -1372,6 +1396,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
+                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
                       />
                     ))}
                   </div>
@@ -1396,6 +1421,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
+                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
                       />
                     ))}
                   </div>
@@ -1420,6 +1446,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
+                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
                       />
                     ))}
                   </div>
@@ -1447,6 +1474,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
+                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
                       />
                     ))}
                   </div>
@@ -1467,6 +1495,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
+                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
                       />
                     ))}
                   </div>
@@ -1493,6 +1522,7 @@ export default function SignalsPage() {
                     onDismiss={() => dismissSignal(sig.id)}
                     onUpdate={(u) => updateSignal(sig.id, u)}
                     outcomeLabel={outcome || "outcome"}
+                    onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
                   />
                 ))}
               </div>
@@ -1527,6 +1557,14 @@ export default function SignalsPage() {
               >
                 <Upload className="w-4 h-4" />
                 Import Data
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWorkbookImport(true)}
+                className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/5 px-4 py-3 text-sm text-violet-300 hover:bg-violet-500/10 hover:border-violet-500/50 transition"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Import MIOS / BAOS
               </button>
               <button
                 type="button"
@@ -1721,6 +1759,21 @@ export default function SignalsPage() {
         onImport={handleImportedRows}
         activeQuestion={questionText}
       />
+      <WorkbookImportDialog
+        open={showWorkbookImport}
+        onClose={() => setShowWorkbookImport(false)}
+        activeQuestionText={questionText}
+        existingSignals={signals}
+        onImportComplete={handleWorkbookImport}
+      />
+      {provenanceSignal?.workbook_meta && (
+        <SignalProvenanceDrawer
+          open={true}
+          onClose={() => setProvenanceSignal(null)}
+          signalLabel={provenanceSignal.text}
+          meta={provenanceSignal.workbook_meta}
+        />
+      )}
     </WorkflowLayout>
   );
 }
@@ -1733,6 +1786,7 @@ function MinimalSignalCard({
   onDismiss,
   onUpdate,
   outcomeLabel,
+  onShowProvenance,
 }: {
   signal: Signal;
   editing: boolean;
@@ -1741,11 +1795,24 @@ function MinimalSignalCard({
   onDismiss: () => void;
   onUpdate: (u: Partial<Signal>) => void;
   outcomeLabel: string;
+  onShowProvenance?: () => void;
 }) {
   return (
-    <div className={`rounded-xl border border-border bg-card p-5 ${signal.superseded ? "opacity-40" : ""}`}>
+    <div className={`rounded-xl border ${signal.workbook_meta ? "border-violet-500/20" : "border-border"} bg-card p-5 ${signal.superseded ? "opacity-40" : ""}`}>
       {signal.superseded && (
         <div className="text-xs text-muted-foreground mb-2">Superseded by newer evidence</div>
+      )}
+      {signal.workbook_meta && (
+        <button
+          type="button"
+          onClick={onShowProvenance}
+          className="flex items-center gap-1.5 mb-2 text-[10px] text-violet-400 hover:text-violet-300 transition-colors cursor-pointer"
+        >
+          <FileSpreadsheet className="w-3 h-3" />
+          <span className="font-semibold uppercase tracking-wider">MIOS/BAOS</span>
+          <span className="text-violet-400/50">·</span>
+          <span className="text-violet-400/70">{signal.workbook_meta.signalId}</span>
+        </button>
       )}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
