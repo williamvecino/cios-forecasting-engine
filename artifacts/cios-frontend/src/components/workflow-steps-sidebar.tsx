@@ -8,6 +8,7 @@ const STEPS = [
   { key: "forecast", label: "Judge", path: "/forecast" },
   { key: "decide", label: "Decide", path: "/decide" },
   { key: "respond", label: "Respond", path: "/respond" },
+  { key: "simulate", label: "Simulate", path: "/simulate" },
 ] as const;
 
 interface Props {

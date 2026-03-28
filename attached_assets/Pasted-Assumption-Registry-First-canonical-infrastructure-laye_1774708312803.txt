@@ -1,0 +1,226 @@
+Assumption Registry
+
+First canonical infrastructure layer
+
+This is the foundation. Everything else depends on it.
+
+What It Is
+
+The Assumption Registry is a structured record of what the system is implicitly assuming when it generates a forecast or recommendation.
+
+Not opinions.
+Not signals.
+Not outputs.
+
+Assumptions are the conditions that must be true for the forecast to hold.
+
+Why This Is Critical
+
+Without this layer:
+
+decisions cannot be audited
+forecasts cannot be recalibrated
+disagreements cannot be resolved
+trust cannot scale
+
+Every executive decision system requires this.
+
+Where It Runs
+
+Behind the scenes.
+
+Not a workflow step.
+Not a visible screen.
+
+But the outputs must be accessible when needed.
+
+When It Triggers
+
+Automatically.
+
+The system should create or update assumptions when:
+
+a forecast is generated
+a constraint is identified
+a recommendation is produced
+a scenario is run
+Example — From Your Current Case
+
+Decision:
+
+Adoption likely constrained in first 6 months.
+
+Underlying assumptions:
+
+Payer coverage remains unresolved
+Clinic staffing capacity remains limited
+Secondary supplier validation is pending
+Guideline update not yet issued
+
+These assumptions must be recorded.
+
+Required Data Structure
+
+Create a table called:
+
+assumption_registry
+
+Fields
+
+assumption_id
+case_id
+assumption_statement
+assumption_category
+assumption_status
+confidence_level
+source_type
+last_updated
+owner
+impact_level
+
+Field Definitions
+
+assumption_statement
+Clear sentence describing the assumption.
+
+Example:
+
+National payer coverage will not be fully resolved before launch.
+
+assumption_category
+
+Allowed values:
+
+regulatory
+payer
+supply
+workflow
+clinical
+competitive
+operational
+timeline
+
+assumption_status
+
+Allowed values:
+
+active
+validated
+invalidated
+unknown
+
+confidence_level
+
+Allowed values:
+
+high
+moderate
+low
+
+source_type
+
+Allowed values:
+
+signal
+inference
+external_data
+user_input
+historical_pattern
+
+impact_level
+
+Allowed values:
+
+high
+moderate
+low
+
+How the System Should Populate It
+
+Automatically extract assumptions from:
+
+Primary constraints
+Gates
+Forecast logic
+Decision recommendations
+
+Example Record
+
+assumption_id: A-001
+case_id: CASE-ONC-001
+
+assumption_statement:
+Payer coverage approvals will be staggered across regions
+
+assumption_category:
+payer
+
+assumption_status:
+active
+
+confidence_level:
+moderate
+
+source_type:
+inference
+
+impact_level:
+high
+
+Behavioral Rules
+
+Rule 1
+
+Every forecast must generate at least one assumption.
+
+Rule 2
+
+Every primary constraint must create an assumption.
+
+Rule 3
+
+Every recommendation must depend on at least one assumption.
+
+Rule 4
+
+If an assumption changes status, the forecast must be recalculated.
+
+UI Visibility
+
+Hidden by default.
+
+But accessible via:
+
+View Assumptions
+
+Minimal UI Panel
+
+Assumptions Behind This Decision
+
+Example:
+
+Payer coverage remains unresolved — High impact
+Secondary supplier validation pending — Moderate impact
+Guideline update not expected before Q3 — High impact
+
+Why This Matters Operationally
+
+Because when reality changes, the system must know which assumption broke.
+
+Not which signal changed.
+
+Example — Real Trigger
+
+Event:
+
+National coverage approved.
+
+System response:
+
+Find matching assumption.
+
+Change status:
+
+active → validated
+
+Recalculate forecast.

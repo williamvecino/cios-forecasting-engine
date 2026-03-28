@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
@@ -7,19 +7,19 @@ import {
   AlertTriangle,
   Upload,
   Play,
-  ArrowLeft,
   FileText,
   Image as ImageIcon,
   X,
 } from "lucide-react";
-import { Link } from "wouter";
 
-const SEGMENTS = [
-  { key: "Early Adopters", description: "First movers who act on clinical data alone" },
-  { key: "Persuadables", description: "Open to adoption when key barriers are resolved" },
-  { key: "Late Movers", description: "Adopt only after widespread institutional validation" },
-  { key: "Resistant", description: "Unlikely to adopt without compelling systemic change" },
-];
+interface ArchetypeInfo {
+  segment_name: string;
+  primary_archetype: { archetype_name: string; confidence: string };
+  secondary_archetype: { archetype_name: string; confidence: string } | null;
+  why_assigned: string;
+  likely_triggers: string[];
+  likely_barriers: string[];
+}
 
 interface SimulationResult {
   adoption_likelihood: number;
@@ -29,6 +29,13 @@ interface SimulationResult {
   trigger_condition: string;
   material_effectiveness: string;
 }
+
+const SEGMENTS = [
+  { key: "Early Adopters", color: "emerald" },
+  { key: "Persuadables", color: "blue" },
+  { key: "Late Movers", color: "amber" },
+  { key: "Resistant", color: "rose" },
+];
 
 function getApiBase() {
   if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
@@ -45,10 +52,33 @@ export default function SimulatePage() {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const hasInput = selectedSegment && (materialText.trim() || file);
+
+  useEffect(() => {
+    if (!caseId) {
+      setArchetypes([]);
+      return;
+    }
+    try {
+      const decide = localStorage.getItem(`cios.decideResult:${caseId}`);
+      if (decide) {
+        const parsed = JSON.parse(decide);
+        setArchetypes(parsed.archetype_assignments?.length ? parsed.archetype_assignments : []);
+      } else {
+        setArchetypes([]);
+      }
+    } catch {
+      setArchetypes([]);
+    }
+  }, [caseId]);
+
+  const selectedArchetype = archetypes.find(
+    a => a.segment_name.toLowerCase() === selectedSegment?.toLowerCase()
+  );
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -104,6 +134,7 @@ export default function SimulatePage() {
 
       const contextData: Record<string, any> = {
         segment: selectedSegment,
+        archetype: selectedArchetype?.primary_archetype?.archetype_name || null,
         questionText: activeQuestion.text,
         subject: activeQuestion.subject || activeQuestion.text,
         timeHorizon: activeQuestion.timeHorizon || "12 months",
@@ -171,20 +202,27 @@ export default function SimulatePage() {
     return "text-rose-400 bg-rose-400/10 border-rose-400/30";
   }
 
+  const segmentColor = (key: string) => {
+    const s = SEGMENTS.find(s => s.key === key);
+    if (!s) return { border: "border-primary", bg: "bg-primary/10", text: "text-primary" };
+    const c = s.color;
+    return {
+      border: `border-${c}-400/40`,
+      bg: `bg-${c}-400/10`,
+      text: `text-${c}-400`,
+    };
+  };
+
   return (
-    <WorkflowLayout currentStep="respond" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
+    <WorkflowLayout currentStep="simulate" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
       <QuestionGate activeQuestion={activeQuestion}>
         <div className="max-w-3xl mx-auto space-y-6">
-          <div className="flex items-center gap-3">
-            <Link href="/respond" className="text-muted-foreground hover:text-foreground transition">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Simulate Adoption Reaction</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Test how a segment responds to specific materials given current constraints.
-              </p>
-            </div>
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 6</p>
+            <h1 className="text-xl font-bold text-foreground">Simulate Adoption Reaction</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Test how a defined segment responds to specific materials under current constraints.
+            </p>
           </div>
 
           {!result && !loading && (
@@ -192,22 +230,57 @@ export default function SimulatePage() {
               <section>
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Select Segment</h2>
                 <div className="grid grid-cols-2 gap-3">
-                  {SEGMENTS.map(seg => (
-                    <button
-                      key={seg.key}
-                      onClick={() => setSelectedSegment(seg.key)}
-                      className={`text-left rounded-xl border px-4 py-3 transition ${
-                        selectedSegment === seg.key
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
-                      }`}
-                    >
-                      <p className="text-sm font-semibold">{seg.key}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{seg.description}</p>
-                    </button>
-                  ))}
+                  {SEGMENTS.map(seg => {
+                    const arch = archetypes.find(a => a.segment_name === seg.key);
+                    const selected = selectedSegment === seg.key;
+                    return (
+                      <button
+                        key={seg.key}
+                        onClick={() => setSelectedSegment(seg.key)}
+                        className={`text-left rounded-xl border px-4 py-3 transition ${
+                          selected
+                            ? "border-primary bg-primary/10"
+                            : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                        }`}
+                      >
+                        <p className={`text-sm font-semibold ${selected ? "text-primary" : "text-foreground"}`}>{seg.key}</p>
+                        {arch && (
+                          <p className="text-[11px] text-violet-400 mt-0.5">{arch.primary_archetype.archetype_name}</p>
+                        )}
+                        {!arch && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">No archetype assigned</p>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
+
+              {selectedSegment && selectedArchetype && (
+                <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">{selectedSegment}</span>
+                      <span className="text-[10px] text-muted-foreground">·</span>
+                      <span className="text-xs font-semibold text-violet-300">{selectedArchetype.primary_archetype.archetype_name}</span>
+                    </div>
+                    {selectedArchetype.secondary_archetype && (
+                      <span className="text-[10px] text-muted-foreground/60">
+                        Also: {selectedArchetype.secondary_archetype.archetype_name}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-muted-foreground leading-relaxed">{selectedArchetype.why_assigned}</p>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {selectedArchetype.likely_triggers.slice(0, 2).map((t, i) => (
+                      <span key={i} className="text-[11px] text-emerald-400/80">↑ {t}</span>
+                    ))}
+                    {selectedArchetype.likely_barriers.slice(0, 2).map((b, i) => (
+                      <span key={i} className="text-[11px] text-rose-400/80">↓ {b}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <section>
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Upload Material</h2>
@@ -243,15 +316,13 @@ export default function SimulatePage() {
                     </div>
                   )}
 
-                  <div className="relative">
-                    <textarea
-                      value={materialText}
-                      onChange={e => setMaterialText(e.target.value)}
-                      placeholder="Or paste message text, talking points, or key claims here..."
-                      rows={4}
-                      className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
-                  </div>
+                  <textarea
+                    value={materialText}
+                    onChange={e => setMaterialText(e.target.value)}
+                    placeholder="Or paste message text, talking points, or key claims here..."
+                    rows={4}
+                    className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
                 </div>
               </section>
 
@@ -292,6 +363,12 @@ export default function SimulatePage() {
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Segment:</span>
                   <span className="text-sm font-semibold text-foreground">{selectedSegment}</span>
+                  {selectedArchetype && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span className="text-xs font-semibold text-violet-400">{selectedArchetype.primary_archetype.archetype_name}</span>
+                    </>
+                  )}
                 </div>
                 <button
                   onClick={reset}

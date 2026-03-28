@@ -3,6 +3,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { researchBrand } from "../lib/web-research";
 import { deriveDecisions, type ForecastGate, type DerivedDecisions, type DecisionItem } from "../lib/decision-derivation";
 import { validateDecisionIntegrity, type IntegrityReport } from "../lib/decision-integrity-validator";
+import { assignArchetypesForSegmentation } from "../lib/archetype-assignment";
 
 const router = Router();
 
@@ -172,11 +173,23 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         }
       }
 
+      let archetypeAssignments = null;
+      try {
+        const seg = aiContext.adoption_segmentation;
+        if (seg) {
+          const gateInfos = gates.map(g => ({ gate_label: g.gate_label, status: g.status, reasoning: g.reasoning }));
+          archetypeAssignments = assignArchetypesForSegmentation(seg, gateInfos);
+        }
+      } catch (arcErr: any) {
+        console.error("[ai-decide] Archetype assignment failed (non-blocking):", arcErr.message);
+      }
+
       res.json({
         mode: "forecast_derived",
         derived_decisions: derived,
         integrity: integrity,
         adoption_segmentation: aiContext.adoption_segmentation || null,
+        archetype_assignments: archetypeAssignments,
         readiness_timeline: aiContext.readiness_timeline || null,
         competitive_risk: aiContext.competitive_risk || null,
         growth_feasibility: aiContext.growth_feasibility || null,
@@ -188,11 +201,22 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         },
       });
     } else {
+      let archetypeAssignments = null;
+      try {
+        const seg = aiContext.adoption_segmentation;
+        if (seg) {
+          archetypeAssignments = assignArchetypesForSegmentation(seg, []);
+        }
+      } catch (arcErr: any) {
+        console.error("[ai-decide] Archetype assignment failed (non-blocking):", arcErr.message);
+      }
+
       res.json({
         mode: "standalone",
         derived_decisions: null,
         integrity: null,
         adoption_segmentation: aiContext.adoption_segmentation || null,
+        archetype_assignments: archetypeAssignments,
         readiness_timeline: aiContext.readiness_timeline || null,
         competitive_risk: aiContext.competitive_risk || null,
         growth_feasibility: aiContext.growth_feasibility || null,

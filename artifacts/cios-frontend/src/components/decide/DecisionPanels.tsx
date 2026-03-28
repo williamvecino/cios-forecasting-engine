@@ -73,6 +73,25 @@ interface ForecastContext {
   weak_gate_count: number;
 }
 
+interface ArchetypeScore {
+  archetype_id: string;
+  archetype_name: string;
+  score: number;
+  confidence: string;
+  reasons: string[];
+}
+
+interface ArchetypeAssignment {
+  segment_name: string;
+  structural_description: string;
+  primary_archetype: ArchetypeScore;
+  secondary_archetype: ArchetypeScore | null;
+  assignment_confidence: string;
+  why_assigned: string;
+  likely_triggers: string[];
+  likely_barriers: string[];
+}
+
 interface DecideResponse {
   mode: "forecast_derived" | "standalone";
   derived_decisions: DerivedDecisions | null;
@@ -83,6 +102,7 @@ interface DecideResponse {
     late_movers: SegmentGroup;
     resistant: SegmentGroup;
   } | null;
+  archetype_assignments: ArchetypeAssignment[] | null;
   readiness_timeline: {
     near_term_readiness: string;
     trigger_events: string[];
@@ -175,7 +195,7 @@ export default function DecisionPanels() {
 
   const subject = activeQuestion?.subject || "";
   const questionText = activeQuestion?.rawInput || activeQuestion?.text || activeQuestion?.question || "";
-  const caseId = activeQuestion?.caseId || "unknown";
+  const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const contextKey = `${subject}|${questionText}|${caseId}`;
 
   useEffect(() => {
@@ -457,7 +477,7 @@ export default function DecisionPanels() {
               )}
 
               {data.adoption_segmentation && (
-                <AdoptionSegmentationPanel data={data.adoption_segmentation} />
+                <AdoptionSegmentationPanel data={data.adoption_segmentation} archetypes={data.archetype_assignments} />
               )}
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -490,13 +510,18 @@ export default function DecisionPanels() {
   );
 }
 
-function AdoptionSegmentationPanel({ data }: { data: NonNullable<DecideResponse["adoption_segmentation"]> }) {
+function AdoptionSegmentationPanel({ data, archetypes }: { data: NonNullable<DecideResponse["adoption_segmentation"]>; archetypes: ArchetypeAssignment[] | null | undefined }) {
   const groups = [
     { key: "early_adopters", label: "Early Adopters", icon: CheckCircle2, color: "text-emerald-400", data: data.early_adopters },
     { key: "persuadables", label: "Persuadables", icon: Target, color: "text-blue-400", data: data.persuadables },
     { key: "late_movers", label: "Late Movers", icon: Clock, color: "text-amber-400", data: data.late_movers },
     { key: "resistant", label: "Resistant", icon: XCircle, color: "text-rose-400", data: data.resistant },
   ];
+
+  function findArchetype(label: string): ArchetypeAssignment | undefined {
+    if (!archetypes) return undefined;
+    return archetypes.find(a => a.segment_name.toLowerCase() === label.toLowerCase());
+  }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
@@ -505,22 +530,56 @@ function AdoptionSegmentationPanel({ data }: { data: NonNullable<DecideResponse[
         <div className="text-sm font-semibold text-foreground">Adoption Segmentation</div>
       </div>
       <div className="space-y-3">
-        {groups.map((g) => (
-          <div key={g.key} className="rounded-xl border border-border/50 bg-muted/5 p-3">
-            <div className="flex items-center gap-2 mb-1.5">
-              <g.icon className={`w-3.5 h-3.5 ${g.color}`} />
-              <div className={`text-xs font-semibold ${g.color}`}>{g.label}</div>
+        {groups.map((g) => {
+          const arch = findArchetype(g.label);
+          return (
+            <div key={g.key} className="rounded-xl border border-border/50 bg-muted/5 p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <g.icon className={`w-3.5 h-3.5 ${g.color}`} />
+                  <div className={`text-xs font-semibold ${g.color}`}>{g.label}</div>
+                </div>
+                {arch && (
+                  <span className="rounded-full bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-400">
+                    {arch.primary_archetype.archetype_name}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {g.data.segments.map((seg, i) => (
+                  <span key={i} className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[11px] text-slate-200">
+                    {seg}
+                  </span>
+                ))}
+              </div>
+              <div className="text-[11px] text-muted-foreground">{g.data.reason}</div>
+              {arch && (
+                <div className="mt-2 pt-2 border-t border-border/30 space-y-1.5">
+                  <div className="text-[11px] text-violet-300/80">
+                    <span className="font-semibold">Decision behavior:</span> {arch.why_assigned}
+                  </div>
+                  {arch.likely_triggers.length > 0 && (
+                    <div className="text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-emerald-400/80">What moves them:</span>{" "}
+                      {arch.likely_triggers.slice(0, 2).join(" · ")}
+                    </div>
+                  )}
+                  {arch.likely_barriers.length > 0 && (
+                    <div className="text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-rose-400/80">What blocks them:</span>{" "}
+                      {arch.likely_barriers.slice(0, 2).join(" · ")}
+                    </div>
+                  )}
+                  {arch.secondary_archetype && (
+                    <div className="text-[10px] text-muted-foreground/60">
+                      Secondary: {arch.secondary_archetype.archetype_name}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5 mb-1.5">
-              {g.data.segments.map((seg, i) => (
-                <span key={i} className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[11px] text-slate-200">
-                  {seg}
-                </span>
-              ))}
-            </div>
-            <div className="text-[11px] text-muted-foreground">{g.data.reason}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

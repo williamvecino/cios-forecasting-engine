@@ -1,4 +1,4 @@
-export type WorkflowStep = "question" | "signals" | "forecast" | "decide" | "respond";
+export type WorkflowStep = "question" | "signals" | "forecast" | "decide" | "respond" | "simulate";
 
 export interface ActiveQuestion {
   id: string;
@@ -57,6 +57,13 @@ export function getWorkflowSteps(): {
       title: "Respond",
       description: "Generate a client-ready response.",
       path: "/respond",
+    },
+    {
+      key: "simulate",
+      label: "6 — Simulate",
+      title: "Simulate Adoption Reaction",
+      description: "Test how segments react to specific materials.",
+      path: "/simulate",
     },
   ];
 }

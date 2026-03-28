@@ -255,10 +255,10 @@ export default function RespondPage() {
 
               <Link
                 href="/simulate"
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground hover:border-primary/40 hover:bg-primary/5 transition"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition"
               >
+                Continue to Simulate
                 <FlaskConical className="w-4 h-4" />
-                Simulate Segment Reaction
               </Link>
             </div>
           )}

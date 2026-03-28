@@ -34,6 +34,7 @@ import aiInterpretRouter from "./ai-interpret.js";
 import importProjectRouter from "./import-project.js";
 import aiRespondRouter from "./ai-respond.js";
 import aiSimulateRouter from "./ai-simulate.js";
+import aiArchetypeRouter from "./ai-archetype.js";
 
 const router: IRouter = Router();
 
@@ -72,5 +73,6 @@ router.use(aiInterpretRouter);
 router.use(importProjectRouter);
 router.use(aiRespondRouter);
 router.use(aiSimulateRouter);
+router.use(aiArchetypeRouter);
 
 export default router;

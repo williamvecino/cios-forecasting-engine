@@ -7,6 +7,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 
 interface SimulateRequest {
   segment: string;
+  archetype?: string | null;
   materialText?: string;
   materialBase64?: string;
   materialFileName?: string;
@@ -112,16 +113,29 @@ router.post("/ai-simulate/reaction", upload.single("file"), async (req, res) => 
 
     const constraintContext = buildConstraintContext(body);
 
+    const archetypeContext = body.archetype ? `
+ASSIGNED ARCHETYPE: ${body.archetype}
+Use this archetype's known behavioral pattern to predict the reaction. Each archetype responds differently:
+- Evidence-Driven Innovator: moves on strong clinical data, low guideline dependence
+- Operational Pragmatist: interested but blocked by workflow/staffing/infrastructure burden
+- Guideline Follower: waits for NCCN/society/institutional endorsement before acting
+- Financial Gatekeeper: delays until coverage is stable, access friction is low
+- Skeptical Conservative: resists until post-launch real-world evidence accumulates
+The archetype determines HOW this segment decides, not just WHETHER they adopt.` : "";
+
     const systemPrompt = `You are a behavioral reaction forecasting engine. You predict how a specific market segment will respond to specific materials given the current constraints on the decision.
 
 You do NOT create new constraints. You use the existing gates, barriers, and triggers provided. Your job is to evaluate whether the presented material would change behavior for the specified segment, given what constrains the market right now.
-
+${archetypeContext}
 RULES:
 - Never use: "Bayesian", "posterior", "Brier", "likelihood ratio", "prior odds"
 - "Probability" is allowed
 - Ground every prediction in the constraints provided — never invent new barriers or triggers
-- Be specific to the segment — different segments react differently to the same material
+- Be specific to the segment and its archetype — different decision styles react differently to the same material
 - The reaction must account for what currently limits adoption, not just whether the material is compelling
+- If the archetype is an Evidence-Driven Innovator, strong clinical data should move them more than it would a Financial Gatekeeper
+- If the archetype is a Guideline Follower, conference data raises interest but does not trigger adoption
+- If the archetype is a Financial Gatekeeper, efficacy data alone does not move behavior if coverage is unresolved
 
 OUTPUT FORMAT (return valid JSON):
 {
@@ -135,7 +149,7 @@ OUTPUT FORMAT (return valid JSON):
 
     const userPrompt = `Simulate the adoption reaction for:
 
-SEGMENT: ${body.segment}
+SEGMENT: ${body.segment}${body.archetype ? `\nARCHETYPE: ${body.archetype}` : ""}
 SUBJECT: ${body.subject}
 QUESTION: ${body.questionText}
 TIME HORIZON: ${body.timeHorizon || "12 months"}
