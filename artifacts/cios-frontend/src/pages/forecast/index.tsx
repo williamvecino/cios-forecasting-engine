@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
@@ -10,6 +10,8 @@ import { ForecastComparisonCircles } from "@/components/forecast/ForecastCompari
 import { EventGatesPanel } from "@/components/forecast/EventGatesPanel";
 import { ForecastMeaningPanel } from "@/components/forecast/ForecastMeaningPanel";
 import { DecisionLabSummary } from "@/components/forecast/DecisionLabSummary";
+import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
+import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import {
   ArrowRight,
@@ -816,6 +818,13 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   useGetCase(caseId);
   const drivers = useDriversFromForecast(forecast, caseId);
 
+  const { data: analogContext, isLoading: analogLoading } = useQuery({
+    queryKey: [`/api/cases/${caseId}/analog-context`],
+    queryFn: () => fetch(`/api/cases/${caseId}/analog-context`).then((r) => r.ok ? r.json() : null),
+    enabled: !!caseId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
@@ -929,8 +938,19 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 ? [...gateScenarios].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
                 : null;
 
+              const judgmentResult = generateExecutiveJudgment({
+                brandOutlookPct: brandPct,
+                finalForecastPct: finalPct,
+                gates: decomp!.event_gates,
+                drivers,
+                analogContext: analogContext ?? null,
+                questionText: activeQuestion?.questionText || "",
+              });
+
               return (
                 <>
+                  <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} />
+
                   <ForecastComparisonCircles
                     brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}
                     finalForecastProb={displayProb}
