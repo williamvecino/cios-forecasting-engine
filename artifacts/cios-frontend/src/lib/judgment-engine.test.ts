@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateExecutiveJudgment, type JudgmentInput, type ExecutiveJudgmentResult } from "./judgment-engine";
+import { enforceDecomposition } from "./constraint-drivers";
 
 function gate(label: string, status: string, cap: number) {
   return { gate_id: label.toLowerCase().replace(/\s/g, "_"), gate_label: label, description: "", status, reasoning: "", constrains_probability_to: cap };
@@ -403,6 +404,73 @@ describe("AUDIT TRAIL COMPLETENESS", () => {
     }
 
     expect(result._audit.integrityPassed).toBeTypeOf("boolean");
+
+    expect(result._audit.constraintDecomposition).toBeInstanceOf(Array);
+    expect(result._audit.constraintDecomposition.length).toBeGreaterThan(0);
+    for (const cd of result._audit.constraintDecomposition) {
+      expect(cd.gateId).toBeTypeOf("string");
+      expect(cd.gateLabel).toBeTypeOf("string");
+      expect(cd.gateStatus).toBeTypeOf("string");
+      expect(cd.isAbstract).toBeTypeOf("boolean");
+      expect(cd.drivers).toBeInstanceOf(Array);
+      for (const d of cd.drivers) {
+        expect(d.name).toBeTypeOf("string");
+        expect(d.impactScore).toBeTypeOf("number");
+        expect(["High", "Moderate", "Low"]).toContain(d.rank);
+      }
+    }
+  });
+
+  it("Abstract constraints must have at least one ranked driver", () => {
+    const result = run({
+      gates: [
+        gate("Operational Readiness", "weak", 0.35),
+        gate("Payer Access", "moderate", 0.55),
+        gate("Clinical Evidence", "strong", 0.85),
+      ],
+    });
+    const abstractGates = result._audit.constraintDecomposition.filter(cd => cd.isAbstract);
+    expect(abstractGates.length).toBeGreaterThan(0);
+    for (const cd of abstractGates) {
+      expect(cd.drivers.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("Constraint drivers are sorted by impact score descending", () => {
+    const result = run({
+      gates: [gate("Operational Readiness", "weak", 0.35)],
+    });
+    const cd = result._audit.constraintDecomposition.find(c => c.gateLabel === "Operational Readiness");
+    expect(cd).toBeDefined();
+    expect(cd!.drivers.length).toBeGreaterThan(1);
+    for (let i = 1; i < cd!.drivers.length; i++) {
+      expect(cd!.drivers[i - 1].impactScore).toBeGreaterThanOrEqual(cd!.drivers[i].impactScore);
+    }
+  });
+
+  it("enforceDecomposition throws for abstract constraint with no drivers", () => {
+    expect(() => enforceDecomposition([{
+      gateId: "test_gate",
+      gateLabel: "Unmapped Readiness",
+      gateStatus: "weak",
+      isAbstract: true,
+      drivers: [],
+    }])).toThrow(/Unmapped Readiness/);
+  });
+
+  it("DECOMP-ENFORCEMENT check appended when abstract gate has no mapped drivers", () => {
+    const result = run({
+      gates: [gate("Novel Endorsement", "weak", 0.35)],
+    });
+    const cd = result._audit.constraintDecomposition.find(c => c.gateLabel === "Novel Endorsement");
+    if (cd && cd.isAbstract && cd.drivers.length === 0) {
+      const decompCheck = result._audit.integrityChecks.find(c => c.rule === "DECOMP-ENFORCEMENT");
+      expect(decompCheck).toBeDefined();
+      expect(decompCheck!.passed).toBe(false);
+      expect(result._audit.integrityPassed).toBe(false);
+    } else {
+      expect(cd!.drivers.length).toBeGreaterThan(0);
+    }
   });
 
   it("Confidence audit score correctly sums to rawTotal", () => {
@@ -441,6 +509,17 @@ describe("NARRATIVE INTEGRITY", () => {
 
     const lowProb = run({ finalForecastPct: 25, brandOutlookPct: 65, executionGapPts: 40, minGateCapPct: 25 });
     expect(lowProb.decisionPosture).not.toMatch(/plan for this outcome.*shift resources/i);
+  });
+
+  it("Reasoning includes specific driver names when abstract constraints are present", () => {
+    const result = run({
+      brandOutlookPct: 70,
+      finalForecastPct: 40,
+      executionGapPts: 30,
+      gates: [gate("Clinical Evidence", "strong", 0.85), gate("Operational Readiness", "weak", 0.35)],
+    });
+    expect(result.reasoning).toMatch(/Primary constraint: Operational Readiness\. Specific drivers:/);
+    expect(result.reasoning).toMatch(/Site workflow integration|Staff training|Patient onboarding|Equipment|Administrative/);
   });
 
   it("Monitor list only contains items that exist in gates or drivers", () => {

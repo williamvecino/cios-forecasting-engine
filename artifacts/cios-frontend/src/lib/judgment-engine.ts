@@ -1,3 +1,5 @@
+import { decomposeConstraints, enforceDecomposition } from "./constraint-drivers";
+
 interface EventGate {
   gate_id: string;
   gate_label: string;
@@ -101,6 +103,20 @@ interface PostureAudit {
   caseType: string;
 }
 
+export interface RankedDriverAudit {
+  name: string;
+  impactScore: number;
+  rank: "High" | "Moderate" | "Low";
+}
+
+export interface ConstraintDecompositionAudit {
+  gateId: string;
+  gateLabel: string;
+  gateStatus: string;
+  isAbstract: boolean;
+  drivers: RankedDriverAudit[];
+}
+
 export interface JudgmentAudit {
   inputs: {
     priorPct: number;
@@ -119,6 +135,7 @@ export interface JudgmentAudit {
   postureAudit: PostureAudit;
   integrityChecks: IntegrityCheck[];
   integrityPassed: boolean;
+  constraintDecomposition: ConstraintDecompositionAudit[];
 }
 
 export interface ExecutiveJudgmentResult {
@@ -349,20 +366,17 @@ function classifyUncertainty(
   };
 }
 
-function buildReasoning(
+function buildReasoningWithDrivers(
   caseType: string,
   gates: EventGate[],
   drivers: Driver[],
   brandPct: number,
   finalPct: number,
-  analogContext: AnalogContext | null
+  analogContext: AnalogContext | null,
+  decompositions: import("./constraint-drivers").ConstraintDecomposition[]
 ): string {
-  const weakGateNames = gates
-    .filter(g => g.status === "weak" || g.status === "unresolved")
-    .map(g => g.gate_label);
-  const strongGateNames = gates
-    .filter(g => g.status === "strong")
-    .map(g => g.gate_label);
+  const weakGates = gates.filter(g => g.status === "weak" || g.status === "unresolved");
+  const strongGateNames = gates.filter(g => g.status === "strong").map(g => g.gate_label);
   const gap = Math.abs(brandPct - finalPct);
 
   const parts: string[] = [];
@@ -375,9 +389,22 @@ function buildReasoning(
     parts.push("Some operational conditions are partially limiting what the evidence would otherwise support.");
   }
 
-  if (weakGateNames.length > 0) {
-    parts.push(`Key conditions still holding this back: ${weakGateNames.slice(0, 3).join(", ")}.`);
+  const constraintGates = gates.filter(g => g.status !== "strong");
+  for (const gate of constraintGates.slice(0, 2)) {
+    const decomp = decompositions.find(d => d.gateId === gate.gate_id);
+    if (decomp && decomp.drivers.length > 0) {
+      const topDrivers = decomp.drivers.filter(d => d.rank === "High" || d.rank === "Moderate").slice(0, 3);
+      if (topDrivers.length > 0) {
+        const driverList = topDrivers.map(d => d.name).join(", ");
+        parts.push(`Primary constraint: ${gate.gate_label}. Specific drivers: ${driverList}.`);
+      } else {
+        parts.push(`Primary constraint: ${gate.gate_label}. Drivers ranked below threshold — barrier impact is diffuse rather than concentrated.`);
+      }
+    } else {
+      parts.push(`Key condition still holding this back: ${gate.gate_label}.`);
+    }
   }
+
   if (strongGateNames.length > 0) {
     parts.push(`Conditions working in favor: ${strongGateNames.slice(0, 2).join(", ")}.`);
   }
@@ -666,14 +693,33 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     }
   }
 
+  const constraintDecompositions = decomposeConstraints(correctedGates);
+  let decompositionEnforced = true;
+  try { enforceDecomposition(constraintDecompositions); } catch (e: any) {
+    decompositionEnforced = false;
+    integrityChecks.push({
+      rule: "DECOMP-ENFORCEMENT",
+      passed: false,
+      detail: e?.message || "Abstract constraint missing driver decomposition",
+    });
+  }
+
   const { posture, rule: postureRule } = buildDecisionPosture(adjustedFinalPct, adjustedConfidence, caseType, correctedGates);
-  const reasoning = buildReasoning(caseType, correctedGates, drivers, brandOutlookPct, adjustedFinalPct, analogContext);
+  const reasoning = buildReasoningWithDrivers(caseType, correctedGates, drivers, brandOutlookPct, adjustedFinalPct, analogContext, constraintDecompositions);
   const keyDrivers = extractKeyDrivers(drivers);
   const analogPattern = buildAnalogPattern(analogContext);
   const reversalTriggers = buildReversalTriggers(correctedGates, drivers, adjustedFinalPct);
   const convergenceNote = buildConvergenceNote(adjustedFinalPct, analogContext);
   const monitorList = buildMonitorList(correctedGates, drivers, reversalTriggers);
   const nextBestQuestion = buildNextBestQuestion(correctedGates, drivers);
+
+  const constraintDecompositionAudit = constraintDecompositions.map(cd => ({
+    gateId: cd.gateId,
+    gateLabel: cd.gateLabel,
+    gateStatus: cd.gateStatus,
+    isAbstract: cd.isAbstract,
+    drivers: cd.drivers.map(d => ({ name: d.name, impactScore: d.impactScore, rank: d.rank })),
+  }));
 
   const audit: JudgmentAudit = {
     inputs: {
@@ -692,7 +738,8 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     outcomeAudit: { questionCategory, probabilityBand: band, ruleTriggered: outcomeRule },
     postureAudit: { ruleTriggered: postureRule, caseType },
     integrityChecks,
-    integrityPassed,
+    integrityPassed: integrityChecks.every(c => c.passed),
+    constraintDecomposition: constraintDecompositionAudit,
   };
 
   return {
