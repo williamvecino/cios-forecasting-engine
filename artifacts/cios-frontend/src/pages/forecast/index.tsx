@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
@@ -30,8 +30,11 @@ type Driver = {
   direction: Direction;
   strength: Strength;
   probabilityImpact: number;
+  contributionPoints: number;
   watchSignal: string;
   interpretation?: string;
+  affectedGate?: string;
+  confidence?: number;
 };
 
 interface GateScenario {
@@ -138,99 +141,226 @@ export default function ForecastPage() {
   );
 }
 
-function useDriversFromForecast(forecast: any) {
+function DriverContributionBreakdown({ drivers, totalShift, upsideTotal, downsideTotal }: {
+  drivers: Driver[];
+  totalShift: number;
+  upsideTotal: number;
+  downsideTotal: number;
+}) {
+  const netContribution = upsideTotal - downsideTotal;
+  const isReconciled = netContribution === totalShift;
+  const maxAbs = Math.max(...drivers.map(d => Math.abs(d.contributionPoints)), 1);
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Driver Contribution Breakdown</div>
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="text-emerald-400">Upward: +{upsideTotal} pts</span>
+          <span className="text-rose-400">Downward: -{downsideTotal} pts</span>
+          <span className={isReconciled ? "text-blue-400" : "text-amber-400"}>
+            Net: {netContribution >= 0 ? "+" : ""}{netContribution} pts
+            {isReconciled ? " = Shift" : ` (shift: ${totalShift >= 0 ? "+" : ""}${totalShift})`}
+          </span>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {drivers.map((d) => (
+          <div key={d.id} className="flex items-center gap-3">
+            <div className="w-[45%] min-w-0">
+              <div className="text-xs text-slate-200 truncate">{d.name}</div>
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden relative">
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    d.direction === "Upward" ? "bg-emerald-500" : "bg-rose-500"
+                  )}
+                  style={{ width: `${Math.min(100, (Math.abs(d.contributionPoints) / maxAbs) * 100)}%` }}
+                />
+              </div>
+              <div className={cn(
+                "text-xs font-bold w-16 text-right shrink-0",
+                d.direction === "Upward" ? "text-emerald-400" : "text-rose-400"
+              )}>
+                {d.contributionPoints > 0 ? "+" : ""}{d.contributionPoints} pts
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {!isReconciled && totalShift !== 0 && (
+        <div className="flex items-center gap-2 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+          <CircleAlert className="w-3 h-3 shrink-0" />
+          <span>Contribution accounting mismatch: net contributions ({netContribution >= 0 ? "+" : ""}{netContribution}) differ from probability shift ({totalShift >= 0 ? "+" : ""}{totalShift}). Actor adjustments or rounding may account for the difference.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function largestRemainderDistribute(weights: number[], total: number): number[] {
+  const absTotal = Math.abs(total);
+  const sumW = weights.reduce((s, w) => s + w, 0);
+  if (sumW === 0 || absTotal === 0) return weights.map(() => 0);
+  const raw = weights.map(w => (w / sumW) * absTotal);
+  const floored = raw.map(v => Math.floor(v));
+  let rem = Math.round(absTotal) - floored.reduce((s, v) => s + v, 0);
+  const fracs = raw.map((v, i) => ({ i, frac: v - floored[i] })).sort((a, b) => b.frac - a.frac);
+  for (const f of fracs) {
+    if (rem <= 0) break;
+    floored[f.i]++;
+    rem--;
+  }
+  return floored;
+}
+
+function useDriversFromForecast(forecast: any, activeCaseId: string) {
   return useMemo(() => {
     if (!forecast) return [];
     const f = forecast as any;
+    if (f.caseId && f.caseId !== activeCaseId) return [];
     const sa = f.sensitivityAnalysis;
     const signalDetails = f.signalDetails || [];
     const totalShift = Math.round(((f.currentProbability ?? 0) - (f.priorProbability ?? 0)) * 100);
-    const drivers: Driver[] = [];
 
-    const allSaSignals = [
-      ...(sa?.upwardSignals || []).map((s: any) => ({ ...s, _dir: "Upward" as const })),
-      ...(sa?.downwardSignals || []).map((s: any) => ({ ...s, _dir: "Downward" as const })),
+    const signals: Array<{
+      id: string;
+      name: string;
+      logLr: number;
+      lr: number;
+      signalType: string;
+      confidence: number;
+    }> = [];
+
+    const saUp = (sa?.upwardSignals || []) as any[];
+    const saDown = (sa?.downwardSignals || []) as any[];
+    const allSa = [
+      ...saUp.map((s: any) => ({ ...s, _isUp: true })),
+      ...saDown.map((s: any) => ({ ...s, _isUp: false })),
     ];
 
-    const buildDriversFromSignals = (signals: any[], dir: "Upward" | "Downward", targetTotal: number) => {
-      if (signals.length === 0) return;
-      const rawWeights = signals.map((sig: any) => {
+    if (allSa.length > 0) {
+      for (const sig of allSa) {
         const detail = signalDetails.find((d: any) => d.signalId === sig.signalId);
-        const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? sig.effectiveLR ?? 1;
-        return {
-          sig,
-          detail,
-          lr,
-          weight: sig.deltaIfRemoved ?? sig.absoluteImpact ?? Math.abs(Math.log(lr || 1)),
-        };
-      });
-      const totalWeight = rawWeights.reduce((s, w) => s + w.weight, 0);
-      if (totalWeight === 0) {
-        for (const w of rawWeights) w.weight = 1;
-      }
-      const finalTotalWeight = rawWeights.reduce((s, w) => s + w.weight, 0);
-      const absTarget = Math.abs(targetTotal);
-
-      const rawImpacts = rawWeights.map(w => (w.weight / finalTotalWeight) * absTarget);
-      const flooredImpacts = rawImpacts.map(v => Math.floor(v));
-      let remainder = Math.round(absTarget) - flooredImpacts.reduce((s, v) => s + v, 0);
-      const fractionals = rawImpacts.map((v, i) => ({ i, frac: v - flooredImpacts[i] }));
-      fractionals.sort((a, b) => b.frac - a.frac);
-      for (const f of fractionals) {
-        if (remainder <= 0) break;
-        flooredImpacts[f.i]++;
-        remainder--;
-      }
-      for (let i = 0; i < flooredImpacts.length; i++) {
-        if (flooredImpacts[i] === 0 && rawWeights[i].weight > 0) flooredImpacts[i] = 1;
-      }
-
-      for (let i = 0; i < rawWeights.length; i++) {
-        const { sig, detail, lr } = rawWeights[i];
-        const impact = flooredImpacts[i];
-        drivers.push({
+        const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? 1;
+        const logLr = lr > 0 && lr !== 1 ? Math.log(lr) : (sig._isUp ? 0.01 : -0.01);
+        signals.push({
           id: sig.signalId,
-          name: sig.description || detail?.description || sig.signalId,
-          direction: dir,
-          strength: dir === "Upward"
-            ? (lr >= 2 ? "High" : lr >= 1.3 ? "Medium" : "Low")
-            : (lr <= 0.5 ? "High" : lr <= 0.75 ? "Medium" : "Low"),
-          probabilityImpact: dir === "Upward" ? impact : -impact,
-          watchSignal: detail?.signalType || "Monitor for changes",
-          interpretation: detail?.signalType ? `${detail.signalType} signal contributing to ${dir.toLowerCase()} pressure.` : undefined,
+          name: sig.description || detail?.description || detail?.signalDescription || sig.signalId,
+          logLr,
+          lr,
+          signalType: detail?.signalType || "",
+          confidence: detail?.translationConfidence ?? 1,
         });
       }
-    };
-
-    if (allSaSignals.length > 0) {
-      const upSigs = allSaSignals.filter(s => s._dir === "Upward");
-      const downSigs = allSaSignals.filter(s => s._dir === "Downward");
-      const upTotal = upSigs.reduce((s, sig) => s + (sig.deltaIfRemoved ?? sig.absoluteImpact ?? 0), 0);
-      const downTotal = downSigs.reduce((s, sig) => s + (sig.deltaIfRemoved ?? sig.absoluteImpact ?? 0), 0);
-
-      const upTarget = upTotal > 0 && downTotal > 0 && Math.abs(totalShift) > 0
-        ? Math.max(Math.abs(totalShift), Math.round(upTotal / (upTotal + downTotal) * Math.abs(totalShift) * 2))
-        : Math.max(Math.abs(totalShift), 1);
-      const downTarget = upTotal > 0 && downTotal > 0 && Math.abs(totalShift) > 0
-        ? Math.max(1, Math.round(downTotal / (upTotal + downTotal) * Math.abs(totalShift) * 2))
-        : Math.max(1, Math.round(downTotal * 100));
-
-      buildDriversFromSignals(upSigs, "Upward", upTarget);
-      buildDriversFromSignals(downSigs, "Downward", downTarget);
+    } else if (signalDetails.length > 0) {
+      for (const sig of signalDetails) {
+        const lr = sig.likelihoodRatio ?? sig.effectiveLR ?? 1;
+        const isUp = sig.direction === "Positive" || lr > 1;
+        const logLr = lr > 0 && lr !== 1 ? Math.log(lr) : (isUp ? 0.01 : -0.01);
+        signals.push({
+          id: sig.signalId,
+          name: sig.description || sig.signalDescription || sig.signalId,
+          logLr,
+          lr,
+          signalType: sig.signalType || "",
+          confidence: sig.translationConfidence ?? 1,
+        });
+      }
     }
 
-    if (drivers.length === 0 && signalDetails.length > 0) {
-      const upSignals = signalDetails.filter((s: any) => s.direction === "Positive" || (s.likelihoodRatio ?? s.effectiveLR ?? 1) > 1);
-      const downSignals = signalDetails.filter((s: any) => s.direction === "Negative" || (s.likelihoodRatio ?? s.effectiveLR ?? 1) < 1);
-      buildDriversFromSignals(upSignals, "Upward", Math.max(Math.abs(totalShift), 1));
-      buildDriversFromSignals(downSignals, "Downward", Math.max(1, Math.round(Math.abs(totalShift) * 0.3)));
+    if (signals.length === 0) return [];
+
+    const upSignals = signals.filter(s => s.logLr > 0);
+    const downSignals = signals.filter(s => s.logLr < 0);
+
+    const totalPosLogLr = upSignals.reduce((s, sig) => s + sig.logLr, 0);
+    const totalNegLogLr = downSignals.reduce((s, sig) => s + Math.abs(sig.logLr), 0);
+    const totalAbsLogLr = totalPosLogLr + totalNegLogLr;
+
+    let grossUp: number;
+    let grossDown: number;
+
+    if (totalAbsLogLr > 0) {
+      if (totalShift >= 0) {
+        grossUp = Math.max(Math.abs(totalShift), Math.round((totalPosLogLr / totalAbsLogLr) * (Math.abs(totalShift) + totalNegLogLr / totalAbsLogLr * Math.abs(totalShift))));
+        grossDown = grossUp - totalShift;
+      } else {
+        grossDown = Math.max(Math.abs(totalShift), Math.round((totalNegLogLr / totalAbsLogLr) * (Math.abs(totalShift) + totalPosLogLr / totalAbsLogLr * Math.abs(totalShift))));
+        grossUp = grossDown + totalShift;
+      }
+    } else {
+      grossUp = Math.max(totalShift, 0);
+      grossDown = Math.max(-totalShift, 0);
+    }
+
+    if (upSignals.length > 0 && grossUp < upSignals.length) grossUp = upSignals.length;
+    if (downSignals.length > 0 && grossDown < downSignals.length) grossDown = downSignals.length;
+    const adjustedShift = grossUp - grossDown;
+    if (adjustedShift !== totalShift) {
+      if (totalShift >= 0) {
+        grossDown = grossUp - totalShift;
+      } else {
+        grossUp = grossDown + totalShift;
+      }
+      if (grossUp < 0) grossUp = 0;
+      if (grossDown < 0) grossDown = 0;
+    }
+
+    const upWeights = upSignals.map(s => s.logLr);
+    const downWeights = downSignals.map(s => Math.abs(s.logLr));
+
+    const upContribs = largestRemainderDistribute(upWeights, grossUp);
+    const downContribs = largestRemainderDistribute(downWeights, grossDown);
+
+    for (let i = 0; i < upContribs.length; i++) {
+      if (upContribs[i] === 0 && upWeights[i] > 0) upContribs[i] = 1;
+    }
+    for (let i = 0; i < downContribs.length; i++) {
+      if (downContribs[i] === 0 && downWeights[i] > 0) downContribs[i] = 1;
+    }
+
+    const drivers: Driver[] = [];
+
+    for (let i = 0; i < upSignals.length; i++) {
+      const sig = upSignals[i];
+      const pts = upContribs[i];
+      drivers.push({
+        id: sig.id,
+        name: sig.name,
+        direction: "Upward",
+        strength: sig.lr >= 2 ? "High" : sig.lr >= 1.3 ? "Medium" : "Low",
+        probabilityImpact: pts,
+        contributionPoints: pts,
+        watchSignal: sig.signalType || "Monitor for changes",
+        interpretation: sig.signalType ? `${sig.signalType} signal contributing to upward pressure.` : undefined,
+        confidence: sig.confidence,
+      });
+    }
+
+    for (let i = 0; i < downSignals.length; i++) {
+      const sig = downSignals[i];
+      const pts = downContribs[i];
+      drivers.push({
+        id: sig.id,
+        name: sig.name,
+        direction: "Downward",
+        strength: sig.lr <= 0.5 ? "High" : sig.lr <= 0.75 ? "Medium" : "Low",
+        probabilityImpact: -pts,
+        contributionPoints: -pts,
+        watchSignal: sig.signalType || "Monitor for changes",
+        interpretation: sig.signalType ? `${sig.signalType} signal contributing to downward pressure.` : undefined,
+        confidence: sig.confidence,
+      });
     }
 
     return [...drivers].sort((a, b) => {
-      const diff = Math.abs(b.probabilityImpact) - Math.abs(a.probabilityImpact);
+      const diff = Math.abs(b.contributionPoints) - Math.abs(a.contributionPoints);
       return diff !== 0 ? diff : strengthWeight(b.strength) - strengthWeight(a.strength);
     });
-  }, [forecast]);
+  }, [forecast, activeCaseId]);
 }
 
 type EventGate = {
@@ -611,9 +741,19 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
 function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
   const queryClient = useQueryClient();
+  const prevCaseIdRef = useRef<string>("");
+
+  useEffect(() => {
+    if (prevCaseIdRef.current && prevCaseIdRef.current !== caseId) {
+      queryClient.removeQueries({ queryKey: [`/api/cases/${prevCaseIdRef.current}/forecast`] });
+      queryClient.removeQueries({ queryKey: [`/api/cases/${prevCaseIdRef.current}`] });
+    }
+    prevCaseIdRef.current = caseId;
+  }, [caseId, queryClient]);
+
   const { data: forecast, isLoading } = useRunForecast(caseId);
   const { data: caseData } = useGetCase(caseId);
-  const drivers = useDriversFromForecast(forecast);
+  const drivers = useDriversFromForecast(forecast, caseId);
 
   if (isLoading) {
     return (
@@ -649,8 +789,10 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const summary = interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window.";
 
   const topDriver = drivers[0];
-  const upsideTotal = drivers.filter((d) => d.direction === "Upward").reduce((s, d) => s + d.probabilityImpact, 0);
-  const downsideTotal = drivers.filter((d) => d.direction === "Downward").reduce((s, d) => s + Math.abs(d.probabilityImpact), 0);
+  const upsideTotal = drivers.filter((d) => d.direction === "Upward").reduce((s, d) => s + d.contributionPoints, 0);
+  const downsideTotal = drivers.filter((d) => d.direction === "Downward").reduce((s, d) => s + Math.abs(d.contributionPoints), 0);
+  const netContribution = upsideTotal - downsideTotal;
+  const totalShiftPts = Math.round(delta * 100);
 
   return (
     <>
@@ -800,6 +942,10 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                     />
                   </div>
 
+                  {drivers.length > 0 && (
+                    <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
+                  )}
+
                   <div className="rounded-3xl border border-indigo-500/20 bg-[#0A1736] p-6 space-y-5">
                     <div className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Forecast Meaning</div>
 
@@ -837,7 +983,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               );
             })()}
 
-            {!hasGates && (
+            {!hasGates && ( <>
               <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
                 <div className="grid grid-cols-12 gap-6">
                   <div className="col-span-12 xl:col-span-4">
@@ -875,7 +1021,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       <InfoCard
                         title="Most Sensitive Driver"
                         value={topDriver?.name || "—"}
-                        body={topDriver ? `Largest estimated movement: ${topDriver.probabilityImpact > 0 ? "+" : ""}${topDriver.probabilityImpact} points` : "No drivers identified yet."}
+                        body={topDriver ? `Largest estimated movement: ${topDriver.contributionPoints > 0 ? "+" : ""}${topDriver.contributionPoints} points` : "No drivers identified yet."}
                       />
                       <InfoCard
                         title="Total Upward Pressure"
@@ -891,7 +1037,11 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                   </div>
                 </div>
               </div>
-            )}
+
+              {drivers.length > 0 && (
+                <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
+              )}
+            </> )}
 
             <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5">
               <div className="text-sm font-medium text-slate-300">System Interpretation</div>
@@ -1176,7 +1326,7 @@ function DriverImpactTab({ activeQuestion }: { activeQuestion: any }) {
 function DriverImpactContent({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
   const { data: forecast, isLoading, isError } = useRunForecast(caseId);
-  const drivers = useDriversFromForecast(forecast);
+  const drivers = useDriversFromForecast(forecast, caseId);
 
   const topDriver = drivers[0];
 
