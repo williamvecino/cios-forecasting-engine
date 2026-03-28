@@ -6,11 +6,8 @@ import {
   Loader2,
   Check,
   AlertTriangle,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
-  Plus,
   ArrowRight,
+  Search,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -71,6 +68,8 @@ interface ImportResult {
   question: ExtractedQuestion;
   signals: ExtractedSignal[];
   missingSignals: MissingSignal[];
+  suggestedCaseType?: string;
+  confidence?: string;
   summary: string;
 }
 
@@ -79,20 +78,13 @@ interface Props {
   onClose: () => void;
 }
 
-type ImportPhase = "upload" | "processing" | "review";
+type ImportPhase = "upload" | "processing" | "summary";
 
-const directionIcon = (d: string) => {
-  if (d === "positive")
-    return <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />;
-  if (d === "negative")
-    return <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />;
-  return <Minus className="w-3.5 h-3.5 text-muted-foreground" />;
-};
-
-const directionLabel = (d: string, outcome: string) => {
-  if (d === "positive") return `Supports ${outcome || "outcome"}`;
-  if (d === "negative") return `Slows ${outcome || "outcome"}`;
-  return "Neutral";
+const confidenceColor = (c: string) => {
+  const lower = c.toLowerCase();
+  if (lower === "high") return "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+  if (lower === "moderate") return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+  return "text-red-400 bg-red-500/10 border-red-500/20";
 };
 
 export default function ImportProjectDialog({ onImportComplete, onClose }: Props) {
@@ -195,7 +187,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
         );
       }
       setResult(data);
-      setPhase("review");
+      setPhase("summary");
     } catch (err: any) {
       console.error("Import failed:", err);
       setError(
@@ -236,13 +228,16 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
     );
   }
 
-  if (phase === "review" && result) {
+  if (phase === "summary" && result) {
     const q = result.question;
+    const caseType = result.suggestedCaseType || q.decisionType || "Decision";
+    const confidence = result.confidence || "Moderate";
+
     return (
-      <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">
-            We found the following in your project
+            Ingestion Summary
           </h2>
           <button
             type="button"
@@ -253,53 +248,27 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
           </button>
         </div>
 
-        {result.summary && (
-          <p className="text-sm text-muted-foreground">{result.summary}</p>
-        )}
-
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-blue-400 mb-1">
-            Decision Question
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+            Proposed Decision
           </div>
-          <div className="text-sm font-medium text-foreground">
-            {q.restatedQuestion || q.text}
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
-            {q.subject && <span>Subject: {q.subject}</span>}
-            {q.timeHorizon && <span>Horizon: {q.timeHorizon}</span>}
-            {q.primaryConstraint && (
-              <span>Barrier: {q.primaryConstraint}</span>
-            )}
+          <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+            <div className="text-sm font-medium text-foreground leading-relaxed">
+              {q.restatedQuestion || q.text}
+            </div>
           </div>
         </div>
 
         {result.signals.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">
-              Key signals detected
-            </h3>
-            <div className="space-y-2">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+              Signals Found
+            </div>
+            <div className="rounded-xl border border-border bg-muted/5 divide-y divide-border">
               {result.signals.map((s, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border border-border bg-muted/10 px-4 py-3"
-                >
-                  <div className="flex items-start gap-2">
-                    {directionIcon(s.direction)}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-foreground">{s.text}</div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
-                        <span>
-                          {directionLabel(s.direction, q.outcome)}
-                        </span>
-                        <span>Importance: {s.importance}</span>
-                        <span>Confidence: {s.confidence}</span>
-                        {s.source_description && (
-                          <span>Source: {s.source_description}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <div key={i} className="px-4 py-3 flex items-start gap-3">
+                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                  <div className="text-sm text-foreground">{s.text}</div>
                 </div>
               ))}
             </div>
@@ -307,31 +276,40 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
         )}
 
         {result.missingSignals.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">
-              Missing signals to investigate
-            </h3>
-            <div className="space-y-2">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Search className="w-3 h-3" />
+              Signals to Investigate
+            </div>
+            <div className="rounded-xl border border-dashed border-amber-500/20 bg-amber-500/5 divide-y divide-amber-500/10">
               {result.missingSignals.map((s, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3"
-                >
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-foreground">{s.text}</div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
-                        <span>Importance: {s.importance}</span>
-                        {s.reason && <span>{s.reason}</span>}
-                      </div>
-                    </div>
-                  </div>
+                <div key={i} className="px-4 py-3 flex items-start gap-3">
+                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                  <div className="text-sm text-foreground">{s.text}</div>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
+              Suggested Case Type
+            </div>
+            <div className="rounded-lg border border-border bg-muted/10 px-3 py-2">
+              <span className="text-sm font-medium text-foreground">{caseType}</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
+              Confidence
+            </div>
+            <div className={`rounded-lg border px-3 py-2 ${confidenceColor(confidence)}`}>
+              <span className="text-sm font-medium">{confidence}</span>
+            </div>
+          </div>
+        </div>
 
         <div className="flex gap-3 pt-2">
           <button
@@ -339,8 +317,8 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
             onClick={() => onImportComplete(result)}
             className="flex-1 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center gap-2"
           >
+            Confirm and Continue
             <ArrowRight className="w-4 h-4" />
-            Proceed to Judgment
           </button>
           <button
             type="button"

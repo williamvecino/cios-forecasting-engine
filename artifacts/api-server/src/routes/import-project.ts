@@ -191,6 +191,8 @@ Respond in JSON format:
       "reason": "Why this is needed for the decision"
     }
   ],
+  "suggestedCaseType": "One of: Launch timing, Market adoption, Competitive entry, Regulatory approval, Guideline inclusion, Payer access, Portfolio strategy, Clinical development, or another short descriptor",
+  "confidence": "One of: High, Moderate, Low — based on how much relevant information the materials contain and how clearly the decision question can be inferred",
   "summary": "A 2-3 sentence summary of what the materials contain"
 }`;
 
@@ -218,6 +220,8 @@ Respond in JSON format:
       question: parsed.question || null,
       signals: parsed.signals || [],
       missingSignals: parsed.missingSignals || [],
+      suggestedCaseType: parsed.suggestedCaseType || parsed.question?.decisionType || "Decision",
+      confidence: parsed.confidence || "Moderate",
       summary: parsed.summary || "",
       textLength: extractedText.length,
     });
