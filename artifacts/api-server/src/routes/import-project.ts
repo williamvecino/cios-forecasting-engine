@@ -1,8 +1,39 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import multer from "multer";
+import { db } from "@workspace/db";
+import { decisionClassificationsTable } from "@workspace/db/schema";
+import { randomUUID } from "crypto";
 
 const router = Router();
+
+async function persistClassification(
+  archetype: ArchetypeClassification,
+  options: { caseId?: string; sourceFileName?: string; ingestionPath: string },
+): Promise<void> {
+  try {
+    await db.insert(decisionClassificationsTable).values({
+      classificationId: randomUUID(),
+      caseId: options.caseId || null,
+      documentType: archetype.documentType,
+      domain: archetype.label,
+      primaryArchetype: archetype.primaryArchetype,
+      alternativeArchetype: archetype.alternativeArchetype || null,
+      secondaryArchetypes: JSON.stringify(archetype.secondaryArchetypes),
+      primaryDecision: archetype.decisionFraming,
+      secondaryDecisions: JSON.stringify(archetype.secondaryDecisions),
+      evidenceSpans: JSON.stringify(archetype.evidenceSpans),
+      confidence: archetype.confidenceLevel,
+      confidenceRationale: archetype.confidenceRationale,
+      guardrailApplied: archetype.guardrailApplied ? "true" : "false",
+      guardrailReason: archetype.guardrailReason || null,
+      sourceFileName: options.sourceFileName || null,
+      ingestionPath: options.ingestionPath,
+    });
+  } catch (e) {
+    console.error("[classification-persist] Failed to persist classification (non-fatal):", e);
+  }
+}
 
 interface ImportProjectRequest {
   text?: string;
@@ -249,6 +280,12 @@ interface ArchetypeClassification {
   decisionFraming: string;
   guardrailApplied: boolean;
   guardrailReason?: string;
+  documentType: string;
+  evidenceSpans: string[];
+  secondaryDecisions: string[];
+  alternativeArchetype?: string;
+  confidenceLevel: "high" | "moderate" | "low";
+  confidenceRationale: string;
 }
 
 const DECISION_ARCHETYPES: Record<DecisionArchetype, { label: string; markers: string; notThisIf: string }> = {
@@ -331,25 +368,52 @@ DECISION ARCHETYPES — read ALL descriptions carefully before classifying:
 
 ${archetypeDescriptions}
 
+MANDATORY CHECKS — apply ALL four before classifying:
+
+CHECK 1 — WRAPPER vs DECISION:
+What is the document format (RFP, slide deck, memo, paper, brief, email)?
+What is the ACTUAL business decision embedded within that format?
+The document format is the WRAPPER. The business decision is what matters.
+
+CHECK 2 — EXPLICIT ASK vs IMPLIED ASK:
+What is directly requested in the document?
+What is strategically implied by the content?
+Prefer the strategic implication over the surface request.
+
+CHECK 3 — PRIMARY vs SECONDARY DECISIONS:
+One main decision. Others are subordinate and should be listed as secondary decisions.
+
+CHECK 4 — EVIDENCE SUPPORT:
+Extract 3-5 exact phrases or sentences from the document that prove your classification.
+These evidence spans must come directly from the materials.
+
 CLASSIFICATION RULES:
 1. Read the materials deeply. Identify what DECISION the organization is actually trying to make.
-2. Distinguish between the SURFACE FORMAT of the document (e.g., "this is an RFP") and the ACTUAL DECISION it represents (e.g., "how to launch successfully").
+2. Distinguish between the SURFACE FORMAT of the document and the ACTUAL DECISION it represents.
 3. An RFP that describes a strategic problem is NOT a vendor selection decision — it is the strategic decision described in the RFP. The vendor/agency is a means, not the end.
-4. Choose the archetype that best captures the PRIMARY decision. List up to 2 secondary archetypes if relevant.
+4. Choose the archetype that best captures the PRIMARY decision. List up to 2 secondary archetypes.
 5. Write a "decisionFraming" sentence that captures the real decision in executive language.
+6. If two archetypes compete, prefer the one tied to the core business objective, not the procurement format.
+7. Name one plausible alternative archetype if confidence is not high.
 
 CRITICAL GUARDRAIL:
 If you are tempted to classify as "vendor_selection", STOP and verify:
 - Does the document contain explicit vendor evaluation criteria, scoring matrices, or shortlists?
 - Is the document COMPARING vendors/agencies against each other?
 - Or is the document describing a STRATEGIC PROBLEM that a vendor would help solve?
-If the document describes a strategic problem (launch readiness, competitive positioning, capability gap), classify under THAT archetype, not vendor_selection.
+If the document describes a strategic problem, classify under THAT archetype, not vendor_selection.
 
 Respond in JSON:
 {
+  "documentType": "RFP | Strategy Memo | Research Brief | Clinical Paper | Competitive Update | Operational Plan | Slide Deck | Meeting Notes | Email | Report | Other",
   "primaryArchetype": "one of the archetype keys",
   "secondaryArchetypes": ["up to 2 other relevant archetypes"],
   "decisionFraming": "One sentence describing the real decision in executive language",
+  "secondaryDecisions": ["Up to 3 subordinate decisions that flow from the primary"],
+  "alternativeArchetype": "one archetype key that could also apply, or null",
+  "evidenceSpans": ["Exact phrase 1 from document supporting this classification", "Exact phrase 2", "Exact phrase 3"],
+  "confidence": "high | moderate | low",
+  "confidenceRationale": "One sentence explaining why this confidence level was assigned",
   "vendorSelectionExplicit": false
 }`;
 
@@ -377,7 +441,7 @@ Respond in JSON:
       messages,
       response_format: { type: "json_object" },
       temperature: 0,
-      max_tokens: 300,
+      max_tokens: 800,
     });
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("Empty archetype response");
@@ -404,6 +468,21 @@ Respond in JSON:
       guardrailReason = `Unknown archetype "${parsed.primaryArchetype}" — defaulted to launch_strategy.`;
     }
 
+    let evidenceSpans = Array.isArray(parsed.evidenceSpans) ? parsed.evidenceSpans.filter((s: any) => typeof s === "string" && s.length > 5) : [];
+    const secondaryDecisions = Array.isArray(parsed.secondaryDecisions) ? parsed.secondaryDecisions.filter((s: any) => typeof s === "string" && s.length > 5) : [];
+    let confLevel = (["high", "moderate", "low"].includes(parsed.confidence)) ? parsed.confidence : "moderate";
+
+    if (evidenceSpans.length < 2) {
+      confLevel = "low";
+      if (evidenceSpans.length === 0) {
+        evidenceSpans = ["Classification based on overall document context — no specific evidence phrases extracted"];
+      }
+      console.log(`[archetype-gate] Insufficient evidence spans (${evidenceSpans.length}) — confidence downgraded to low`);
+    }
+    const altArchetype = parsed.alternativeArchetype && DECISION_ARCHETYPES[parsed.alternativeArchetype as DecisionArchetype]
+      ? ARCHETYPE_LABELS[parsed.alternativeArchetype as DecisionArchetype]
+      : undefined;
+
     return {
       primaryArchetype: primary,
       label: ARCHETYPE_LABELS[primary],
@@ -411,6 +490,12 @@ Respond in JSON:
       decisionFraming: parsed.decisionFraming || "",
       guardrailApplied,
       guardrailReason,
+      documentType: parsed.documentType || "Unknown",
+      evidenceSpans,
+      secondaryDecisions,
+      alternativeArchetype: altArchetype,
+      confidenceLevel: confLevel,
+      confidenceRationale: parsed.confidenceRationale || "",
     };
   } catch (e) {
     console.error("Decision archetype classification failed, defaulting:", e);
@@ -420,6 +505,11 @@ Respond in JSON:
       secondaryArchetypes: [],
       decisionFraming: "",
       guardrailApplied: false,
+      documentType: "Unknown",
+      evidenceSpans: [],
+      secondaryDecisions: [],
+      confidenceLevel: "low" as const,
+      confidenceRationale: "Classification failed — using default archetype",
     };
   }
 }
@@ -839,7 +929,18 @@ Do NOT skip readable text. If text is partially obscured or low resolution, extr
         framing: archetype.decisionFraming,
         guardrailApplied: archetype.guardrailApplied,
         guardrailReason: archetype.guardrailReason || null,
+        documentType: archetype.documentType,
+        evidenceSpans: archetype.evidenceSpans,
+        secondaryDecisions: archetype.secondaryDecisions,
+        alternativeArchetype: archetype.alternativeArchetype || null,
+        confidenceLevel: archetype.confidenceLevel,
+        confidenceRationale: archetype.confidenceRationale,
       },
+    });
+
+    await persistClassification(archetype, {
+      sourceFileName: body.fileName || "pasted_text",
+      ingestionPath: "single-file",
     });
   } catch (err) {
     console.error("Import project error:", err);
@@ -1306,6 +1407,12 @@ Respond in JSON:
         framing: archetype.decisionFraming,
         guardrailApplied: archetype.guardrailApplied,
         guardrailReason: archetype.guardrailReason || null,
+        documentType: archetype.documentType,
+        evidenceSpans: archetype.evidenceSpans,
+        secondaryDecisions: archetype.secondaryDecisions,
+        alternativeArchetype: archetype.alternativeArchetype || null,
+        confidenceLevel: archetype.confidenceLevel,
+        confidenceRationale: archetype.confidenceRationale,
       },
       fileManifest: fileResults.map(f => ({
         fileName: f.fileName,
@@ -1313,6 +1420,11 @@ Respond in JSON:
         confidence: f.confidence,
         isImage: f.isImage,
       })),
+    });
+
+    await persistClassification(archetype, {
+      sourceFileName: fileResults.map(f => f.fileName).join(", "),
+      ingestionPath: "bundle",
     });
   } catch (err) {
     console.error("Bundle import error:", err);

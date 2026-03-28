@@ -105,6 +105,12 @@ interface DecisionArchetypeResult {
   framing: string;
   guardrailApplied: boolean;
   guardrailReason?: string | null;
+  documentType?: string;
+  evidenceSpans?: string[];
+  secondaryDecisions?: string[];
+  alternativeArchetype?: string | null;
+  confidenceLevel?: string;
+  confidenceRationale?: string;
 }
 
 interface ImportResult {
@@ -517,8 +523,11 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
         })()}
 
         {result.decisionArchetype && (
-          <div className="rounded-xl border border-indigo-400/30 bg-indigo-400/5 px-4 py-3">
-            <div className="flex items-center gap-2">
+          <div className="rounded-xl border border-indigo-400/30 bg-indigo-400/5 px-4 py-3 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {result.decisionArchetype.documentType && result.decisionArchetype.documentType !== "Unknown" && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/20">{result.decisionArchetype.documentType}</span>
+              )}
               <div className="text-xs font-semibold text-indigo-400">{result.decisionArchetype.primary}</div>
               {result.decisionArchetype.secondary.length > 0 && (
                 <div className="flex gap-1">
@@ -527,12 +536,41 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
                   ))}
                 </div>
               )}
+              {result.decisionArchetype.confidenceLevel && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                  result.decisionArchetype.confidenceLevel === "high" ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" :
+                  result.decisionArchetype.confidenceLevel === "moderate" ? "text-amber-400 bg-amber-400/10 border-amber-400/20" :
+                  "text-red-400 bg-red-400/10 border-red-400/20"
+                }`}>{result.decisionArchetype.confidenceLevel}</span>
+              )}
+              {result.decisionArchetype.alternativeArchetype && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">alt: {result.decisionArchetype.alternativeArchetype}</span>
+              )}
             </div>
             {result.decisionArchetype.framing && (
-              <div className="text-[11px] text-indigo-300/80 mt-1">{result.decisionArchetype.framing}</div>
+              <div className="text-[11px] text-indigo-300/80">{result.decisionArchetype.framing}</div>
+            )}
+            {result.decisionArchetype.secondaryDecisions && result.decisionArchetype.secondaryDecisions.length > 0 && (
+              <div className="space-y-0.5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Secondary Decisions</div>
+                {result.decisionArchetype.secondaryDecisions.map((d, i) => (
+                  <div key={i} className="text-[11px] text-slate-300 pl-2 border-l border-indigo-400/20">{d}</div>
+                ))}
+              </div>
+            )}
+            {result.decisionArchetype.evidenceSpans && result.decisionArchetype.evidenceSpans.length > 0 && (
+              <div className="space-y-0.5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Why we classified it this way</div>
+                {result.decisionArchetype.evidenceSpans.map((span, i) => (
+                  <div key={i} className="text-[11px] text-indigo-300/70 pl-2 border-l border-indigo-400/20 italic">"{span}"</div>
+                ))}
+              </div>
+            )}
+            {result.decisionArchetype.confidenceRationale && (
+              <div className="text-[10px] text-slate-400 italic">{result.decisionArchetype.confidenceRationale}</div>
             )}
             {result.decisionArchetype.guardrailApplied && result.decisionArchetype.guardrailReason && (
-              <div className="text-[10px] text-amber-400/90 mt-1.5 flex items-center gap-1">
+              <div className="text-[10px] text-amber-400/90 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
                 {result.decisionArchetype.guardrailReason}
               </div>
