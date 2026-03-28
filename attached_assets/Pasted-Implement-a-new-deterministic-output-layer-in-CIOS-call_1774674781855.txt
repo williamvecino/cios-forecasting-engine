@@ -1,0 +1,172 @@
+Implement a new deterministic output layer in CIOS called **Decision Lab Summary**.
+
+This is not a new engine feature and must not modify forecast logic, Bayesian logic, signal scoring, gate scoring, or scenario calculations. Use only values already produced by the current forecast screen.
+
+## Objective
+
+After every forecast, automatically generate a structured interpretation panel that explains:
+
+1. the main constraint,
+2. why the forecast is at its current value,
+3. what would make it go up,
+4. why apparently conflicting signals can coexist,
+5. what the decision implication is.
+
+The purpose is to convert forecast output into operational judgment.
+
+## Placement in workflow
+
+Current flow:
+
+* Define Question
+* Add Information
+* See Forecast
+* Decide
+
+Change to:
+
+* Define Question
+* Add Information
+* See Forecast
+* Decision Lab Summary
+* Decide
+
+If adding a separate step is too disruptive right now, place this as a new tab or panel inside Step 3 under Forecast, but architect it so it can later become its own step.
+
+## Trigger behavior
+
+Generate or refresh the Decision Lab Summary automatically whenever any of these occur:
+
+* forecast recalculates
+* signals are added, edited, or removed
+* scenario changes
+* user enters the Forecast screen
+
+No manual writing required by the user.
+
+## Data source mapping
+
+Use only existing forecast outputs already present in the app.
+
+Map as follows:
+
+* Forecast Probability = Final Forecast
+* Brand Strength = Brand Outlook
+* Primary Constraint = Most Sensitive Gate
+* Execution Gap = Execution Gap
+* Constraints = Event Gates
+* Driver Contributions = Driver Contribution Breakdown
+* Total Upward Pressure = Total Upward Pressure
+* Total Downward Pressure = Total Downward Pressure
+
+Do not invent new scores.
+Do not call an LLM for this.
+This should be deterministic template logic.
+
+## Output structure
+
+Render a structured summary with these sections:
+
+### 1. Executive Diagnosis
+
+Short explanation of what the current forecast means.
+
+Template logic:
+
+* If Brand Strength is high but Forecast Probability is much lower, explain that the product/brand appears strong but execution or market constraints are limiting achievement within the forecast window.
+* If the biggest gap is tied to a weak gate, explicitly name that gate.
+
+### 2. Primary Constraint
+
+Display the Most Sensitive Gate and a one- to two-sentence explanation of why it is the main limiting factor.
+
+Example pattern:
+“The primary constraint is {GateName}. This is the factor currently placing the strongest ceiling on the forecast, even though other conditions may be favorable.”
+
+### 3. Constraint Hierarchy
+
+List Event Gates ranked by constraining impact, strongest to weakest.
+
+### 4. Why the Forecast Is Not Higher
+
+Use the weak/moderate gates plus the main negative driver themes from Driver Contribution Breakdown.
+This should explain the forecast in business/decision language, not just restate numbers.
+
+### 5. What Would Increase the Forecast
+
+Use the Primary Constraint and other unresolved gates to explain the highest-leverage improvements.
+This section should answer: what has to change structurally for the probability to rise?
+
+### 6. Why Signals Can Seem Contradictory
+
+Add a standard interpretation block:
+
+* positive clinical / evidence / market signals and negative operational / access / behavior signals can coexist
+* this is not a model contradiction if they belong to different domains
+* the system is detecting asynchronous readiness across domains
+
+This section is important and must appear when both strong positive and negative drivers exist at the same time.
+
+### 7. Decision Implication
+
+One short decision-oriented conclusion.
+Example pattern:
+“The product appears viable, but success within the selected timeframe depends more on removing execution friction than on improving positioning.”
+
+## Rules for logic
+
+1. Do not modify the engine.
+2. Do not recompute forecast probability.
+3. Do not use generative free text beyond deterministic conditional templates.
+4. Keep explanations tightly linked to actual output values shown on screen.
+5. If data is missing, omit that sentence rather than hallucinating.
+6. Preserve future compatibility so this interpretation layer can later be reused for other cases and therapy areas.
+
+## Required behavior for contradiction handling
+
+If:
+
+* positive drivers exist above zero
+  and
+* negative drivers exist below zero
+
+then the summary must explicitly explain that apparently conflicting signals may reflect different adoption domains, such as:
+
+* clinical readiness
+* operational readiness
+* access readiness
+* behavioral adoption readiness
+
+Do not label this as inconsistency unless the underlying data is actually duplicated or logically impossible.
+
+## UI requirement
+
+Make the Decision Lab Summary visually clean and executive-readable.
+It should feel like a real interpretation panel, not debug text.
+Use section headers and concise paragraphs.
+
+## Immediate example to support
+
+For cases like:
+
+* high brand outlook
+* moderate or low final forecast
+* weak time-horizon feasibility gate
+
+the summary should clearly state that:
+
+* the therapy/brand is strong
+* adoption within the defined timeframe is constrained by tempo/adoption inertia
+* this is an execution-timing issue, not product weakness
+
+## Deliverable
+
+Implement the panel and make it populate from current forecast outputs.
+Then test it on the current ARIKAYCE case and confirm that the summary:
+
+* identifies the biggest constraint correctly
+* explains why the probability is only 35%
+* explains how it could go up
+* explains why positive and negative signals coexist
+
+Do not redesign the whole app for this task. Just add the interpretation layer cleanly and safely.

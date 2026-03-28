@@ -9,6 +9,7 @@ import { ProbabilityGauge } from "@/components/ui-components";
 import { ForecastComparisonCircles } from "@/components/forecast/ForecastComparisonCircles";
 import { EventGatesPanel } from "@/components/forecast/EventGatesPanel";
 import { ForecastMeaningPanel } from "@/components/forecast/ForecastMeaningPanel";
+import { DecisionLabSummary } from "@/components/forecast/DecisionLabSummary";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import {
   ArrowRight,
@@ -968,6 +969,18 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       body="Combined estimated downside if strong gates regress."
                     />
                   </div>
+
+                  <DecisionLabSummary
+                    brandOutlookPct={brandPct}
+                    finalForecastPct={finalPct}
+                    executionGap={Math.abs(brandPct - finalPct)}
+                    gates={decomp!.event_gates}
+                    drivers={drivers}
+                    upsideTotal={upsideTotal}
+                    downsideTotal={downsideTotal}
+                    topGateDriverName={topGateDriver?.primaryDriver || null}
+                    topGateDriverDelta={topGateDriver?.delta || 0}
+                  />
                 </>
               );
             })()}

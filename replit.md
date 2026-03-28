@@ -41,6 +41,7 @@ The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built
 - **Signal Conflict Detection:** Opposing-direction signals on the same category are flagged with conflict indicators. Higher-priority sources win in conflict resolution.
 - **Driver Impact Distribution:** Total probability shift is proportionally distributed across signals using the largest-remainder method.
 - **Forecast Meaning Panel:** Provides plain-language interpretations, identifies primary constraints, and suggests actions to change forecasts.
+- **Decision Lab Summary:** A deterministic 7-section interpretive panel (Executive Diagnosis, Primary Constraint, Constraint Hierarchy, Why Not Higher, What Would Increase Forecast, Why Signals Seem Contradictory, Decision Implication) rendered on the forecast page. Pure template logic from forecast outputs — no AI. Primary constraint derived from most-sensitive-gate scenario analysis. Constraint hierarchy sorted by constraining impact (lowest cap first). All sections always render with fallback text.
 - **Gate-Driven Scenario Planning:** Allows deterministic counterfactual forecasts by modifying gate states without AI involvement.
 - **Signal-to-Gate Mapping Engine:** Deterministically maps signals to gates using keyword scoring and recalculates gate status based on evidence weight, triggering forecast updates.
 
