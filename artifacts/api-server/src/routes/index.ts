@@ -36,6 +36,7 @@ import aiRespondRouter from "./ai-respond.js";
 import aiSimulateRouter from "./ai-simulate.js";
 import aiArchetypeRouter from "./ai-archetype.js";
 import aiAssumptionsRouter from "./ai-assumptions.js";
+import agentQuestionStructuringRouter from "./agent-question-structuring.js";
 
 const router: IRouter = Router();
 
@@ -76,5 +77,6 @@ router.use(aiRespondRouter);
 router.use(aiSimulateRouter);
 router.use(aiArchetypeRouter);
 router.use(aiAssumptionsRouter);
+router.use(agentQuestionStructuringRouter);
 
 export default router;

@@ -19,10 +19,34 @@ import {
   Sparkles,
   Upload,
   MessageSquare,
+  CheckCircle2,
+  XCircle,
+  SplitSquareVertical,
+  Target,
+  Clock,
 } from "lucide-react";
 import ImportProjectDialog from "@/components/question/ImportProjectDialog";
 
 const API = import.meta.env.VITE_API_URL || "";
+
+interface StructuredQuestion {
+  questionText: string;
+  archetype: string;
+  horizon: string;
+  targetOutcome: string;
+  boundedness: "bounded" | "needs_splitting" | "too_broad";
+}
+
+interface QuestionStructuringResult {
+  activeQuestion: StructuredQuestion;
+  supportingQuestions: StructuredQuestion[];
+  rejection: {
+    rejected: boolean;
+    reason: string | null;
+    suggestion: string | null;
+  };
+  inputHash: string;
+}
 
 const EXAMPLE_QUESTIONS = [
   "Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?",
@@ -46,7 +70,7 @@ interface Interpretation {
   restatedQuestion: string;
 }
 
-type PageState = "input" | "creating";
+type PageState = "input" | "structuring" | "creating";
 
 export default function QuestionPage() {
   const [, navigate] = useLocation();
@@ -58,6 +82,7 @@ export default function QuestionPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
+  const [structuringResult, setStructuringResult] = useState<QuestionStructuringResult | null>(null);
   const [showImportProject, setShowImportProject] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("import") === "file";
@@ -149,14 +174,43 @@ export default function QuestionPage() {
     const text = rawInput.trim();
     if (!text) return;
     setSubmitError(null);
+    setStructuringResult(null);
+    setPageState("structuring");
+
+    let structuredResult: QuestionStructuringResult | null = null;
+    try {
+      const structRes = await fetch(`${API}/api/agents/question-structuring`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawInput: text }),
+      });
+      if (structRes.ok) {
+        const structData = await structRes.json();
+        if (structData.structuredQuestions) {
+          structuredResult = structData.structuredQuestions;
+          setStructuringResult(structuredResult);
+        }
+      }
+    } catch {}
+
+    if (structuredResult?.rejection?.rejected) {
+      setSubmitError(
+        structuredResult.rejection.reason || "This input is not a decision question."
+      );
+      setPageState("input");
+      return;
+    }
+
     setPageState("creating");
+
+    const questionText = structuredResult?.activeQuestion?.questionText || text;
 
     let interpretation: Interpretation;
     try {
       const res = await fetch(`${API}/api/ai-interpret-question`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawInput: text }),
+        body: JSON.stringify({ rawInput: questionText }),
       });
 
       if (!res.ok) {
@@ -169,12 +223,17 @@ export default function QuestionPage() {
       }
       interpretation = data.interpretation;
     } catch {
-      interpretation = buildLocalFallback(text);
+      interpretation = buildLocalFallback(questionText);
+    }
+
+    if (structuredResult) {
+      interpretation.questionType = structuredResult.activeQuestion.archetype || interpretation.questionType;
+      interpretation.timeHorizon = structuredResult.activeQuestion.horizon || interpretation.timeHorizon;
     }
 
     if (isEditMode && editCaseId) {
       const payload = {
-        text: interpretation.restatedQuestion || text,
+        text: interpretation.restatedQuestion || questionText,
         caseId: editCaseId,
         timeHorizon: interpretation.timeHorizon || "12 months",
         questionType: interpretation.questionType || "binary",
@@ -183,6 +242,13 @@ export default function QuestionPage() {
         outcome: interpretation.outcome || undefined,
       };
       updateQuestion(payload);
+
+      if (structuredResult) {
+        try {
+          localStorage.setItem(`cios.questionStructuring:${editCaseId}`, JSON.stringify(structuredResult));
+        } catch {}
+      }
+
       navigate("/signals");
       return;
     }
@@ -198,7 +264,7 @@ export default function QuestionPage() {
         timeHorizon: interpretation.timeHorizon || "12 months",
         missingFields: [],
         isComplete: true,
-        interpretedQuestion: interpretation.restatedQuestion || text,
+        interpretedQuestion: interpretation.restatedQuestion || questionText,
         createdAt: new Date().toISOString(),
       };
       const caseInput = mapDecisionQuestionToCaseInput(dq);
@@ -214,8 +280,14 @@ export default function QuestionPage() {
 
       clearCaseState(newCaseId);
 
+      if (structuredResult) {
+        try {
+          localStorage.setItem(`cios.questionStructuring:${newCaseId}`, JSON.stringify(structuredResult));
+        } catch {}
+      }
+
       const payload = {
-        text: interpretation.restatedQuestion || text,
+        text: interpretation.restatedQuestion || questionText,
         rawInput: text,
         caseId: newCaseId,
         timeHorizon: interpretation.timeHorizon || "12 months",
