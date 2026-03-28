@@ -54,6 +54,27 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **MIOS/BAOS Signal Integration:** Automatically loads prebuilt MIOS (evidence) and BAOS (behavioral/barrier) signals for specified brands.
 - **Decision Gating Agent:** An orchestration agent that reads uploaded documents, identifies the real business decision, filters noise, and routes content to MIOS, BAOS, or CIOS, generating separate recommended questions per system.
 
+## Bounded Agent Architecture (13 agents total)
+All agents follow canonical invariants: bounded (fixed I/O schema), deterministic (temperature=0, seed=42), single-purpose, and optional.
+
+| # | Agent | Endpoint | Frontend Location | Status |
+|---|-------|----------|-------------------|--------|
+| 1 | Decision Gating | POST /api/decision-gating | Upload step | BUILT |
+| 2 | Question Structuring | POST /api/agents/question-structuring | Define Question | BUILT |
+| 3 | External Signal Scout | POST /api/agents/external-signal-scout | Add Information | BUILT |
+| 4 | Signal Normalizer | POST /api/agents/signal-normalizer | Add Information | BUILT |
+| 5 | Signal Quality | POST /api/agents/signal-quality | Add Information | BUILT |
+| 6 | Conflict Resolver | POST /api/agents/conflict-resolver | Add Information | BUILT |
+| 7 | Case Comparator | POST /api/agents/case-comparator | Judge | BUILT |
+| 8 | Integrity | POST /api/agents/integrity | Judge | BUILT |
+| 9 | Actor Segmentation | POST /api/agents/actor-segmentation | Simulate | BUILT |
+| 10 | Stakeholder Reaction | POST /api/agents/stakeholder-reaction | Simulate | BUILT |
+| 11 | Prioritization | POST /api/agents/prioritization | Decide | BUILT |
+| 12 | Provenance | buildProvenance() helper | SignalProvenanceDrawer | BUILT |
+| 13 | Core Engine | lib/core-forecast-engine.ts | Judge (frozen) | BUILT |
+
+**Validation Harness:** 13 tests (A-M) in `agent-validation-harness.ts`, 43 locked unit tests.
+
 ## External Dependencies
 - **PostgreSQL:** Relational database management system.
 - **Express 5:** Backend web application framework.

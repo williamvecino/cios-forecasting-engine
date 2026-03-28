@@ -49,6 +49,8 @@ import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog"
 import { SignalProvenanceDrawer, buildProvenance } from "@/components/signals/SignalProvenanceDrawer";
 import ExternalSignalScoutPanel from "@/components/signals/ExternalSignalScoutPanel";
 import SignalNormalizerPanel from "@/components/signals/SignalNormalizerPanel";
+import SignalQualityPanel from "@/components/signals/SignalQualityPanel";
+import ConflictResolverPanel from "@/components/signals/ConflictResolverPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import { getAllPrebuiltSignals, getSignalsForBrand, getAnalogSignalsForBrand } from "@/lib/workbook/prebuiltSignals";
@@ -1464,6 +1466,33 @@ export default function SignalsPage() {
                 return updated;
               });
             }}
+          />
+
+          <SignalQualityPanel
+            question={questionText}
+            signals={allSignals.map((s) => ({
+              id: s.id,
+              text: s.text,
+              direction: s.direction,
+              strength: s.strength,
+              reliability: s.reliability,
+              source: s.source,
+              source_type: s.source_type,
+              observed_date: s.observed_date || null,
+            }))}
+          />
+
+          <ConflictResolverPanel
+            question={questionText}
+            signals={allSignals.map((s) => ({
+              id: s.id,
+              text: s.text,
+              direction: s.direction,
+              strength: s.strength,
+              reliability: s.reliability,
+              source: s.source,
+              source_type: s.source_type,
+            }))}
           />
 
           {!aiLoading && hasSourceClassification && (

@@ -15,6 +15,7 @@ import {
   Minus,
 } from "lucide-react";
 import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
+import { StakeholderReactionPanel } from "@/components/simulate/StakeholderReactionPanel";
 
 interface ArchetypeInfo {
   segment_name: string;
@@ -523,6 +524,11 @@ export default function SimulatePage() {
         <ActorSegmentationPanel
           question={activeQuestion?.text || ""}
           signals={[]}
+          context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
+        />
+
+        <StakeholderReactionPanel
+          question={activeQuestion?.text || ""}
           context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
         />
       </QuestionGate>

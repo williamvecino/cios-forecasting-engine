@@ -42,6 +42,10 @@ import agentSignalNormalizerRouter from "./agent-signal-normalizer.js";
 import agentCaseComparatorRouter from "./agent-case-comparator.js";
 import agentActorSegmentationRouter from "./agent-actor-segmentation.js";
 import agentPrioritizationRouter from "./agent-prioritization.js";
+import agentSignalQualityRouter from "./agent-signal-quality.js";
+import agentConflictResolverRouter from "./agent-conflict-resolver.js";
+import agentIntegrityRouter from "./agent-integrity.js";
+import agentStakeholderReactionRouter from "./agent-stakeholder-reaction.js";
 
 const router: IRouter = Router();
 
@@ -88,5 +92,9 @@ router.use(agentSignalNormalizerRouter);
 router.use(agentCaseComparatorRouter);
 router.use(agentActorSegmentationRouter);
 router.use(agentPrioritizationRouter);
+router.use(agentSignalQualityRouter);
+router.use(agentConflictResolverRouter);
+router.use(agentIntegrityRouter);
+router.use(agentStakeholderReactionRouter);
 
 export default router;

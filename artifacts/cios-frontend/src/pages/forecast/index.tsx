@@ -15,6 +15,7 @@ import { ExplainBox } from "@/components/forecast/ExplainBox";
 import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
+import { IntegrityPanel } from "@/components/forecast/IntegrityPanel";
 import {
   ArrowRight,
   BookOpen,
@@ -1322,6 +1323,28 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         question={activeQuestion?.text || ""}
         signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
         context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
+      />
+
+      <IntegrityPanel
+        question={activeQuestion?.text || ""}
+        probability={f?.currentProbability ? Math.round(f.currentProbability * 100) : undefined}
+        signals={f?.signals?.map((s: any) => ({
+          text: s.name || s.text,
+          direction: s.direction || "neutral",
+          strength: s.strength || "Medium",
+          confidence: s.reliability || s.confidence || "Probable",
+        }))}
+        gates={f?.eventDecomposition?.event_gates?.map((g: any) => ({
+          label: g.gate_label || g.label,
+          status: g.status || "open",
+          constrains_to: typeof g.constrains_probability_to === "number" ? Math.round(g.constrains_probability_to * 100) : 100,
+        }))}
+        judgment={f?.judgment ? {
+          headline: f.judgment.headline,
+          narrative: f.judgment.narrative,
+          recommendation: f.judgment.recommendation,
+          confidenceLevel: f.judgment.confidence_level,
+        } : undefined}
       />
 
       <BottomLinks forecastData={f} />

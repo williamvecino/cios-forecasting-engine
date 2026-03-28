@@ -822,6 +822,306 @@ async function testPrioritizationAgent(question: string): Promise<TestResult> {
   }
 }
 
+// ─── J: SIGNAL QUALITY AGENT ─────────────────────────────────────────────────
+
+async function testSignalQualityAgent(question: string): Promise<TestResult> {
+  const signals = [
+    { id: "sq1", text: "Phase III trial met primary endpoint", direction: "positive", strength: "High", confidence: "Confirmed", source_type: "clinical_trial" },
+    { id: "sq2", text: "KOL sentiment suggests competitive threat", direction: "negative", strength: "Medium", confidence: "Speculative", source_type: "kol_interview" },
+    { id: "sq3", text: "Market forecast from 2019 predicts growth", direction: "positive", strength: "Medium", confidence: "Probable", source_type: "market_report", observed_date: "2019-03-15" },
+  ];
+
+  try {
+    const start = Date.now();
+    const [run1, run2] = await Promise.all([
+      fetchAgent("agents/signal-quality", { question, signals }),
+      fetchAgent("agents/signal-quality", { question, signals }),
+    ]);
+    const durationMs = Date.now() - start;
+
+    let pass = true;
+    let warnings = 0;
+    let errors = 0;
+    let deterministic = true;
+    const notes: string[] = [];
+
+    if (!Array.isArray(run1.assessments) || run1.assessments.length === 0) {
+      notes.push("FAIL: no assessments returned");
+      pass = false;
+      errors++;
+    } else {
+      notes.push(`OK: ${run1.assessments.length} assessments returned`);
+      const recommendations = run1.assessments.map((a: any) => a.recommendation);
+      notes.push(`OK: recommendations: ${recommendations.join(", ")}`);
+    }
+
+    if (!run1.overallQuality) {
+      notes.push("FAIL: no overallQuality returned");
+      pass = false;
+      errors++;
+    } else {
+      notes.push(`OK: avg score: ${run1.overallQuality.averageScore}, gaps: ${run1.overallQuality.signalGaps?.length || 0}`);
+    }
+
+    if (JSON.stringify(run1) !== JSON.stringify(run2)) {
+      notes.push("WARNING: non-deterministic");
+      warnings++;
+      deterministic = false;
+    }
+
+    return {
+      agent: "Signal Quality Agent",
+      testName: "Assess quality of mixed signals",
+      inputReceived: `${signals.length} signals`,
+      outputProduced: `${run1.assessments?.length || 0} assessments, avg: ${run1.overallQuality?.averageScore || 0}`,
+      pass, warningCount: warnings, errorCount: errors, deterministic,
+      downstreamCompatible: pass, notes, durationMs,
+    };
+  } catch (err: any) {
+    return {
+      agent: "Signal Quality Agent",
+      testName: "Assess quality of mixed signals",
+      inputReceived: `${signals.length} signals`,
+      outputProduced: `ERROR: ${err.message}`,
+      pass: false, warningCount: 0, errorCount: 1, deterministic: false,
+      downstreamCompatible: false, notes: [`FATAL: ${err.message}`], durationMs: 0,
+    };
+  }
+}
+
+// ─── K: CONFLICT RESOLVER AGENT ──────────────────────────────────────────────
+
+async function testConflictResolverAgent(question: string): Promise<TestResult> {
+  const signals = [
+    { id: "cr1", text: "Payer coverage expanding rapidly", direction: "positive", strength: "High", confidence: "Confirmed", source_type: "payer_data" },
+    { id: "cr2", text: "Budget constraints limiting new drug adoption", direction: "negative", strength: "High", confidence: "Probable", source_type: "payer_data" },
+    { id: "cr3", text: "Physician preference shifting to competitor", direction: "negative", strength: "Medium", confidence: "Speculative", source_type: "kol_interview" },
+    { id: "cr4", text: "Recent trial data confirms superiority", direction: "positive", strength: "High", confidence: "Confirmed", source_type: "clinical_trial" },
+  ];
+
+  try {
+    const start = Date.now();
+    const [run1, run2] = await Promise.all([
+      fetchAgent("agents/conflict-resolver", { question, signals }),
+      fetchAgent("agents/conflict-resolver", { question, signals }),
+    ]);
+    const durationMs = Date.now() - start;
+
+    let pass = true;
+    let warnings = 0;
+    let errors = 0;
+    let deterministic = true;
+    const notes: string[] = [];
+
+    if (!Array.isArray(run1.conflicts)) {
+      notes.push("FAIL: no conflicts array returned");
+      pass = false;
+      errors++;
+    } else {
+      notes.push(`OK: ${run1.conflicts.length} conflicts detected`);
+    }
+
+    if (!run1.signalCoherence) {
+      notes.push("WARNING: no signalCoherence returned");
+      warnings++;
+    } else {
+      notes.push(`OK: coherence: ${run1.signalCoherence}`);
+    }
+
+    if (!run1.narrative) {
+      notes.push("WARNING: no narrative returned");
+      warnings++;
+    }
+
+    if (JSON.stringify(run1) !== JSON.stringify(run2)) {
+      notes.push("WARNING: non-deterministic");
+      warnings++;
+      deterministic = false;
+    }
+
+    return {
+      agent: "Conflict Resolver Agent",
+      testName: "Detect conflicts in contradictory signals",
+      inputReceived: `${signals.length} signals`,
+      outputProduced: `${run1.totalConflicts || 0} conflicts, coherence: ${run1.signalCoherence}`,
+      pass, warningCount: warnings, errorCount: errors, deterministic,
+      downstreamCompatible: pass, notes, durationMs,
+    };
+  } catch (err: any) {
+    return {
+      agent: "Conflict Resolver Agent",
+      testName: "Detect conflicts in contradictory signals",
+      inputReceived: `${signals.length} signals`,
+      outputProduced: `ERROR: ${err.message}`,
+      pass: false, warningCount: 0, errorCount: 1, deterministic: false,
+      downstreamCompatible: false, notes: [`FATAL: ${err.message}`], durationMs: 0,
+    };
+  }
+}
+
+// ─── L: INTEGRITY / CONSISTENCY AGENT ────────────────────────────────────────
+
+async function testIntegrityAgent(question: string): Promise<TestResult> {
+  const payload = {
+    question,
+    probability: 72,
+    signals: [
+      { text: "Phase III met primary endpoint", direction: "positive", strength: "High", confidence: "Confirmed" },
+      { text: "Competitive product launched successfully", direction: "negative", strength: "Medium", confidence: "Probable" },
+    ],
+    judgment: {
+      headline: "Favorable outlook with competitive headwinds",
+      narrative: "The strong clinical data supports a positive trajectory, but competitive dynamics create uncertainty.",
+      recommendation: "Proceed with launch preparation while monitoring competitive landscape.",
+      confidenceLevel: "Moderate",
+    },
+  };
+
+  try {
+    const start = Date.now();
+    const [run1, run2] = await Promise.all([
+      fetchAgent("agents/integrity", payload),
+      fetchAgent("agents/integrity", payload),
+    ]);
+    const durationMs = Date.now() - start;
+
+    let pass = true;
+    let warnings = 0;
+    let errors = 0;
+    let deterministic = true;
+    const notes: string[] = [];
+
+    if (!Array.isArray(run1.checks) || run1.checks.length === 0) {
+      notes.push("FAIL: no integrity checks returned");
+      pass = false;
+      errors++;
+    } else {
+      notes.push(`OK: ${run1.checks.length} checks performed`);
+      const statuses = run1.checks.map((c: any) => c.status);
+      notes.push(`OK: pass=${statuses.filter((s: string) => s === "pass").length}, warn=${statuses.filter((s: string) => s === "warning").length}, fail=${statuses.filter((s: string) => s === "fail").length}`);
+    }
+
+    if (!run1.overallIntegrity) {
+      notes.push("FAIL: no overallIntegrity returned");
+      pass = false;
+      errors++;
+    } else {
+      notes.push(`OK: overall integrity: ${run1.overallIntegrity}`);
+    }
+
+    if (JSON.stringify(run1) !== JSON.stringify(run2)) {
+      notes.push("WARNING: non-deterministic");
+      warnings++;
+      deterministic = false;
+    }
+
+    return {
+      agent: "Integrity Agent",
+      testName: "Check case coherence with mixed signals",
+      inputReceived: truncate(question, 80),
+      outputProduced: `${run1.checks?.length || 0} checks, integrity: ${run1.overallIntegrity}`,
+      pass, warningCount: warnings, errorCount: errors, deterministic,
+      downstreamCompatible: pass, notes, durationMs,
+    };
+  } catch (err: any) {
+    return {
+      agent: "Integrity Agent",
+      testName: "Check case coherence with mixed signals",
+      inputReceived: truncate(question, 80),
+      outputProduced: `ERROR: ${err.message}`,
+      pass: false, warningCount: 0, errorCount: 1, deterministic: false,
+      downstreamCompatible: false, notes: [`FATAL: ${err.message}`], durationMs: 0,
+    };
+  }
+}
+
+// ─── M: STAKEHOLDER REACTION AGENT ───────────────────────────────────────────
+
+async function testStakeholderReactionAgent(question: string): Promise<TestResult> {
+  const payload = {
+    question,
+    scenario: {
+      label: "FDA approval 3 months early",
+      description: "The anti-PDL1 therapy receives FDA approval three months ahead of schedule, forcing competitors to accelerate their responses.",
+      probability: 65,
+    },
+    actors: [
+      { name: "Oncologists", role: "Prescribers", influenceWeight: 0.35 },
+      { name: "Payers", role: "Formulary decision-makers", influenceWeight: 0.30 },
+      { name: "Competing pharma", role: "Market competitors", influenceWeight: 0.20 },
+    ],
+    timeHorizon: "12 months",
+  };
+
+  try {
+    const start = Date.now();
+    const [run1, run2] = await Promise.all([
+      fetchAgent("agents/stakeholder-reaction", payload),
+      fetchAgent("agents/stakeholder-reaction", payload),
+    ]);
+    const durationMs = Date.now() - start;
+
+    let pass = true;
+    let warnings = 0;
+    let errors = 0;
+    let deterministic = true;
+    const notes: string[] = [];
+
+    if (!Array.isArray(run1.reactions) || run1.reactions.length === 0) {
+      notes.push("FAIL: no reactions returned");
+      pass = false;
+      errors++;
+    } else {
+      notes.push(`OK: ${run1.reactions.length} actor reactions`);
+      for (const r of run1.reactions) {
+        if (!r.actorName || !r.reactionDirection) {
+          notes.push(`WARNING: reaction missing actorName or reactionDirection`);
+          warnings++;
+        }
+      }
+    }
+
+    if (!run1.systemImpact?.netEffect) {
+      notes.push("FAIL: no systemImpact.netEffect returned");
+      pass = false;
+      errors++;
+    } else {
+      notes.push(`OK: net effect: ${run1.systemImpact.netEffect}, confidence: ${run1.systemImpact.confidenceInPrediction}`);
+    }
+
+    if (!Array.isArray(run1.criticalWatchpoints)) {
+      notes.push("WARNING: no criticalWatchpoints array");
+      warnings++;
+    } else {
+      notes.push(`OK: ${run1.criticalWatchpoints.length} watchpoints`);
+    }
+
+    if (JSON.stringify(run1) !== JSON.stringify(run2)) {
+      notes.push("WARNING: non-deterministic");
+      warnings++;
+      deterministic = false;
+    }
+
+    return {
+      agent: "Stakeholder Reaction Agent",
+      testName: "Simulate actor reactions to early FDA approval",
+      inputReceived: `scenario: ${payload.scenario.label}, ${payload.actors.length} actors`,
+      outputProduced: `${run1.reactions?.length || 0} reactions, net: ${run1.systemImpact?.netEffect}`,
+      pass, warningCount: warnings, errorCount: errors, deterministic,
+      downstreamCompatible: pass, notes, durationMs,
+    };
+  } catch (err: any) {
+    return {
+      agent: "Stakeholder Reaction Agent",
+      testName: "Simulate actor reactions to early FDA approval",
+      inputReceived: `scenario: ${payload.scenario.label}`,
+      outputProduced: `ERROR: ${err.message}`,
+      pass: false, warningCount: 0, errorCount: 1, deterministic: false,
+      downstreamCompatible: false, notes: [`FATAL: ${err.message}`], durationMs: 0,
+    };
+  }
+}
+
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 
 async function runHarness() {
@@ -880,6 +1180,26 @@ async function runHarness() {
   const prioResult = await testPrioritizationAgent(activeQuestion);
   results.push(prioResult);
   printResult(prioResult);
+
+  console.log("\n▶ J. Signal Quality Agent...");
+  const sqResult = await testSignalQualityAgent(activeQuestion);
+  results.push(sqResult);
+  printResult(sqResult);
+
+  console.log("\n▶ K. Conflict Resolver Agent...");
+  const crResult = await testConflictResolverAgent(activeQuestion);
+  results.push(crResult);
+  printResult(crResult);
+
+  console.log("\n▶ L. Integrity Agent...");
+  const intResult = await testIntegrityAgent(activeQuestion);
+  results.push(intResult);
+  printResult(intResult);
+
+  console.log("\n▶ M. Stakeholder Reaction Agent...");
+  const srResult = await testStakeholderReactionAgent(activeQuestion);
+  results.push(srResult);
+  printResult(srResult);
 
   const passed = results.filter((r) => r.pass).length;
   const failed = results.filter((r) => !r.pass).length;
