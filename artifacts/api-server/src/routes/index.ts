@@ -33,6 +33,7 @@ import aiDecideRouter from "./ai-decide.js";
 import aiInterpretRouter from "./ai-interpret.js";
 import importProjectRouter from "./import-project.js";
 import aiRespondRouter from "./ai-respond.js";
+import aiSimulateRouter from "./ai-simulate.js";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(aiDecideRouter);
 router.use(aiInterpretRouter);
 router.use(importProjectRouter);
 router.use(aiRespondRouter);
+router.use(aiSimulateRouter);
 
 export default router;

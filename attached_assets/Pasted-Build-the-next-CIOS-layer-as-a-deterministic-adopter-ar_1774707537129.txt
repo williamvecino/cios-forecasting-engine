@@ -1,0 +1,486 @@
+Build the next CIOS layer as a deterministic adopter/archetype engine that connects the structural adopter segments already produced by the system to behavioral decision profiles and reaction simulation.
+
+Core principle
+
+Do not replace the current adoption segments.
+
+Keep the existing segment outputs such as:
+
+Early Adopters
+Persuadables
+Late Movers
+Resistant
+
+Keep the current structural descriptors such as:
+
+specialty
+center type
+center location / region
+infrastructure readiness
+infusion capacity
+trial participation
+payer environment
+institutional protocol dependence
+
+These structural segments describe who they are and whether they can adopt.
+
+Add a new behavioral layer that describes how they decide.
+
+The rule is:
+
+Segment = structural readiness
+Archetype = decision behavior
+
+They intersect. They do not replace each other.
+
+What to build
+
+Add a new layer called:
+
+Adopter Archetype Engine
+
+This layer should sit:
+
+after segmentation
+before reaction simulation
+
+Workflow becomes:
+
+Signals
+→ Gates
+→ Adoption Segments
+→ Archetype Assignment
+→ Reaction Simulation
+→ Decide / Respond
+
+Objective
+
+For every adopter segment the system generates, assign one or more likely behavioral archetypes based on observable characteristics, then use those archetypes to estimate the most likely reactions to evidence, visuals, slides, access changes, guideline updates, and other market events.
+
+This must be deterministic and rule-based, not freeform persona generation.
+
+Archetypes to implement first
+
+Start with these five canonical archetypes.
+
+1. Evidence-Driven Innovator
+
+Primary driver: clinical evidence quality
+Typical behavior: adopts early when efficacy or survival signal is strong
+Risk tolerance: high
+Guideline dependence: low
+Operational sensitivity: low to moderate
+Typical environments: academic centers, trial-experienced specialists, KOLs
+
+2. Operational Pragmatist
+
+Primary driver: workflow feasibility and implementation burden
+Typical behavior: interested in innovation but delays adoption if staffing, logistics, or infrastructure are weak
+Risk tolerance: moderate
+Guideline dependence: low to moderate
+Operational sensitivity: high
+Typical environments: community settings, capacity-constrained centers, practices with limited support staff
+
+3. Guideline Follower
+
+Primary driver: formal consensus, institutional protocol, guideline endorsement
+Typical behavior: waits for NCCN / society / institutional inclusion before meaningful use
+Risk tolerance: low
+Guideline dependence: high
+Operational sensitivity: moderate
+Typical environments: hospital systems, protocol-driven institutions, committee-dependent settings
+
+4. Financial Gatekeeper
+
+Primary driver: reimbursement clarity, payer behavior, cost exposure
+Typical behavior: delays adoption until coverage is stable and access friction is low
+Risk tolerance: low
+Guideline dependence: moderate
+Operational sensitivity: moderate
+Typical environments: practices with restrictive payer mix, access-sensitive systems, pharmacy or admin-led settings
+
+5. Skeptical Conservative
+
+Primary driver: long-term safety, real-world evidence, proven durability
+Typical behavior: resists adoption until post-launch evidence accumulates
+Risk tolerance: very low
+Guideline dependence: moderate to high
+Operational sensitivity: moderate
+Typical environments: conservative clinicians, established treatment users, late-switch institutions
+
+Required architecture
+
+Create three new components.
+
+A. Archetype Library
+
+Structured table of archetypes and their attributes.
+
+Required fields:
+
+archetype_id
+archetype_name
+primary_driver
+evidence_sensitivity
+operational_sensitivity
+financial_sensitivity
+guideline_dependence
+risk_tolerance
+adoption_timing_tendency
+influence_level
+preferred_evidence_type
+reaction_pattern_summary
+
+Use categorical values, not free text where possible.
+
+B. Archetype Assignment Engine
+
+Assigns archetypes to existing segments using deterministic rules based on observed characteristics.
+
+C. Reaction Simulation Engine
+
+Uses:
+
+assigned archetype
+segment characteristics
+current case gates
+uploaded material features
+
+to estimate likely response.
+
+Do not do this
+Do not generate vague personas
+Do not use demographic stereotypes
+Do not replace specialty/location segmentation
+Do not make this a generic marketing persona tool
+Do not use unbounded LLM-only narrative reasoning for assignment
+
+This must be interpretable and defensible.
+
+Inputs already available from current CIOS outputs
+
+Use the current segment information and case structure.
+
+Possible inputs:
+
+specialty
+subspecialty
+center type
+center location / region
+trial participation
+volume / experience
+infrastructure capability
+infusion capacity
+staffing stability
+payer environment
+institutional committee dependence
+practice setting
+current gates and constraints
+current adoption segment (early adopter / persuadable / late mover / resistant)
+
+These should be used to assign archetypes.
+
+Deterministic assignment logic
+
+Implement rules like these.
+
+Example rule 1
+
+If:
+
+center_type = academic
+trial_participation = high
+specialty experience = high
+
+Then:
+
+assign Evidence-Driven Innovator
+confidence = high
+Example rule 2
+
+If:
+
+center_type = community
+infrastructure_readiness = limited
+staffing_capacity = constrained
+
+Then:
+
+assign Operational Pragmatist
+confidence = high
+Example rule 3
+
+If:
+
+institutional_protocol_dependence = high
+guideline_dependence proxy = high
+hospital_system = yes
+
+Then:
+
+assign Guideline Follower
+confidence = high
+Example rule 4
+
+If:
+
+payer_friction = high
+reimbursement uncertainty = high
+access barriers = present
+
+Then:
+
+assign Financial Gatekeeper
+confidence = high
+Example rule 5
+
+If:
+
+switching friction = high
+demand for long-term evidence = high
+preference for established standards = high
+
+Then:
+
+assign Skeptical Conservative
+confidence = moderate to high
+
+Allow multiple archetypes per segment if needed, but rank them:
+
+primary archetype
+secondary archetype
+Output schema
+
+For each segment, output:
+
+segment_name
+structural_description
+primary_archetype
+secondary_archetype (optional)
+assignment_confidence
+why_this_archetype_was_assigned
+likely_triggers_for_adoption
+likely_barriers_to_adoption
+likely_response_to_new_evidence
+likely_response_to_access_improvement
+likely_response_to_guideline_change
+Behavioral connection to current segments
+
+This is the core logic to preserve.
+
+Examples:
+
+Early Adopters
+
+Usually map to:
+
+Evidence-Driven Innovator
+Operational Pragmatist
+
+depending on infrastructure readiness
+
+Persuadables
+
+Usually map to:
+
+Guideline Follower
+Financial Gatekeeper
+
+depending on payer and institutional context
+
+Late Movers
+
+Usually map to:
+
+Operational Pragmatist
+Guideline Follower
+
+with stronger constraint dependence
+
+Resistant
+
+Usually map to:
+
+Skeptical Conservative
+Guideline Follower
+
+with high proof thresholds
+
+Do not hard-code this blindly. Use it as prior logic and allow structural inputs to adjust the final assignment.
+
+Reaction simulation requirements
+
+Add a new downstream screen or module called:
+
+Simulate Adoption Reaction
+
+This should accept:
+
+segment selection
+assigned archetype
+uploaded PPT / PDF / image / text
+current case gates / barriers
+
+Then estimate:
+
+likely reaction
+adoption likelihood direction
+primary barrier still preventing movement
+most persuasive trigger
+whether the material changes behavior or only interest
+Reaction rules
+
+Examples:
+
+Evidence-Driven Innovator
+
+If material contains:
+
+strong peer-reviewed survival data
+Then:
+interest rises sharply
+adoption can start before guidelines
+But:
+unresolved payer gate may still limit routine use
+Operational Pragmatist
+
+If material contains:
+
+strong efficacy data only
+Then:
+reaction modest
+If workflow burden remains high
+adoption still delayed
+Guideline Follower
+
+If material contains:
+
+conference data but no guideline update
+Then:
+interest rises
+adoption remains limited
+If guideline changes
+adoption probability jumps
+Financial Gatekeeper
+
+If material contains:
+
+HEOR / coverage wins / access toolkit
+Then:
+adoption likelihood improves
+If coverage unresolved
+remains delayed regardless of efficacy
+Skeptical Conservative
+
+If material contains:
+
+early trial data only
+Then:
+limited behavior change
+If long-term real-world evidence appears
+resistance decreases
+Material ingestion for reaction simulation
+
+The system must accept:
+
+PowerPoint
+PDF
+image
+text
+tables
+
+The AI should extract material features such as:
+
+efficacy claim strength
+survival data
+safety reassurance
+workflow convenience
+access support
+HEOR / cost-effectiveness
+guideline relevance
+comparative evidence
+implementation support
+
+These extracted features then feed the reaction rules.
+
+Do not make the reaction engine depend on file type. It should depend on extracted features.
+
+UI requirements
+
+Keep the UI simple and executive.
+
+Do not show internal model jargon by default.
+
+In Decide
+
+For each segment, show:
+
+segment
+primary archetype
+why they behave this way
+what moves them
+what blocks them
+In Simulate Adoption Reaction
+
+Show:
+
+selected segment
+primary archetype
+likely reaction
+what changes
+what does not change
+trigger to watch
+confidence
+
+Use plain language:
+
+"interested but waiting for coverage"
+"clinically interested but operationally blocked"
+"will likely wait for guideline change"
+"unlikely to move without real-world safety data"
+
+Avoid technical labels unless user opens advanced view.
+
+Data model additions
+
+Add tables or structures for:
+
+archetype_library
+archetype_assignment_rules
+segment_archetype_mapping
+reaction_rules
+material_feature_extraction
+segment_reaction_output
+Priority rules for development
+
+Build in this order:
+
+Archetype Library
+Deterministic Assignment Engine
+Segment → Archetype display inside Decide
+Basic Reaction Simulation using text input
+Material feature extraction from PPT/PDF/image
+Full reaction simulation screen
+
+Do not start with image/PPT complexity before assignment logic is stable.
+
+Design principle
+
+Segments describe capacity and adoption position.
+Archetypes describe decision style and reaction pattern.
+
+Both are required for realistic adoption forecasting.
+
+The system should move from:
+
+who adopts first
+to
+why they adopt
+to
+how they react to evidence, access, and operational changes
+
+That is the purpose of this build.
+
+Final instruction
+
+Build this as a bounded, deterministic behavioral layer on top of the existing segment outputs. Use stable healthcare adoption archetypes, observable structural characteristics, and explicit response rules. Do not turn this into a loose persona generator. The goal is to make CIOS predict how identified adopter groups are most likely to react under real market constraints.

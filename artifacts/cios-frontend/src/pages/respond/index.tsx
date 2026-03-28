@@ -8,7 +8,9 @@ import {
   Copy,
   Check,
   RefreshCw,
+  FlaskConical,
 } from "lucide-react";
+import { Link } from "wouter";
 
 interface RespondResult {
   strategic_recommendation: string;
@@ -248,6 +250,16 @@ export default function RespondPage() {
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Execution Focus</h2>
                 <p className="text-[15px] text-foreground leading-relaxed">{data.execution_focus}</p>
               </section>
+
+              <div className="border-t border-border/40 pt-2" />
+
+              <Link
+                href="/simulate"
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground hover:border-primary/40 hover:bg-primary/5 transition"
+              >
+                <FlaskConical className="w-4 h-4" />
+                Simulate Segment Reaction
+              </Link>
             </div>
           )}
         </div>

@@ -25,6 +25,7 @@ import SignalsPage from "@/pages/signals/index";
 import ForecastPage from "@/pages/forecast/index";
 import DecidePage from "@/pages/decide/index";
 import RespondPage from "@/pages/respond/index";
+import SimulatePage from "@/pages/simulate/index";
 import ForecastLedgerPage from "@/pages/forecast-ledger/index";
 import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import NotFound from "@/pages/not-found";
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/forecast" component={ForecastPage} />
       <Route path="/decide" component={DecidePage} />
       <Route path="/respond" component={RespondPage} />
+      <Route path="/simulate" component={SimulatePage} />
 
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
