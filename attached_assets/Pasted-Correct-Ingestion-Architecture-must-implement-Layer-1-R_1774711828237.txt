@@ -1,0 +1,84 @@
+Correct Ingestion Architecture (must implement)
+Layer 1 — Raw Extraction
+
+Always succeeds
+
+OCR (if needed)
+Text dump
+Slide/image parsing
+
+Output:
+RawText
+
+Layer 2 — Structural Parsing
+
+Extract:
+
+Decision candidates (questions)
+Entities (drug, competitor, stakeholders)
+Constraints (timelines, endpoints, access)
+Signals (early weak indicators)
+
+Even if low confidence
+
+Layer 3 — Forced Question Generation (critical)
+
+If no question is found:
+
+System generates:
+
+“What decision is this project trying to support?”
+“What outcome is implied?”
+
+Example for this file:
+→ “Will PD-L1 strategy win in X setting?”
+→ “What drives adoption vs competitor?”
+
+Layer 4 — Signal Seeding (critical)
+
+Even with weak extraction:
+
+Generate signals like:
+
+Competitive presence
+Clinical uncertainty
+Market access pressure
+Stakeholder fragmentation
+Layer 5 — Confidence Flagging
+
+Instead of failing:
+
+Show:
+
+LOW CONFIDENCE INGESTION
+Review extracted question and signals
+
+What should happen in THIS case
+
+Instead of error, system should output:
+
+Generated Question (example)
+
+“Will Roche PD-L1 strategy achieve competitive adoption vs alternatives in the specified indication?”
+
+Signals (auto-seeded)
+Competitive density: HIGH
+Clinical differentiation unclear
+RFP framing suggests positioning problem
+Stakeholder complexity: HIGH
+
+Then allow user to edit
+
+Exact instruction for Replit (copy-paste)
+
+Replace current failure behavior with fallback ingestion logic:
+
+When document ingestion fails to extract structured content, do not return an error. Instead implement a fallback pipeline:
+
+Run OCR if needed and extract full raw text from the document.
+Generate at least one candidate decision question using heuristic inference (e.g., identify objective, competitive framing, or implied decision).
+Extract or infer at least 5–10 candidate signals from the text, even if low confidence (e.g., competition, evidence gaps, stakeholder complexity, access constraints).
+Assign a LOW CONFIDENCE flag to all extracted outputs.
+Present the generated question and signals to the user for confirmation/editing instead of blocking the workflow.
+
+The ingestion system must never terminate with “insufficient content.” It must always produce a minimally viable case.

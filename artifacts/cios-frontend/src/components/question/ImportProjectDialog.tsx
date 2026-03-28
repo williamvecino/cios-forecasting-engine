@@ -87,6 +87,7 @@ interface ImportResult {
   confidence?: string;
   summary: string;
   environment?: DetectedEnvironment;
+  lowConfidence?: boolean;
 }
 
 interface Props {
@@ -269,11 +270,6 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
       }
 
       const data = await res.json();
-      if (!data.question) {
-        throw new Error(
-          "Could not identify a decision question in the materials.",
-        );
-      }
       setResult(data);
       setPhase("summary");
     } catch (err: any) {
@@ -335,6 +331,16 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {result.lowConfidence && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Low Confidence Ingestion</div>
+              <div className="text-xs text-amber-300/70 mt-0.5">Review extracted question and signals before confirming. Content was inferred from limited or poorly structured materials.</div>
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">

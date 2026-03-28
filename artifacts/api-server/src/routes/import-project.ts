@@ -23,12 +23,13 @@ async function extractTextFromFile(
     fileName.toLowerCase().endsWith(".pdf")
   ) {
     try {
-      const pdfParse = (await import("pdf-parse")).default;
+      const pdfModule = await import("pdf-parse");
+      const pdfParse = typeof pdfModule.default === "function" ? pdfModule.default : pdfModule;
       const result = await pdfParse(buffer);
       return result.text.slice(0, 15000);
     } catch (e) {
       console.error("PDF parse failed:", e);
-      return "";
+      return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000);
     }
   }
 
@@ -393,20 +394,25 @@ router.post("/import-project", async (req, res) => {
       }
     }
 
-    if (!extractedText && !imageBase64) {
-      res.status(400).json({
-        error:
-          "Could not extract enough content from the provided input. Please try pasting the content directly or uploading a different file.",
-      });
-      return;
+    const isLowContent = (!extractedText && !imageBase64) || (extractedText && extractedText.length < 20 && !imageBase64);
+
+    if (isLowContent && body.fileBase64 && body.fileName) {
+      const rawFallback = Buffer.from(body.fileBase64, "base64")
+        .toString("utf-8")
+        .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+        .replace(/\s{3,}/g, " ")
+        .trim()
+        .slice(0, 15000);
+      if (rawFallback.length > 30) {
+        extractedText = rawFallback;
+        console.log(`[import-project] Using raw text fallback (${rawFallback.length} chars)`);
+      }
     }
 
-    if (extractedText && extractedText.length < 20 && !imageBase64) {
-      res.status(400).json({
-        error:
-          "Could not extract enough text from the provided input. Please try pasting the content directly or uploading a different file.",
-      });
-      return;
+    if (!extractedText && !imageBase64) {
+      extractedText = body.fileName
+        ? `Document: ${body.fileName}. Content could not be extracted automatically.`
+        : "Unreadable document submitted for analysis.";
     }
 
     const env = await classifyEnvironment(extractedText, "", imageBase64, imageMimeType);
@@ -448,7 +454,9 @@ CRITICAL RULES:
 - The decision question must be a clear, specific binary or comparative question suitable for forecasting
 - Each signal must be a coherent, self-contained statement — not a raw data excerpt
 - Missing signals should be specific investigable items, not vague suggestions
-- If the materials don't clearly indicate a decision question, infer the most likely one based on the content
+- If the materials don't clearly indicate a decision question, YOU MUST STILL GENERATE ONE. Infer the most likely decision from the content using heuristic analysis. Ask: "What decision is this project trying to support?" or "What outcome is implied by these materials?" Generate the best candidate question and flag confidence as "Low".
+- Even with sparse or poorly structured materials, ALWAYS extract or infer at least 3-5 candidate signals. Look for: competitive presence, clinical uncertainty, market access pressure, stakeholder complexity, positioning challenges, timing constraints.
+- NEVER return empty signals. If extraction is weak, generate signals at "Weak" confidence with clear source descriptions noting they are inferred from limited content.
 - For image inputs: carefully read all visible text, data, charts, tables, and annotations
 
 Respond in JSON format:
@@ -533,14 +541,35 @@ Respond in JSON format:
     }
 
     const parsed = JSON.parse(content);
+    const confidence = parsed.confidence || (isLowContent ? "Low" : "Moderate");
+
+    const question = parsed.question || {
+      text: `What decision is implied by ${body.fileName || "the submitted materials"}?`,
+      restatedQuestion: `What is the primary decision or outcome that ${body.fileName || "these materials"} are intended to support?`,
+      subject: body.fileName?.replace(/\.[^.]+$/, "") || "Unknown",
+      outcome: "Decision outcome not yet determined",
+      timeHorizon: "12 months",
+      questionType: "binary",
+      entities: [],
+      primaryConstraint: "Insufficient information to determine primary constraint",
+      decisionType: "Decision",
+    };
+
+    const signals = (parsed.signals && parsed.signals.length > 0) ? parsed.signals : [
+      { text: "Document content could not be fully parsed — manual review recommended", direction: "neutral", importance: "High", confidence: "Weak", category: "evidence", signal_source: "missing", source_description: "Inferred from limited extraction" },
+      { text: "Decision context unclear from available materials", direction: "neutral", importance: "Medium", confidence: "Weak", category: "evidence", signal_source: "missing", source_description: "Inferred from limited extraction" },
+      { text: "Stakeholder landscape and competitive dynamics not yet identified", direction: "neutral", importance: "Medium", confidence: "Weak", category: "competition", signal_source: "missing", source_description: "Inferred from limited extraction" },
+    ];
+
     res.json({
-      question: parsed.question || null,
-      signals: parsed.signals || [],
+      question,
+      signals,
       missingSignals: parsed.missingSignals || [],
       suggestedCaseType: parsed.suggestedCaseType || parsed.question?.decisionType || "Decision",
-      confidence: parsed.confidence || "Moderate",
+      confidence,
       summary: parsed.summary || "",
       textLength: extractedText.length,
+      lowConfidence: confidence === "Low" || !!isLowContent,
       environment: {
         context: env.context,
         label: env.label,
