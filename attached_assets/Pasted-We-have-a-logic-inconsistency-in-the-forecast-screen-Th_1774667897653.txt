@@ -1,0 +1,126 @@
+We have a logic inconsistency in the forecast screen.
+
+The system shows:
+
+Probability shift +25 points
+BUT
+Total Upward Pressure = 0
+Total Downward Pressure = 0
+
+This is not logically possible.
+
+--------------------------------------------------
+
+ROOT CAUSE
+
+The probability engine is updating,
+but the driver attribution layer is not calculating contributions.
+
+The system must explain movement, not just compute movement.
+
+--------------------------------------------------
+
+REQUIRED FIX
+
+Implement a Driver Contribution Accounting Layer.
+
+Every signal that affects probability must produce:
+
+driver_contribution_points
+
+These contributions must roll up into:
+
+Total Upward Pressure
+Total Downward Pressure
+
+And the sum must reconcile with the probability shift.
+
+--------------------------------------------------
+
+MANDATORY EQUATION
+
+Probability Shift
+
+must equal
+
+Sum of Upward Contributions
+minus
+Sum of Downward Contributions
+
+--------------------------------------------------
+
+EXAMPLE
+
+Prior probability: 45%
+
+Signals:
+
+Strong clinical outcomes evidence
++15 pts
+
+Improved reimbursement coverage
++10 pts
+
+Operational workflow burden
+-5 pts
+
+Then:
+
+Upward Pressure: +25 pts
+Downward Pressure: -5 pts
+Net Shift: +20 pts
+
+New Probability: 65%
+
+--------------------------------------------------
+
+IMPLEMENTATION
+
+Each signal must store:
+
+signal_id
+direction
+contribution_points
+affected_gate
+confidence
+
+--------------------------------------------------
+
+UI REQUIREMENT
+
+Under the probability gauge, display:
+
+Driver Contribution Breakdown
+
+Example:
+
+Clinical outcomes evidence
++15 pts
+
+Reimbursement expansion
++10 pts
+
+Operational complexity
+-5 pts
+
+--------------------------------------------------
+
+VALIDATION RULE
+
+If probability changes,
+pressure totals must not equal zero.
+
+If both pressures are zero,
+probability must equal prior probability.
+
+--------------------------------------------------
+
+SUCCESS CONDITION
+
+The system is correct only when:
+
+Probability shift
+equals
+Net driver contributions
+
+And every movement is explainable.

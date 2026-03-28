@@ -144,55 +144,86 @@ function useDriversFromForecast(forecast: any) {
     const f = forecast as any;
     const sa = f.sensitivityAnalysis;
     const signalDetails = f.signalDetails || [];
+    const totalShift = Math.round(((f.currentProbability ?? 0) - (f.priorProbability ?? 0)) * 100);
     const drivers: Driver[] = [];
 
-    if (sa?.upwardSignals) {
-      for (const sig of sa.upwardSignals) {
-        const detail = signalDetails.find((d: any) => d.signalId === sig.signalId);
-        const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? 1;
-        const impact = sig.deltaIfRemoved ? Math.round(sig.deltaIfRemoved * 100) : Math.round((lr - 1) * 15);
-        drivers.push({
-          id: sig.signalId,
-          name: sig.description || detail?.description || sig.signalId,
-          direction: "Upward",
-          strength: lr >= 2 ? "High" : lr >= 1.3 ? "Medium" : "Low",
-          probabilityImpact: Math.abs(impact),
-          watchSignal: detail?.signalType || "Monitor for changes",
-          interpretation: detail?.signalType ? `${detail.signalType} signal contributing to upward pressure.` : undefined,
-        });
-      }
-    }
+    const allSaSignals = [
+      ...(sa?.upwardSignals || []).map((s: any) => ({ ...s, _dir: "Upward" as const })),
+      ...(sa?.downwardSignals || []).map((s: any) => ({ ...s, _dir: "Downward" as const })),
+    ];
 
-    if (sa?.downwardSignals) {
-      for (const sig of sa.downwardSignals) {
+    const buildDriversFromSignals = (signals: any[], dir: "Upward" | "Downward", targetTotal: number) => {
+      if (signals.length === 0) return;
+      const rawWeights = signals.map((sig: any) => {
         const detail = signalDetails.find((d: any) => d.signalId === sig.signalId);
-        const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? 1;
-        const impact = sig.deltaIfRemoved ? Math.round(sig.deltaIfRemoved * 100) : Math.round((1 - lr) * 15);
+        const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? sig.effectiveLR ?? 1;
+        return {
+          sig,
+          detail,
+          lr,
+          weight: sig.deltaIfRemoved ?? sig.absoluteImpact ?? Math.abs(Math.log(lr || 1)),
+        };
+      });
+      const totalWeight = rawWeights.reduce((s, w) => s + w.weight, 0);
+      if (totalWeight === 0) {
+        for (const w of rawWeights) w.weight = 1;
+      }
+      const finalTotalWeight = rawWeights.reduce((s, w) => s + w.weight, 0);
+      const absTarget = Math.abs(targetTotal);
+
+      const rawImpacts = rawWeights.map(w => (w.weight / finalTotalWeight) * absTarget);
+      const flooredImpacts = rawImpacts.map(v => Math.floor(v));
+      let remainder = Math.round(absTarget) - flooredImpacts.reduce((s, v) => s + v, 0);
+      const fractionals = rawImpacts.map((v, i) => ({ i, frac: v - flooredImpacts[i] }));
+      fractionals.sort((a, b) => b.frac - a.frac);
+      for (const f of fractionals) {
+        if (remainder <= 0) break;
+        flooredImpacts[f.i]++;
+        remainder--;
+      }
+      for (let i = 0; i < flooredImpacts.length; i++) {
+        if (flooredImpacts[i] === 0 && rawWeights[i].weight > 0) flooredImpacts[i] = 1;
+      }
+
+      for (let i = 0; i < rawWeights.length; i++) {
+        const { sig, detail, lr } = rawWeights[i];
+        const impact = flooredImpacts[i];
         drivers.push({
           id: sig.signalId,
           name: sig.description || detail?.description || sig.signalId,
-          direction: "Downward",
-          strength: lr <= 0.5 ? "High" : lr <= 0.75 ? "Medium" : "Low",
-          probabilityImpact: -Math.abs(impact),
+          direction: dir,
+          strength: dir === "Upward"
+            ? (lr >= 2 ? "High" : lr >= 1.3 ? "Medium" : "Low")
+            : (lr <= 0.5 ? "High" : lr <= 0.75 ? "Medium" : "Low"),
+          probabilityImpact: dir === "Upward" ? impact : -impact,
           watchSignal: detail?.signalType || "Monitor for changes",
-          interpretation: detail?.signalType ? `${detail.signalType} signal contributing to downward pressure.` : undefined,
+          interpretation: detail?.signalType ? `${detail.signalType} signal contributing to ${dir.toLowerCase()} pressure.` : undefined,
         });
       }
+    };
+
+    if (allSaSignals.length > 0) {
+      const upSigs = allSaSignals.filter(s => s._dir === "Upward");
+      const downSigs = allSaSignals.filter(s => s._dir === "Downward");
+      const upTotal = upSigs.reduce((s, sig) => s + (sig.deltaIfRemoved ?? sig.absoluteImpact ?? 0), 0);
+      const downTotal = downSigs.reduce((s, sig) => s + (sig.deltaIfRemoved ?? sig.absoluteImpact ?? 0), 0);
+
+      const upTarget = upTotal > 0 && downTotal > 0 && Math.abs(totalShift) > 0
+        ? Math.max(Math.abs(totalShift), Math.round(upTotal / (upTotal + downTotal) * Math.abs(totalShift) * 2))
+        : Math.max(Math.abs(totalShift), 1);
+      const downTarget = upTotal > 0 && downTotal > 0 && Math.abs(totalShift) > 0
+        ? Math.max(1, Math.round(downTotal / (upTotal + downTotal) * Math.abs(totalShift) * 2))
+        : Math.max(1, Math.round(downTotal * 100));
+
+      buildDriversFromSignals(upSigs, "Upward", upTarget);
+      buildDriversFromSignals(downSigs, "Downward", downTarget);
     }
 
     if (drivers.length === 0 && signalDetails.length > 0) {
-      for (const sig of signalDetails) {
-        const lr = sig.likelihoodRatio ?? sig.effectiveLR ?? 1;
-        const isUp = sig.direction === "Positive" || lr > 1;
-        drivers.push({
-          id: sig.signalId,
-          name: sig.description || sig.signalId,
-          direction: isUp ? "Upward" : "Downward",
-          strength: (lr > 1.5 || lr < 0.6) ? "High" : (lr > 1.2 || lr < 0.8) ? "Medium" : "Low",
-          probabilityImpact: isUp ? Math.round((lr - 1) * 15) : -Math.round((1 - lr) * 15),
-          watchSignal: sig.signalType || "Monitor for changes",
-        });
-      }
+      const upSignals = signalDetails.filter((s: any) => s.direction === "Positive" || (s.likelihoodRatio ?? s.effectiveLR ?? 1) > 1);
+      const downSignals = signalDetails.filter((s: any) => s.direction === "Negative" || (s.likelihoodRatio ?? s.effectiveLR ?? 1) < 1);
+      buildDriversFromSignals(upSignals, "Upward", Math.max(Math.abs(totalShift), 1));
+      buildDriversFromSignals(downSignals, "Downward", Math.max(1, Math.round(Math.abs(totalShift) * 0.3)));
     }
 
     return [...drivers].sort((a, b) => {
@@ -691,6 +722,14 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 interpretation = `The forecast reflects the current balance between evidence strength and operational readiness. The primary constraint below identifies the most important barrier to monitor.`;
               }
 
+              const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5);
+              const individualScenarios = gateScenarios.filter(s => !s.id.startsWith("upgrade_all") && !s.id.startsWith("regress_all"));
+              const gateUpside = individualScenarios.filter(s => s.delta > 0).reduce((sum, s) => sum + s.delta, 0);
+              const gateDownside = individualScenarios.filter(s => s.delta < 0).reduce((sum, s) => sum + Math.abs(s.delta), 0);
+              const topGateDriver = gateScenarios.length > 0
+                ? [...gateScenarios].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
+                : null;
+
               return (
                 <>
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -741,6 +780,24 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       )}
                       <div className="text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-4">
+                    <InfoCard
+                      title="Most Sensitive Gate"
+                      value={topGateDriver?.primaryDriver || "—"}
+                      body={topGateDriver ? `${topGateDriver.name}: ${topGateDriver.delta > 0 ? "+" : ""}${topGateDriver.delta} pts potential impact` : "No gate scenarios identified."}
+                    />
+                    <InfoCard
+                      title="Total Upward Pressure"
+                      value={`+${gateUpside} pts`}
+                      body="Combined estimated upside if constraining gates are resolved."
+                    />
+                    <InfoCard
+                      title="Total Downward Pressure"
+                      value={`-${gateDownside} pts`}
+                      body="Combined estimated downside if strong gates regress."
+                    />
                   </div>
 
                   <div className="rounded-3xl border border-indigo-500/20 bg-[#0A1736] p-6 space-y-5">
