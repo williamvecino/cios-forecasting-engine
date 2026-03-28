@@ -14,6 +14,7 @@ import {
   ArrowDown,
   Minus,
 } from "lucide-react";
+import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
 
 interface ArchetypeInfo {
   segment_name: string;
@@ -518,6 +519,12 @@ export default function SimulatePage() {
             </div>
           )}
         </div>
+
+        <ActorSegmentationPanel
+          question={activeQuestion?.text || ""}
+          signals={[]}
+          context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
+        />
       </QuestionGate>
     </WorkflowLayout>
   );

@@ -40,12 +40,13 @@ import {
   AlertTriangle,
   Lock,
   Upload,
+  Info,
   Search,
   FileSpreadsheet,
 } from "lucide-react";
 import DataImportDialog from "@/components/signals/DataImportDialog";
 import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog";
-import { SignalProvenanceDrawer } from "@/components/signals/SignalProvenanceDrawer";
+import { SignalProvenanceDrawer, buildProvenance } from "@/components/signals/SignalProvenanceDrawer";
 import ExternalSignalScoutPanel from "@/components/signals/ExternalSignalScoutPanel";
 import SignalNormalizerPanel from "@/components/signals/SignalNormalizerPanel";
 import type { ImportedRow } from "@/lib/data-import";
@@ -1489,7 +1490,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
-                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
+                        onShowProvenance={() => setProvenanceSignal(sig)}
                       />
                     ))}
                   </div>
@@ -1514,7 +1515,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
-                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
+                        onShowProvenance={() => setProvenanceSignal(sig)}
                       />
                     ))}
                   </div>
@@ -1539,7 +1540,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
-                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
+                        onShowProvenance={() => setProvenanceSignal(sig)}
                       />
                     ))}
                   </div>
@@ -1567,7 +1568,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
-                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
+                        onShowProvenance={() => setProvenanceSignal(sig)}
                       />
                     ))}
                   </div>
@@ -1588,7 +1589,7 @@ export default function SignalsPage() {
                         onDismiss={() => dismissSignal(sig.id)}
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
-                        onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
+                        onShowProvenance={() => setProvenanceSignal(sig)}
                       />
                     ))}
                   </div>
@@ -1615,7 +1616,7 @@ export default function SignalsPage() {
                     onDismiss={() => dismissSignal(sig.id)}
                     onUpdate={(u) => updateSignal(sig.id, u)}
                     outcomeLabel={outcome || "outcome"}
-                    onShowProvenance={sig.workbook_meta ? () => setProvenanceSignal(sig) : undefined}
+                    onShowProvenance={() => setProvenanceSignal(sig)}
                   />
                 ))}
               </div>
@@ -1857,12 +1858,17 @@ export default function SignalsPage() {
         onClose={() => setShowWorkbookImport(false)}
         onImportComplete={handleWorkbookImport}
       />
-      {provenanceSignal?.workbook_meta && (
+      {provenanceSignal && (
         <SignalProvenanceDrawer
           open={true}
           onClose={() => setProvenanceSignal(null)}
           signalLabel={provenanceSignal.text}
           meta={provenanceSignal.workbook_meta}
+          provenance={buildProvenance(provenanceSignal)}
+          signalDirection={provenanceSignal.direction}
+          signalStrength={provenanceSignal.strength}
+          signalConfidence={provenanceSignal.reliability}
+          signalCategory={provenanceSignal.category}
         />
       )}
     </WorkflowLayout>
@@ -1893,20 +1899,25 @@ function MinimalSignalCard({
       {signal.superseded && (
         <div className="text-xs text-muted-foreground mb-2">Superseded by newer evidence</div>
       )}
-      {signal.workbook_meta && (
+      {onShowProvenance && (
         <button
           type="button"
           onClick={onShowProvenance}
-          className="flex items-center gap-1.5 mb-2 text-[10px] text-violet-400 hover:text-violet-300 transition-colors cursor-pointer"
+          className={`flex items-center gap-1.5 mb-2 text-[10px] transition-colors cursor-pointer ${
+            signal.workbook_meta ? "text-violet-400 hover:text-violet-300" : "text-slate-400 hover:text-slate-300"
+          }`}
         >
-          <FileSpreadsheet className="w-3 h-3" />
-          <span className="font-semibold uppercase tracking-wider">MIOS/BAOS</span>
-          {signal.workbook_meta.programId && (
+          {signal.workbook_meta ? <FileSpreadsheet className="w-3 h-3" /> : <Info className="w-3 h-3" />}
+          <span className="font-semibold uppercase tracking-wider">
+            {signal.workbook_meta ? "MIOS/BAOS" : getSourceLabel(signal)}
+          </span>
+          {signal.workbook_meta?.programId && (
             <>
               <span className="text-violet-400/50">·</span>
               <span className="text-violet-400/70">{signal.workbook_meta.programId}</span>
             </>
           )}
+          <span className="text-[9px] opacity-60 ml-1">Provenance</span>
         </button>
       )}
       <div className="flex items-start justify-between gap-4">

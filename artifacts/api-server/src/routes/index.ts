@@ -39,6 +39,9 @@ import aiAssumptionsRouter from "./ai-assumptions.js";
 import agentQuestionStructuringRouter from "./agent-question-structuring.js";
 import agentExternalSignalScoutRouter from "./agent-external-signal-scout.js";
 import agentSignalNormalizerRouter from "./agent-signal-normalizer.js";
+import agentCaseComparatorRouter from "./agent-case-comparator.js";
+import agentActorSegmentationRouter from "./agent-actor-segmentation.js";
+import agentPrioritizationRouter from "./agent-prioritization.js";
 
 const router: IRouter = Router();
 
@@ -82,5 +85,8 @@ router.use(aiAssumptionsRouter);
 router.use(agentQuestionStructuringRouter);
 router.use(agentExternalSignalScoutRouter);
 router.use(agentSignalNormalizerRouter);
+router.use(agentCaseComparatorRouter);
+router.use(agentActorSegmentationRouter);
+router.use(agentPrioritizationRouter);
 
 export default router;

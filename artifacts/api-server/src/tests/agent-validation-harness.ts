@@ -589,6 +589,239 @@ async function testEndToEnd(rfpText: string): Promise<TestResult> {
   }
 }
 
+// ─── G. CASE COMPARATOR AGENT ────────────────────────────────────────────────
+
+async function testCaseComparatorAgent(question: string): Promise<TestResult> {
+  const notes: string[] = [];
+  let pass = true;
+  let warnings = 0;
+  let errors = 0;
+  let deterministic = true;
+
+  try {
+    const body = { question, therapeuticArea: "Oncology", context: "Anti-PDL1 immunotherapy launch" };
+    const { data: run1, durationMs } = await fetchJson(`${API_BASE}/agents/case-comparator`, body);
+    const { data: run2 } = await fetchJson(`${API_BASE}/agents/case-comparator`, body);
+
+    if (!run1.comparableCases || !Array.isArray(run1.comparableCases)) {
+      notes.push("ERROR: no comparableCases array returned");
+      errors++;
+      pass = false;
+    } else {
+      notes.push(`OK: ${run1.comparableCases.length} comparable cases returned`);
+      if (run1.comparableCases.length < 3) {
+        notes.push("WARNING: fewer than 3 cases returned");
+        warnings++;
+      }
+      const first = run1.comparableCases[0];
+      if (first) {
+        notes.push(`OK: first case: '${truncate(first.brand || first.caseName, 60)}'`);
+        if (!first.similarityScore) { notes.push("WARNING: no similarity score"); warnings++; }
+      }
+    }
+
+    if (!run1.priorStructure) {
+      notes.push("ERROR: no priorStructure returned");
+      errors++;
+      pass = false;
+    } else {
+      notes.push(`OK: base rate estimate: ${run1.priorStructure.baseRateEstimate}%`);
+      notes.push(`OK: ${run1.priorStructure.adjustmentFactors?.length || 0} adjustment factors`);
+    }
+
+    if (JSON.stringify(run1) !== JSON.stringify(run2)) {
+      notes.push("WARNING: non-deterministic — two runs produced different outputs");
+      warnings++;
+      deterministic = false;
+    }
+
+    return {
+      agent: "Case Comparator Agent",
+      testName: "Find analogs for anti-PDL1 launch question",
+      inputReceived: truncate(question, 80),
+      outputProduced: `${run1.comparableCases?.length || 0} cases, base rate ${run1.priorStructure?.baseRateEstimate || "?"}%`,
+      pass,
+      warningCount: warnings,
+      errorCount: errors,
+      deterministic,
+      downstreamCompatible: pass,
+      notes,
+      durationMs,
+    };
+  } catch (err: any) {
+    return {
+      agent: "Case Comparator Agent",
+      testName: "Find analogs for anti-PDL1 launch question",
+      inputReceived: truncate(question, 80),
+      outputProduced: `ERROR: ${err.message}`,
+      pass: false,
+      warningCount: 0,
+      errorCount: 1,
+      deterministic: false,
+      downstreamCompatible: false,
+      notes: [`FATAL: ${err.message}`],
+      durationMs: 0,
+    };
+  }
+}
+
+// ─── H. ACTOR SEGMENTATION AGENT ────────────────────────────────────────────
+
+async function testActorSegmentationAgent(question: string): Promise<TestResult> {
+  const notes: string[] = [];
+  let pass = true;
+  let warnings = 0;
+  let errors = 0;
+  let deterministic = true;
+
+  try {
+    const body = { question, therapeuticArea: "Oncology", context: "Anti-PDL1 immunotherapy launch" };
+    const { data: run1, durationMs } = await fetchJson(`${API_BASE}/agents/actor-segmentation`, body);
+    const { data: run2 } = await fetchJson(`${API_BASE}/agents/actor-segmentation`, body);
+
+    if (!run1.actors || !Array.isArray(run1.actors)) {
+      notes.push("ERROR: no actors array returned");
+      errors++;
+      pass = false;
+    } else {
+      notes.push(`OK: ${run1.actors.length} actors identified`);
+      if (run1.actors.length < 4 || run1.actors.length > 8) {
+        notes.push(`WARNING: expected 4-8 actors, got ${run1.actors.length}`);
+        warnings++;
+      }
+      const totalWeight = run1.actors.reduce((sum: number, a: any) => sum + (a.influenceWeight || 0), 0);
+      notes.push(`OK: total influence weight: ${totalWeight}`);
+      const first = run1.actors[0];
+      if (first) {
+        notes.push(`OK: first actor: '${truncate(first.name, 50)}' (weight: ${first.influenceWeight})`);
+      }
+    }
+
+    if (!run1.systemDynamics) {
+      notes.push("WARNING: no systemDynamics returned");
+      warnings++;
+    } else {
+      notes.push(`OK: ${run1.systemDynamics.primaryDrivers?.length || 0} drivers, ${run1.systemDynamics.cascadeRisks?.length || 0} cascade risks`);
+    }
+
+    if (JSON.stringify(run1) !== JSON.stringify(run2)) {
+      notes.push("WARNING: non-deterministic — two runs produced different outputs");
+      warnings++;
+      deterministic = false;
+    }
+
+    return {
+      agent: "Actor Segmentation Agent",
+      testName: "Identify market actors for anti-PDL1 question",
+      inputReceived: truncate(question, 80),
+      outputProduced: `${run1.actors?.length || 0} actors, ${run1.totalActors || 0} total`,
+      pass,
+      warningCount: warnings,
+      errorCount: errors,
+      deterministic,
+      downstreamCompatible: pass,
+      notes,
+      durationMs,
+    };
+  } catch (err: any) {
+    return {
+      agent: "Actor Segmentation Agent",
+      testName: "Identify market actors for anti-PDL1 question",
+      inputReceived: truncate(question, 80),
+      outputProduced: `ERROR: ${err.message}`,
+      pass: false,
+      warningCount: 0,
+      errorCount: 1,
+      deterministic: false,
+      downstreamCompatible: false,
+      notes: [`FATAL: ${err.message}`],
+      durationMs: 0,
+    };
+  }
+}
+
+// ─── I. PRIORITIZATION AGENT ─────────────────────────────────────────────────
+
+async function testPrioritizationAgent(question: string): Promise<TestResult> {
+  const notes: string[] = [];
+  let pass = true;
+  let warnings = 0;
+  let errors = 0;
+  let deterministic = true;
+
+  try {
+    const body = {
+      question,
+      probability: 65,
+      signals: [
+        { text: "FDA breakthrough therapy designation granted", direction: "positive", strength: "High" },
+        { text: "Key competitor filing expected Q2", direction: "negative", strength: "Medium" },
+      ],
+      context: "Anti-PDL1 immunotherapy commercial launch decision",
+    };
+    const { data: run1, durationMs } = await fetchJson(`${API_BASE}/agents/prioritization`, body);
+    const { data: run2 } = await fetchJson(`${API_BASE}/agents/prioritization`, body);
+
+    if (!run1.prioritizedActions || !Array.isArray(run1.prioritizedActions)) {
+      notes.push("ERROR: no prioritizedActions array returned");
+      errors++;
+      pass = false;
+    } else {
+      notes.push(`OK: ${run1.prioritizedActions.length} prioritized actions returned`);
+      if (run1.prioritizedActions.length < 3 || run1.prioritizedActions.length > 5) {
+        notes.push(`WARNING: expected 3-5 actions, got ${run1.prioritizedActions.length}`);
+        warnings++;
+      }
+      const first = run1.prioritizedActions[0];
+      if (first) {
+        notes.push(`OK: top action: '${truncate(first.action, 60)}' [${first.category}, ${first.urgency}]`);
+      }
+    }
+
+    if (!run1.decisionReadiness) {
+      notes.push("WARNING: no decisionReadiness returned");
+      warnings++;
+    } else {
+      notes.push(`OK: decision readiness score: ${run1.decisionReadiness.score}/100`);
+      notes.push(`OK: recommendation: '${truncate(run1.decisionReadiness.recommendation, 60)}'`);
+    }
+
+    if (JSON.stringify(run1) !== JSON.stringify(run2)) {
+      notes.push("WARNING: non-deterministic — two runs produced different outputs");
+      warnings++;
+      deterministic = false;
+    }
+
+    return {
+      agent: "Prioritization Agent",
+      testName: "Rank actions for anti-PDL1 launch decision",
+      inputReceived: truncate(question, 80),
+      outputProduced: `${run1.prioritizedActions?.length || 0} actions, readiness ${run1.decisionReadiness?.score || "?"}`,
+      pass,
+      warningCount: warnings,
+      errorCount: errors,
+      deterministic,
+      downstreamCompatible: pass,
+      notes,
+      durationMs,
+    };
+  } catch (err: any) {
+    return {
+      agent: "Prioritization Agent",
+      testName: "Rank actions for anti-PDL1 launch decision",
+      inputReceived: truncate(question, 80),
+      outputProduced: `ERROR: ${err.message}`,
+      pass: false,
+      warningCount: 0,
+      errorCount: 1,
+      deterministic: false,
+      downstreamCompatible: false,
+      notes: [`FATAL: ${err.message}`],
+      durationMs: 0,
+    };
+  }
+}
+
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 
 async function runHarness() {
@@ -632,6 +865,21 @@ async function runHarness() {
   const e2eResult = await testEndToEnd(rfpText);
   results.push(e2eResult);
   printResult(e2eResult);
+
+  console.log("\n▶ G. Case Comparator Agent...");
+  const caseCompResult = await testCaseComparatorAgent(activeQuestion);
+  results.push(caseCompResult);
+  printResult(caseCompResult);
+
+  console.log("\n▶ H. Actor Segmentation Agent...");
+  const actorSegResult = await testActorSegmentationAgent(activeQuestion);
+  results.push(actorSegResult);
+  printResult(actorSegResult);
+
+  console.log("\n▶ I. Prioritization Agent...");
+  const prioResult = await testPrioritizationAgent(activeQuestion);
+  results.push(prioResult);
+  printResult(prioResult);
 
   const passed = results.filter((r) => r.pass).length;
   const failed = results.filter((r) => !r.pass).length;

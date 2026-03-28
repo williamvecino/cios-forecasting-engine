@@ -24,6 +24,7 @@ import {
   FileJson,
 } from "lucide-react";
 import { exportToExcel, exportToPDF, exportToJSON } from "@/lib/forecast-export";
+import { PrioritizationPanel } from "@/components/decide/PrioritizationPanel";
 
 interface SegmentGroup {
   segments: string[];
@@ -537,6 +538,12 @@ export default function DecisionPanels() {
               {data.growth_feasibility && (
                 <GrowthFeasibilityPanel data={data.growth_feasibility} />
               )}
+
+              <PrioritizationPanel
+                question={activeQuestion?.text || ""}
+                probability={fc?.brand_outlook ? Math.round(fc.brand_outlook * 100) : undefined}
+                context={`Decision page context. Gate count: ${fc?.gate_count || 0}. Weak gates: ${fc?.weak_gate_count || 0}.`}
+              />
 
               <div className="flex justify-end pt-2">
                 <button

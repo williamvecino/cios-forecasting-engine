@@ -14,6 +14,7 @@ import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
 import { ExplainBox } from "@/components/forecast/ExplainBox";
 import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
+import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
 import {
   ArrowRight,
   BookOpen,
@@ -1316,6 +1317,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           </div>
         </div>
       )}
+
+      <CaseComparatorPanel
+        question={activeQuestion?.text || ""}
+        signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
+        context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
+      />
 
       <BottomLinks forecastData={f} />
     </>
