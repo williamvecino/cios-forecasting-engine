@@ -23,6 +23,12 @@ interface SimulateRequest {
   signals?: { text: string; direction: string; importance: string }[];
 }
 
+interface MaterialFeature {
+  feature: string;
+  strength: "strong" | "moderate" | "weak" | "absent";
+  detail: string;
+}
+
 function isImageMime(mime: string): boolean {
   return ["image/jpeg", "image/png", "image/jpg", "image/webp"].includes(mime);
 }
@@ -74,6 +80,116 @@ async function extractTextFromFile(base64: string, mimeType: string, fileName: s
   return buffer.toString("utf-8").slice(0, 15000);
 }
 
+const REACTION_FEATURES = [
+  "efficacy_strength",
+  "survival_benefit",
+  "safety_reassurance",
+  "real_world_evidence",
+  "guideline_relevance",
+  "access_support",
+  "heor_cost_effectiveness",
+  "workflow_convenience",
+  "operational_support",
+  "comparative_evidence",
+  "implementation_burden",
+  "patient_support_adherence",
+];
+
+const FEATURE_LABELS: Record<string, string> = {
+  efficacy_strength: "Efficacy Strength",
+  survival_benefit: "Survival Benefit",
+  safety_reassurance: "Safety Reassurance",
+  real_world_evidence: "Real-World Evidence",
+  guideline_relevance: "Guideline Relevance",
+  access_support: "Access Support",
+  heor_cost_effectiveness: "HEOR / Cost-Effectiveness",
+  workflow_convenience: "Workflow Convenience",
+  operational_support: "Operational Support",
+  comparative_evidence: "Comparative Evidence",
+  implementation_burden: "Implementation Burden",
+  patient_support_adherence: "Patient Support / Adherence",
+};
+
+async function extractMaterialFeatures(
+  materialContent: string,
+  imagePayload: { base64: string; mimeType: string } | null,
+  subject: string
+): Promise<MaterialFeature[]> {
+  const systemPrompt = `You are a material feature extractor for stakeholder reaction analysis. You do NOT summarize documents. You extract only the reaction-relevant features present in the material.
+
+For each feature, assess whether the material contains it and how strongly:
+- "strong" — clear, direct evidence or messaging on this dimension
+- "moderate" — some relevant content, indirect or partial
+- "weak" — barely mentioned or implied
+- "absent" — not present in the material
+
+FEATURES TO ASSESS:
+${REACTION_FEATURES.map(f => `- "${f}": ${FEATURE_LABELS[f]}`).join("\n")}
+
+RULES:
+- Extract ONLY what is in the material. Do not infer what is missing.
+- Do not summarize the document. Output a feature map.
+- Each feature gets a one-sentence "detail" explaining what the material says about it.
+- If absent, detail should say what is missing.
+
+OUTPUT FORMAT (return valid JSON):
+{
+  "features": [
+    { "feature": "<feature_key>", "strength": "strong|moderate|weak|absent", "detail": "One sentence" }
+  ]
+}`;
+
+  const userPrompt = `Extract reaction-relevant features from this material about "${subject}":\n\n${materialContent || "[See attached image]"}`;
+
+  const messages: any[] = [{ role: "system", content: systemPrompt }];
+
+  if (imagePayload) {
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: userPrompt },
+        { type: "image_url", image_url: { url: `data:${imagePayload.mimeType};base64,${imagePayload.base64}` } },
+      ],
+    });
+  } else {
+    messages.push({ role: "user", content: userPrompt });
+  }
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    max_completion_tokens: 2000,
+    messages,
+    response_format: { type: "json_object" },
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) return [];
+
+  const parsed = JSON.parse(content);
+  const featureMap = new Map<string, MaterialFeature>();
+
+  for (const f of parsed.features || []) {
+    if (REACTION_FEATURES.includes(f.feature) && ["strong", "moderate", "weak", "absent"].includes(f.strength)) {
+      featureMap.set(f.feature, {
+        feature: f.feature,
+        strength: f.strength,
+        detail: typeof f.detail === "string" ? f.detail : "",
+      });
+    }
+  }
+
+  const normalized: MaterialFeature[] = REACTION_FEATURES.map(key => {
+    if (featureMap.has(key)) return featureMap.get(key)!;
+    return {
+      feature: key,
+      strength: "absent" as const,
+      detail: `Not addressed in the material`,
+    };
+  });
+
+  return normalized;
+}
+
 router.post("/ai-simulate/reaction", upload.single("file"), async (req, res) => {
   try {
     let body: SimulateRequest;
@@ -111,11 +227,22 @@ router.post("/ai-simulate/reaction", upload.single("file"), async (req, res) => 
       }
     }
 
+    const features = await extractMaterialFeatures(materialContent, imagePayload, body.subject);
+
+    const featureMapText = features
+      .filter(f => f.strength !== "absent")
+      .map(f => `- ${FEATURE_LABELS[f.feature] || f.feature} [${f.strength}]: ${f.detail}`)
+      .join("\n");
+
+    const absentFeatures = features
+      .filter(f => f.strength === "absent")
+      .map(f => FEATURE_LABELS[f.feature] || f.feature);
+
     const constraintContext = buildConstraintContext(body);
 
     const archetypeContext = body.archetype ? `
 ASSIGNED ARCHETYPE: ${body.archetype}
-Use this archetype's known behavioral pattern to predict the reaction. Each archetype responds differently:
+Use this archetype's known behavioral pattern to predict the reaction:
 - Evidence-Driven Innovator: moves on strong clinical data, low guideline dependence
 - Operational Pragmatist: interested but blocked by workflow/staffing/infrastructure burden
 - Guideline Follower: waits for NCCN/society/institutional endorsement before acting
@@ -123,31 +250,32 @@ Use this archetype's known behavioral pattern to predict the reaction. Each arch
 - Skeptical Conservative: resists until post-launch real-world evidence accumulates
 The archetype determines HOW this segment decides, not just WHETHER they adopt.` : "";
 
-    const systemPrompt = `You are a behavioral reaction forecasting engine. You predict how a specific market segment will respond to specific materials given the current constraints on the decision.
+    const systemPrompt = `You are a behavioral reaction scoring engine. You predict how a specific market segment will respond to material features under current constraints.
 
-You do NOT create new constraints. You use the existing gates, barriers, and triggers provided. Your job is to evaluate whether the presented material would change behavior for the specified segment, given what constrains the market right now.
+You are given a FEATURE MAP extracted from the material — not the material itself. Score the reaction based on what the features contain and what they lack, combined with this segment's archetype-driven decision style.
 ${archetypeContext}
 RULES:
 - Never use: "Bayesian", "posterior", "Brier", "likelihood ratio", "prior odds"
 - "Probability" is allowed
-- Ground every prediction in the constraints provided — never invent new barriers or triggers
-- Be specific to the segment and its archetype — different decision styles react differently to the same material
-- The reaction must account for what currently limits adoption, not just whether the material is compelling
-- If the archetype is an Evidence-Driven Innovator, strong clinical data should move them more than it would a Financial Gatekeeper
-- If the archetype is a Guideline Follower, conference data raises interest but does not trigger adoption
-- If the archetype is a Financial Gatekeeper, efficacy data alone does not move behavior if coverage is unresolved
+- Ground every prediction in the constraints and features provided — never invent new barriers or triggers
+- Different archetypes weight features differently: an Evidence-Driven Innovator cares most about efficacy_strength and comparative_evidence; a Financial Gatekeeper cares most about access_support and heor_cost_effectiveness; a Guideline Follower cares most about guideline_relevance
+- State clearly what the material changes and what it does not change
+- Identify the primary remaining barrier after accounting for material impact
+- Identify the strongest trigger that would increase movement for this segment
 
 OUTPUT FORMAT (return valid JSON):
 {
   "adoption_likelihood": <number 0-100>,
   "confidence": "High" | "Moderate" | "Low",
-  "primary_reaction": "One to two sentences — how this segment will likely respond to this material given current constraints",
-  "barrier_sensitivity": "One sentence — which existing constraint most limits this segment's response",
-  "trigger_condition": "One sentence — what specific event or change would increase this segment's adoption probability, and by how much",
-  "material_effectiveness": "One sentence — how well the material addresses what this segment needs to move"
+  "primary_reaction": "How this segment will likely respond — grounded in the feature map and constraints",
+  "what_this_changes": "What the material improves or strengthens for this segment",
+  "what_this_does_not_change": "What remains unchanged or unaddressed by this material",
+  "primary_remaining_barrier": "The single most limiting constraint after this material is considered",
+  "strongest_trigger_for_movement": "The specific event or change that would most increase adoption for this segment",
+  "material_effectiveness": "How well the material addresses what this segment needs to move"
 }`;
 
-    const userPrompt = `Simulate the adoption reaction for:
+    const userPrompt = `Score the adoption reaction for:
 
 SEGMENT: ${body.segment}${body.archetype ? `\nARCHETYPE: ${body.archetype}` : ""}
 SUBJECT: ${body.subject}
@@ -157,24 +285,18 @@ CURRENT PROBABILITY: ${body.constrainedProbability != null ? `${Math.round(body.
 
 ${constraintContext}
 
-MATERIAL BEING TESTED:
-${materialContent || "[See attached image]"}
+EXTRACTED MATERIAL FEATURES:
+${featureMapText || "No reaction-relevant features extracted."}
 
-Predict how the ${body.segment} segment will react to this material given the current constraints. Do not create new constraints — use only what is provided above.`;
+NOT PRESENT IN MATERIAL:
+${absentFeatures.length > 0 ? absentFeatures.join(", ") : "All features covered."}
 
-    const messages: any[] = [{ role: "system", content: systemPrompt }];
+Score how the ${body.segment} segment will react given these features and current constraints. Do not create new constraints.`;
 
-    if (imagePayload) {
-      messages.push({
-        role: "user",
-        content: [
-          { type: "text", text: userPrompt },
-          { type: "image_url", image_url: { url: `data:${imagePayload.mimeType};base64,${imagePayload.base64}` } },
-        ],
-      });
-    } else {
-      messages.push({ role: "user", content: userPrompt });
-    }
+    const messages: any[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ];
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -204,9 +326,12 @@ Predict how the ${body.segment} segment will react to this material given the cu
       adoption_likelihood: rawLikelihood,
       confidence: ["High", "Moderate", "Low"].includes(parsed.confidence) ? parsed.confidence : "Moderate",
       primary_reaction: parsed.primary_reaction || "",
-      barrier_sensitivity: parsed.barrier_sensitivity || "",
-      trigger_condition: parsed.trigger_condition || "",
+      what_this_changes: parsed.what_this_changes || "",
+      what_this_does_not_change: parsed.what_this_does_not_change || "",
+      primary_remaining_barrier: parsed.primary_remaining_barrier || "",
+      strongest_trigger_for_movement: parsed.strongest_trigger_for_movement || "",
       material_effectiveness: parsed.material_effectiveness || "",
+      material_features: features,
     };
 
     res.json(validated);

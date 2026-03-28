@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Check } from "lucide-react";
+import { Check, Shield, Activity } from "lucide-react";
 import type { WorkflowStep } from "../lib/workflow";
 
 const STEPS = [
@@ -14,12 +14,22 @@ const STEPS = [
 interface Props {
   currentStep: WorkflowStep;
   hasActiveQuestion: boolean;
+  assumptionCount?: number;
+  hasInvalidatedAssumptions?: boolean;
+  onOpenAssumptions?: () => void;
 }
 
-export default function WorkflowStepsSidebar({ currentStep, hasActiveQuestion }: Props) {
+export default function WorkflowStepsSidebar({
+  currentStep,
+  hasActiveQuestion,
+  assumptionCount = 0,
+  hasInvalidatedAssumptions = false,
+  onOpenAssumptions,
+}: Props) {
   const [location] = useLocation();
 
   const currentIdx = STEPS.findIndex((s) => location.startsWith(s.path));
+  const showDiagnostics = hasActiveQuestion && currentIdx >= 2;
 
   return (
     <aside className="hidden lg:block w-[220px] shrink-0">
@@ -69,6 +79,36 @@ export default function WorkflowStepsSidebar({ currentStep, hasActiveQuestion }:
             </Link>
           );
         })}
+
+        {showDiagnostics && (
+          <>
+            <div className="pt-3 pb-1 px-3">
+              <div className="flex items-center gap-1.5">
+                <Activity className="w-3 h-3 text-muted-foreground/40" />
+                <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Diagnostics</span>
+              </div>
+            </div>
+            {onOpenAssumptions && (
+              <button
+                onClick={onOpenAssumptions}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition w-full text-muted-foreground hover:bg-muted/20 hover:text-foreground border border-transparent"
+              >
+                <Shield className="w-4 h-4 text-muted-foreground/60" />
+                <span className="flex-1 text-left">Assumptions</span>
+                {assumptionCount > 0 && (
+                  <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-bold">
+                    {assumptionCount}
+                  </span>
+                )}
+                {hasInvalidatedAssumptions && (
+                  <span className="rounded-full bg-rose-400/10 text-rose-400 px-1.5 py-0.5 text-[10px] font-bold">
+                    !
+                  </span>
+                )}
+              </button>
+            )}
+          </>
+        )}
       </div>
     </aside>
   );

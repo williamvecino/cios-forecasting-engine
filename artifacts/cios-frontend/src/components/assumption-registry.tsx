@@ -373,32 +373,3 @@ export default function AssumptionRegistry({
   );
 }
 
-export function AssumptionTriggerButton({
-  count,
-  hasInvalidated,
-  onClick,
-}: {
-  count: number;
-  hasInvalidated: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition"
-    >
-      <Shield className="w-3.5 h-3.5" />
-      View Assumptions
-      {count > 0 && (
-        <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-bold">
-          {count}
-        </span>
-      )}
-      {hasInvalidated && (
-        <span className="rounded-full bg-rose-400/10 text-rose-400 px-1.5 py-0.5 text-[10px] font-bold">
-          !
-        </span>
-      )}
-    </button>
-  );
-}

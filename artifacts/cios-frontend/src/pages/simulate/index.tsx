@@ -10,6 +10,9 @@ import {
   FileText,
   Image as ImageIcon,
   X,
+  ArrowUp,
+  ArrowDown,
+  Minus,
 } from "lucide-react";
 
 interface ArchetypeInfo {
@@ -21,13 +24,22 @@ interface ArchetypeInfo {
   likely_barriers: string[];
 }
 
+interface MaterialFeature {
+  feature: string;
+  strength: "strong" | "moderate" | "weak" | "absent";
+  detail: string;
+}
+
 interface SimulationResult {
   adoption_likelihood: number;
   confidence: string;
   primary_reaction: string;
-  barrier_sensitivity: string;
-  trigger_condition: string;
+  what_this_changes: string;
+  what_this_does_not_change: string;
+  primary_remaining_barrier: string;
+  strongest_trigger_for_movement: string;
   material_effectiveness: string;
+  material_features: MaterialFeature[];
 }
 
 const SEGMENTS = [
@@ -37,11 +49,47 @@ const SEGMENTS = [
   { key: "Resistant", color: "rose" },
 ];
 
+const FEATURE_LABELS: Record<string, string> = {
+  efficacy_strength: "Efficacy Strength",
+  survival_benefit: "Survival Benefit",
+  safety_reassurance: "Safety Reassurance",
+  real_world_evidence: "Real-World Evidence",
+  guideline_relevance: "Guideline Relevance",
+  access_support: "Access Support",
+  heor_cost_effectiveness: "HEOR / Cost-Effectiveness",
+  workflow_convenience: "Workflow Convenience",
+  operational_support: "Operational Support",
+  comparative_evidence: "Comparative Evidence",
+  implementation_burden: "Implementation Burden",
+  patient_support_adherence: "Patient Support / Adherence",
+};
+
 function getApiBase() {
   if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
     return `https://${window.location.hostname}:443/api`;
   }
   return "/api";
+}
+
+function strengthIcon(strength: string) {
+  if (strength === "strong") return <ArrowUp className="w-3.5 h-3.5 text-emerald-400" />;
+  if (strength === "moderate") return <ArrowUp className="w-3.5 h-3.5 text-amber-400" />;
+  if (strength === "weak") return <ArrowDown className="w-3.5 h-3.5 text-orange-400" />;
+  return <Minus className="w-3.5 h-3.5 text-muted-foreground/40" />;
+}
+
+function strengthBadge(strength: string) {
+  const styles: Record<string, string> = {
+    strong: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
+    moderate: "text-amber-400 bg-amber-400/10 border-amber-400/30",
+    weak: "text-orange-400 bg-orange-400/10 border-orange-400/30",
+    absent: "text-muted-foreground/50 bg-muted/10 border-muted/30",
+  };
+  return (
+    <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${styles[strength] || styles.absent}`}>
+      {strength}
+    </span>
+  );
 }
 
 export default function SimulatePage() {
@@ -53,6 +101,7 @@ export default function SimulatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
+  const [showFeatures, setShowFeatures] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
@@ -188,6 +237,7 @@ export default function SimulatePage() {
     setMaterialText("");
     clearFile();
     setError(null);
+    setShowFeatures(true);
   }
 
   function likelihoodColor(value: number): string {
@@ -201,17 +251,6 @@ export default function SimulatePage() {
     if (level === "Moderate") return "text-amber-400 bg-amber-400/10 border-amber-400/30";
     return "text-rose-400 bg-rose-400/10 border-rose-400/30";
   }
-
-  const segmentColor = (key: string) => {
-    const s = SEGMENTS.find(s => s.key === key);
-    if (!s) return { border: "border-primary", bg: "bg-primary/10", text: "text-primary" };
-    const c = s.color;
-    return {
-      border: `border-${c}-400/40`,
-      bg: `bg-${c}-400/10`,
-      text: `text-${c}-400`,
-    };
-  };
 
   return (
     <WorkflowLayout currentStep="simulate" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
@@ -352,7 +391,7 @@ export default function SimulatePage() {
             <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm text-muted-foreground">
-                Simulating {selectedSegment} reaction...
+                Extracting material features and scoring {selectedSegment} reaction...
               </p>
             </div>
           )}
@@ -378,6 +417,50 @@ export default function SimulatePage() {
                 </button>
               </div>
 
+              {result.material_features?.length > 0 && (
+                <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+                  <button
+                    onClick={() => setShowFeatures(!showFeatures)}
+                    className="w-full flex items-center justify-between px-5 py-3 hover:bg-muted/10 transition"
+                  >
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                      Extracted Material Features
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/50">
+                      {result.material_features.filter(f => f.strength !== "absent").length} present · {result.material_features.filter(f => f.strength === "absent").length} absent
+                    </span>
+                  </button>
+                  {showFeatures && (
+                    <div className="px-5 pb-4 space-y-1.5">
+                      {result.material_features
+                        .sort((a, b) => {
+                          const order = { strong: 0, moderate: 1, weak: 2, absent: 3 };
+                          return (order[a.strength] ?? 4) - (order[b.strength] ?? 4);
+                        })
+                        .map(f => (
+                          <div
+                            key={f.feature}
+                            className={`flex items-start gap-2.5 rounded-lg px-3 py-2 ${
+                              f.strength === "absent" ? "opacity-40" : ""
+                            }`}
+                          >
+                            <div className="mt-0.5 shrink-0">{strengthIcon(f.strength)}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] font-medium text-foreground">
+                                  {FEATURE_LABELS[f.feature] || f.feature}
+                                </span>
+                                {strengthBadge(f.strength)}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{f.detail}</p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-xl border border-border bg-card p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
@@ -399,16 +482,29 @@ export default function SimulatePage() {
 
                   <div className="border-t border-border/40" />
 
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Barrier Sensitivity</p>
-                    <p className="text-[15px] text-foreground leading-relaxed">{result.barrier_sensitivity}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">What This Changes</p>
+                      <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_changes}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-2">What This Does Not Change</p>
+                      <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_does_not_change}</p>
+                    </div>
                   </div>
 
                   <div className="border-t border-border/40" />
 
                   <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Trigger Condition</p>
-                    <p className="text-[15px] text-foreground leading-relaxed">{result.trigger_condition}</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Primary Remaining Barrier</p>
+                    <p className="text-[15px] text-foreground leading-relaxed">{result.primary_remaining_barrier}</p>
+                  </div>
+
+                  <div className="border-t border-border/40" />
+
+                  <div>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Strongest Trigger for Movement</p>
+                    <p className="text-[15px] text-foreground leading-relaxed">{result.strongest_trigger_for_movement}</p>
                   </div>
 
                   <div className="border-t border-border/40" />
