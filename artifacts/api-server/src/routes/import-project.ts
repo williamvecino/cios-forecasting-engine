@@ -1668,4 +1668,314 @@ Respond in JSON:
   }
 });
 
+router.post("/import-project/gate", upload.array("files", 20), async (req: any, res) => {
+  try {
+    const files: any[] = req.files || [];
+    const pastedText: string = req.body?.text || "";
+    const fileBase64: string = req.body?.fileBase64 || "";
+    const fileName: string = req.body?.fileName || "";
+    const mimeType: string = req.body?.mimeType || "";
+
+    let combinedText = "";
+    const fileNames: string[] = [];
+    let imageBase64: string | null = null;
+    let imageMimeType: string | null = null;
+
+    if (files.length > 0) {
+      for (const file of files) {
+        const ext = (file.originalname || "").toLowerCase();
+        const mime = file.mimetype || "";
+        fileNames.push(file.originalname || "unknown");
+
+        if (mime.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(ext)) {
+          imageBase64 = file.buffer.toString("base64");
+          imageMimeType = mime;
+          continue;
+        }
+
+        try {
+          const extracted = await extractTextFromFile(
+            file.buffer.toString("base64"),
+            mime,
+            file.originalname || "file",
+          );
+          if (extracted.trim()) {
+            combinedText += `\n\n[Source: ${file.originalname}]\n${extracted}`;
+          }
+        } catch (e) {
+          console.error(`[gate] Failed to extract text from ${file.originalname}:`, e);
+        }
+      }
+    } else if (fileBase64 && mimeType) {
+      fileNames.push(fileName || "uploaded-file");
+      if (mimeType.startsWith("image/")) {
+        imageBase64 = fileBase64;
+        imageMimeType = mimeType;
+      } else {
+        const extracted = await extractTextFromFile(fileBase64, mimeType, fileName);
+        if (extracted.trim()) {
+          combinedText += `\n\n${extracted}`;
+        }
+      }
+    }
+
+    if (pastedText.trim()) {
+      combinedText += `\n\n[Source: Pasted Text]\n${pastedText.trim()}`;
+    }
+
+    if (!combinedText && !imageBase64) {
+      if (fileBase64) {
+        combinedText = Buffer.from(fileBase64, "base64")
+          .toString("utf-8")
+          .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+          .replace(/\s{3,}/g, " ")
+          .trim()
+          .slice(0, 15000);
+      }
+      if (!combinedText) {
+        res.status(400).json({ error: "No readable content found in the uploaded materials." });
+        return;
+      }
+    }
+
+    const contentForPrompt = combinedText.slice(0, 12000);
+
+    const gatePrompt = `You are the Decision Gating Agent — the top-layer orchestration intelligence for a clinical/commercial decision platform.
+
+The platform has three downstream systems:
+- **MIOS** (Medical Intelligence & Outcome System): Handles scientific evidence, clinical data, mechanism of action, trial results, epidemiology, real-world evidence, safety/efficacy data, regulatory submissions, labeling, formulary evidence, and health economics outcomes research.
+- **BAOS** (Behavioral & Attitudinal Outcome System): Handles physician/patient/payer perceptions, objections, behavioral barriers, attitudinal shifts, adoption resistance, message testing, stakeholder sentiment, prescribing behavior patterns, and unmet needs from the human behavior perspective.
+- **CIOS** (Clinical Intelligence & Outcome System): Handles strategic forecasting, market adoption projections, competitive positioning, launch sequencing, brand strategy, commercial planning, scenario analysis, probability estimation, and forward-looking decision support.
+
+YOUR JOB: Read the uploaded document as an experienced strategist would. Identify the real business decision buried in the document (not the document wrapper). Then route ONLY the relevant content to the correct downstream system. Filter out noise.
+
+CRITICAL RULES:
+1. DISTINGUISH the document wrapper (RFP formatting, procurement language, legal boilerplate, admin instructions, submission guidelines, page limits) from the actual business decision content.
+2. IGNORE logistics, legal boilerplate, procurement text, contract terms, page formatting instructions, and administrative details UNLESS they are directly decision-relevant.
+3. Route each content span to exactly ONE system (MIOS, BAOS, or CIOS). Content that is ambiguous should go to the most specific system.
+4. Generate separate recommended questions for each system. Questions must be specific, bounded, and suitable for that system's purpose.
+5. Do NOT compress everything into one mega-question. Decompose into focused decision threads.
+6. Be deterministic — the same document should always produce the same routing.
+
+ROUTING GUIDE:
+- → MIOS: "Phase III showed...", "The mechanism targets...", "Safety profile includes...", "Real-world evidence from...", "HEOR data indicates...", "FDA label states...", "Clinical endpoints include..."
+- → BAOS: "Physicians perceive...", "Patient adherence is affected by...", "Key objection from payers...", "Adoption barriers include...", "Message testing showed...", "Prescribing behavior patterns...", "Unmet needs from stakeholder perspective..."
+- → CIOS: "Market share projection...", "Launch timeline for...", "Competitive threat from...", "Adoption curve estimate...", "Strategic positioning against...", "Scenario analysis suggests...", "Forecast assumptions include..."
+
+YOUR ANALYSIS STEPS:
+
+1. CLASSIFY THE DOCUMENT
+   - Type: RFP, Strategy Memo, Research Brief, Clinical Paper, Competitive Update, Operational Plan, Slide Deck, Meeting Notes, Email, Report, Advisory Board Output, Market Research, Brand Plan
+   - Identify the real underlying business decision (not the document title)
+
+2. IDENTIFY DECISIONS
+   - Primary decision: the single most important strategic question
+   - Secondary decisions: 2-5 supporting decision threads
+
+3. EXTRACT AND ROUTE CONTENT SPANS
+   - Pull exact phrases/passages from the document
+   - Tag each with its destination system (MIOS, BAOS, or CIOS)
+   - Include a brief rationale for why it was routed there
+   - Tag content that was intentionally filtered out
+
+4. GENERATE SYSTEM-SPECIFIC QUESTIONS
+   For each system (MIOS, BAOS, CIOS), generate 1-5 recommended questions that:
+   - Are specific and bounded
+   - Are appropriate for that system's analytical domain
+   - Map to explicit content or decision threads in the document
+   - Include time horizons where relevant
+   - Are prioritized (critical, important, supplementary)
+
+5. IDENTIFY MISSING INFORMATION
+   - What critical inputs are missing from the document that each system would need?
+
+6. PRODUCE BUSINESS CONTEXT
+   - 2-3 sentence summary of the strategic situation
+
+7. IDENTIFY FILTERED CONTENT
+   - Summarize what was intentionally excluded and why
+
+Respond in JSON:
+{
+  "documentType": "RFP | Strategy Memo | Research Brief | Clinical Paper | Competitive Update | Operational Plan | Slide Deck | Meeting Notes | Email | Report | Advisory Board Output | Market Research | Brand Plan",
+  "primaryDecision": "Clear statement of the core strategic decision",
+  "secondaryDecisions": ["Decision thread 1", "Decision thread 2"],
+  "businessContext": "2-3 sentence summary of the business/therapeutic context",
+  "targetAudiences": ["Audience 1", "Audience 2"],
+  "competitiveContext": "1-2 sentence summary of competitive dynamics",
+  "routedContent": {
+    "mios": {
+      "spans": [
+        {"text": "Exact phrase from document", "rationale": "Why this goes to MIOS"}
+      ],
+      "summary": "What MIOS should focus on from this document",
+      "recommendedQuestions": [
+        {
+          "text": "Specific MIOS question",
+          "rationale": "Which part of the document this addresses",
+          "category": "clinical_evidence | regulatory | safety | efficacy | heor | epidemiology | mechanism | real_world_evidence",
+          "priority": "critical | important | supplementary",
+          "suggestedTimeHorizon": "e.g. 12 months",
+          "suggestedSubject": "The product/brand this question is about"
+        }
+      ]
+    },
+    "baos": {
+      "spans": [
+        {"text": "Exact phrase from document", "rationale": "Why this goes to BAOS"}
+      ],
+      "summary": "What BAOS should focus on from this document",
+      "recommendedQuestions": [
+        {
+          "text": "Specific BAOS question",
+          "rationale": "Which part of the document this addresses",
+          "category": "perception | objection | behavior | adherence | adoption_barrier | message_testing | sentiment | prescribing_pattern | unmet_need",
+          "priority": "critical | important | supplementary",
+          "suggestedTimeHorizon": "e.g. 12 months",
+          "suggestedSubject": "The product/brand this question is about"
+        }
+      ]
+    },
+    "cios": {
+      "spans": [
+        {"text": "Exact phrase from document", "rationale": "Why this goes to CIOS"}
+      ],
+      "summary": "What CIOS should focus on from this document",
+      "recommendedQuestions": [
+        {
+          "text": "Specific CIOS question",
+          "rationale": "Which part of the document this addresses",
+          "category": "launch_strategy | market_adoption | competitive_positioning | scenario_analysis | forecast | brand_strategy | commercial_planning | timing | access",
+          "priority": "critical | important | supplementary",
+          "suggestedTimeHorizon": "e.g. 12 months",
+          "suggestedSubject": "The product/brand this question is about"
+        }
+      ]
+    }
+  },
+  "filteredContent": {
+    "summary": "What was excluded and why",
+    "categories": ["logistics", "legal_boilerplate", "procurement", "admin", "formatting"]
+  },
+  "missingInformation": {
+    "mios": ["What evidence MIOS needs but document doesn't provide"],
+    "baos": ["What behavioral data BAOS needs but document doesn't provide"],
+    "cios": ["What strategic inputs CIOS needs but document doesn't provide"]
+  },
+  "evidenceSpans": ["Key exact phrases that anchor the overall analysis"],
+  "confidence": "high | moderate | low",
+  "confidenceRationale": "Why this confidence level"
+}`;
+
+    const messages: any[] = [{ role: "system", content: gatePrompt }];
+
+    if (imageBase64 && imageMimeType && !contentForPrompt.trim()) {
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze this document image. Identify the real business decision, route content to MIOS/BAOS/CIOS, and produce a gated case package:" },
+          { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "high" } },
+        ],
+      });
+    } else if (imageBase64 && imageMimeType) {
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: `Analyze the following document. Identify the real business decision, route content to MIOS/BAOS/CIOS, and produce a gated case package:\n\n---\n${contentForPrompt}\n---` },
+          { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "high" } },
+        ],
+      });
+    } else {
+      messages.push({
+        role: "user",
+        content: `Analyze the following document. Identify the real business decision, route content to MIOS/BAOS/CIOS, and produce a gated case package:\n\n---\n${contentForPrompt}\n---`,
+      });
+    }
+
+    console.log(`[gate] Starting Decision Gating Agent for: ${fileNames.join(", ") || "pasted text"} (${contentForPrompt.length} chars)`);
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      response_format: { type: "json_object" },
+      temperature: 0,
+      max_tokens: 6000,
+      seed: 42,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      res.status(500).json({ error: "Decision Gating Agent returned empty response" });
+      return;
+    }
+
+    const parsed = JSON.parse(content);
+
+    const ensureRouted = (system: string) => {
+      const routed = parsed.routedContent?.[system] || {};
+      return {
+        spans: Array.isArray(routed.spans) ? routed.spans.map((s: any) => ({
+          text: s.text || "",
+          rationale: s.rationale || "",
+        })) : [],
+        summary: routed.summary || "",
+        recommendedQuestions: Array.isArray(routed.recommendedQuestions) ? routed.recommendedQuestions.map((q: any) => ({
+          text: q.text || "",
+          rationale: q.rationale || "",
+          category: q.category || "other",
+          priority: q.priority || "important",
+          suggestedTimeHorizon: q.suggestedTimeHorizon || "12 months",
+          suggestedSubject: q.suggestedSubject || "",
+        })) : [],
+      };
+    };
+
+    const ensureMissing = (system: string) => {
+      if (parsed.missingInformation && Array.isArray(parsed.missingInformation[system])) {
+        return parsed.missingInformation[system];
+      }
+      return [];
+    };
+
+    const result = {
+      documentType: parsed.documentType || "Unknown",
+      primaryDecision: parsed.primaryDecision || "",
+      secondaryDecisions: Array.isArray(parsed.secondaryDecisions) ? parsed.secondaryDecisions : [],
+      businessContext: parsed.businessContext || "",
+      targetAudiences: Array.isArray(parsed.targetAudiences) ? parsed.targetAudiences : [],
+      competitiveContext: parsed.competitiveContext || "",
+      routedContent: {
+        mios: ensureRouted("mios"),
+        baos: ensureRouted("baos"),
+        cios: ensureRouted("cios"),
+      },
+      filteredContent: {
+        summary: parsed.filteredContent?.summary || "",
+        categories: Array.isArray(parsed.filteredContent?.categories) ? parsed.filteredContent.categories : [],
+      },
+      missingInformation: {
+        mios: ensureMissing("mios"),
+        baos: ensureMissing("baos"),
+        cios: ensureMissing("cios"),
+      },
+      evidenceSpans: Array.isArray(parsed.evidenceSpans) ? parsed.evidenceSpans : [],
+      confidence: parsed.confidence || "moderate",
+      confidenceRationale: parsed.confidenceRationale || "",
+      sourceFiles: fileNames,
+      extractedTextLength: combinedText.length,
+    };
+
+    const totalQuestions = result.routedContent.mios.recommendedQuestions.length
+      + result.routedContent.baos.recommendedQuestions.length
+      + result.routedContent.cios.recommendedQuestions.length;
+
+    console.log(`[gate] Decision Gating complete: ${result.documentType}, MIOS=${result.routedContent.mios.recommendedQuestions.length} BAOS=${result.routedContent.baos.recommendedQuestions.length} CIOS=${result.routedContent.cios.recommendedQuestions.length} questions (${totalQuestions} total), confidence: ${result.confidence}`);
+
+    res.json(result);
+  } catch (err) {
+    console.error("Decision Gating Agent error:", err);
+    res.status(500).json({ error: "Decision Gating Agent failed to process the document" });
+  }
+});
+
 export default router;

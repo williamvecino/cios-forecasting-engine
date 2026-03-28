@@ -346,12 +346,31 @@ export default function QuestionPage() {
     }
   };
 
-  const handleMultiImport = async (questions: any[], decisionPack: any) => {
+  const handleMultiImport = async (questions: any[], pack: any) => {
     setPageState("creating");
     setSubmitError(null);
 
     const createdCaseIds: string[] = [];
     const failedQuestions: string[] = [];
+
+    const isGatedPack = !!pack.routedContent;
+
+    const getMissingItems = (q: any): string[] => {
+      if (isGatedPack && q.system && pack.missingInformation?.[q.system]) {
+        return pack.missingInformation[q.system].slice(0, 3);
+      }
+      if (Array.isArray(pack.missingInformation)) {
+        return pack.missingInformation.slice(0, 3);
+      }
+      return [];
+    };
+
+    const getRoutedSpans = (q: any): string[] => {
+      if (isGatedPack && q.system && pack.routedContent?.[q.system]?.spans) {
+        return pack.routedContent[q.system].spans.slice(0, 3).map((s: any) => s.text || s);
+      }
+      return [];
+    };
 
     try {
       for (let qi = 0; qi < questions.length; qi++) {
@@ -384,11 +403,15 @@ export default function QuestionPage() {
           createdCaseIds.push(newCaseId);
           clearCaseState(newCaseId);
 
+          const systemLabel = q.system ? q.system.toUpperCase() : "CIOS";
+          const routedSpans = getRoutedSpans(q);
+          const missingItems = getMissingItems(q);
+
           const contextSignals = [
             {
               id: `context-1`,
-              text: `Document context: ${decisionPack.businessContext || decisionPack.primaryDecision}`,
-              caveat: `Source: ${decisionPack.documentType} — ${decisionPack.sourceFiles?.join(", ") || "uploaded document"}`,
+              text: `Document context: ${pack.businessContext || pack.primaryDecision}`,
+              caveat: `Source: ${pack.documentType} — ${pack.sourceFiles?.join(", ") || "uploaded document"} — Routed to ${systemLabel}`,
               direction: "neutral",
               strength: "Medium",
               reliability: "Probable",
@@ -400,16 +423,16 @@ export default function QuestionPage() {
               signal_family: "brand_clinical_regulatory",
               signal_source: "external",
               source_url: null,
-              source_type: "document interpretation",
+              source_type: `decision gating — ${systemLabel}`,
               observed_date: null,
               citation_excerpt: null,
               brand_verified: false,
               priority_source: "ai_derived",
               is_locked: false,
             },
-            ...(decisionPack.competitiveContext ? [{
+            ...(pack.competitiveContext ? [{
               id: `context-2`,
-              text: `Competitive landscape: ${decisionPack.competitiveContext}`,
+              text: `Competitive landscape: ${pack.competitiveContext}`,
               caveat: "",
               direction: "neutral",
               strength: "Medium",
@@ -422,17 +445,39 @@ export default function QuestionPage() {
               signal_family: "brand_clinical_regulatory",
               signal_source: "external",
               source_url: null,
-              source_type: "document interpretation",
+              source_type: `decision gating — ${systemLabel}`,
               observed_date: null,
               citation_excerpt: null,
               brand_verified: false,
               priority_source: "ai_derived",
               is_locked: false,
             }] : []),
-            ...(decisionPack.missingInformation || []).slice(0, 3).map((m: string, i: number) => ({
+            ...routedSpans.map((spanText: string, i: number) => ({
+              id: `span-${i + 1}`,
+              text: spanText,
+              caveat: `Evidence span routed to ${systemLabel} by Decision Gating Agent`,
+              direction: "neutral",
+              strength: "Medium",
+              reliability: "Probable",
+              impact: 2,
+              category: "evidence",
+              source: "system",
+              accepted: false,
+              signal_class: "observed",
+              signal_family: "brand_clinical_regulatory",
+              signal_source: "external",
+              source_url: null,
+              source_type: `routed span — ${systemLabel}`,
+              observed_date: null,
+              citation_excerpt: null,
+              brand_verified: false,
+              priority_source: "ai_derived",
+              is_locked: false,
+            })),
+            ...missingItems.map((m: string, i: number) => ({
               id: `gap-${i + 1}`,
               text: m,
-              caveat: "Identified as missing by document interpreter",
+              caveat: `Identified as missing for ${systemLabel} by Decision Gating Agent`,
               direction: "neutral",
               strength: "Medium",
               reliability: "Speculative",
@@ -444,7 +489,7 @@ export default function QuestionPage() {
               signal_family: "brand_clinical_regulatory",
               signal_source: "missing",
               source_url: null,
-              source_type: "gap analysis",
+              source_type: `gap analysis — ${systemLabel}`,
               observed_date: null,
               citation_excerpt: null,
               brand_verified: false,
@@ -455,7 +500,10 @@ export default function QuestionPage() {
 
           try {
             localStorage.setItem(`cios.signals:${newCaseId}`, JSON.stringify(contextSignals));
-            localStorage.setItem(`cios.aiRequested:${newCaseId}`, `interpreted-${Date.now()}`);
+            localStorage.setItem(`cios.aiRequested:${newCaseId}`, `gated-${Date.now()}`);
+            if (q.system) {
+              localStorage.setItem(`cios.systemRoute:${newCaseId}`, q.system);
+            }
           } catch {}
         } catch (err) {
           console.error(`Failed to create case for question ${qi}:`, err);

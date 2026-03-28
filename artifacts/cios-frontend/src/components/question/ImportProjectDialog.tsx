@@ -135,6 +135,7 @@ interface RecommendedQuestion {
   priority: "critical" | "important" | "supplementary";
   suggestedTimeHorizon: string;
   suggestedSubject: string;
+  system?: "mios" | "baos" | "cios";
 }
 
 interface DecisionPack {
@@ -154,14 +155,53 @@ interface DecisionPack {
   extractedTextLength: number;
 }
 
+interface ContentSpan {
+  text: string;
+  rationale: string;
+}
+
+interface RoutedSystemContent {
+  spans: ContentSpan[];
+  summary: string;
+  recommendedQuestions: RecommendedQuestion[];
+}
+
+interface GatedCasePackage {
+  documentType: string;
+  primaryDecision: string;
+  secondaryDecisions: string[];
+  businessContext: string;
+  targetAudiences: string[];
+  competitiveContext: string;
+  routedContent: {
+    mios: RoutedSystemContent;
+    baos: RoutedSystemContent;
+    cios: RoutedSystemContent;
+  };
+  filteredContent: {
+    summary: string;
+    categories: string[];
+  };
+  missingInformation: {
+    mios: string[];
+    baos: string[];
+    cios: string[];
+  };
+  evidenceSpans: string[];
+  confidence: string;
+  confidenceRationale: string;
+  sourceFiles: string[];
+  extractedTextLength: number;
+}
+
 interface Props {
   onImportComplete: (result: ImportResult) => void;
-  onMultiImport?: (questions: RecommendedQuestion[], decisionPack: DecisionPack) => void;
+  onMultiImport?: (questions: RecommendedQuestion[], decisionPack: DecisionPack | GatedCasePackage) => void;
   onClose: () => void;
   initialFile?: File | null;
 }
 
-type ImportPhase = "upload" | "processing" | "interpreting" | "decision-pack" | "summary";
+type ImportPhase = "upload" | "processing" | "interpreting" | "decision-pack" | "gating" | "gated-pack" | "summary";
 
 const confidenceColor = (c: string) => {
   const lower = c.toLowerCase();
@@ -196,7 +236,9 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [decisionPack, setDecisionPack] = useState<DecisionPack | null>(null);
+  const [gatedPack, setGatedPack] = useState<GatedCasePackage | null>(null);
   const [selectedQuestionIndexes, setSelectedQuestionIndexes] = useState<Set<number>>(new Set());
+  const [gatedActiveTab, setGatedActiveTab] = useState<"mios" | "baos" | "cios">("cios");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -483,9 +525,86 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
     }
   };
 
-  const processImport = runInterpretation;
+  const runGating = async () => {
+    setPhase("gating");
+    setError(null);
+
+    try {
+      let gateRes: Response;
+
+      if (selectedFiles.length > 0) {
+        const formData = new FormData();
+        selectedFiles.forEach(f => formData.append("files", f));
+        if (pasteText.trim()) {
+          formData.append("text", pasteText.trim());
+        }
+        gateRes = await fetch(`${API}/api/import-project/gate`, {
+          method: "POST",
+          body: formData,
+        });
+      } else if (pasteText.trim()) {
+        gateRes = await fetch(`${API}/api/import-project/gate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: pasteText.trim() }),
+        });
+      } else {
+        setError("Please upload files or paste text to import.");
+        setPhase("upload");
+        return;
+      }
+
+      if (!gateRes.ok) {
+        const err = await gateRes.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error || `Server error ${gateRes.status}`);
+      }
+
+      const pack: GatedCasePackage = await gateRes.json();
+      setGatedPack(pack);
+
+      const allQuestions: RecommendedQuestion[] = [];
+      (["mios", "baos", "cios"] as const).forEach(sys => {
+        pack.routedContent[sys].recommendedQuestions.forEach(q => {
+          allQuestions.push({ ...q, system: sys });
+        });
+      });
+
+      const initialSelected = new Set<number>();
+      allQuestions.forEach((q, i) => {
+        if (q.priority === "critical" || q.priority === "important") {
+          initialSelected.add(i);
+        }
+      });
+      setSelectedQuestionIndexes(initialSelected);
+
+      const tabWithMost = (["cios", "mios", "baos"] as const).reduce((best, sys) =>
+        pack.routedContent[sys].recommendedQuestions.length > pack.routedContent[best].recommendedQuestions.length ? sys : best
+      , "cios" as "mios" | "baos" | "cios");
+      setGatedActiveTab(tabWithMost);
+
+      setPhase("gated-pack");
+    } catch (err: any) {
+      console.error("Gating failed:", err);
+      setError(err.message || "Decision Gating Agent failed. Please try again.");
+      setPhase("upload");
+    }
+  };
+
+  const processImport = runGating;
 
   const handleCreateSelectedQuestions = () => {
+    if (gatedPack && onMultiImport) {
+      const allQuestions: RecommendedQuestion[] = [];
+      (["mios", "baos", "cios"] as const).forEach(sys => {
+        gatedPack.routedContent[sys].recommendedQuestions.forEach(q => {
+          allQuestions.push({ ...q, system: sys });
+        });
+      });
+      const selected = allQuestions.filter((_, i) => selectedQuestionIndexes.has(i));
+      if (selected.length === 0) return;
+      onMultiImport(selected, gatedPack);
+      return;
+    }
     if (!decisionPack || !onMultiImport) return;
     const selected = decisionPack.recommendedQuestions.filter((_, i) => selectedQuestionIndexes.has(i));
     if (selected.length === 0) return;
@@ -504,6 +623,40 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
     });
   };
 
+  if (phase === "gating") {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-8 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Decision Gating Agent</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <div className="text-center">
+            <div className="text-sm font-medium text-foreground">Reading and routing document content...</div>
+            <div className="text-xs text-muted-foreground mt-1">Identifying the real business decision, filtering noise, routing to MIOS / BAOS / CIOS</div>
+          </div>
+          <div className="flex items-center gap-6 mt-4">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="text-[10px] text-cyan-400">MIOS</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: "0.3s" }} />
+              <span className="text-[10px] text-amber-400">BAOS</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" style={{ animationDelay: "0.6s" }} />
+              <span className="text-[10px] text-violet-400">CIOS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (phase === "interpreting") {
     return (
       <div className="rounded-2xl border border-border bg-card p-8 space-y-5">
@@ -519,6 +672,287 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
             <div className="text-sm font-medium text-foreground">Reading document like a strategist...</div>
             <div className="text-xs text-muted-foreground mt-1">Identifying decision threads, explicit asks, and generating focused questions</div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "gated-pack" && gatedPack) {
+    const priorityColor = (p: string) => {
+      if (p === "critical") return "text-red-400 bg-red-500/10 border-red-500/20";
+      if (p === "important") return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+      return "text-slate-400 bg-slate-500/10 border-slate-500/20";
+    };
+    const categoryLabel = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
+    const systemColors = {
+      mios: { bg: "bg-cyan-500/10", border: "border-cyan-500/20", text: "text-cyan-400", dot: "bg-cyan-400", label: "MIOS", desc: "Evidence & Clinical Data" },
+      baos: { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400", dot: "bg-amber-400", label: "BAOS", desc: "Behavior & Perception" },
+      cios: { bg: "bg-violet-500/10", border: "border-violet-500/20", text: "text-violet-400", dot: "bg-violet-400", label: "CIOS", desc: "Strategy & Forecasting" },
+    };
+
+    const allQuestions: RecommendedQuestion[] = [];
+    (["mios", "baos", "cios"] as const).forEach(sys => {
+      gatedPack.routedContent[sys].recommendedQuestions.forEach(q => {
+        allQuestions.push({ ...q, system: sys });
+      });
+    });
+
+    const totalSelected = selectedQuestionIndexes.size;
+
+    const miosCount = gatedPack.routedContent.mios.recommendedQuestions.length;
+    const baosCount = gatedPack.routedContent.baos.recommendedQuestions.length;
+    const ciosCount = gatedPack.routedContent.cios.recommendedQuestions.length;
+
+    const systemOffsets = { mios: 0, baos: miosCount, cios: miosCount + baosCount };
+
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Decision Gating Agent</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Document analyzed — content routed to downstream systems</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-400/10 text-indigo-400 border border-indigo-400/20">{gatedPack.documentType}</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${confidenceColor(gatedPack.confidence)}`}>{gatedPack.confidence} confidence</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-400/10 text-cyan-400 border border-cyan-400/20">MIOS: {miosCount}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">BAOS: {baosCount}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-400/10 text-violet-400 border border-violet-400/20">CIOS: {ciosCount}</span>
+        </div>
+
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+          <div className="text-[10px] uppercase tracking-wider text-blue-400/70 mb-1">Primary Decision</div>
+          <div className="text-sm font-medium text-foreground leading-relaxed">{gatedPack.primaryDecision}</div>
+        </div>
+
+        {gatedPack.businessContext && (
+          <div className="rounded-xl border border-border bg-muted/5 p-4">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Business Context</div>
+            <div className="text-sm text-foreground/80 leading-relaxed">{gatedPack.businessContext}</div>
+          </div>
+        )}
+
+        <div className="flex border-b border-border">
+          {(["mios", "baos", "cios"] as const).map(sys => {
+            const sc = systemColors[sys];
+            const count = gatedPack.routedContent[sys].recommendedQuestions.length;
+            const isActive = gatedActiveTab === sys;
+            return (
+              <button
+                key={sys}
+                type="button"
+                onClick={() => setGatedActiveTab(sys)}
+                className={`flex-1 py-2.5 px-3 text-center transition-colors relative ${
+                  isActive ? `${sc.text} font-semibold` : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${sc.dot}`} />
+                  <span className="text-xs">{sc.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? sc.bg : "bg-muted/20"}`}>
+                    {count}
+                  </span>
+                </div>
+                {isActive && (
+                  <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${sc.dot}`} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {(["mios", "baos", "cios"] as const).map(sys => {
+          if (gatedActiveTab !== sys) return null;
+          const sc = systemColors[sys];
+          const routed = gatedPack.routedContent[sys];
+          const missing = gatedPack.missingInformation[sys] || [];
+          const offset = systemOffsets[sys];
+
+          return (
+            <div key={sys} className="space-y-4">
+              {routed.summary && (
+                <div className={`rounded-xl border ${sc.border} ${sc.bg} p-4`}>
+                  <div className={`text-[10px] uppercase tracking-wider ${sc.text} opacity-70 mb-1`}>{sc.label} Focus</div>
+                  <div className="text-sm text-foreground/80 leading-relaxed">{routed.summary}</div>
+                </div>
+              )}
+
+              {routed.spans.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Routed Content Spans ({routed.spans.length})</div>
+                  <div className="rounded-xl border border-border bg-muted/5 divide-y divide-border max-h-40 overflow-y-auto">
+                    {routed.spans.map((span, i) => (
+                      <div key={i} className="px-4 py-2.5 text-sm">
+                        <div className="text-foreground/80 italic">"{span.text}"</div>
+                        <div className={`text-[10px] ${sc.text} mt-1`}>{span.rationale}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {routed.recommendedQuestions.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {sc.label} Questions ({routed.recommendedQuestions.length})
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = new Set(selectedQuestionIndexes);
+                          routed.recommendedQuestions.forEach((_, i) => next.add(offset + i));
+                          setSelectedQuestionIndexes(next);
+                        }}
+                        className={`text-[10px] ${sc.text} hover:opacity-80`}
+                      >
+                        Select All {sc.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = new Set(selectedQuestionIndexes);
+                          routed.recommendedQuestions.forEach((_, i) => next.delete(offset + i));
+                          setSelectedQuestionIndexes(next);
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {routed.recommendedQuestions.map((q, i) => {
+                      const globalI = offset + i;
+                      const isSelected = selectedQuestionIndexes.has(globalI);
+                      return (
+                        <div
+                          key={i}
+                          onClick={() => toggleQuestionSelection(globalI)}
+                          className={`rounded-xl border p-4 cursor-pointer transition-all ${
+                            isSelected
+                              ? `${sc.border} ${sc.bg} ring-1 ring-current/20`
+                              : "border-border bg-muted/5 hover:border-muted-foreground/30"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              isSelected ? `${sc.border} ${sc.bg}` : "border-muted-foreground/30"
+                            }`}>
+                              {isSelected && <Check className={`w-3 h-3 ${sc.text}`} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-foreground leading-relaxed">{q.text}</div>
+                              <div className="text-xs text-muted-foreground mt-1.5">{q.rationale}</div>
+                              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${priorityColor(q.priority)}`}>{q.priority}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">{categoryLabel(q.category)}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${sc.bg} ${sc.text} border ${sc.border}`}>{sc.label}</span>
+                                {q.suggestedSubject && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{q.suggestedSubject}</span>
+                                )}
+                                <span className="text-[10px] text-muted-foreground">{q.suggestedTimeHorizon}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {routed.recommendedQuestions.length === 0 && (
+                <div className="rounded-xl border border-dashed border-border bg-muted/5 p-6 text-center">
+                  <div className="text-sm text-muted-foreground">No content routed to {sc.label} from this document</div>
+                </div>
+              )}
+
+              {missing.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3 h-3 text-amber-400" />
+                    Missing for {sc.label}
+                  </div>
+                  <div className="rounded-xl border border-dashed border-amber-500/20 bg-amber-500/5 divide-y divide-amber-500/10">
+                    {missing.map((m, i) => (
+                      <div key={i} className="px-4 py-2.5 text-sm text-foreground/80">{m}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {gatedPack.filteredContent.summary && (
+          <div className="rounded-xl border border-border bg-muted/5 p-4">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
+              <Search className="w-3 h-3" />
+              Filtered Out
+            </div>
+            <div className="text-sm text-foreground/60 leading-relaxed">{gatedPack.filteredContent.summary}</div>
+            {gatedPack.filteredContent.categories.length > 0 && (
+              <div className="flex gap-1.5 mt-2 flex-wrap">
+                {gatedPack.filteredContent.categories.map((c, i) => (
+                  <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-500 border border-slate-500/20">{c.replace(/_/g, " ")}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {gatedPack.competitiveContext && (
+          <div className="rounded-xl border border-border bg-muted/5 p-4">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Competitive Context</div>
+            <div className="text-sm text-foreground/80">{gatedPack.competitiveContext}</div>
+          </div>
+        )}
+
+        {gatedPack.targetAudiences.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Audiences:</span>
+            {gatedPack.targetAudiences.map((a, i) => (
+              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">{a}</span>
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => handleCreateSelectedQuestions()}
+            disabled={totalSelected === 0}
+            className="flex-1 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          >
+            Create {totalSelected} Case{totalSelected !== 1 ? "s" : ""}
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPhase("upload");
+              setGatedPack(null);
+              setSelectedQuestionIndexes(new Set());
+            }}
+            className="rounded-xl border border-border px-5 py-3 font-semibold text-foreground hover:bg-muted/20 inline-flex items-center gap-2"
+          >
+            Start Over
+          </button>
         </div>
       </div>
     );
