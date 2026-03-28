@@ -904,33 +904,9 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             {hasGates && (() => {
               const brandPct = Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100);
               const finalPct = displayProbPct;
-              const brandHigh = brandPct >= 60;
-              const brandLow = brandPct < 40;
-              const finalHigh = finalPct >= 60;
-              const finalLow = finalPct < 40;
-
-              const statusRank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
-              const sortedGates = [...decomp!.event_gates].sort((a, b) => (statusRank[a.status] ?? 0) - (statusRank[b.status] ?? 0));
-              const weakestGate = sortedGates[0];
-              const unresolvedOrWeak = sortedGates.filter((g) => g.status === "unresolved" || g.status === "weak");
-              const strongestUnresolved = unresolvedOrWeak.length > 0
-                ? [...unresolvedOrWeak].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
-                : sortedGates.find((g) => g.status === "moderate") || weakestGate;
-
-              let interpretation = "";
-              if (brandHigh && finalLow) {
-                interpretation = `The therapy shows strong clinical momentum (${brandPct}% brand outlook), but current barriers make achieving the target adoption within the forecast window unlikely. The gap between brand strength and forecast reflects unresolved operational or market conditions, not product weakness.`;
-              } else if (brandLow && finalLow) {
-                interpretation = `Both clinical evidence strength and operational readiness remain limited. The forecast reflects genuine uncertainty in the underlying data — regulatory, clinical, or competitive factors have not yet resolved in a favorable direction.`;
-              } else if (brandHigh && finalHigh) {
-                interpretation = `Both evidence strength and operational readiness support adoption. The clinical profile is strong and the key conditions for market uptake are largely in place. Monitor for emerging headwinds.`;
-              } else if (!brandHigh && !brandLow && !finalHigh && !finalLow) {
-                interpretation = `Adoption depends on resolving remaining barriers. The therapy has a moderate evidence base, but key gating conditions have not fully cleared. Progress on the primary constraint below could meaningfully shift the forecast.`;
-              } else if (brandHigh && !finalHigh && !finalLow) {
-                interpretation = `The therapy has strong upstream signals (${brandPct}% brand outlook), but event gates are partially limiting the forecast to ${finalPct}%. Clearing the primary constraint below would allow the forecast to better reflect the underlying brand strength.`;
-              } else {
-                interpretation = `The forecast reflects the current balance between evidence strength and operational readiness. The primary constraint below identifies the most important barrier to monitor.`;
-              }
+              const priorPct = Math.round((f.priorProbability ?? 0.5) * 100);
+              const minGateCapPct = constrainedProb != null ? Math.round(constrainedProb * 100) : brandPct;
+              const executionGapPts = Math.abs(brandPct - finalPct);
 
               const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5);
               const individualScenarios = gateScenarios.filter(s => !s.id.startsWith("upgrade_all") && !s.id.startsWith("regress_all"));
@@ -941,8 +917,11 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 : null;
 
               const judgmentResult = generateExecutiveJudgment({
+                priorPct,
                 brandOutlookPct: brandPct,
                 finalForecastPct: finalPct,
+                minGateCapPct,
+                executionGapPts,
                 gates: decomp!.event_gates,
                 drivers,
                 analogContext: analogContext ?? null,
@@ -953,6 +932,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 const cid = activeQuestion?.caseId || "unknown";
                 localStorage.setItem(`cios.judgmentResult:${cid}`, JSON.stringify(judgmentResult));
               } catch {}
+
+              const audit = judgmentResult._audit;
 
               return (
                 <>
@@ -968,61 +949,141 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
                   <EventGatesPanel gates={decomp!.event_gates} />
 
-                  <details className="rounded-2xl border border-white/10 bg-[#0A1736]/60 overflow-hidden">
+                  <details className="rounded-2xl border border-white/10 bg-[#0A1736]/60 overflow-hidden" data-testid="judgment-audit-block">
                     <summary className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-slate-200 select-none">
-                      Forecast Calculation Transparency
+                      Judgment Audit Trail
                     </summary>
-                    <div className="px-5 pb-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-slate-300">
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Prior</div>
-                        <div className="text-base font-bold text-slate-100">{Math.round((f.priorProbability ?? 0.5) * 100)}%</div>
-                      </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Brand Outlook (Pre-Gate)</div>
-                        <div className="text-base font-bold text-cyan-300">{brandPct}%</div>
-                      </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Min Gate Cap</div>
-                        <div className="text-base font-bold text-amber-300">{constrainedProb != null ? Math.round(constrainedProb * 100) : "—"}%</div>
-                      </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Final Forecast</div>
-                        <div className="text-base font-bold text-emerald-300">{finalPct}%</div>
-                      </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Execution Gap</div>
-                        <div className="text-base font-bold text-red-300">{Math.abs(brandPct - finalPct)} pts</div>
-                      </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Confidence</div>
-                        <div className="text-base font-bold">{judgmentResult.confidence}</div>
-                      </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Upward Drivers</div>
-                        <div className="text-base font-bold text-green-300">{drivers.filter(d => d.direction === "Upward").length}</div>
-                      </div>
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Downward Drivers</div>
-                        <div className="text-base font-bold text-red-300">{drivers.filter(d => d.direction === "Downward").length}</div>
-                      </div>
-                      {decomp!.event_gates.map((g) => (
-                        <div key={g.gate_id} className="rounded-xl border border-white/5 bg-white/[0.02] p-3 col-span-2">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{g.gate_label}</div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm font-bold ${g.status === "strong" ? "text-green-400" : g.status === "moderate" ? "text-amber-400" : "text-red-400"}`}>
-                              {g.status.toUpperCase()}
-                            </span>
-                            <span className="text-slate-400">→ caps at ≤{Math.round(g.constrains_probability_to * 100)}%</span>
-                          </div>
+                    <div className="px-5 pb-4 space-y-4 text-xs text-slate-300">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Prior</div>
+                          <div className="text-base font-bold text-slate-100">{audit.inputs.priorPct}%</div>
                         </div>
-                      ))}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Brand Outlook (Pre-Gate)</div>
+                          <div className="text-base font-bold text-cyan-300">{audit.inputs.brandOutlookPct}%</div>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Min Gate Cap</div>
+                          <div className="text-base font-bold text-amber-300">{audit.inputs.minGateCapPct}%</div>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Final Forecast</div>
+                          <div className="text-base font-bold text-emerald-300">{audit.inputs.finalForecastPct}%</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Execution Gap</div>
+                          <div className="text-base font-bold text-red-300">{audit.inputs.executionGapPts} pts</div>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Confidence</div>
+                          <div className="text-base font-bold">{judgmentResult.confidence}</div>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Upward Drivers</div>
+                          <div className="text-base font-bold text-green-300">{audit.inputs.upwardDriverCount}</div>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Downward Drivers</div>
+                          <div className="text-base font-bold text-red-300">{audit.inputs.downwardDriverCount}</div>
+                        </div>
+                      </div>
+
+                      {audit.inputs.topPositiveDrivers.length > 0 && (
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Top Positive Drivers</div>
+                          <div className="text-sm text-green-300">{audit.inputs.topPositiveDrivers.join(", ")}</div>
+                        </div>
+                      )}
+                      {audit.inputs.topNegativeDrivers.length > 0 && (
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Top Negative Drivers</div>
+                          <div className="text-sm text-red-300">{audit.inputs.topNegativeDrivers.join(", ")}</div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {audit.inputs.gateStates.map((g) => (
+                          <div key={g.label} className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{g.label}</div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-bold ${g.status === "strong" ? "text-green-400" : g.status === "moderate" ? "text-amber-400" : "text-red-400"}`}>
+                                {g.status.toUpperCase()}
+                              </span>
+                              <span className="text-slate-400">→ caps at ≤{g.capPct}%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Confidence Breakdown</div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                          <div>Gate Resolution: <span className="font-bold text-slate-100">+{audit.confidenceAudit.gateResolutionScore}</span></div>
+                          <div>Analog Evidence: <span className="font-bold text-slate-100">+{audit.confidenceAudit.analogScore}</span></div>
+                          <div>Convergence: <span className="font-bold text-slate-100">+{audit.confidenceAudit.convergenceScore}</span></div>
+                          <div>Gate Count: <span className="font-bold text-slate-100">+{audit.confidenceAudit.gateCountScore}</span></div>
+                          {audit.confidenceAudit.gapPenalty > 0 && <div>Gap Penalty: <span className="font-bold text-red-400">-{audit.confidenceAudit.gapPenalty}</span></div>}
+                          {audit.confidenceAudit.conflictPenalty > 0 && <div>Conflict Penalty: <span className="font-bold text-red-400">-{audit.confidenceAudit.conflictPenalty}</span></div>}
+                          <div>Raw Total: <span className="font-bold text-slate-100">{audit.confidenceAudit.rawTotal}</span> → <span className="font-bold">{audit.confidenceAudit.finalLevel}</span></div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Outcome Rule</div>
+                        <div className="text-xs">
+                          <span className="text-slate-400">Category:</span> <span className="text-slate-100">{audit.outcomeAudit.questionCategory}</span>
+                          <span className="mx-2 text-slate-600">|</span>
+                          <span className="text-slate-400">Band:</span> <span className="text-slate-100">{audit.outcomeAudit.probabilityBand}</span>
+                          <span className="mx-2 text-slate-600">|</span>
+                          <span className="text-slate-400">Rule:</span> <span className="text-slate-100">{audit.outcomeAudit.ruleTriggered}</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Decision Posture Rule</div>
+                        <div className="text-xs">
+                          <span className="text-slate-400">Case Type:</span> <span className="text-slate-100">{audit.postureAudit.caseType}</span>
+                          <span className="mx-2 text-slate-600">|</span>
+                          <span className="text-slate-400">Rule:</span> <span className="text-slate-100">{audit.postureAudit.ruleTriggered}</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500">Integrity Checks</div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${audit.integrityPassed ? "bg-green-900/40 text-green-400" : "bg-red-900/40 text-red-400"}`}>
+                            {audit.integrityPassed ? "ALL PASSED" : "CORRECTIONS APPLIED"}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {audit.integrityChecks.map((check, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs">
+                              <span className={check.passed ? "text-green-400" : "text-red-400"}>{check.passed ? "✓" : "✗"}</span>
+                              <span className="text-slate-400">{check.rule.replace(/_/g, " ")}</span>
+                              {!check.passed && <span className="text-red-300 text-[10px]">— {check.detail}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </details>
 
                   <ForecastMeaningPanel
-                    interpretation={interpretation}
-                    weakestGate={weakestGate}
-                    strongestUnresolved={strongestUnresolved}
+                    interpretation={judgmentResult.reasoning}
+                    weakestGate={decomp!.event_gates.sort((a, b) => {
+                      const rank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
+                      return (rank[a.status] ?? 0) - (rank[b.status] ?? 0);
+                    })[0]}
+                    strongestUnresolved={(() => {
+                      const uw = decomp!.event_gates.filter(g => g.status === "unresolved" || g.status === "weak");
+                      return uw.length > 0
+                        ? [...uw].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
+                        : decomp!.event_gates.find(g => g.status === "moderate") || decomp!.event_gates[0];
+                    })()}
                     brandPct={brandPct}
                   />
 
@@ -1051,7 +1112,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                   <DecisionLabSummary
                     brandOutlookPct={brandPct}
                     finalForecastPct={finalPct}
-                    executionGap={Math.abs(brandPct - finalPct)}
+                    executionGap={executionGapPts}
                     gates={decomp!.event_gates}
                     drivers={drivers}
                     upsideTotal={upsideTotal}
