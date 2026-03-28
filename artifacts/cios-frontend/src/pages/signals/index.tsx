@@ -48,7 +48,7 @@ import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog"
 import { SignalProvenanceDrawer } from "@/components/signals/SignalProvenanceDrawer";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
-import { getAllPrebuiltSignals } from "@/lib/workbook/prebuiltSignals";
+import { getAllPrebuiltSignals, getSignalsForBrand, getAnalogSignalsForBrand } from "@/lib/workbook/prebuiltSignals";
 
 type Direction = "positive" | "negative" | "neutral";
 type Strength = "High" | "Medium" | "Low";
@@ -458,7 +458,10 @@ export default function SignalsPage() {
 
   const [signals, setSignals] = useState<Signal[]>(() => {
     const persisted = (() => { try { const raw = localStorage.getItem(`cios.signals:${caseKey}`); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; } } catch {} return null; })();
-    const prebuilt = getAllPrebuiltSignals() as Signal[];
+    const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
+    const analogSignals = subject ? getAnalogSignalsForBrand(subject) as Signal[] : [];
+    const matched = [...brandSignals, ...analogSignals];
+    const prebuilt = matched.length > 0 ? matched : getAllPrebuiltSignals() as Signal[];
     if (persisted) {
       const existingIds = new Set(persisted.map((s: Signal) => s.id));
       const missing = prebuilt.filter(s => !existingIds.has(s.id));
@@ -512,7 +515,10 @@ export default function SignalsPage() {
       } catch {}
       return null;
     })();
-    const prebuilt = getAllPrebuiltSignals() as Signal[];
+    const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
+    const analogSignals = subject ? getAnalogSignalsForBrand(subject) as Signal[] : [];
+    const matched = [...brandSignals, ...analogSignals];
+    const prebuilt = matched.length > 0 ? matched : getAllPrebuiltSignals() as Signal[];
     if (persisted) {
       const existingIds = new Set(persisted.map((s: Signal) => s.id));
       const missing = prebuilt.filter(s => !existingIds.has(s.id));
@@ -607,7 +613,10 @@ export default function SignalsPage() {
     if (!hasPersistedSignals()) {
       setSignals((prev) => {
         const userSignals = prev.filter((s) => s.source === "user" || s.is_locked);
-        const prebuilt = getAllPrebuiltSignals() as Signal[];
+        const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
+        const analogSignals = subject ? getAnalogSignalsForBrand(subject) as Signal[] : [];
+        const matched = [...brandSignals, ...analogSignals];
+        const prebuilt = matched.length > 0 ? matched : getAllPrebuiltSignals() as Signal[];
         const existingIds = new Set(userSignals.map(s => s.id));
         const newPrebuilt = prebuilt.filter(s => !existingIds.has(s.id));
         return [...newPrebuilt, ...fallbackSuggestions, ...userSignals];
