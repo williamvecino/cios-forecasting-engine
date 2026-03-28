@@ -1,0 +1,106 @@
+For Simulate Adoption Reaction, ingestion should not behave like project ingestion. It should do one thing:
+
+extract reaction-relevant features from materials and map them to stakeholder/archetype response rules.
+
+What Simulate ingestion is for
+
+Not to rebuild the case.
+Not to extract the main question again.
+Not to generate a fresh forecast.
+
+Its job is narrower:
+
+You give it materials. It determines how a selected segment/archetype would most likely react.
+
+What it should accept
+PPT
+PDF
+image
+text
+tables
+What it should extract
+
+From those materials, the system should pull only the features that matter for reaction.
+
+Examples:
+
+efficacy strength
+survival benefit
+safety reassurance
+real-world evidence
+guideline relevance
+access support
+HEOR / cost-effectiveness
+workflow convenience
+operational support
+comparative evidence
+implementation burden
+patient support / adherence support
+
+So the ingestion output is not “summary.” It is a feature map.
+
+What the flow should be
+
+Select segment
+→ select archetype or use assigned one
+→ upload material
+→ ingestion extracts features
+→ reaction engine scores likely response under current constraints
+→ output reaction
+
+What the output should say
+
+Very simply:
+
+likely reaction
+what this material changes
+what it does not change
+primary remaining barrier
+strongest trigger for movement
+confidence
+Example
+
+Material:
+new survival slide deck
+
+Extracted features:
+
+strong efficacy
+strong comparative signal
+no access support
+no workflow support
+
+Selected segment:
+early adopters
+
+Archetype:
+evidence-driven innovator
+
+Output:
+High interest. Likely to increase attention and selective early use. Does not remove coverage barriers.
+
+What it should not do
+not regenerate the case question
+not rerun full signal discovery
+not replace Decide
+not invent new constraints
+not act like generic document summarization
+Minimal design rule
+
+Simulate ingestion extracts only material features relevant to behavior change.
+
+What to tell Replit
+
+Use this:
+
+For the Simulate Adoption Reaction step, add a dedicated ingestion feature that accepts PPT, PDF, image, text, and tables, but do not treat this like project ingestion. Its purpose is to extract reaction-relevant material features such as efficacy strength, safety reassurance, guideline relevance, access support, workflow convenience, comparative evidence, and HEOR value. These extracted features should then feed the reaction engine for the selected segment and archetype under the current case constraints. The output should state likely reaction, what changes, what does not change, the primary remaining barrier, and the most likely trigger for movement.
+
+The clean distinction
+
+Project ingestion
+extracts question + signals + missing signals
+
+Simulate ingestion
+extracts material features + predicted stakeholder reaction
+
+That distinction should stay strict.
