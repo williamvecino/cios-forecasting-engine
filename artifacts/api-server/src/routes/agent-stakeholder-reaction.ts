@@ -24,7 +24,7 @@ interface ActorReaction {
   timeToReact: string;
   cascadeEffects: string[];
   secondOrderEffects: string[];
-  mitigationOptions: string[];
+  responseConsiderations: string[];
 }
 
 interface StakeholderReactionOutput {
@@ -52,12 +52,19 @@ router.post("/agents/stakeholder-reaction", async (req: Request, res: Response) 
 
 PURPOSE: Simulate how each market actor reacts to a specific scenario or change over time. Predict behavioral changes, cascade effects, and second-order consequences.
 
+SCOPE BOUNDARY — what you must NOT do:
+- Do NOT identify or define actors. That is the Actor Segmentation agent's job. You receive actors as input.
+- Do NOT estimate probabilities or forecast outcomes. That is the forecast engine's job.
+- Do NOT recommend strategic actions or prioritize next steps. That is the Prioritization agent's job.
+- Do NOT assess signal quality or conflicts. Those are separate agents' jobs.
+- You only SIMULATE reactions to a given scenario — you do not decide which scenario to simulate.
+
 RULES:
 - Each reaction must be specific to the actor's role and constraints
 - Cascade effects: what happens when this actor reacts (downstream effects on other actors)
 - Second-order effects: less obvious consequences that emerge over time
 - Time to react: how quickly this actor would respond
-- Mitigation options: what could be done to manage this reaction
+- Response considerations: what factors would shape how to manage this reaction (descriptive, not prescriptive)
 - Be concrete, not generic
 
 OUTPUT FORMAT (JSON):
@@ -72,7 +79,7 @@ OUTPUT FORMAT (JSON):
       "timeToReact": "string — e.g. 'immediate', '1-2 weeks', '3-6 months'",
       "cascadeEffects": ["string — downstream effects"],
       "secondOrderEffects": ["string — longer-term consequences"],
-      "mitigationOptions": ["string — what to do about it"]
+      "responseConsiderations": ["string — factors that shape how to manage this reaction"]
     }
   ],
   "systemImpact": {
@@ -130,7 +137,7 @@ Simulate how each actor reacts to this scenario.`;
         timeToReact: r.timeToReact || "unknown",
         cascadeEffects: Array.isArray(r.cascadeEffects) ? r.cascadeEffects : [],
         secondOrderEffects: Array.isArray(r.secondOrderEffects) ? r.secondOrderEffects : [],
-        mitigationOptions: Array.isArray(r.mitigationOptions) ? r.mitigationOptions : [],
+        responseConsiderations: Array.isArray(r.responseConsiderations) ? r.responseConsiderations : (Array.isArray(r.mitigationOptions) ? r.mitigationOptions : []),
       })),
       systemImpact: {
         netEffect: parsed.systemImpact?.netEffect || "neutral",

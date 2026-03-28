@@ -56,6 +56,13 @@ router.post("/agents/signal-quality", async (req: Request, res: Response) => {
 
 PURPOSE: Score the reliability, freshness, directness, and duplication risk of each signal. Identify signals that need verification, downgrading, or removal. Identify gaps in signal coverage.
 
+SCOPE BOUNDARY — what you must NOT do:
+- Do NOT resolve conflicts between signals. That is the Conflict Resolver's job.
+- Do NOT deduplicate or merge signals. That is the Signal Normalizer's job.
+- Do NOT estimate probabilities or forecast outcomes. That is the forecast engine's job.
+- Do NOT generate new signals or suggest external signals. That is the External Signal Scout's job.
+- Do NOT assess adoption barriers or behavioral objections. That is BAOS's job.
+
 RULES:
 - Quality score: 0-100 based on reliability (40%), freshness (25%), directness (25%), source quality (10%)
 - Reliability: does the source have a track record of accuracy?

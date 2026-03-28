@@ -10,7 +10,7 @@ interface ActorReaction {
   timeToReact: string;
   cascadeEffects: string[];
   secondOrderEffects: string[];
-  mitigationOptions: string[];
+  responseConsiderations: string[];
 }
 
 interface StakeholderReactionResult {
@@ -185,11 +185,11 @@ export function StakeholderReactionPanel({ question, actors, context }: {
                         </ul>
                       </div>
                     )}
-                    {r.mitigationOptions.length > 0 && (
+                    {r.responseConsiderations.length > 0 && (
                       <div>
-                        <div className="text-[10px] text-blue-400/70 uppercase tracking-wider mb-1">Mitigation Options</div>
+                        <div className="text-[10px] text-blue-400/70 uppercase tracking-wider mb-1">Response Considerations</div>
                         <ul className="space-y-0.5">
-                          {r.mitigationOptions.map((m, i) => <li key={i} className="text-xs text-foreground/70">• {m}</li>)}
+                          {r.responseConsiderations.map((m, i) => <li key={i} className="text-xs text-foreground/70">• {m}</li>)}
                         </ul>
                       </div>
                     )}

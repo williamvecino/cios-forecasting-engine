@@ -1,0 +1,203 @@
+MIOS/BAOS
+·
+MIOS-ENTRESTO
+Provenance
+Mortality and hospitalization reduction established strong outcome credibility
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+MIOS
+
+MIOS/BAOS
+·
+BAOS-ENTRESTO
+Provenance
+Physician inertia slowed switching from ACE inhibitors despite superior outcomes
+
+
+Direction
+Slows Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+BAOS
+
+MIOS/BAOS
+·
+MIOS-REPATHA
+Provenance
+LDL reduction was dramatic but early outcome evidence lag created adoption hesitation
+
+
+Direction
+Slows Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+Medium
+Confidence
+Strong
+Source
+MIOS
+
+MIOS/BAOS
+·
+BAOS-REPATHA
+Provenance
+Prior authorization complexity reduced prescribing enthusiasm
+
+
+Direction
+Slows Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+BAOS
+
+MIOS/BAOS
+·
+MIOS-DUPIXENT
+Provenance
+Consistent efficacy across multiple inflammatory endpoints strengthened platform credibility
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+MIOS
+
+MIOS/BAOS
+·
+BAOS-DUPIXENT
+Provenance
+Visible patient improvement reinforced clinician confidence and accelerated adoption
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+BAOS
+
+MIOS/BAOS
+·
+MIOS-KEYTRUDA
+Provenance
+Durable survival benefit established trust in immunotherapy mechanism
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+MIOS
+
+MIOS/BAOS
+·
+BAOS-KEYTRUDA
+Provenance
+Strong KOL advocacy normalized checkpoint inhibitor use
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+BAOS
+
+MIOS/BAOS
+·
+MIOS-OFEV
+Provenance
+Slowing disease progression without symptom reversal required reframing clinical expectations
+
+
+Direction
+Slows Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+Medium
+Confidence
+Strong
+Source
+MIOS
+
+MIOS/BAOS
+·
+BAOS-OFEV
+Provenance
+Patient perception of limited symptom improvement reduced adherence motivation
+
+
+Direction
+Slows Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+Medium
+Confidence
+Strong
+Source
+BAOS
+
+MIOS/BAOS
+·
+MIOS-SPINRAZA
+Provenance
+Transformational efficacy in rare disease justified rapid adoption despite high cost
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+MIOS
+
+MIOS/BAOS
+·
+BAOS-SPINRAZA
+Provenance
+Parent advocacy created strong demand pressure for early treatment
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High
+Confidence
+Strong
+Source
+BAOS
+
+MIOS/BAOS
+·
+MIOS-TRIKAFTA
+Provenance
+Broad genotype coverage dramatically expanded eligible patient population
+
+
+Direction
+Supports Academic tumor board formally incorporates OncoDevice Y into at least one NSCLC treatment pathway.
+Importance
+High

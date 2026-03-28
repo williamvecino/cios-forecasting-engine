@@ -28,16 +28,6 @@ interface ComparableCase {
 
 interface CaseComparatorOutput {
   comparableCases: ComparableCase[];
-  priorStructure: {
-    baseRateEstimate: number;
-    baseRateRationale: string;
-    adjustmentFactors: Array<{
-      factor: string;
-      direction: "up" | "down" | "neutral";
-      magnitude: "small" | "moderate" | "large";
-      rationale: string;
-    }>;
-  };
   analogLibrarySize: number;
   confidenceInAnalogs: "high" | "moderate" | "low";
 }
@@ -51,14 +41,23 @@ router.post("/agents/case-comparator", async (req: Request, res: Response) => {
 
   const systemPrompt = `You are a Case Comparator Agent in a clinical intelligence forecasting system.
 
-PURPOSE: Given a decision question and context, identify 3-5 historical analog cases from pharma/biotech that are structurally comparable. For each, assess similarity, divergence, and implication for the current case. Then structure a prior estimate based on base rates from these analogs.
+PURPOSE: Given a decision question and context, identify 3-5 historical analog cases from pharma/biotech that are structurally comparable. For each, assess similarity, divergence, and implication for the current case.
+
+SCOPE BOUNDARY — what you must NOT do:
+- Do NOT estimate probabilities, base rates, or likelihood scores. That is the forecast engine's job.
+- Do NOT recommend actions or prioritize next steps. That is the Prioritization agent's job.
+- Do NOT identify stakeholders or actors. That is the Actor Segmentation agent's job.
+- Do NOT generate brand-specific clinical evidence. That is MIOS's job.
+
+SCOPE — what you SHOULD do:
+- Find 3-5 real, historically documented cases with structural similarity to this decision
+- For each case, explain what happened, what was similar, what was different, and what the implication is
+- Assess confidence in the analog set overall
 
 RULES:
 - Only use real, publicly documented cases (FDA approvals, launches, clinical programs)
 - Similarity must be structural (same decision type, similar market dynamics) not superficial
 - Each case must have a clear outcome that informs the current question
-- Base rate estimate must be grounded in the analog outcomes
-- Adjustment factors must be specific and directional
 
 OUTPUT FORMAT (JSON):
 {
@@ -77,18 +76,6 @@ OUTPUT FORMAT (JSON):
       "implicationForCurrentCase": "string — what this means for the current question"
     }
   ],
-  "priorStructure": {
-    "baseRateEstimate": number (0-100, probability percentage),
-    "baseRateRationale": "string — why this base rate from analogs",
-    "adjustmentFactors": [
-      {
-        "factor": "string",
-        "direction": "up" | "down" | "neutral",
-        "magnitude": "small" | "moderate" | "large",
-        "rationale": "string"
-      }
-    ]
-  },
   "analogLibrarySize": number,
   "confidenceInAnalogs": "high" | "moderate" | "low"
 }
@@ -102,7 +89,7 @@ ${input.stage ? `Stage: ${input.stage}` : ""}
 ${input.signals?.length ? `Key Signals:\n${input.signals.map(s => `- [${s.direction}] ${s.text}`).join("\n")}` : ""}
 ${input.context ? `Additional Context: ${input.context}` : ""}
 
-Identify 3-5 structurally comparable historical cases and structure a prior estimate.`;
+Identify 3-5 structurally comparable historical cases.`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -124,7 +111,6 @@ Identify 3-5 structurally comparable historical cases and structure a prior esti
     const parsed = JSON.parse(content) as CaseComparatorOutput;
     const safe: CaseComparatorOutput = {
       comparableCases: Array.isArray(parsed.comparableCases) ? parsed.comparableCases : [],
-      priorStructure: parsed.priorStructure || { baseRateEstimate: 50, baseRateRationale: "Insufficient data", adjustmentFactors: [] },
       analogLibrarySize: parsed.analogLibrarySize || 0,
       confidenceInAnalogs: parsed.confidenceInAnalogs || "low",
     };

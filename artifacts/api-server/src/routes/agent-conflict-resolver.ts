@@ -55,6 +55,12 @@ router.post("/agents/conflict-resolver", async (req: Request, res: Response) => 
 
 PURPOSE: Detect and manage conflicting signals across sources. Group conflicts, classify their type and severity, and recommend resolution strategies.
 
+SCOPE BOUNDARY — what you must NOT do:
+- Do NOT score signal quality or reliability. That is the Signal Quality agent's job.
+- Do NOT deduplicate or normalize signals. That is the Signal Normalizer's job.
+- Do NOT estimate probabilities or forecast outcomes. That is the forecast engine's job.
+- Do NOT generate new signals. That is MIOS, BAOS, or External Signal Scout's job.
+
 CONFLICT TYPES:
 - directional: signals point in opposite directions on the same factor
 - magnitude: signals agree on direction but disagree on strength/impact

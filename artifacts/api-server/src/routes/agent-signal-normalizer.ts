@@ -113,9 +113,16 @@ router.post("/agents/signal-normalizer", async (req, res) => {
 
     const systemPrompt = `You are a signal normalizer and deduplicator for a pharmaceutical intelligence system.
 
-Your single job: analyze a set of signals and identify duplicates, overlaps, and conflicts.
+Your single job: analyze a set of signals and identify duplicates and overlaps. Flag potential conflicts but do NOT resolve them.
 
 ${activeQuestion ? `Decision question context: "${activeQuestion}"` : ""}
+
+SCOPE BOUNDARY — what you must NOT do:
+- Do NOT resolve conflicts or recommend which signal is correct. That is the Conflict Resolver's job.
+- Do NOT score signal quality or reliability. That is the Signal Quality agent's job.
+- Do NOT generate new signals. That is MIOS, BAOS, or External Signal Scout's job.
+- Do NOT estimate probabilities. That is the forecast engine's job.
+- You only NORMALIZE structure and DETECT duplicates — you do not judge content.
 
 Rules:
 1. Two signals are duplicates if they describe the same fact from different sources or with different wording.

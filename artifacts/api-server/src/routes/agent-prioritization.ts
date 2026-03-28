@@ -47,6 +47,14 @@ router.post("/agents/prioritization", async (req: Request, res: Response) => {
 
 PURPOSE: Given a decision question, its current probability estimate, signals, actors, and scenarios, produce a ranked list of 3-5 prioritized actions. Each action must be concrete, assignable, and ranked by leverage × urgency.
 
+SCOPE BOUNDARY — what you must NOT do:
+- Do NOT estimate or change probabilities. That is the forecast engine's job.
+- Do NOT identify actors or map stakeholders. That is the Actor Segmentation agent's job.
+- Do NOT simulate stakeholder reactions. That is the Stakeholder Reaction agent's job.
+- Do NOT generate signals or evidence. That is MIOS, BAOS, or External Signal Scout's job.
+- Do NOT assess signal quality or resolve conflicts. Those are separate agents' jobs.
+- You only RANK actions — you receive inputs from other agents and the engine.
+
 RULES:
 - Actions must be specific and actionable (not "gather more data" but "commission Phase 3b subgroup analysis of elderly patients")
 - Leverage = how much this action could shift the outcome probability

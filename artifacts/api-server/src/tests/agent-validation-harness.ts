@@ -632,13 +632,8 @@ async function testCaseComparatorAgent(question: string): Promise<TestResult> {
       }
     }
 
-    if (!run1.priorStructure) {
-      notes.push("ERROR: no priorStructure returned");
-      errors++;
-      pass = false;
-    } else {
-      notes.push(`OK: base rate estimate: ${run1.priorStructure.baseRateEstimate}%`);
-      notes.push(`OK: ${run1.priorStructure.adjustmentFactors?.length || 0} adjustment factors`);
+    if (run1.confidenceInAnalogs) {
+      notes.push(`OK: confidence in analogs: ${run1.confidenceInAnalogs}`);
     }
 
     if (JSON.stringify(run1) !== JSON.stringify(run2)) {
@@ -651,7 +646,7 @@ async function testCaseComparatorAgent(question: string): Promise<TestResult> {
       agent: "Case Comparator Agent",
       testName: "Find analogs for anti-PDL1 launch question",
       inputReceived: truncate(question, 80),
-      outputProduced: `${run1.comparableCases?.length || 0} cases, base rate ${run1.priorStructure?.baseRateEstimate || "?"}%`,
+      outputProduced: `${run1.comparableCases?.length || 0} cases, confidence: ${run1.confidenceInAnalogs || "?"}`,
       pass,
       warningCount: warnings,
       errorCount: errors,

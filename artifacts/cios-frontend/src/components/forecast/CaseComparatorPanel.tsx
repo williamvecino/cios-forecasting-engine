@@ -15,20 +15,8 @@ interface ComparableCase {
   implicationForCurrentCase: string;
 }
 
-interface PriorStructure {
-  baseRateEstimate: number;
-  baseRateRationale: string;
-  adjustmentFactors: Array<{
-    factor: string;
-    direction: "up" | "down" | "neutral";
-    magnitude: "small" | "moderate" | "large";
-    rationale: string;
-  }>;
-}
-
 interface CaseComparatorResult {
   comparableCases: ComparableCase[];
-  priorStructure: PriorStructure;
   analogLibrarySize: number;
   confidenceInAnalogs: "high" | "moderate" | "low";
 }
@@ -69,12 +57,6 @@ export function CaseComparatorPanel({ question, signals, context }: {
     }
   }
 
-  const directionArrow = (d: string) =>
-    d === "up" ? "↑" : d === "down" ? "↓" : "→";
-
-  const directionColor = (d: string) =>
-    d === "up" ? "text-emerald-400" : d === "down" ? "text-red-400" : "text-slate-400";
-
   const confidenceColor = (c: string) =>
     c === "high" ? "text-emerald-400" : c === "moderate" ? "text-amber-400" : "text-red-400";
 
@@ -84,7 +66,7 @@ export function CaseComparatorPanel({ question, signals, context }: {
         <div className="flex items-center gap-2">
           <GitCompareArrows className="w-4 h-4 text-violet-400" />
           <h3 className="text-sm font-bold text-foreground">Case Comparator</h3>
-          <span className="text-xs text-muted-foreground">Historical analogs & prior structuring</span>
+          <span className="text-xs text-muted-foreground">Historical analogs</span>
         </div>
         {!result && (
           <button
@@ -162,27 +144,6 @@ export function CaseComparatorPanel({ question, signals, context }: {
             ))}
           </div>
 
-          <div className="rounded-xl bg-slate-800/50 border border-border p-4 space-y-3">
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Prior Structure from Analogs</div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-foreground">{result.priorStructure.baseRateEstimate}%</span>
-              <span className="text-xs text-muted-foreground">base rate estimate</span>
-            </div>
-            <p className="text-xs text-foreground/70 leading-relaxed">{result.priorStructure.baseRateRationale}</p>
-            {result.priorStructure.adjustmentFactors.length > 0 && (
-              <div className="space-y-1.5 pt-2 border-t border-border">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Adjustment Factors</div>
-                {result.priorStructure.adjustmentFactors.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className={`font-bold ${directionColor(f.direction)}`}>{directionArrow(f.direction)}</span>
-                    <span className="text-foreground/90">{f.factor}</span>
-                    <span className="text-muted-foreground/50">·</span>
-                    <span className="text-muted-foreground">{f.magnitude}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
     </div>
