@@ -92,10 +92,19 @@ interface ArchetypeAssignment {
   likely_barriers: string[];
 }
 
+interface BarrierDriver {
+  driver: string;
+  current_state: string;
+  impact_on_adoption: string;
+  what_would_improve_it: string;
+  expected_effect: string;
+}
+
 interface DecideResponse {
   mode: "forecast_derived" | "standalone";
   derived_decisions: DerivedDecisions | null;
   integrity: IntegrityReport | null;
+  barrier_decomposition: Record<string, BarrierDriver[]> | null;
   adoption_segmentation: {
     early_adopters: SegmentGroup;
     persuadables: SegmentGroup;
@@ -358,21 +367,57 @@ export default function DecisionPanels() {
                     <div className="rounded-2xl border border-red-500/20 bg-card p-5">
                       <div className="flex items-center gap-2 mb-4">
                         <ShieldAlert className="w-4 h-4 text-red-400" />
-                        <div className="text-sm font-semibold text-foreground">Barrier Diagnosis</div>
+                        <div className="text-sm font-semibold text-foreground">Barrier Decomposition</div>
                         <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-derived</span>
                       </div>
-                      <div className="space-y-3">
-                        {dd.barriers.map((b) => (
-                          <div key={b.decision_id} className="rounded-xl border border-border/50 bg-muted/5 p-3">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="text-xs font-semibold text-foreground/90">{b.title}</div>
-                              <LevelBadge level={b.severity_or_priority} />
+                      <div className="space-y-5">
+                        {dd.barriers.map((b) => {
+                          const drivers = data?.barrier_decomposition?.[b.source_gate_id] || [];
+                          return (
+                            <div key={b.decision_id} className="rounded-xl border border-border/50 bg-muted/5 p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="text-xs font-semibold text-foreground/90">{b.source_gate_label}</div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${gateStatusColor(b.source_gate_status)}`}>
+                                    {b.source_gate_status}
+                                  </span>
+                                  <LevelBadge level={b.severity_or_priority} />
+                                </div>
+                              </div>
+                              <div className="text-[10px] text-slate-500 mb-3 italic">{b.forecast_dependency}</div>
+
+                              {drivers.length > 0 ? (
+                                <div className="space-y-3">
+                                  {drivers.map((d, i) => (
+                                    <div key={i} className="rounded-lg border border-red-500/10 bg-red-500/5 p-3">
+                                      <div className="text-[11px] font-semibold text-slate-200 mb-2">{d.driver}</div>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                                        <div>
+                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Current State</div>
+                                          <div className="text-[11px] text-slate-300">{d.current_state}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Impact on Adoption</div>
+                                          <div className="text-[11px] text-slate-300">{d.impact_on_adoption}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">What Would Improve It</div>
+                                          <div className="text-[11px] text-emerald-300/80">{d.what_would_improve_it}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Expected Effect</div>
+                                          <div className="text-[11px] text-blue-300/80">{d.expected_effect}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-muted-foreground">{b.rationale}</div>
+                              )}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">{b.rationale}</div>
-                            <div className="text-[10px] text-slate-500 mt-1.5 italic">{b.forecast_dependency}</div>
-                            <DerivedByTag gateLabel={b.source_gate_label} gateStatus={b.source_gate_status} />
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

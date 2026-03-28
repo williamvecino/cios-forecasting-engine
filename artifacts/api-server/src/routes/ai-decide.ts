@@ -47,7 +47,7 @@ router.post("/ai-decide/generate", async (req, res) => {
     let contextPrompt = "";
     if (hasGates && derived) {
       const barrierSummary = derived.barriers.map(b =>
-        `- ${b.title} (severity: ${b.severity_or_priority}, gate: ${b.source_gate_label} [${b.source_gate_status}])`
+        `- ${b.title} (severity: ${b.severity_or_priority}, gate_id: "${b.source_gate_id}", gate_label: ${b.source_gate_label} [${b.source_gate_status}])`
       ).join("\n");
       const actionSummary = derived.actions.map(a =>
         `- ${a.title} (priority: ${a.severity_or_priority}, gate: ${a.source_gate_label} [${a.source_gate_status}])`
@@ -74,7 +74,7 @@ Brand Outlook: ${body.brandOutlookProbability != null ? Math.round(body.brandOut
 Constrained Forecast: ${body.constrainedProbability != null ? Math.round(body.constrainedProbability * 100) + "%" : "unknown"}
 --- END FRAMEWORK ---
 
-For each barrier, provide a specific "detail" field explaining WHY this barrier matters for this specific product/market (1-2 sentences, grounded in the product context).
+For barrier_decomposition, break EACH non-strong gate into 2-5 specific operational drivers using the gate's gate_id as the key. Each driver must be a concrete, observable condition — never repeat the gate label.
 For adoption_segmentation, name real prescriber/provider types specific to this product.
 For competitive_risk, readiness_timeline, and growth_feasibility, ground assessments in the gate profile and product context.
 `;
@@ -91,8 +91,16 @@ ${hasGates ? `IMPORTANT: A decision framework has been derived from the forecast
 Return ONLY valid JSON with this structure:
 
 {
-  "barrier_details": {
-    "<gate_id>": "1-2 sentence contextual explanation of why this barrier matters for this product"
+  "barrier_decomposition": {
+    "<use the exact gate_id string from the barriers list, e.g. 'g2' not the label>": [
+      {
+        "driver": "Specific operational driver name (e.g. 'Prior authorization process', 'Site workflow integration')",
+        "current_state": "Concise description of the current condition (1 sentence)",
+        "impact_on_adoption": "How this specifically affects adoption (1 sentence)",
+        "what_would_improve_it": "Concrete action or change needed (1 sentence)",
+        "expected_effect": "What improvement would do to outlook (1 sentence)"
+      }
+    ]
   },
   "adoption_segmentation": {
     "early_adopters": { "segments": ["real segment type 1"], "reason": "Why" },
@@ -119,6 +127,15 @@ Return ONLY valid JSON with this structure:
     "revenue_translation": "Low|Moderate|High"
   }
 }
+
+BARRIER DECOMPOSITION RULES:
+- For each non-strong gate (by gate_id), provide 2-5 specific operational drivers.
+- NEVER use the gate label itself as a driver name. Break it into the underlying conditions.
+- Each driver must be a concrete, observable condition (e.g. "Prior authorization process", "Site workflow integration", "Specialist referral pathway").
+- "current_state" must describe the actual real-world situation, not restate the gate.
+- "impact_on_adoption" must explain HOW this specific driver slows or blocks adoption.
+- "what_would_improve_it" must be a concrete, actionable intervention.
+- "expected_effect" must describe the specific change in adoption outlook if the improvement is made.
 
 Name real segment types specific to this product (e.g. "Pulmonologists at academic centers", "Community oncologists").`;
 
@@ -161,15 +178,49 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
     }
 
     if (hasGates && derived && integrity) {
-      const barrierDetails = aiContext.barrier_details || {};
+      const rawDecomp = aiContext.barrier_decomposition || {};
+      const decomp: Record<string, any[]> = {};
+      const labelToId: Record<string, string> = {};
+      for (const g of gates) {
+        labelToId[g.gate_label.toLowerCase()] = g.gate_id;
+        labelToId[g.gate_label.toLowerCase().replace(/\s+/g, "_")] = g.gate_id;
+        labelToId[g.gate_label.toLowerCase().replace(/\s+/g, "-")] = g.gate_id;
+        const withStatus = `${g.gate_label.toLowerCase()} [${g.status}]`;
+        labelToId[withStatus] = g.gate_id;
+      }
+      for (const [key, drivers] of Object.entries(rawDecomp)) {
+        if (gates.some(g => g.gate_id === key)) {
+          decomp[key] = drivers as any[];
+        } else {
+          const normalized = key.toLowerCase().replace(/\s+/g, "_");
+          const mapped = labelToId[key.toLowerCase()] || labelToId[normalized] || labelToId[key.toLowerCase().replace(/_/g, " ")];
+          if (mapped) {
+            decomp[mapped] = drivers as any[];
+          } else {
+            decomp[key] = drivers as any[];
+          }
+        }
+      }
+
+      const requiredFields = ["driver", "current_state", "impact_on_adoption", "what_would_improve_it", "expected_effect"];
+      for (const [gateId, drivers] of Object.entries(decomp)) {
+        if (!Array.isArray(drivers)) { delete decomp[gateId]; continue; }
+        decomp[gateId] = (drivers as any[]).filter((d: any) =>
+          d && typeof d === "object" && requiredFields.every(f => typeof d[f] === "string" && d[f].length > 0)
+        );
+        if (decomp[gateId].length === 0) delete decomp[gateId];
+      }
+
       for (const barrier of derived.barriers) {
-        if (barrierDetails[barrier.source_gate_id]) {
-          barrier.rationale = barrierDetails[barrier.source_gate_id];
+        const drivers = decomp[barrier.source_gate_id];
+        if (drivers && Array.isArray(drivers) && drivers.length > 0) {
+          barrier.rationale = drivers.map((d: any) => d.driver).join("; ");
         }
       }
       for (const action of derived.actions) {
-        if (barrierDetails[action.source_gate_id]) {
-          action.rationale = `${action.rationale} ${barrierDetails[action.source_gate_id]}`;
+        const drivers = decomp[action.source_gate_id];
+        if (drivers && Array.isArray(drivers) && drivers.length > 0) {
+          action.rationale = `${action.rationale} Underlying drivers: ${drivers.map((d: any) => d.driver).join(", ")}.`;
         }
       }
 
@@ -188,6 +239,7 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         mode: "forecast_derived",
         derived_decisions: derived,
         integrity: integrity,
+        barrier_decomposition: decomp,
         adoption_segmentation: aiContext.adoption_segmentation || null,
         archetype_assignments: archetypeAssignments,
         readiness_timeline: aiContext.readiness_timeline || null,
@@ -215,12 +267,12 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         mode: "standalone",
         derived_decisions: null,
         integrity: null,
+        barrier_decomposition: null,
         adoption_segmentation: aiContext.adoption_segmentation || null,
         archetype_assignments: archetypeAssignments,
         readiness_timeline: aiContext.readiness_timeline || null,
         competitive_risk: aiContext.competitive_risk || null,
         growth_feasibility: aiContext.growth_feasibility || null,
-        barrier_details: aiContext.barrier_details || null,
         forecast_context: null,
       });
     }
