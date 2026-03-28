@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Search,
+  Files,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -17,8 +18,10 @@ const ACCEPTED_TYPES: Record<string, string> = {
   "application/pdf": "PDF",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
     "Word",
+  "application/msword": "Word (Legacy)",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation":
     "PowerPoint",
+  "application/vnd.ms-powerpoint": "PowerPoint (Legacy)",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",
   "application/vnd.ms-excel": "Excel",
   "text/csv": "CSV",
@@ -31,7 +34,9 @@ const ACCEPTED_TYPES: Record<string, string> = {
 
 const ACCEPTED_EXTENSIONS = [
   ".pdf",
+  ".doc",
   ".docx",
+  ".ppt",
   ".pptx",
   ".xlsx",
   ".xls",
@@ -51,6 +56,7 @@ interface ExtractedSignal {
   confidence: string;
   category: string;
   source_description: string;
+  source_file?: string;
   rationale: string;
 }
 
@@ -79,6 +85,20 @@ interface DetectedEnvironment {
   rationale: string;
 }
 
+interface FileManifestEntry {
+  fileName: string;
+  textLength: number;
+  confidence: string;
+  isImage: boolean;
+}
+
+interface Contradiction {
+  description: string;
+  file_a: string;
+  file_b: string;
+  resolution_suggestion: string;
+}
+
 interface ImportResult {
   question: ExtractedQuestion;
   signals: ExtractedSignal[];
@@ -88,6 +108,9 @@ interface ImportResult {
   summary: string;
   environment?: DetectedEnvironment;
   lowConfidence?: boolean;
+  fileManifest?: FileManifestEntry[];
+  contradictions?: Contradiction[];
+  primaryFile?: string;
 }
 
 interface Props {
@@ -109,13 +132,23 @@ function isImageType(file: File): boolean {
   return file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
 }
 
+function getFileTypeLabel(file: File): string {
+  if (ACCEPTED_TYPES[file.type]) return ACCEPTED_TYPES[file.type];
+  const ext = "." + file.name.split(".").pop()?.toLowerCase();
+  if ([".doc"].includes(ext)) return "Word (Legacy)";
+  if ([".ppt"].includes(ext)) return "PowerPoint (Legacy)";
+  return "Document";
+}
+
 export default function ImportProjectDialog({ onImportComplete, onClose, initialFile }: Props) {
   const [phase, setPhase] = useState<ImportPhase>("upload");
   const [pasteText, setPasteText] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(initialFile ?? null);
-  const [imagePreview, setImagePreview] = useState<string | null>(() => {
-    if (initialFile && isImageType(initialFile)) return URL.createObjectURL(initialFile);
-    return null;
+  const [selectedFiles, setSelectedFiles] = useState<File[]>(() => initialFile ? [initialFile] : []);
+  const [imagePreviews, setImagePreviews] = useState<Record<string, string>>(() => {
+    if (initialFile && isImageType(initialFile)) {
+      return { [initialFile.name + initialFile.size]: URL.createObjectURL(initialFile) };
+    }
+    return {};
   });
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,36 +157,67 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
   const containerRef = useRef<HTMLDivElement>(null);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
+  const MAX_FILES = 20;
 
-  const selectFile = useCallback((file: File) => {
-    setSelectedFile(file);
+  const addFiles = useCallback((newFiles: File[]) => {
+    setSelectedFiles(prev => {
+      const existing = new Set(prev.map(f => f.name + f.size));
+      const unique = newFiles.filter(f => !existing.has(f.name + f.size));
+      const combined = [...prev, ...unique].slice(0, MAX_FILES);
+      return combined;
+    });
     setPasteText("");
     setError(null);
-    setImagePreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return isImageType(file) ? URL.createObjectURL(file) : null;
+
+    setImagePreviews(prev => {
+      const next = { ...prev };
+      newFiles.forEach(f => {
+        if (isImageType(f) && !next[f.name + f.size]) {
+          next[f.name + f.size] = URL.createObjectURL(f);
+        }
+      });
+      return next;
     });
   }, []);
 
-  const clearFile = useCallback(() => {
-    setSelectedFile(null);
-    setImagePreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
+  const removeFile = useCallback((index: number) => {
+    setSelectedFiles(prev => {
+      const file = prev[index];
+      if (file) {
+        const key = file.name + file.size;
+        setImagePreviews(p => {
+          if (p[key]) {
+            URL.revokeObjectURL(p[key]);
+            const next = { ...p };
+            delete next[key];
+            return next;
+          }
+          return p;
+        });
+      }
+      return prev.filter((_, i) => i !== index);
     });
   }, []);
 
-  const imagePreviewRef = useRef(imagePreview);
-  imagePreviewRef.current = imagePreview;
+  const clearFiles = useCallback(() => {
+    setImagePreviews(prev => {
+      Object.values(prev).forEach(url => URL.revokeObjectURL(url));
+      return {};
+    });
+    setSelectedFiles([]);
+  }, []);
+
+  const previewsRef = useRef(imagePreviews);
+  previewsRef.current = imagePreviews;
   useEffect(() => {
     return () => {
-      if (imagePreviewRef.current) URL.revokeObjectURL(imagePreviewRef.current);
+      Object.values(previewsRef.current).forEach(url => URL.revokeObjectURL(url));
     };
   }, []);
 
   const isValidFile = (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
-      setError("File is too large. Maximum file size is 10 MB.");
+      setError("File is too large. Maximum file size is 10 MB per file.");
       return false;
     }
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
@@ -167,23 +231,26 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
-      const file = e.dataTransfer.files[0];
-      if (file && isValidFile(file)) {
-        selectFile(file);
-      } else {
-        setError(
-          "Unsupported file type. Please upload PDF, Word, PowerPoint, Excel, CSV, images, or text files.",
-        );
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      const validFiles = droppedFiles.filter(f => isValidFile(f));
+      if (validFiles.length > 0) {
+        addFiles(validFiles);
+      }
+      if (validFiles.length < droppedFiles.length) {
+        const skipped = droppedFiles.length - validFiles.length;
+        setError(`${skipped} file${skipped > 1 ? "s" : ""} skipped (unsupported type or too large).`);
       }
     },
-    [selectFile],
+    [addFiles],
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && isValidFile(file)) {
-      selectFile(file);
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(f => isValidFile(f));
+    if (validFiles.length > 0) {
+      addFiles(validFiles);
     }
+    if (e.target) e.target.value = "";
   };
 
   useEffect(() => {
@@ -200,7 +267,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
           if (file) {
             const named = new File([file], `pasted-image.${file.type.split("/")[1] || "png"}`, { type: file.type });
             if (isValidFile(named)) {
-              selectFile(named);
+              addFiles([named]);
             }
           }
           return;
@@ -213,7 +280,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
         if (target.tagName === "TEXTAREA") return;
         e.preventDefault();
         setPasteText((prev) => prev ? prev + "\n" + text : text);
-        clearFile();
+        clearFiles();
       }
     };
 
@@ -222,7 +289,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
       el.addEventListener("paste", handlePaste);
       return () => el.removeEventListener("paste", handlePaste);
     }
-  }, [phase, selectFile, clearFile]);
+  }, [phase, addFiles, clearFiles]);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -241,27 +308,66 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
     setError(null);
 
     try {
-      let body: Record<string, string> = {};
-
-      if (selectedFile) {
-        const base64 = await fileToBase64(selectedFile);
-        body = {
+      if (selectedFiles.length === 1 && !pasteText.trim()) {
+        const file = selectedFiles[0];
+        const base64 = await fileToBase64(file);
+        const body = {
           fileBase64: base64,
-          fileName: selectedFile.name,
-          mimeType: selectedFile.type,
+          fileName: file.name,
+          mimeType: file.type,
         };
-      } else if (pasteText.trim()) {
-        body = { text: pasteText.trim() };
-      } else {
-        setError("Please upload a file or paste text to import.");
+
+        const res = await fetch(`${API}/api/import-project`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(err.error || `Server error ${res.status}`);
+        }
+
+        const data = await res.json();
+        setResult(data);
+        setPhase("summary");
+        return;
+      }
+
+      if (selectedFiles.length === 0 && pasteText.trim()) {
+        const body = { text: pasteText.trim() };
+        const res = await fetch(`${API}/api/import-project`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(err.error || `Server error ${res.status}`);
+        }
+
+        const data = await res.json();
+        setResult(data);
+        setPhase("summary");
+        return;
+      }
+
+      if (selectedFiles.length === 0 && !pasteText.trim()) {
+        setError("Please upload files or paste text to import.");
         setPhase("upload");
         return;
       }
 
-      const res = await fetch(`${API}/api/import-project`, {
+      const formData = new FormData();
+      selectedFiles.forEach(f => formData.append("files", f));
+      if (pasteText.trim()) {
+        formData.append("text", pasteText.trim());
+      }
+
+      const res = await fetch(`${API}/api/import-project/bundle`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: formData,
       });
 
       if (!res.ok) {
@@ -304,7 +410,9 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
               Analyzing project materials...
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Extracting decision question, signals, and gaps
+              {selectedFiles.length > 1
+                ? `Processing ${selectedFiles.length} files — extracting decision question, signals, and gaps`
+                : "Extracting decision question, signals, and gaps"}
             </div>
           </div>
         </div>
@@ -316,9 +424,10 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
     const q = result.question;
     const caseType = result.suggestedCaseType || q.decisionType || "Decision";
     const confidence = result.confidence || "Moderate";
+    const hasBundle = result.fileManifest && result.fileManifest.length > 1;
 
     return (
-      <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-6 max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">
             Ingestion Summary
@@ -338,6 +447,31 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
             <div>
               <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Low Confidence Ingestion</div>
               <div className="text-xs text-amber-300/70 mt-0.5">Review extracted question and signals before confirming. Content was inferred from limited or poorly structured materials.</div>
+            </div>
+          </div>
+        )}
+
+        {hasBundle && result.fileManifest && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Files className="w-3 h-3" />
+              Source Files ({result.fileManifest.length})
+            </div>
+            <div className="rounded-xl border border-border bg-muted/5 divide-y divide-border">
+              {result.fileManifest.map((f, i) => (
+                <div key={i} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {f.isImage ? <ImageIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" /> : <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
+                    <span className="text-sm text-foreground truncate">{f.fileName}</span>
+                    {result.primaryFile === f.fileName && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">Primary</span>
+                    )}
+                  </div>
+                  <span className={`text-[11px] px-2 py-0.5 rounded border shrink-0 ${confidenceColor(f.confidence)}`}>
+                    {f.confidence}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -373,6 +507,26 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
           );
         })()}
 
+        {result.contradictions && result.contradictions.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 text-orange-400" />
+              Cross-File Contradictions
+            </div>
+            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 divide-y divide-orange-500/10">
+              {result.contradictions.map((c, i) => (
+                <div key={i} className="px-4 py-3">
+                  <div className="text-sm text-foreground">{c.description}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    {c.file_a} vs {c.file_b}
+                    {c.resolution_suggestion && <span className="ml-2 text-orange-400">— {c.resolution_suggestion}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {result.signals.length > 0 && (
           <div>
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
@@ -382,7 +536,12 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
               {result.signals.map((s, i) => (
                 <div key={i} className="px-4 py-3 flex items-start gap-3">
                   <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                  <div className="text-sm text-foreground">{s.text}</div>
+                  <div className="min-w-0">
+                    <div className="text-sm text-foreground">{s.text}</div>
+                    {s.source_file && hasBundle && (
+                      <div className="text-[10px] text-muted-foreground mt-1">Source: {s.source_file}</div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -439,7 +598,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
             onClick={() => {
               setPhase("upload");
               setResult(null);
-              clearFile();
+              clearFiles();
               setPasteText("");
             }}
             className="rounded-xl border border-border px-5 py-3 font-semibold text-foreground hover:bg-muted/20 inline-flex items-center gap-2"
@@ -459,8 +618,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
             Import Project
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Upload files, drag in images, or paste text. We will extract the decision
-            question and signals automatically.
+            Upload files, drag in images, or paste text. Drop multiple files to analyze them as a bundle.
           </p>
         </div>
         <button
@@ -482,7 +640,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
         className={`rounded-xl border-2 border-dashed p-8 text-center transition cursor-pointer ${
           dragOver
             ? "border-primary bg-primary/5"
-            : selectedFile
+            : selectedFiles.length > 0
               ? "border-emerald-500/30 bg-emerald-500/5"
               : "border-border hover:border-muted-foreground/50"
         }`}
@@ -493,71 +651,58 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
           type="file"
           className="hidden"
           accept="*/*"
+          multiple
           onChange={handleFileSelect}
         />
-        {selectedFile && imagePreview ? (
-          <div className="flex flex-col items-center gap-3">
-            <img
-              src={imagePreview}
-              alt="Preview"
-              className="max-h-32 max-w-full rounded-lg border border-border object-contain"
-            />
-            <div className="flex items-center gap-3">
-              <ImageIcon className="w-5 h-5 text-emerald-400" />
-              <div className="text-left">
-                <div className="text-sm font-medium text-foreground">
-                  {selectedFile.name}
+        {selectedFiles.length > 0 ? (
+          <div className="space-y-2" onClick={e => e.stopPropagation()}>
+            {selectedFiles.map((file, i) => {
+              const key = file.name + file.size;
+              const preview = imagePreviews[key];
+              return (
+                <div key={key} className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-muted/10">
+                  {preview ? (
+                    <img src={preview} alt="" className="w-8 h-8 rounded object-cover border border-border shrink-0" />
+                  ) : (
+                    <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
+                  )}
+                  <div className="text-left min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground truncate">
+                      {file.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {(file.size / 1024).toFixed(0)} KB — {getFileTypeLabel(file)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="text-muted-foreground hover:text-foreground shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {(selectedFile.size / 1024).toFixed(0)} KB — Image
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearFile();
-                }}
-                className="ml-2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ) : selectedFile ? (
-          <div className="flex items-center justify-center gap-3">
-            <FileText className="w-6 h-6 text-emerald-400" />
-            <div className="text-left">
-              <div className="text-sm font-medium text-foreground">
-                {selectedFile.name}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {(selectedFile.size / 1024).toFixed(0)} KB —{" "}
-                {ACCEPTED_TYPES[selectedFile.type] || "Document"}
-              </div>
-            </div>
+              );
+            })}
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                clearFile();
-              }}
-              className="ml-2 text-muted-foreground hover:text-foreground"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs text-primary hover:text-primary/80 mt-2"
             >
-              <X className="w-4 h-4" />
+              + Add more files
             </button>
           </div>
         ) : (
           <>
             <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
             <div className="text-sm text-foreground font-medium">
-              Drop a file or image here, or click to browse
+              Drop files or images here, or click to browse
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              PDF, Word, Excel, CSV, JPG, PNG, or text files
+              PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Excel, CSV, JPG, PNG, or text
             </div>
             <div className="text-[11px] text-muted-foreground/60 mt-2">
-              You can also paste text or images with Ctrl+V
+              Drop multiple files to analyze as a bundle — Ctrl+V to paste images or text
             </div>
           </>
         )}
@@ -578,7 +723,8 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
         value={pasteText}
         onChange={(e) => {
           setPasteText(e.target.value);
-          if (e.target.value.trim()) clearFile();
+          if (e.target.value.trim() && selectedFiles.length === 0) {
+          }
         }}
         placeholder="Paste an email, RFP, meeting notes, market summary, or any project materials..."
         rows={5}
@@ -596,11 +742,20 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
         <button
           type="button"
           onClick={processImport}
-          disabled={!selectedFile && !pasteText.trim()}
+          disabled={selectedFiles.length === 0 && !pasteText.trim()}
           className="flex-1 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
-          <Check className="w-4 h-4" />
-          Analyze Materials
+          {selectedFiles.length > 1 ? (
+            <>
+              <Files className="w-4 h-4" />
+              Analyze Bundle ({selectedFiles.length} files)
+            </>
+          ) : (
+            <>
+              <Check className="w-4 h-4" />
+              Analyze Materials
+            </>
+          )}
         </button>
         <button
           type="button"

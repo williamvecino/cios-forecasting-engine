@@ -43,15 +43,18 @@ async function extractTextFromFile(base64: string, mimeType: string, fileName: s
   const buffer = Buffer.from(base64, "base64");
 
   if (mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
+    let parser: any = null;
     try {
       const { PDFParse } = await import("pdf-parse");
-      const parser = new PDFParse({ data: buffer });
+      parser = new PDFParse({ data: buffer });
       await parser.load();
       const textResult = await parser.getText();
       const text = (textResult.text || "").slice(0, 15000);
       try { await parser.destroy(); } catch (cleanupErr) { console.error("PDF parser cleanup error (non-fatal):", cleanupErr); }
+      parser = null;
       return text;
     } catch {
+      if (parser) { try { await parser.destroy(); } catch {} }
       return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000) || "[PDF extraction failed]";
     }
   }
@@ -72,7 +75,15 @@ async function extractTextFromFile(base64: string, mimeType: string, fileName: s
         }
       }
       return slideTexts.join("\n\n").slice(0, 15000);
-    } catch { return "[PPTX extraction failed]"; }
+    } catch { return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000); }
+  }
+
+  if (mimeType === "application/vnd.ms-powerpoint" || fileName.toLowerCase().endsWith(".ppt")) {
+    try {
+      const pptToText = await import("ppt-to-text");
+      const text = pptToText.extractText(buffer);
+      return (typeof text === "string" ? text : String(text)).slice(0, 15000);
+    } catch { return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000); }
   }
 
   if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || fileName.toLowerCase().endsWith(".docx")) {
@@ -80,7 +91,17 @@ async function extractTextFromFile(base64: string, mimeType: string, fileName: s
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
       return result.value.slice(0, 15000);
-    } catch { return "[DOCX extraction failed]"; }
+    } catch { return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000); }
+  }
+
+  if (mimeType === "application/msword" || fileName.toLowerCase().endsWith(".doc")) {
+    try {
+      const WordExtractor = (await import("word-extractor")).default;
+      const extractor = new WordExtractor();
+      const doc = await extractor.extract(buffer);
+      const body = doc.getBody() || "";
+      return body.slice(0, 15000);
+    } catch { return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000); }
   }
 
   return buffer.toString("utf-8").slice(0, 15000);

@@ -1,0 +1,186 @@
+The extraction worked mechanically, but the judgment layer misclassified the decision.
+
+The system read the words correctly.
+It did not understand the decision context the way an experienced strategist would.
+
+That is not an ingestion failure.
+It is a decision framing failure — specifically a case-type inference error.
+
+And this is fixable systematically.
+
+What went wrong (diagnosis)
+
+The system defaulted to a generic pattern:
+
+"RFP → choose agency"
+
+But this specific document is:
+
+"RFP → solve a launch marketing problem"
+
+Those are very different decision classes.
+
+The error is not semantic — it is ontological.
+
+The system picked the wrong decision archetype.
+
+The correct human judgment for this document
+
+This RFP is not asking:
+
+Who should we hire?
+
+It is asking:
+
+How do we successfully launch an Anti-PD-L1 therapy in a competitive oncology environment?
+
+Agency selection is a downstream operational decision.
+
+The primary decision is:
+
+Launch readiness and execution strategy under competitive pressure
+
+The correct decision the system should have produced
+
+Replace the current one with:
+
+Proposed Decision:
+
+What strategy and execution model will maximize the probability of a successful Anti-PD-L1 launch in the US, given competitive timing, clinical positioning, and stakeholder readiness?
+
+That is the real decision.
+
+Everything else flows from that.
+
+The core capability you want
+
+You want the system to apply:
+
+Decision recognition — not keyword detection
+
+That requires a structured judgment layer.
+
+The architectural fix
+
+You need a Decision Classification Engine, not a free-form inference.
+
+This is a deterministic component.
+
+Not AI intuition.
+
+Step 1 — Add Decision Archetypes
+
+Create a fixed library of decision types.
+
+Example:
+
+Decision Archetypes:
+
+Launch Strategy
+Adoption Risk
+Market Access
+Competitive Positioning
+Operational Readiness
+Resource Allocation
+Stakeholder Behavior
+Capability Gap
+Vendor Selection
+Portfolio Strategy
+Evidence Positioning
+
+Step 2 — Force classification before question generation
+
+Pipeline must be:
+
+Ingestion
+→ Domain detection
+→ Decision archetype classification
+→ Decision formulation
+
+Never:
+
+Ingestion
+→ Generate question
+
+Step 3 — Add a guardrail rule
+
+Tell Replit to implement this rule:
+
+If the extracted decision is a vendor or agency selection decision, verify that the document explicitly requests vendor evaluation or selection. If not, downgrade vendor selection classification and reassess for strategic or operational decision types such as launch readiness, competitive positioning, or capability gaps.
+
+This single rule would have prevented the error.
+
+The correct classification for this RFP
+
+Case Type:
+
+Commercial Launch — Oncology
+
+Decision Archetype:
+
+Launch Readiness and Competitive Positioning
+
+Primary Decision:
+
+How to execute a successful Anti-PD-L1 launch in a competitive oncology market.
+
+Secondary Decisions:
+
+Agency capability alignment
+Resource readiness
+Stakeholder engagement strategy
+Competitive differentiation
+
+What the system should output instead
+
+Proposed Decision:
+
+What launch strategy and operational readiness plan will maximize the probability of a successful Anti-PD-L1 launch in the US oncology market?
+
+Decision Archetype:
+
+Launch Readiness
+
+Confidence:
+
+High
+
+How to test this systematically
+
+Give Replit this test instruction:
+
+Create a decision classification validation test suite.
+
+Include at least these cases:
+
+Oncology launch RFP
+Digital transformation RFP
+Market research brief
+Clinical trial recruitment plan
+Competitive response memo
+Operational readiness checklist
+
+For each test:
+
+The system must classify:
+
+Domain
+Decision archetype
+Primary decision
+Confidence
+
+Failure condition:
+
+Vendor selection is assigned when vendor selection is not explicitly requested.
+
+Why this matters for CIOS specifically
+
+Because your system is not an analytics tool.
+
+It is a judgment system.
+
+And judgment begins with:
+
+Correctly identifying the decision being made.
+
+Not extracting text.

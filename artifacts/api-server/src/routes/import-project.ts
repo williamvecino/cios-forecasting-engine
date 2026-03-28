@@ -54,6 +54,24 @@ async function extractTextFromFile(
   }
 
   if (
+    mimeType === "application/msword" ||
+    fileName.toLowerCase().endsWith(".doc")
+  ) {
+    try {
+      const WordExtractor = (await import("word-extractor")).default;
+      const extractor = new WordExtractor();
+      const doc = await extractor.extract(buffer);
+      const body = doc.getBody() || "";
+      const headers = doc.getHeaders({ includeFootnoteText: false })?.join("\n") || "";
+      const text = [headers, body].filter(Boolean).join("\n\n");
+      return text.slice(0, 15000);
+    } catch (e) {
+      console.error("DOC parse failed:", e);
+      return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000);
+    }
+  }
+
+  if (
     mimeType ===
       "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
     fileName.toLowerCase().endsWith(".pptx")
@@ -77,6 +95,20 @@ async function extractTextFromFile(
     } catch (e) {
       console.error("PPTX parse failed:", e);
       return "";
+    }
+  }
+
+  if (
+    mimeType === "application/vnd.ms-powerpoint" ||
+    fileName.toLowerCase().endsWith(".ppt")
+  ) {
+    try {
+      const pptToText = await import("ppt-to-text");
+      const text = pptToText.extractText(buffer);
+      return (typeof text === "string" ? text : String(text)).slice(0, 15000);
+    } catch (e) {
+      console.error("PPT parse failed:", e);
+      return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000);
     }
   }
 
@@ -508,7 +540,17 @@ Respond in JSON format:
 
     if (imageBase64 && imageMimeType) {
       const userContent: any[] = [
-        { type: "text", text: "Analyze the following project image and extract a structured forecasting case:" },
+        { type: "text", text: `Analyze the following project image and extract a structured forecasting case.
+
+IMAGE EXTRACTION PRIORITIES — apply in this order:
+1. READ ALL VISIBLE TEXT first — headers, titles, body text, labels, captions, footnotes, watermarks
+2. EXTRACT TABLE DATA — read every cell, preserve row/column structure, note column headers
+3. READ CHART/GRAPH DATA — axis labels, data point values, legend entries, trend descriptions
+4. CAPTURE SLIDE CONTENT — if this is a screenshot of a presentation, extract slide title, bullet points, speaker notes if visible
+5. NOTE VISUAL CUES — color coding, highlighting, arrows, annotations, circled items, handwritten notes
+6. IDENTIFY DOCUMENT TYPE — is this an RFP, strategy deck, clinical report, market analysis, email, meeting notes, competitive intelligence?
+
+Do NOT skip readable text. If text is partially obscured or low resolution, extract what you can and note uncertainty.` },
         {
           type: "image_url",
           image_url: {
@@ -638,7 +680,14 @@ router.post("/import-project/analyze", upload.single("file"), async (req, res) =
 
     if (imageBase64 && imageMimeType) {
       const userContent: any[] = [
-        { type: "text", text: `Analyze the following image and extract signals grounded in what you observe${questionContext ? ` that impact the question: "${questionContext}"` : ""}:` },
+        { type: "text", text: `Analyze the following image and extract signals grounded in what you observe${questionContext ? ` that impact the question: "${questionContext}"` : ""}.
+
+IMAGE EXTRACTION PRIORITIES:
+1. READ ALL VISIBLE TEXT — headers, labels, body text, table cells, chart axes, footnotes
+2. EXTRACT TABLE/CHART DATA — preserve structure, note values and trends
+3. CAPTURE SLIDE/DOCUMENT CONTENT — titles, bullets, annotations
+4. NOTE VISUAL CUES — highlighting, arrows, color coding
+Do NOT skip readable text. Extract what you can even from low-resolution areas.` },
         {
           type: "image_url",
           image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "high" },
@@ -693,6 +742,340 @@ router.post("/import-project/analyze", upload.single("file"), async (req, res) =
   } catch (err) {
     console.error("Import analyze error:", err);
     res.status(500).json({ error: "Failed to analyze content" });
+  }
+});
+
+interface FileExtractionResult {
+  fileName: string;
+  textLength: number;
+  extractedText: string;
+  imageBase64: string | null;
+  imageMimeType: string | null;
+  confidence: "High" | "Moderate" | "Low";
+  isImage: boolean;
+}
+
+async function extractSingleFile(file: Express.Multer.File): Promise<FileExtractionResult> {
+  const mime = file.mimetype || "application/octet-stream";
+  const fileName = file.originalname;
+  let extractedText = "";
+  let imageBase64: string | null = null;
+  let imageMimeType: string | null = null;
+
+  if (isImageFile(mime, fileName)) {
+    imageBase64 = file.buffer.toString("base64");
+    imageMimeType = mime.startsWith("image/") ? mime : "image/jpeg";
+  } else {
+    extractedText = await extractTextFromFile(file.buffer.toString("base64"), mime, fileName);
+  }
+
+  if (!extractedText && !imageBase64) {
+    const rawFallback = file.buffer
+      .toString("utf-8")
+      .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+      .replace(/\s{3,}/g, " ")
+      .trim()
+      .slice(0, 15000);
+    if (rawFallback.length > 30) {
+      extractedText = rawFallback;
+    } else {
+      extractedText = `Document: ${fileName}. Content could not be extracted automatically.`;
+    }
+  }
+
+  let confidence: "High" | "Moderate" | "Low" = "High";
+  if (imageBase64) {
+    confidence = "Moderate";
+  } else if (extractedText.length < 100) {
+    confidence = "Low";
+  } else if (extractedText.length < 500) {
+    confidence = "Moderate";
+  }
+
+  return {
+    fileName,
+    textLength: extractedText.length,
+    extractedText,
+    imageBase64,
+    imageMimeType,
+    confidence,
+    isImage: !!imageBase64,
+  };
+}
+
+const bundleUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+router.post("/import-project/bundle", bundleUpload.array("files", 20), async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    const pastedText = req.body?.text || "";
+
+    if ((!files || files.length === 0) && !pastedText.trim()) {
+      res.status(400).json({ error: "No files or text provided." });
+      return;
+    }
+
+    const fileResults: FileExtractionResult[] = [];
+
+    if (files && files.length > 0) {
+      const extractions = await Promise.all(files.map(f => extractSingleFile(f)));
+      fileResults.push(...extractions);
+    }
+
+    if (pastedText.trim()) {
+      fileResults.push({
+        fileName: "Pasted Text",
+        textLength: pastedText.trim().length,
+        extractedText: pastedText.trim().slice(0, 15000),
+        imageBase64: null,
+        imageMimeType: null,
+        confidence: pastedText.trim().length > 200 ? "High" : pastedText.trim().length > 50 ? "Moderate" : "Low",
+        isImage: false,
+      });
+    }
+
+    console.log(`[bundle] Processing ${fileResults.length} sources: ${fileResults.map(f => `${f.fileName} (${f.textLength} chars, ${f.confidence})`).join(", ")}`);
+
+    const imageFiles = fileResults.filter(f => f.isImage && f.imageBase64);
+    if (imageFiles.length > 0) {
+      console.log(`[bundle] Pre-extracting text from ${imageFiles.length} image(s) via vision...`);
+      const imageExtractions = await Promise.all(imageFiles.map(async (img) => {
+        try {
+          const ocrResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{
+              role: "user",
+              content: [
+                { type: "text", text: `Extract ALL readable text from this image. Focus on: headers, body text, table cells, chart labels, bullet points, footnotes, annotations. Preserve structure with line breaks. Return ONLY the extracted text, no commentary.` },
+                { type: "image_url", image_url: { url: `data:${img.imageMimeType};base64,${img.imageBase64}`, detail: "high" } },
+              ],
+            }],
+            max_tokens: 3000,
+            temperature: 0,
+          });
+          const ocrText = ocrResponse.choices[0]?.message?.content || "";
+          if (ocrText.length > 20) {
+            img.extractedText = `[Image OCR from ${img.fileName}]\n${ocrText}`;
+            img.textLength = img.extractedText.length;
+            img.confidence = ocrText.length > 500 ? "High" : "Moderate";
+          }
+        } catch (e) {
+          console.error(`[bundle] Image OCR failed for ${img.fileName}:`, e);
+        }
+      }));
+    }
+
+    const textSources = fileResults.filter(f => f.extractedText);
+    const totalBudget = 25000;
+    const perFileBudget = textSources.length > 0 ? Math.floor(totalBudget / textSources.length) : totalBudget;
+
+    const allText = textSources
+      .map(f => `[SOURCE: ${f.fileName}]\n${f.extractedText.slice(0, Math.max(perFileBudget, 2000))}`)
+      .join("\n\n---\n\n");
+
+    const combinedText = allText.slice(0, totalBudget);
+
+    const primaryImage = imageFiles.find(img => !img.extractedText || img.extractedText.length < 100) || null;
+
+    const env = await classifyEnvironment(
+      combinedText,
+      "",
+      primaryImage?.imageBase64 || null,
+      primaryImage?.imageMimeType || null,
+    );
+    console.log(`[bundle] Environment classified: ${env.label} — ${env.rationale}`);
+    const lib = SIGNAL_LIBRARIES[env.context];
+
+    const fileManifest = fileResults.map(f => `- ${f.fileName}: ${f.textLength} characters extracted, confidence: ${f.confidence}`).join("\n");
+
+    const systemPrompt = `You are a decision intelligence analyst specializing in ${env.label} environments. You receive a BUNDLE of project materials from multiple sources and must synthesize them into ONE unified forecasting case.
+
+DETECTED DECISION ENVIRONMENT: ${env.label}
+${env.rationale}
+
+FILE MANIFEST:
+${fileManifest}
+
+Your job:
+1. Read ALL source materials and synthesize the core DECISION QUESTION across the bundle
+2. Extract KEY SIGNALS from EACH source — tag every signal with its source file
+3. Identify CONTRADICTIONS between files — surface these as opposing signals with clear source attribution
+4. Identify MISSING SIGNALS — gaps the team should investigate
+5. Determine the subject, outcome, time horizon, and question type
+6. Infer which file is the PRIMARY source based on content richness and decision relevance
+
+SIGNAL CATEGORIES FOR THIS ENVIRONMENT:
+${lib.guidance}
+
+BUNDLE-SPECIFIC RULES:
+- Each signal MUST include "source_file" identifying which file it came from
+- If two files contain contradictory information, extract BOTH as signals with opposing directions and flag them
+- The decision question should reflect the COMBINED understanding from all files, not just one
+- Weight richer, more decision-relevant files higher when inferring the question
+- If files cover different aspects of the same decision (e.g., one has clinical data, another has market data), integrate them
+- NEVER let one weak or unreadable file degrade the quality of extraction from other files
+
+SIGNAL SOURCE CLASSIFICATION:
+- "internal": Controllable drivers
+- "external": Environment signals outside direct control
+- "missing": Critical unknowns
+
+IMPORTANCE CALIBRATION — apply strictly:
+- ADOPTION CONSTRAINT, EXECUTION BOTTLENECK, SUPPLY DEPENDENCY → "High"
+- PAYER RESTRICTION, ACCESS BARRIER, REGULATORY GATE → "High"
+- RESOURCE SHORTFALL → "High"
+- COMPETITIVE THREAT with direct impact → "High"
+- SUPPORTING CONTEXT → "Medium"
+- PERIPHERAL → "Low"
+
+CRITICAL RULES:
+- SIGNALS MUST COME FROM THE MATERIALS, NOT FROM A TEMPLATE
+- The decision question must be clear, specific, and suitable for forecasting
+- Even with sparse materials, extract at least 3-5 candidate signals
+- NEVER return empty signals
+- For image inputs: extract all visible text, data, charts, tables, and annotations
+
+Respond in JSON:
+{
+  "question": {
+    "text": "The decision question in plain language",
+    "restatedQuestion": "A formal restatement",
+    "subject": "The brand/therapy/product name",
+    "outcome": "What outcome is being evaluated",
+    "timeHorizon": "e.g. 12 months",
+    "questionType": "binary or comparative",
+    "entities": [],
+    "primaryConstraint": "The most likely barrier",
+    "decisionType": "Launch timing / Adoption / etc."
+  },
+  "signals": [
+    {
+      "text": "Signal statement grounded in the materials",
+      "direction": "positive|negative|neutral",
+      "importance": "High|Medium|Low",
+      "confidence": "Strong|Moderate|Weak",
+      "category": "one of [${lib.categories.join(", ")}]",
+      "signal_source": "internal|external|missing",
+      "source_description": "Where in the materials this was found",
+      "source_file": "Which file this signal came from",
+      "rationale": "Why this matters"
+    }
+  ],
+  "missingSignals": [
+    {
+      "text": "What needs to be investigated",
+      "importance": "High|Medium|Low",
+      "category": "one of [${lib.categories.join(", ")}]",
+      "reason": "Why needed"
+    }
+  ],
+  "contradictions": [
+    {
+      "description": "What the contradiction is",
+      "file_a": "First file name",
+      "file_b": "Second file name",
+      "resolution_suggestion": "How to resolve"
+    }
+  ],
+  "primaryFile": "Name of the file inferred as most decision-relevant",
+  "suggestedCaseType": "Short descriptor",
+  "confidence": "High|Moderate|Low",
+  "summary": "2-3 sentence summary of the combined materials"
+}`;
+
+    const messages: any[] = [{ role: "system", content: systemPrompt }];
+
+    if (primaryImage && !combinedText) {
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze the following bundle of project materials:" },
+          {
+            type: "image_url",
+            image_url: { url: `data:${primaryImage.imageMimeType};base64,${primaryImage.imageBase64}`, detail: "high" },
+          },
+        ],
+      });
+    } else if (primaryImage && combinedText) {
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: `Analyze the following bundle of project materials and extract a unified forecasting case:\n\n---\n${combinedText}\n---` },
+          {
+            type: "image_url",
+            image_url: { url: `data:${primaryImage.imageMimeType};base64,${primaryImage.imageBase64}`, detail: "high" },
+          },
+        ],
+      });
+    } else {
+      messages.push({
+        role: "user",
+        content: `Analyze the following bundle of project materials and extract a unified forecasting case:\n\n---\n${combinedText}\n---`,
+      });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+      max_tokens: 6000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      res.status(500).json({ error: "AI analysis returned empty response" });
+      return;
+    }
+
+    const parsed = JSON.parse(content);
+
+    const overallConfidence = parsed.confidence || (
+      fileResults.every(f => f.confidence === "Low") ? "Low" :
+        fileResults.some(f => f.confidence === "High") ? "Moderate" : "Moderate"
+    );
+
+    const question = parsed.question || {
+      text: `What decision is implied by the submitted materials?`,
+      restatedQuestion: `What is the primary decision these materials are intended to support?`,
+      subject: "Unknown",
+      outcome: "Decision outcome not yet determined",
+      timeHorizon: "12 months",
+      questionType: "binary",
+      entities: [],
+      primaryConstraint: "Insufficient information",
+      decisionType: "Decision",
+    };
+
+    const signals = (parsed.signals && parsed.signals.length > 0) ? parsed.signals : [
+      { text: "Bundle content could not be fully parsed — manual review recommended", direction: "neutral", importance: "High", confidence: "Weak", category: "evidence", signal_source: "missing", source_description: "Inferred from limited extraction", source_file: "Bundle" },
+    ];
+
+    res.json({
+      question,
+      signals,
+      missingSignals: parsed.missingSignals || [],
+      contradictions: parsed.contradictions || [],
+      primaryFile: parsed.primaryFile || fileResults[0]?.fileName || "Unknown",
+      suggestedCaseType: parsed.suggestedCaseType || "Decision",
+      confidence: overallConfidence,
+      summary: parsed.summary || "",
+      lowConfidence: overallConfidence === "Low",
+      environment: {
+        context: env.context,
+        label: env.label,
+        rationale: env.rationale,
+      },
+      fileManifest: fileResults.map(f => ({
+        fileName: f.fileName,
+        textLength: f.textLength,
+        confidence: f.confidence,
+        isImage: f.isImage,
+      })),
+    });
+  } catch (err) {
+    console.error("Bundle import error:", err);
+    res.status(500).json({ error: "Failed to analyze project bundle" });
   }
 });
 
