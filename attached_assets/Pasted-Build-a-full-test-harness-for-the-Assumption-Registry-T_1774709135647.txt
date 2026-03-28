@@ -1,0 +1,319 @@
+Build a full test harness for the Assumption Registry. The goal is to prove that assumptions are created correctly, updated correctly, linked to the right case, and trigger recalculation when their status changes. This should be treated as a core system integrity layer, not as a UI feature.
+
+What must be tested
+
+The Assumption Registry must be validated across five behaviors:
+
+Assumptions are created automatically from forecasts, constraints, and recommendations
+Assumptions are linked to the correct case and never leak across cases
+Assumption status updates correctly when new evidence appears
+Forecast recalculation is triggered when a high-impact assumption changes
+The View Assumptions panel always reflects the current case state
+Required test coverage
+Test 1 — Assumption creation from forecast
+
+Input a case that produces at least 3 constraints and 1 recommendation.
+
+Expected result:
+
+At least 3 assumptions created automatically
+Each assumption linked to the active case_id
+Each assumption has:
+assumption_statement
+assumption_category
+assumption_status = active
+confidence_level
+source_type
+impact_level
+
+Pass condition:
+No null required fields. No duplicate assumptions.
+
+Test 2 — Assumption creation from recommendation
+
+Input a case with a recommendation such as:
+“Prioritize payer access before scaling launch.”
+
+Expected result:
+At least one linked assumption exists, such as:
+“Payer coverage remains unresolved in key regions.”
+
+Pass condition:
+Recommendations are not stored without at least one supporting assumption.
+
+Test 3 — No cross-case leakage
+
+Create Case A and Case B with clearly different topics.
+
+Example:
+Case A = oncology launch readiness
+Case B = hospital AI deployment
+
+Expected result:
+
+Case A assumptions only appear in Case A
+Case B assumptions only appear in Case B
+opening Case B never shows Case A assumptions
+
+Pass condition:
+Zero shared assumptions unless explicitly duplicated by logic.
+
+Test 4 — Assumption status update
+
+Start with an active assumption:
+“Secondary supplier validation is pending.”
+
+Then inject a new signal:
+“Secondary supplier approved.”
+
+Expected result:
+
+Matching assumption status changes from active to validated
+last_updated field changes
+forecast recalculation triggered automatically if impact_level = high or moderate
+
+Pass condition:
+Status updates correctly and system logs recalculation.
+
+Test 5 — Invalidation test
+
+Start with an active assumption:
+“Guideline update not expected before Q4.”
+
+Inject new external signal:
+“Guideline committee announces update in Q2.”
+
+Expected result:
+
+assumption_status changes from active to invalidated
+linked forecast flagged as stale
+recalculation triggered
+
+Pass condition:
+System recognizes contradiction and updates the assumption state correctly.
+
+Test 6 — Unknown assumption persistence
+
+Create a case where the system cannot validate a major assumption.
+
+Example:
+“Manufacturing readiness likely sufficient for launch.”
+
+Expected result:
+
+assumption_status remains active or unknown, depending on system design
+confidence_level stays low or moderate
+assumption remains visible in View Assumptions
+
+Pass condition:
+System does not silently drop uncertain assumptions.
+
+Test 7 — Assumption category accuracy
+
+Create a mixed case with payer, supply, clinical, regulatory, and competitive elements.
+
+Expected result:
+Assumptions are categorized correctly using only allowed values:
+
+regulatory
+payer
+supply
+workflow
+clinical
+competitive
+operational
+timeline
+
+Pass condition:
+No uncategorized assumptions. No off-schema categories.
+
+Test 8 — Impact level propagation
+
+Create assumptions of different importance.
+
+Expected result:
+
+High-impact assumption changes trigger recalculation
+Low-impact assumption changes do not force full recalculation unless configured
+Moderate-impact assumptions behave according to rule
+
+Pass condition:
+Recalculation behavior matches impact logic.
+
+Test 9 — View Assumptions panel accuracy
+
+Open a case with 4 assumptions.
+
+Expected result:
+The panel displays the current assumptions only, with:
+
+statement
+category
+status
+confidence
+impact
+
+Pass condition:
+UI reflects database state exactly. No stale assumptions shown.
+
+Test 10 — De-duplication
+
+Input a case where multiple constraints imply the same assumption.
+
+Example:
+
+“Coverage unresolved”
+“Formulary review pending”
+“Payer decision not final”
+
+Expected result:
+System creates one normalized assumption such as:
+“Payer access remains unresolved.”
+
+Pass condition:
+No redundant assumption spam. Duplicate detection works.
+
+Required autotest scenario set
+
+Create at least these 4 full scenario tests.
+
+Scenario A — Launch readiness
+
+Case text with:
+
+payer uncertainty
+manufacturing risk
+staffing constraints
+competitor event
+
+Expected assumptions:
+
+payer readiness unresolved
+supplier validation pending
+clinic capacity limited
+competitor readout may alter physician behavior
+Scenario B — Technology implementation
+
+Case text with:
+
+PACS integration delays
+cybersecurity review pending
+budget revision request
+
+Expected assumptions:
+
+system integration not yet complete
+security approval remains pending
+budget approval may delay rollout
+Scenario C — Guideline-driven adoption
+
+Case text with:
+
+manuscript pending
+guideline committee waiting
+clinicians delaying change
+
+Expected assumptions:
+
+full publication is required for broader adoption
+guideline update timing is a key gating assumption
+Scenario D — Payer access
+
+Case text with:
+
+prior authorization
+step therapy
+HEOR support
+committee review
+
+Expected assumptions:
+
+coverage restrictions will slow early uptake
+HEOR package may improve access but is not sufficient alone
+Autotest pass/fail rules
+
+The autotest should fail if any of these happen:
+
+assumption created without case_id
+missing required field
+wrong case shows another case’s assumptions
+status update does not change timestamp
+high-impact assumption changes without recalculation
+assumptions are duplicated excessively
+View Assumptions panel does not match underlying store
+uncategorized assumptions appear
+recommendation exists without assumption support
+Required developer outputs for autotest
+
+Generate these outputs after each test run:
+
+Test name
+Pass / Fail
+Case ID used
+Number of assumptions created
+Number of assumptions updated
+Whether recalculation triggered
+Any duplicate assumptions detected
+Any orphan assumptions detected
+Any category violations detected
+Snapshot of final assumptions for that case
+Edge cases to test
+
+Also include these edge cases.
+
+Edge Case 1
+
+Empty or vague case input
+
+Expected:
+No assumptions created until a meaningful case exists
+
+Edge Case 2
+
+Two similar assumptions with slightly different wording
+
+Expected:
+Normalization or deduplication
+
+Edge Case 3
+
+Assumption contradicted by later signal
+
+Expected:
+Status updates to invalidated and recalculation logged
+
+Edge Case 4
+
+Imported project automatically creates assumptions
+
+Expected:
+Assumptions extracted from ingestion without manual step
+
+Edge Case 5
+
+Legacy case opened in current UI
+
+Expected:
+Assumptions rehydrate correctly into current case state
+
+Required implementation rule
+
+Do not rely on manual inspection. Build these as repeatable automated tests.
+
+Use seeded fixtures and deterministic expected outputs for each scenario.
+
+The test harness should allow one command to run all Assumption Registry tests and produce a clean pass/fail summary.
+
+Success standard
+
+The Assumption Registry is only considered production-ready if:
+
+assumptions are auto-generated correctly
+assumptions are case-isolated
+assumptions update correctly with new signals
+high-impact changes trigger recalculation
+UI and storage stay synchronized
+all autotests pass consistently across scenarios
+Final instruction
+
+Implement a full Assumption Registry autotest suite now. This is a core infrastructure validation layer. Do not treat it as optional. I need deterministic tests proving that assumptions are created, updated, isolated, deduplicated, and linked to recalculation correctly.

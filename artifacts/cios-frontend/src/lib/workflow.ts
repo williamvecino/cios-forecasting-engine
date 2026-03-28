@@ -103,6 +103,7 @@ const CASE_SCOPED_KEYS = [
   "cios.judgmentResult",
   "cios.decideResult",
   "cios.respondResult",
+  "cios.assumptions",
 ];
 
 export function clearCaseState(caseId: string): void {
