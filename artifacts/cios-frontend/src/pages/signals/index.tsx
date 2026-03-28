@@ -67,14 +67,24 @@ function isMiosBaosSignal(s: any): boolean {
   return false;
 }
 
+function doesMiosBaosMatchBrand(s: any, currentSubject: string): boolean {
+  const brandUpper = currentSubject.toUpperCase().replace(/\s+/g, "_");
+  const brandLower = currentSubject.toLowerCase().replace(/\s+/g, "_");
+  const pid = (s.workbook_meta?.programId || "").toUpperCase();
+  if (pid && pid.includes(brandUpper)) return true;
+  const src = (s.workbook_meta?.sourceWorkbook || "").toUpperCase();
+  if (src && src.includes(currentSubject.toUpperCase())) return true;
+  const id = (s.id || "").toLowerCase();
+  if (id.startsWith(`mios_${brandLower}_`) || id.startsWith(`baos_${brandLower}_`)) return true;
+  return false;
+}
+
 function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): any[] {
   if (!signals || signals.length === 0) return signals;
-  if (!currentSubject) return signals.filter((s: any) => !isMiosBaosSignal(s));
-  const brandUpper = currentSubject.toUpperCase().replace(/\s+/g, "_");
   return signals.filter((s: any) => {
     if (!isMiosBaosSignal(s)) return true;
-    const pid = (s.workbook_meta?.programId || "").toUpperCase();
-    return pid.includes(brandUpper);
+    if (!currentSubject) return false;
+    return doesMiosBaosMatchBrand(s, currentSubject);
   });
 }
 
@@ -525,6 +535,25 @@ export default function SignalsPage() {
   const [verifiedFound, setVerifiedFound] = useState(false);
   const aiRequestIdRef = useRef(0);
   const prevCaseKeyRef = useRef(caseKey);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`cios.signals:${caseKey}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = stripNonMatchingBrandSignals(parsed, subject);
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(cleaned));
+            setSignals((prev) => {
+              const updated = stripNonMatchingBrandSignals(prev, subject) as Signal[];
+              return updated;
+            });
+          }
+        }
+      }
+    } catch {}
+  }, [caseKey, subject]);
 
   useEffect(() => {
     if (prevCaseKeyRef.current === caseKey) return;
