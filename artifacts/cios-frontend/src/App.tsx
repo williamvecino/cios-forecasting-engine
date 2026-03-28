@@ -9,13 +9,6 @@ import LibraryPage from "@/pages/library/index";
 import SystemPage from "@/pages/system/index";
 import Dashboard from "@/pages/dashboard";
 import CasesList from "@/pages/cases/index";
-import QuestionDetail from "@/pages/cases/detail";
-import SignalsRegister from "@/pages/cases/signals";
-import SignalDiscover from "@/pages/cases/discover";
-import ForecastResults from "@/pages/cases/forecast";
-import AnalogRetrieval from "@/pages/cases/analogs";
-import AgentSimulation from "@/pages/cases/agents";
-import Portfolio from "@/pages/cases/portfolio";
 import CaseLibrary from "@/pages/case-library/index";
 import Calibration from "@/pages/calibration/index";
 import FieldIntelligence from "@/pages/field-intelligence/index";
@@ -31,12 +24,8 @@ import QuestionPage from "@/pages/question/index";
 import SignalsPage from "@/pages/signals/index";
 import ForecastPage from "@/pages/forecast/index";
 import DecidePage from "@/pages/decide/index";
-import PendingSignals from "@/pages/cases/pending-signals";
-import AgentDetection from "@/pages/cases/agents/detection";
-import AgentHygiene from "@/pages/cases/agents/hygiene";
-import AgentRefinement from "@/pages/cases/agents/refinement";
-import AgentMessage from "@/pages/cases/agents/message";
 import ForecastLedgerPage from "@/pages/forecast-ledger/index";
+import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import NotFound from "@/pages/not-found";
 import { useRoute, useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -87,19 +76,19 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
 
-      <Route path="/case/:caseId/question" component={QuestionDetail} />
-      <Route path="/case/:caseId/signals" component={SignalsRegister} />
-      <Route path="/case/:caseId/pending-signals" component={PendingSignals} />
-      <Route path="/case/:caseId/scenario" component={AgentSimulation} />
-      <Route path="/case/:caseId/ledger" component={ForecastResults} />
-      <Route path="/case/:caseId/agents/detection" component={AgentDetection} />
-      <Route path="/case/:caseId/agents/hygiene" component={AgentHygiene} />
-      <Route path="/case/:caseId/agents/refinement" component={AgentRefinement} />
-      <Route path="/case/:caseId/agents/message" component={AgentMessage} />
-
-      <Route path="/case/:caseId/discover" component={SignalDiscover} />
-      <Route path="/case/:caseId/analogs" component={AnalogRetrieval} />
-      <Route path="/case/:caseId/portfolio" component={Portfolio} />
+      <Route path="/case/:caseId/question">{() => <CaseWorkflowRedirect targetStep="question" />}</Route>
+      <Route path="/case/:caseId/signals">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
+      <Route path="/case/:caseId/pending-signals">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
+      <Route path="/case/:caseId/scenario">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
+      <Route path="/case/:caseId/ledger">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
+      <Route path="/case/:caseId/agents/detection">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
+      <Route path="/case/:caseId/agents/hygiene">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
+      <Route path="/case/:caseId/agents/refinement">{() => <CaseWorkflowRedirect targetStep="question" />}</Route>
+      <Route path="/case/:caseId/agents/message">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
+      <Route path="/case/:caseId/discover">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
+      <Route path="/case/:caseId/analogs">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
+      <Route path="/case/:caseId/portfolio">{() => <CaseWorkflowRedirect targetStep="decide" />}</Route>
+      <Route path="/case/:caseId/:rest*">{() => <CaseWorkflowRedirect targetStep="question" />}</Route>
 
       <Route path="/case-library" component={CaseLibrary} />
       <Route path="/forecast-ledger" component={ForecastLedgerPage} />
