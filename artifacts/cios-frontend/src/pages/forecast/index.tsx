@@ -905,53 +905,61 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
               return (
                 <>
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                    <div className="rounded-3xl border border-blue-500/20 bg-[#0A1736] p-5 space-y-3">
-                      <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
-                      <div className="text-3xl font-bold text-blue-300">{brandPct}%</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">Signal-driven probability reflecting overall brand momentum and upstream evidence strength.</div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
-                        <span>Prior: {(f.priorProbability * 100).toFixed(0)}%</span>
-                        <ArrowRight className="w-3 h-3" />
-                        <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                          {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
-                        </span>
+                  <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex flex-col items-center text-center space-y-2">
+                        <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
+                        <ProbabilityGauge value={brandOutlookProb ?? f.currentProbability ?? 0.5} label="Brand Strength" size={180} />
+                        <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">Overall strength of therapy and market momentum</div>
+                        <div className="text-[10px] text-slate-500 italic">Potential / overall readiness</div>
+                        <div className="flex items-center gap-3 text-xs text-slate-500">
+                          <span>Prior: {(f.priorProbability * 100).toFixed(0)}%</span>
+                          <ArrowRight className="w-3 h-3" />
+                          <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                            {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
+                          </span>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="rounded-3xl border border-amber-500/20 bg-[#0A1736] p-5 space-y-3">
-                      <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Event Gates</div>
-                      <div className="space-y-2">
-                        {decomp!.event_gates.map((gate) => (
-                          <div key={gate.gate_id} className={`rounded-xl border px-3 py-2 ${gateStatusColor[gate.status] || gateStatusColor.unresolved}`}>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold">{gate.gate_label}</span>
-                              <span className="text-[10px] font-bold uppercase flex items-center gap-1">
-                                <span>{gateStatusIcon[gate.status] || "?"}</span>
-                                {gate.status}
-                              </span>
-                            </div>
-                            <div className="mt-1 text-[10px] opacity-80 leading-snug">{gate.reasoning}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5 space-y-3 flex flex-col">
-                      <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
-                      <div className="flex-1 flex flex-col items-center justify-center">
+                      <div className="flex flex-col items-center text-center space-y-2">
+                        <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
                         <ProbabilityGauge value={displayProb} label="Gate-Constrained" size={180} />
+                        <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">Probability the specific question outcome will occur</div>
+                        <div className="text-[10px] text-slate-500 italic">Constrained event outcome</div>
                         <div className={cn(
-                          "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                          "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
                           confidenceBadgeClass[confidence]
                         )}>
                           Confidence: {confidence}
                         </div>
                       </div>
-                      {decomp!.constraint_explanation && (
-                        <div className="text-[10px] text-slate-400 leading-relaxed italic">{decomp!.constraint_explanation}</div>
-                      )}
-                      <div className="text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
+                    </div>
+
+                    {Math.abs(brandPct - finalPct) >= 10 && (
+                      <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-center">
+                        <span className="text-xs text-amber-300 font-semibold">{brandPct - finalPct > 0 ? "▼" : "▲"} {Math.abs(brandPct - finalPct)} pt gap</span>
+                        <span className="text-xs text-slate-400 ml-2">between brand strength and achievable outcome</span>
+                      </div>
+                    )}
+
+                    <div className="mt-3 text-center text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
+                  </div>
+
+                  <div className="rounded-3xl border border-amber-500/20 bg-[#0A1736] p-5 space-y-3">
+                    <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Event Gates</div>
+                    <div className="space-y-2">
+                      {decomp!.event_gates.map((gate) => (
+                        <div key={gate.gate_id} className={`rounded-xl border px-3 py-2 ${gateStatusColor[gate.status] || gateStatusColor.unresolved}`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold">{gate.gate_label}</span>
+                            <span className="text-[10px] font-bold uppercase flex items-center gap-1">
+                              <span>{gateStatusIcon[gate.status] || "?"}</span>
+                              {gate.status}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-[10px] opacity-80 leading-snug">{gate.reasoning}</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
