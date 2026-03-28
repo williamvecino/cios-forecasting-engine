@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { useListCases } from "@workspace/api-client-react";
 import TopNav from "@/components/top-nav";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+import { clearCaseState } from "@/lib/workflow";
 import {
   ArrowRight,
   Clock,
@@ -27,7 +28,7 @@ const AVOID_QUESTIONS = [
 export default function HomePage() {
   const [, navigate] = useLocation();
   const { data: cases } = useListCases();
-  const { activeQuestion } = useActiveQuestion();
+  const { activeQuestion, createQuestion } = useActiveQuestion();
   const [input, setInput] = useState(activeQuestion?.text ?? "");
   const [syncedId, setSyncedId] = useState<string | null>(activeQuestion?.caseId ?? null);
 
@@ -42,6 +43,33 @@ export default function HomePage() {
 
   const allCases = (cases as any[]) || [];
   const recentCases = allCases.slice(0, 5);
+
+  const openCase = useCallback((c: any) => {
+    const cid = c.caseId || c.id;
+    if (activeQuestion?.caseId === cid) {
+      navigate("/signals");
+      return;
+    }
+    const prevCaseId = activeQuestion?.caseId;
+    if (prevCaseId && prevCaseId !== cid) {
+      clearCaseState(prevCaseId);
+    }
+    try { localStorage.removeItem("cios.therapeuticArea"); } catch {}
+    try { localStorage.removeItem("cios.questionDraft"); } catch {}
+    const questionText = c.strategicQuestion || c.assetName || "Untitled";
+    createQuestion({
+      text: questionText,
+      rawInput: c.strategicQuestion || "",
+      caseId: cid,
+      timeHorizon: c.timeHorizon || "12 months",
+      subject: c.assetName || c.primaryBrand || "",
+      outcome: c.outcomeDefinition || "adoption",
+    });
+    if (c.therapeuticArea) {
+      try { localStorage.setItem("cios.therapeuticArea", c.therapeuticArea); } catch {}
+    }
+    navigate("/signals");
+  }, [activeQuestion, createQuestion, navigate]);
 
   function handleStart() {
     if (!input.trim()) return;
@@ -122,10 +150,11 @@ export default function HomePage() {
                 const cid = c.caseId || c.id;
                 const prob = c.currentProbability;
                 return (
-                  <Link
+                  <button
                     key={cid}
-                    href={`/case/${cid}/question`}
-                    className="rounded-2xl border border-border bg-card p-5 hover:border-border/80 hover:bg-muted/10 transition space-y-3"
+                    type="button"
+                    onClick={() => openCase(c)}
+                    className="rounded-2xl border border-border bg-card p-5 hover:border-border/80 hover:bg-muted/10 transition space-y-3 text-left"
                   >
                     <div className="text-sm font-medium text-foreground line-clamp-2">
                       {c.strategicQuestion || c.assetName || "Untitled"}
@@ -138,7 +167,7 @@ export default function HomePage() {
                       )}
                       <span className="text-xs text-muted-foreground font-mono">{cid}</span>
                     </div>
-                  </Link>
+                  </button>
                 );
               })}
             </div>
