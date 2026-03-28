@@ -2,10 +2,11 @@ import type { ActiveQuestion } from "../lib/workflow";
 
 interface Props {
   activeQuestion: ActiveQuestion | null;
+  draftText?: string;
   onClear: () => void;
 }
 
-export default function ActiveQuestionBanner({ activeQuestion, onClear }: Props) {
+export default function ActiveQuestionBanner({ activeQuestion, draftText, onClear }: Props) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -35,6 +36,17 @@ export default function ActiveQuestionBanner({ activeQuestion, onClear }: Props)
                 )}
               </div>
             </>
+          ) : draftText ? (
+            <>
+              <div className="mt-2 text-lg font-medium text-foreground/80">
+                {draftText}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-amber-300">
+                  Draft — click Continue to create case
+                </span>
+              </div>
+            </>
           ) : (
             <>
               <div className="mt-2 text-sm text-muted-foreground">
@@ -53,7 +65,7 @@ export default function ActiveQuestionBanner({ activeQuestion, onClear }: Props)
             onClick={onClear}
             className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:border-border/80 hover:bg-muted/20"
           >
-            Clear Question
+            New Forecast
           </button>
         )}
       </div>

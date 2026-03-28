@@ -6,6 +6,7 @@ import ActiveQuestionBanner from "./active-question-banner";
 interface Props {
   currentStep: WorkflowStep;
   activeQuestion: ActiveQuestion | null;
+  draftText?: string;
   onClearQuestion: () => void;
   children: React.ReactNode;
 }
@@ -13,6 +14,7 @@ interface Props {
 export default function WorkflowLayout({
   currentStep,
   activeQuestion,
+  draftText,
   onClearQuestion,
   children,
 }: Props) {
@@ -23,6 +25,7 @@ export default function WorkflowLayout({
       <div className="mx-auto max-w-[1400px] px-6 py-6 space-y-5">
         <ActiveQuestionBanner
           activeQuestion={activeQuestion}
+          draftText={draftText}
           onClear={onClearQuestion}
         />
 

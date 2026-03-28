@@ -13,13 +13,10 @@ import { clearCaseState } from "@/lib/workflow";
 import {
   AlertTriangle,
   Loader2,
-  Sparkles,
   ArrowRight,
   PenLine,
   Plus,
-  Check,
-  RotateCcw,
-  Edit3,
+  Sparkles,
   Upload,
   MessageSquare,
 } from "lucide-react";
@@ -49,7 +46,7 @@ interface Interpretation {
   restatedQuestion: string;
 }
 
-type PageState = "input" | "interpreting" | "confirm" | "submitting";
+type PageState = "input" | "creating";
 
 export default function QuestionPage() {
   const [, navigate] = useLocation();
@@ -58,10 +55,7 @@ export default function QuestionPage() {
 
   const [rawInput, setRawInput] = useState("");
   const [pageState, setPageState] = useState<PageState>("input");
-  const [interpretation, setInterpretation] = useState<Interpretation | null>(null);
-  const [editingField, setEditingField] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [interpretError, setInterpretError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
   const [showImportProject, setShowImportProject] = useState(false);
@@ -73,10 +67,7 @@ export default function QuestionPage() {
   function resetAll() {
     setRawInput("");
     setPageState("input");
-    setInterpretation(null);
-    setEditingField(null);
     setSubmitError(null);
-    setInterpretError(null);
     setIsEditMode(false);
     setEditCaseId("");
   }
@@ -87,38 +78,8 @@ export default function QuestionPage() {
     setRawInput(activeQuestion.text ?? "");
     setEditCaseId(activeQuestion.caseId ?? "");
     setPageState("input");
-    setInterpretation(null);
     setSubmitError(null);
-    setInterpretError(null);
   }
-
-  const interpretQuestion = useCallback(async () => {
-    if (!rawInput.trim()) return;
-    setPageState("interpreting");
-    setInterpretError(null);
-
-    try {
-      const res = await fetch(`${API}/api/ai-interpret-question`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawInput: rawInput.trim() }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(err.error || "Failed to interpret question");
-      }
-
-      const data = await res.json();
-      setInterpretation(data.interpretation);
-      setPageState("confirm");
-    } catch (err) {
-      console.error("Interpretation failed, using local fallback:", err);
-      const fallback = buildLocalFallback(rawInput.trim());
-      setInterpretation(fallback);
-      setPageState("confirm");
-    }
-  }, [rawInput]);
 
   function buildLocalFallback(text: string): Interpretation {
     const parsed = parseQuestion(text);
@@ -137,20 +98,36 @@ export default function QuestionPage() {
     };
   }
 
-  function updateInterpretationField(field: string, value: string) {
-    if (!interpretation) return;
-    setInterpretation({ ...interpretation, [field]: value });
-    setEditingField(null);
-  }
-
-  async function handleConfirm() {
-    if (!interpretation) return;
+  const handleContinue = useCallback(async () => {
+    const text = rawInput.trim();
+    if (!text) return;
     setSubmitError(null);
-    setPageState("submitting");
+    setPageState("creating");
+
+    let interpretation: Interpretation;
+    try {
+      const res = await fetch(`${API}/api/ai-interpret-question`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawInput: text }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Interpretation failed");
+      }
+
+      const data = await res.json();
+      if (!data.interpretation || !data.interpretation.restatedQuestion) {
+        throw new Error("Malformed interpretation response");
+      }
+      interpretation = data.interpretation;
+    } catch {
+      interpretation = buildLocalFallback(text);
+    }
 
     if (isEditMode && editCaseId) {
       const payload = {
-        text: interpretation.restatedQuestion || rawInput.trim(),
+        text: interpretation.restatedQuestion || text,
         caseId: editCaseId,
         timeHorizon: interpretation.timeHorizon || "12 months",
         questionType: interpretation.questionType || "binary",
@@ -166,7 +143,7 @@ export default function QuestionPage() {
     try {
       const dq: DecisionQuestion = {
         id: `DQ-${Date.now()}`,
-        rawInput: rawInput.trim(),
+        rawInput: text,
         questionType: (interpretation.questionType || "binary") as any,
         subject: interpretation.subject || "",
         outcome: interpretation.outcome || "",
@@ -174,7 +151,7 @@ export default function QuestionPage() {
         timeHorizon: interpretation.timeHorizon || "12 months",
         missingFields: [],
         isComplete: true,
-        interpretedQuestion: interpretation.restatedQuestion || rawInput.trim(),
+        interpretedQuestion: interpretation.restatedQuestion || text,
         createdAt: new Date().toISOString(),
       };
       const caseInput = mapDecisionQuestionToCaseInput(dq);
@@ -184,15 +161,15 @@ export default function QuestionPage() {
       const newCaseId = (created as any).caseId || (created as any).id;
       if (!newCaseId) {
         setSubmitError("Case was created but returned no identifier.");
-        setPageState("confirm");
+        setPageState("input");
         return;
       }
 
       clearCaseState(newCaseId);
 
       const payload = {
-        text: interpretation.restatedQuestion || rawInput.trim(),
-        rawInput: rawInput.trim(),
+        text: interpretation.restatedQuestion || text,
+        rawInput: text,
         caseId: newCaseId,
         timeHorizon: interpretation.timeHorizon || "12 months",
         questionType: interpretation.questionType || "binary",
@@ -205,15 +182,15 @@ export default function QuestionPage() {
     } catch (err) {
       console.error("Failed to create case:", err);
       setSubmitError("Unable to create a case. Check your connection and try again.");
-      setPageState("confirm");
+      setPageState("input");
     }
-  }
+  }, [rawInput, isEditMode, editCaseId, createCaseMutation, createQuestion, updateQuestion, navigate]);
 
   const handleImportComplete = async (result: any) => {
     const q = result.question;
     if (!q) return;
 
-    setPageState("submitting");
+    setPageState("creating");
     setSubmitError(null);
 
     try {
@@ -319,19 +296,11 @@ export default function QuestionPage() {
     }
   };
 
-  const interpretationFields = interpretation ? [
-    { key: "decisionType", label: "Decision", value: interpretation.decisionType },
-    { key: "event", label: "Event", value: interpretation.event },
-    { key: "subject", label: "Product / Therapy", value: interpretation.subject },
-    { key: "outcome", label: "Outcome", value: interpretation.outcome },
-    { key: "timeHorizon", label: "Time Horizon", value: interpretation.timeHorizon },
-    { key: "primaryConstraint", label: "Likely Primary Barrier", value: interpretation.primaryConstraint },
-  ] : [];
-
   return (
     <WorkflowLayout
       currentStep="question"
       activeQuestion={activeQuestion}
+      draftText={pageState === "input" && !activeQuestion && rawInput.trim() ? rawInput.trim() : undefined}
       onClearQuestion={() => {
         clearQuestion();
         resetAll();
@@ -394,7 +363,7 @@ export default function QuestionPage() {
           </>
         )}
 
-        {!showImportProject && (pageState === "input" || pageState === "interpreting") && (
+        {!showImportProject && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -438,20 +407,20 @@ export default function QuestionPage() {
                 placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
                 rows={4}
                 autoFocus
-                disabled={pageState === "interpreting"}
+                disabled={pageState === "creating"}
                 className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
                     e.preventDefault();
-                    interpretQuestion();
+                    handleContinue();
                   }
                 }}
               />
 
-              {interpretError && (
+              {submitError && (
                 <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
-                  {interpretError}
+                  {submitError}
                 </div>
               )}
 
@@ -479,14 +448,14 @@ export default function QuestionPage() {
               <div className="mt-4 flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={interpretQuestion}
-                  disabled={!rawInput.trim() || pageState === "interpreting"}
+                  onClick={handleContinue}
+                  disabled={!rawInput.trim() || pageState === "creating"}
                   className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
                 >
-                  {pageState === "interpreting" ? (
+                  {pageState === "creating" ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Interpreting...
+                      Creating case...
                     </>
                   ) : (
                     <>
@@ -497,143 +466,6 @@ export default function QuestionPage() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {(pageState === "confirm" || pageState === "submitting") && interpretation && (
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-semibold text-foreground">Here is how we understand your question</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPageState("input");
-                  setInterpretation(null);
-                }}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/20 inline-flex items-center gap-1.5"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Start over
-              </button>
-            </div>
-
-            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-              <div className="text-sm text-foreground leading-relaxed font-medium">
-                {interpretation.restatedQuestion}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {interpretationFields.map((f) => (
-                <div
-                  key={f.key}
-                  onClick={() => setEditingField(f.key)}
-                  className="rounded-xl border border-border bg-muted/10 px-3 py-2.5 cursor-pointer transition hover:border-blue-500/30"
-                >
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {f.label}
-                  </div>
-                  {editingField === f.key ? (
-                    <input
-                      autoFocus
-                      defaultValue={f.value}
-                      onBlur={(e) => updateInterpretationField(f.key, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          updateInterpretationField(f.key, (e.target as HTMLInputElement).value);
-                        }
-                        if (e.key === "Escape") {
-                          setEditingField(null);
-                        }
-                      }}
-                      className="mt-1 w-full bg-transparent text-sm font-medium text-foreground border-b border-blue-400 outline-none"
-                    />
-                  ) : (
-                    <div className="mt-1 text-sm font-medium text-foreground flex items-center gap-1.5">
-                      {f.value}
-                      <Edit3 className="w-3 h-3 text-muted-foreground/40" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {interpretation.outcomes.length > 0 && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                  Possible Outcomes
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {interpretation.outcomes.map((o, i) => (
-                    <span key={i} className="rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm text-foreground">
-                      {o}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {interpretation.entities.length > 0 && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                  Populations / Groups
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {interpretation.entities.map((e, i) => (
-                    <span key={i} className="rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm text-foreground">
-                      {e}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {submitError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                {submitError}
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={pageState === "submitting"}
-                className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {pageState === "submitting" ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating case...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    {isEditMode ? "Update Case" : "Confirm"}
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPageState("input");
-                  setInterpretation(null);
-                }}
-                disabled={pageState === "submitting"}
-                className="rounded-xl border border-border px-5 py-3 font-semibold text-foreground hover:bg-muted/20 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                <Edit3 className="w-4 h-4" />
-                Edit
-              </button>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Click any field above to edit it, or press Confirm to proceed.
-            </p>
           </div>
         )}
       </div>
