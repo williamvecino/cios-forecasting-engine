@@ -345,126 +345,126 @@ export default function QuestionPage() {
           </div>
         )}
 
-        {showImportProject && (
-          <>
-            {submitError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                {submitError}
-              </div>
-            )}
-            <ImportProjectDialog
-              onImportComplete={handleImportComplete}
-              onClose={() => {
-                setShowImportProject(false);
-                setSubmitError(null);
-              }}
-            />
-          </>
+        {submitError && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {submitError}
+          </div>
         )}
 
-        {!showImportProject && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setShowImportProject(false)}
-                className="rounded-xl border-2 border-primary/40 bg-primary/5 px-4 py-3 text-left transition group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <MessageSquare className="w-5 h-5 text-primary" />
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">Ask a Question</div>
-                    <div className="text-[11px] text-muted-foreground">Type a decision question</div>
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowImportProject(true)}
-                className="rounded-xl border border-border hover:border-primary/30 bg-card px-4 py-3 text-left transition group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Upload className="w-5 h-5 text-muted-foreground group-hover:text-primary transition" />
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">Import Project</div>
-                    <div className="text-[11px] text-muted-foreground">Upload files or paste text</div>
-                  </div>
-                </div>
-              </button>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-6">
-              <label className="mb-3 block text-lg font-semibold text-foreground">
-                What decision are you trying to make?
-              </label>
-              <p className="text-sm text-muted-foreground mb-4">
-                Type your question in plain language. We will interpret and structure it for you.
-              </p>
-              <textarea
-                value={rawInput}
-                onChange={(e) => setRawInput(e.target.value)}
-                placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
-                rows={4}
-                autoFocus
-                disabled={pageState === "creating"}
-                className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
-                    e.preventDefault();
-                    handleContinue();
-                  }
-                }}
-              />
-
-              {submitError && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  {submitError}
-                </div>
-              )}
-
-              {!rawInput.trim() && pageState === "input" && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Or start with one of these:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {EXAMPLE_QUESTIONS.map((q) => (
-                      <button
-                        key={q}
-                        type="button"
-                        onClick={() => setRawInput(q)}
-                        className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleContinue}
-                  disabled={!rawInput.trim() || pageState === "creating"}
-                  className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
-                >
-                  {pageState === "creating" ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Creating case...
-                    </>
-                  ) : (
-                    <>
-                      Continue
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => setShowImportProject(false)}
+            className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
+              !showImportProject
+                ? "border-primary/50 bg-primary/5"
+                : "border-border hover:border-primary/30 bg-card"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`rounded-lg p-2.5 ${!showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
+                <MessageSquare className={`w-5 h-5 ${!showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
               </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">Ask a Question</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">Type a decision question in plain language</div>
+              </div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowImportProject(true)}
+            className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
+              showImportProject
+                ? "border-primary/50 bg-primary/5"
+                : "border-border hover:border-primary/30 bg-card"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`rounded-lg p-2.5 ${showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
+                <Upload className={`w-5 h-5 ${showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">Import Project</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">Upload files or paste text to extract signals</div>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {showImportProject ? (
+          <ImportProjectDialog
+            onImportComplete={handleImportComplete}
+            onClose={() => {
+              setShowImportProject(false);
+              setSubmitError(null);
+            }}
+          />
+        ) : (
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <label className="mb-3 block text-lg font-semibold text-foreground">
+              What decision are you trying to make?
+            </label>
+            <p className="text-sm text-muted-foreground mb-4">
+              Type your question in plain language. We will interpret and structure it for you.
+            </p>
+            <textarea
+              value={rawInput}
+              onChange={(e) => setRawInput(e.target.value)}
+              placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
+              rows={4}
+              autoFocus
+              disabled={pageState === "creating"}
+              className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
+                  e.preventDefault();
+                  handleContinue();
+                }
+              }}
+            />
+
+            {!rawInput.trim() && pageState === "input" && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Or start with one of these:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {EXAMPLE_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => setRawInput(q)}
+                      className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleContinue}
+                disabled={!rawInput.trim() || pageState === "creating"}
+                className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {pageState === "creating" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating case...
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </div>
           </div>
         )}

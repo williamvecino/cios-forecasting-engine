@@ -1,63 +1,63 @@
 # CIOS — Clinical Intelligence & Outcome System
 
 ## Overview
-CIOS is a disease-agnostic, asset-agnostic, and specialty-flexible Bayesian forecasting platform. Its primary purpose is to predict Healthcare Professional (HCP) adoption by translating prior probabilities into posterior probabilities using validated clinical signals and a 6-actor behavioral reaction model. The platform aims to provide AI-powered, data-driven insights for understanding and forecasting market adoption and stakeholder behavior across various medications, devices, diagnostics, therapeutic areas, specialties, and geographies.
+CIOS is a disease-agnostic, asset-agnostic, and specialty-flexible Bayesian forecasting platform. Its core purpose is to predict Healthcare Professional (HCP) adoption by translating prior probabilities into posterior probabilities using validated clinical signals and a 6-actor behavioral reaction model. The platform provides AI-powered, data-driven insights for understanding and forecasting market adoption and stakeholder behavior across various medical assets and geographies, aiming to enhance strategic decision-making in the healthcare industry.
 
 ## User Preferences
 I prefer clear and concise information. I appreciate high-level summaries before diving into details. When implementing features, prioritize modular and maintainable code. For architectural decisions, provide the rationale. I expect the agent to ask for clarification if there are ambiguities in my requests and to inform me about significant changes or design choices before proceeding.
 
 ## System Architecture
-The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built with React, Vite, Tailwind CSS, Recharts, and React Query, focusing on an "Aaru-like Decision Interface" with question-driven design. The backend is an Express 5 application developed in TypeScript, exposing APIs under `/api`. Data persistence is handled by PostgreSQL, managed through Drizzle ORM. API specifications adhere to OpenAPI 3.1, with `orval` used for client and validation library generation.
+The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses React, Vite, Tailwind CSS, Recharts, and React Query, focusing on an "Aaru-like Decision Interface" with a question-driven design. The backend is an Express 5 application in TypeScript, exposing APIs under `/api`. Data persistence is managed by PostgreSQL via Drizzle ORM. API specifications follow OpenAPI 3.1, with `orval` for client and validation library generation.
 
 **Core System Design Principles:**
-- **Bayesian Forecast Engine:** Central to the platform, it calculates posterior probabilities using prior odds, correlation-aware signal likelihood ratio products, and an exponential net actor translation.
-- **AI-Powered Signal Detection & Review:** Facilitates AI-driven extraction of candidate signals with a human review workflow, ensuring comprehensive domain coverage and data validation.
-- **Actor Behavioral Modeling:** Incorporates a 6-actor model (KOL, HCP, Payer, Patient, Administrator, Competitor) to adjust forecasts based on behavioral reactions to signals.
-- **Calibration Learning Loop:** Continuously tracks outcomes, computes Brier scores, and applies bias adjustments for improved accuracy.
-- **Hierarchical Calibration Fallback:** Ensures robust calibration even in data-scarce scenarios.
-- **Learning Coverage Expansion:** An adaptive system for acquiring, ingesting, and simulating the impact of new learning cases.
+- **Bayesian Forecast Engine:** Calculates posterior probabilities using prior odds, correlation-aware signal likelihood ratio products, and an exponential net actor translation.
+- **AI-Powered Signal Detection & Review:** Facilitates AI-driven extraction of candidate signals with human review for data validation.
+- **Actor Behavioral Modeling:** Incorporates a 6-actor model (KOL, HCP, Payer, Patient, Administrator, Competitor) to adjust forecasts based on behavioral reactions.
+- **Calibration Learning Loop:** Continuously tracks outcomes, computes Brier scores, and applies bias adjustments.
+- **Hierarchical Calibration Fallback:** Ensures robust calibration in data-scarce scenarios.
+- **Learning Coverage Expansion:** Adaptive system for acquiring and ingesting new learning cases.
 - **Analog Retrieval System:** Provides a calibrated library of cases for similarity-based matching.
-- **Decision-Path Actor Modeling:** Defines 5 distinct HCP archetypes with varying signal sensitivities and action thresholds.
+- **Decision-Path Actor Modeling:** Defines 5 distinct HCP archetypes with varying signal sensitivities.
 - **Strategic Questions Engine & Challenge Mode:** Enables generation of structured intelligence questions and adversarial critique.
-- **Forecast Ledger:** Tracks predictions against actual outcomes for calibration.
+- **Forecast Ledger:** Tracks predictions against actual outcomes.
 - **Strategic Narrative Generator:** Transforms forecast outputs into publication-ready analytical narratives.
 - **Signal Lifecycle Management:** Includes a Signal Watchlist, Competitor Behavior Register, and a comprehensive Signal Lifecycle & Audit System.
 - **Target Resolution Layer:** Manages hierarchical targeting with scope-based signal filtering.
 - **Forecast Interpretation Panel:** Provides confidence-sensitive summaries and actionable insights.
-- **National Adopter Discovery Agent:** An agent for identifying adoption candidates based on strategic questions and structured signals.
+- **National Adopter Discovery Agent:** Identifies adoption candidates based on strategic questions and structured signals.
 - **AI-Powered Decision Analysis:** Generates structured analysis for adoption segmentation, barrier diagnosis, and recommended actions.
 - **Forecast-Derived Decision Architecture:** Uses a deterministic engine to map forecast gates to decision items, with AI providing contextual details.
-- **Performance Stabilization Controls:** Implements state hashing, driver limits, duplicate driver checks, lightweight logging, and partial UI rendering to maintain performance.
+- **Performance Stabilization Controls:** Implements state hashing, driver limits, duplicate driver checks, lightweight logging, and partial UI rendering.
 
-**Key Features and Implementations:**
-- **UI/UX:** Single-step question entry (type question → click Continue → case created → advance to Step 2), redesigned forecast page with dark panel theme, and enterprise decision layout. Information is structured using tables, collapsible sections, and color-coded indicators. All language uses executive decision terms — no statistical or model terminology. Active Question banner shows draft text while typing and reflects real-time case state. "New Forecast" button (not "Clear Question") is the only way to reset state.
-- **Single-Step Question Entry:** Users type any question in plain language and click Continue. The system immediately interprets the question (via GPT-4o), creates the case, stores the active question, and navigates directly to Step 2 — no intermediate confirmation screen. Falls back to local regex parser if AI is unavailable. API: `/api/ai-interpret-question`.
-- **Workflow Gating:** `QuestionGate` blocks content until an active question exists.
-- **Minimum Signal Model (Step 2):** Signal cards display only 5 attributes — signal text, Direction ("Supports/Slows {outcome}"), Importance (High/Medium/Low, auto-computed), Confidence (Strong/Moderate/Weak), and Source (auto-derived from category/source_type). No color badges, taxonomy labels, or technical flags. Layout: "Primary Signals" (confirmed) → "Suggested Signals From AI" (pending) → "Add Signal". Category auto-inferred from signal text via keyword matching (`inferCategory`). All technical metadata (signal families, coverage gaps, diagnostics, incoming events, brand checks) available behind "Advanced View" toggle. User controls: Confirm, Edit, Remove only.
-- **AI-Powered Signal Generation:** Generates `observed`, `derived`, or `uncertainty` signals with translation fields and `question_relevance_note`, informed by brand development checks and real-time web research using GPT-4o.
-- **Event Decomposition Layer:** AI decomposes questions into 3-6 "event gates," each with a `status` and `constrains_probability_to`, influencing the `constrained_probability`.
-- **Engine Guardrails:** Critical pre- and post-processing steps including driver deduplication, max single-driver shift caps, total shift normalization, event gating constraints, relevance penalties, recalculation consistency, and input validation.
-- **Find New Signals:** Primary CTA at top of Step 2 that searches public sources (regulatory filings, press releases, clinical trial registries, congress presentations, news) for structured signals. Opens a panel with optional keyword input for targeted searching (e.g., "payer coverage, competitor launch"). Keywords are passed to the backend as additional search queries alongside the standard 6-source research. Results are additive — accepted signals are preserved across searches. Also accessible via "Find More Signals" button in the action bar. Backend: keywords validated/sanitized server-side (array of strings, max 5, trimmed). Implementation: `runSignalSearch()` callback in signals page, `/api/ai-signals/generate` endpoint with optional `keywords` param, `researchBrand()` in `web-research.ts` with keyword-based queries.
-- **Signal Persistence Flow:** Accepted signals are saved to the database with `human` origin and `active` status. Signals are also persisted to `localStorage` (`cios.signals:${caseId}`) on every accept/dismiss/edit/add/AI-receive, surviving navigation between steps. AI regeneration is tracked via `cios.aiRequested:${caseId}`. "Find New Signals" button enables manual re-triggering with optional keywords.
-- **Signal Priority & Locking:** Signals carry `priority_source` (manual_confirmed > observed_verified > ai_derived > ai_uncertainty) and `is_locked` fields. Manual/user signals are locked by default, surviving AI regeneration. Priority boosts evidence weight in gate calculations (1.5x for manual, 1.25x for verified).
-- **Signal Conflict Detection:** Opposing-direction signals on the same category are flagged with conflict indicators. Higher-priority sources win in conflict resolution.
-- **Driver Impact Distribution:** Total probability shift is proportionally distributed across signals using the largest-remainder method.
-- **Forecast Meaning Panel:** Provides plain-language interpretations, identifies primary constraints, and suggests actions to change forecasts.
-- **Decision Lab Summary:** A deterministic 7-section interpretive panel (Executive Diagnosis, Primary Constraint, Constraint Hierarchy, Why Not Higher, What Would Increase Forecast, Why Signals Seem Contradictory, Decision Implication) rendered on the forecast page. Pure template logic from forecast outputs — no AI. Primary constraint derived from most-sensitive-gate scenario analysis. Constraint hierarchy sorted by constraining impact (lowest cap first). All sections always render with fallback text.
-- **Gate-Driven Scenario Planning:** Allows deterministic counterfactual forecasts by modifying gate states without AI involvement.
-- **Signal-to-Gate Mapping Engine:** Deterministically maps signals to gates using keyword scoring and recalculates gate status based on evidence weight, triggering forecast updates.
-- **Executive Judgment Layer:** A post-forecast judgment engine (`judgment-engine.ts`) that classifies case type, retrieves closest analog cases, and generates a structured Executive Judgment block. Outputs: dynamic most-likely-outcome (inferred from question text — not hard-coded verdicts), probability, confidence, key drivers, decision posture ("Plan for this outcome" / "Do not base plans on this yet" / etc.), uncertainty classification (missing evidence / conflicting signals / gating barriers / weak evidence / well resolved), analog pattern summary with convergence note, reversal triggers, monitor list (what to watch), and next-best question. Rendered at top of Step 3 ("Judge") above comparison circles. Fully deterministic — no AI.
-- **Workflow Language:** Step 3 is "Judge" (not "See Forecast"), Step 4 is "Decide". All surface-level language uses executive decision terminology (e.g., "What is the most likely outcome?", "What is driving the call", "Recommended Decision Posture", "What would change this"). Engine terminology is nested in expandable detail.
-- **Legacy Case Redirect:** All `/case/:caseId/*` routes redirect to the current 4-step workflow UI (`/question`, `/signals`, `/forecast`, `/decide`). A `CaseWorkflowRedirect` component loads the case from the API, translates its DB schema to `ActiveQuestion` format (auto-infers `questionType` and `entities` from the strategic question text), clears only the previous case's state (preserves the target case's existing signals/gates), sets `therapeuticArea`, and redirects to the appropriate workflow step. A catch-all route `/case/:caseId/:rest*` handles unknown legacy subpaths. Implementation: `src/components/case-workflow-redirect.tsx`. All existing links in Forecasts, Library, Dashboard, and Cases pages work transparently through this redirect.
-- **Import Project:** Primary entry point on Step 1 alongside "Ask a Question." Users upload documents (PDF, Word, PowerPoint, Excel, CSV, text) or paste text (emails, RFPs, meeting notes, market summaries). System automatically extracts: decision question, key signals with direction/importance/confidence, and missing signals to investigate. Creates a new case with clean state and pre-loads extracted signals to Step 2. Backend: `/api/import-project` endpoint handles file text extraction (pdf-parse, mammoth, jszip, xlsx) + GPT-4o analysis. File size limit: 10 MB. Each imported case runs in isolated context — localStorage keys are fully cleared before populating. Imported signals are preserved when navigating to Step 2 (AI auto-run is skipped for imported cases). Implementation: `api-server/src/routes/import-project.ts` (backend), `src/components/question/ImportProjectDialog.tsx` (UI).
-- **Enterprise Data Import:** Universal data ingestion on the Step 2 "Add Information" page. Accepts CSV, Excel (.xlsx), and JSON files via drag-and-drop or file picker. Auto-detects column mappings using field aliases (signal text, direction, strength, reliability, category, source URL). Previews detected signals before import. Compatible with exports from Veeva CRM, Veeva Vault, IQVIA, Salesforce, Power BI, Tableau, and custom market research formats. Imported signals are auto-categorized via keyword inference and persisted to localStorage + database with deduplication. Implementation: `src/lib/data-import.ts` (parser), `src/components/signals/DataImportDialog.tsx` (UI).
-- **Forecast Export:** One-click export from the Step 4 "Decide" page in three formats: PDF, Excel (.xlsx), and structured JSON. Exports include: question context, forecast probability, executive judgment (most likely outcome, decision posture, confidence, key drivers, reversal triggers, monitor list), signals with direction/importance/confidence, forecast gates with status and reasoning, and derived decisions (barriers, actions, segments, trigger events). PDF uses professional formatting with auto-table layout. Excel includes multi-sheet workbook (Summary, Signals, Gates, Decisions). Judgment and decision results are persisted to localStorage (`cios.judgmentResult:${caseId}`, `cios.decideResult:${caseId}`) for export availability. Implementation: `src/lib/forecast-export.ts`. Packages: xlsx, papaparse, jspdf, jspdf-autotable, file-saver.
+**Key Features:**
+- **UI/UX:** Single-step question entry, redesigned forecast page with dark panel theme, enterprise decision layout. Information is presented using tables, collapsible sections, and color-coded indicators. All language uses executive decision terms.
+- **Single-Step Question Entry:** Users type a question in plain language, and the system interprets it (via GPT-4o or local regex parser), creates a case, and navigates to Step 2.
+- **Workflow Gating:** Content is blocked until an active question exists.
+- **Minimum Signal Model (Step 2):** Signal cards display essential attributes: signal text, Direction, Importance, Confidence, and Source. Technical metadata is available via an "Advanced View" toggle.
+- **AI-Powered Signal Generation:** Generates `observed`, `derived`, or `uncertainty` signals with translation fields and `question_relevance_note`, informed by brand development checks and real-time web research.
+- **Event Decomposition Layer:** AI decomposes questions into 3-6 "event gates," each influencing `constrained_probability`.
+- **Engine Guardrails:** Critical pre- and post-processing steps including driver deduplication, shift caps, normalization, event gating constraints, and input validation.
+- **Find New Signals:** Allows searching public sources for structured signals with optional keyword input.
+- **Signal Persistence:** Accepted signals are saved to the database and `localStorage`.
+- **Signal Priority & Locking:** Signals carry `priority_source` and `is_locked` fields, influencing evidence weight and AI regeneration.
+- **Signal Conflict Detection:** Flags opposing-direction signals on the same category.
+- **Driver Impact Distribution:** Total probability shift is proportionally distributed across signals.
+- **Forecast Meaning Panel:** Provides plain-language interpretations, identifies primary constraints, and suggests actions.
+- **Decision Lab Summary:** A deterministic 7-section interpretive panel rendered on the forecast page, deriving insights from forecast outputs.
+- **Gate-Driven Scenario Planning:** Enables deterministic counterfactual forecasts by modifying gate states.
+- **Signal-to-Gate Mapping Engine:** Deterministically maps signals to gates using keyword scoring.
+- **Executive Judgment Layer:** A post-forecast judgment engine (`judgment-engine.ts`) classifies case type, retrieves analog cases, and generates a structured Executive Judgment block.
+- **Workflow Language:** Uses executive decision terminology (e.g., "Judge," "Decide").
+- **Legacy Case Redirect:** All `/case/:caseId/*` routes redirect to the current 4-step workflow UI, translating legacy DB schema to `ActiveQuestion` format.
+- **Import Project:** Allows users to upload documents or paste text to automatically extract decision questions, key signals, and missing signals, creating a new case.
+- **Enterprise Data Import:** Universal data ingestion on the Step 2 "Add Information" page for CSV, Excel, and JSON files, with auto-detection of column mappings.
+- **Forecast Export:** One-click export from the Step 4 "Decide" page in PDF, Excel, and structured JSON formats, including comprehensive forecast details and executive judgment.
 
 ## External Dependencies
 - **PostgreSQL:** Relational database management system.
 - **Express 5:** Backend web application framework.
 - **React, Vite, Tailwind, Recharts, React Query:** Frontend libraries and tools.
-- **Drizzle ORM:** Object-Relational Mapper for database interaction.
-- **OpenAPI 3.1 & orval:** For API specification and code generation.
-- **OpenAI (via Replit AI Integrations):** Utilized for AI signal generation, market intelligence research, and project material analysis.
-- **pdf-parse, mammoth, jszip:** Backend document text extraction for PDF, DOCX, and PPTX files.
+- **Drizzle ORM:** Object-Relational Mapper.
+- **OpenAPI 3.1 & orval:** API specification and code generation.
+- **OpenAI (via Replit AI Integrations):** For AI signal generation, market intelligence research, and project material analysis.
+- **pdf-parse, mammoth, jszip:** Backend document text extraction.
