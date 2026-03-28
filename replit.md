@@ -48,6 +48,7 @@ The CIOS platform is built as a monorepo using pnpm workspaces. The frontend is 
 - **Extraction Validation Framework:** A platform-wide reliability layer ensuring minimally viable case generation through graceful degradation.
 - **Assumption Registry (DB-backed):** Automatically extracts and tracks all inferred/explicit assumptions.
 - **MIOS/BAOS Signal Integration:** Every brand gets a paired MIOS (evidence) + BAOS (behavioral/barrier) signal set loaded automatically. 10 brands covered: Entresto, Repatha, Dupixent, Keytruda, Ofev, Spinraza, Trikafta, Zepbound, Jardiance, Xeljanz. ARIKAYCE also gets 10 analog signals. Brand matching uses the active question's subject field. Signals are locked (`is_locked: true`) so they survive AI refreshes. Backfill logic merges missing prebuilt signals into existing persisted data. Fallback: if no brand match, all signals load. Manual workbook import still available via `WorkbookImportDialog`. Source: `prebuiltSignals.ts` (brand data), `normalizeCiosSignals.ts` (enum mapping), `parseMiosBaosWorkbook.ts` (xlsx parser).
+- **Document Interpreter Agent:** Upstream AI layer before CIOS question creation. When a PDF/brief/RFP is uploaded, instead of compressing into one mega-question, the interpreter reads the document like a strategist and generates a structured "Decision Pack" containing: document type, primary decision, secondary decision threads, required outputs, business context, target audiences, competitive context, missing information, and 3-10 focused recommended CIOS questions. Users review the decision pack and select which questions to create as individual cases. API: `POST /api/import-project/interpret`. Frontend: "interpreting" and "decision-pack" phases in `ImportProjectDialog`. Multi-case creation via `handleMultiImport` in the question page — each case gets context signals from the decision pack. PDF parsing uses `pdfjs-dist` directly (not `pdf-parse` wrapper) to avoid worker DataCloneError in tsx runtime.
 
 ## External Dependencies
 - **PostgreSQL:** Relational database management system.
@@ -56,4 +57,4 @@ The CIOS platform is built as a monorepo using pnpm workspaces. The frontend is 
 - **Drizzle ORM:** Object-Relational Mapper.
 - **OpenAPI 3.1 & orval:** API specification and code generation.
 - **OpenAI:** For AI signal generation, market intelligence research, and project material analysis.
-- **pdf-parse, mammoth, jszip, word-extractor, ppt-to-text:** Backend document text extraction libraries.
+- **pdfjs-dist, mammoth, jszip, word-extractor, ppt-to-text:** Backend document text extraction libraries.

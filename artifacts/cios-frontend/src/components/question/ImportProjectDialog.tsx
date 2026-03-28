@@ -128,13 +128,40 @@ interface ImportResult {
   decisionArchetype?: DecisionArchetypeResult;
 }
 
+interface RecommendedQuestion {
+  text: string;
+  rationale: string;
+  category: string;
+  priority: "critical" | "important" | "supplementary";
+  suggestedTimeHorizon: string;
+  suggestedSubject: string;
+}
+
+interface DecisionPack {
+  documentType: string;
+  primaryDecision: string;
+  secondaryDecisions: string[];
+  requiredOutputs: string[];
+  businessContext: string;
+  targetAudiences: string[];
+  competitiveContext: string;
+  missingInformation: string[];
+  recommendedQuestions: RecommendedQuestion[];
+  evidenceSpans: string[];
+  confidence: string;
+  confidenceRationale: string;
+  sourceFiles: string[];
+  extractedTextLength: number;
+}
+
 interface Props {
   onImportComplete: (result: ImportResult) => void;
+  onMultiImport?: (questions: RecommendedQuestion[], decisionPack: DecisionPack) => void;
   onClose: () => void;
   initialFile?: File | null;
 }
 
-type ImportPhase = "upload" | "processing" | "summary";
+type ImportPhase = "upload" | "processing" | "interpreting" | "decision-pack" | "summary";
 
 const confidenceColor = (c: string) => {
   const lower = c.toLowerCase();
@@ -155,7 +182,7 @@ function getFileTypeLabel(file: File): string {
   return "Document";
 }
 
-export default function ImportProjectDialog({ onImportComplete, onClose, initialFile }: Props) {
+export default function ImportProjectDialog({ onImportComplete, onMultiImport, onClose, initialFile }: Props) {
   const [phase, setPhase] = useState<ImportPhase>("upload");
   const [pasteText, setPasteText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>(() => initialFile ? [initialFile] : []);
@@ -168,6 +195,8 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [decisionPack, setDecisionPack] = useState<DecisionPack | null>(null);
+  const [selectedQuestionIndexes, setSelectedQuestionIndexes] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -318,7 +347,58 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
     });
   };
 
-  const processImport = async () => {
+  const runInterpretation = async () => {
+    setPhase("interpreting");
+    setError(null);
+
+    try {
+      let interpretRes: Response;
+
+      if (selectedFiles.length > 0) {
+        const formData = new FormData();
+        selectedFiles.forEach(f => formData.append("files", f));
+        if (pasteText.trim()) {
+          formData.append("text", pasteText.trim());
+        }
+        interpretRes = await fetch(`${API}/api/import-project/interpret`, {
+          method: "POST",
+          body: formData,
+        });
+      } else if (pasteText.trim()) {
+        interpretRes = await fetch(`${API}/api/import-project/interpret`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: pasteText.trim() }),
+        });
+      } else {
+        setError("Please upload files or paste text to import.");
+        setPhase("upload");
+        return;
+      }
+
+      if (!interpretRes.ok) {
+        const err = await interpretRes.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error || `Server error ${interpretRes.status}`);
+      }
+
+      const pack: DecisionPack = await interpretRes.json();
+      setDecisionPack(pack);
+      const initialSelected = new Set<number>();
+      pack.recommendedQuestions.forEach((q, i) => {
+        if (q.priority === "critical" || q.priority === "important") {
+          initialSelected.add(i);
+        }
+      });
+      setSelectedQuestionIndexes(initialSelected);
+      setPhase("decision-pack");
+    } catch (err: any) {
+      console.error("Interpretation failed:", err);
+      setError(err.message || "Failed to interpret the document. Please try again.");
+      setPhase("upload");
+    }
+  };
+
+  const processLegacyImport = async () => {
     setPhase("processing");
     setError(null);
 
@@ -402,6 +482,264 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
       setPhase("upload");
     }
   };
+
+  const processImport = runInterpretation;
+
+  const handleCreateSelectedQuestions = () => {
+    if (!decisionPack || !onMultiImport) return;
+    const selected = decisionPack.recommendedQuestions.filter((_, i) => selectedQuestionIndexes.has(i));
+    if (selected.length === 0) return;
+    onMultiImport(selected, decisionPack);
+  };
+
+  const toggleQuestionSelection = (index: number) => {
+    setSelectedQuestionIndexes(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  if (phase === "interpreting") {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-8 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Document Interpreter</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <div className="text-center">
+            <div className="text-sm font-medium text-foreground">Reading document like a strategist...</div>
+            <div className="text-xs text-muted-foreground mt-1">Identifying decision threads, explicit asks, and generating focused questions</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "decision-pack" && decisionPack) {
+    const priorityColor = (p: string) => {
+      if (p === "critical") return "text-red-400 bg-red-500/10 border-red-500/20";
+      if (p === "important") return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+      return "text-slate-400 bg-slate-500/10 border-slate-500/20";
+    };
+    const categoryLabel = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Decision Pack</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Document interpreted — select which questions to create as CIOS cases</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-400/10 text-indigo-400 border border-indigo-400/20">{decisionPack.documentType}</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${confidenceColor(decisionPack.confidence)}`}>{decisionPack.confidence} confidence</span>
+        </div>
+
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+          <div className="text-[10px] uppercase tracking-wider text-blue-400/70 mb-1">Primary Decision</div>
+          <div className="text-sm font-medium text-foreground leading-relaxed">{decisionPack.primaryDecision}</div>
+        </div>
+
+        {decisionPack.businessContext && (
+          <div className="rounded-xl border border-border bg-muted/5 p-4">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Business Context</div>
+            <div className="text-sm text-foreground/80 leading-relaxed">{decisionPack.businessContext}</div>
+          </div>
+        )}
+
+        {decisionPack.secondaryDecisions.length > 0 && (
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Secondary Decision Threads</div>
+            <div className="rounded-xl border border-border bg-muted/5 divide-y divide-border">
+              {decisionPack.secondaryDecisions.map((d, i) => (
+                <div key={i} className="px-4 py-2.5 text-sm text-foreground/80 flex items-start gap-2">
+                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                  {d}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {decisionPack.requiredOutputs.length > 0 && (
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Required Outputs from Document</div>
+            <div className="rounded-xl border border-border bg-muted/5 divide-y divide-border">
+              {decisionPack.requiredOutputs.map((o, i) => (
+                <div key={i} className="px-4 py-2.5 text-sm text-foreground/80 flex items-start gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  {o}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Recommended CIOS Questions ({decisionPack.recommendedQuestions.length})
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const allIndexes = new Set(decisionPack.recommendedQuestions.map((_, i) => i));
+                  setSelectedQuestionIndexes(allIndexes);
+                }}
+                className="text-[10px] text-primary hover:text-primary/80"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedQuestionIndexes(new Set())}
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {decisionPack.recommendedQuestions.map((q, i) => {
+              const isSelected = selectedQuestionIndexes.has(i);
+              return (
+                <div
+                  key={i}
+                  onClick={() => toggleQuestionSelection(i)}
+                  className={`rounded-xl border p-4 cursor-pointer transition-all ${
+                    isSelected
+                      ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
+                      : "border-border bg-muted/5 hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                    }`}>
+                      {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground leading-relaxed">{q.text}</div>
+                      <div className="text-xs text-muted-foreground mt-1.5">{q.rationale}</div>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${priorityColor(q.priority)}`}>{q.priority}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">{categoryLabel(q.category)}</span>
+                        {q.suggestedSubject && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{q.suggestedSubject}</span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">{q.suggestedTimeHorizon}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {decisionPack.missingInformation.length > 0 && (
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 text-amber-400" />
+              Missing Information
+            </div>
+            <div className="rounded-xl border border-dashed border-amber-500/20 bg-amber-500/5 divide-y divide-amber-500/10">
+              {decisionPack.missingInformation.map((m, i) => (
+                <div key={i} className="px-4 py-2.5 text-sm text-foreground/80">{m}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {decisionPack.competitiveContext && (
+          <div className="rounded-xl border border-border bg-muted/5 p-4">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Competitive Context</div>
+            <div className="text-sm text-foreground/80">{decisionPack.competitiveContext}</div>
+          </div>
+        )}
+
+        {decisionPack.targetAudiences.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Audiences:</span>
+            {decisionPack.targetAudiences.map((a, i) => (
+              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">{a}</span>
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (onMultiImport) {
+                handleCreateSelectedQuestions();
+              } else if (selectedQuestionIndexes.size > 0) {
+                const q = decisionPack.recommendedQuestions[Array.from(selectedQuestionIndexes)[0]];
+                onImportComplete({
+                  question: {
+                    text: q.text,
+                    restatedQuestion: q.text,
+                    subject: q.suggestedSubject || "",
+                    outcome: "",
+                    timeHorizon: q.suggestedTimeHorizon || "12 months",
+                    questionType: "binary",
+                    entities: [],
+                    primaryConstraint: "",
+                    decisionType: q.category,
+                  },
+                  signals: [],
+                  missingSignals: [],
+                  summary: decisionPack.businessContext || "",
+                  confidence: decisionPack.confidence,
+                } as any);
+              }
+            }}
+            disabled={selectedQuestionIndexes.size === 0}
+            className="flex-1 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          >
+            {onMultiImport
+              ? `Create ${selectedQuestionIndexes.size} Case${selectedQuestionIndexes.size !== 1 ? "s" : ""}`
+              : "Create Case"
+            }
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPhase("upload");
+              setDecisionPack(null);
+              setSelectedQuestionIndexes(new Set());
+            }}
+            className="rounded-xl border border-border px-5 py-3 font-semibold text-foreground hover:bg-muted/20 inline-flex items-center gap-2"
+          >
+            Start Over
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "processing") {
     return (

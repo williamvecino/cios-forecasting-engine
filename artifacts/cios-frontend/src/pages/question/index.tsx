@@ -346,6 +346,159 @@ export default function QuestionPage() {
     }
   };
 
+  const handleMultiImport = async (questions: any[], decisionPack: any) => {
+    setPageState("creating");
+    setSubmitError(null);
+
+    const createdCaseIds: string[] = [];
+    const failedQuestions: string[] = [];
+
+    try {
+      for (let qi = 0; qi < questions.length; qi++) {
+        const q = questions[qi];
+        try {
+          const dq: DecisionQuestion = {
+            id: `DQ-${Date.now()}-${qi}`,
+            rawInput: q.text,
+            questionType: "binary" as any,
+            subject: q.suggestedSubject || "",
+            outcome: "",
+            populationOrEntities: [],
+            timeHorizon: q.suggestedTimeHorizon || "12 months",
+            missingFields: [],
+            isComplete: true,
+            interpretedQuestion: q.text,
+            createdAt: new Date().toISOString(),
+          };
+
+          const caseInput = mapDecisionQuestionToCaseInput(dq);
+          const created = await createCaseMutation.mutateAsync({
+            data: caseInput as any,
+          });
+          const newCaseId = (created as any).caseId || (created as any).id;
+          if (!newCaseId) {
+            failedQuestions.push(q.text);
+            continue;
+          }
+
+          createdCaseIds.push(newCaseId);
+          clearCaseState(newCaseId);
+
+          const contextSignals = [
+            {
+              id: `context-1`,
+              text: `Document context: ${decisionPack.businessContext || decisionPack.primaryDecision}`,
+              caveat: `Source: ${decisionPack.documentType} — ${decisionPack.sourceFiles?.join(", ") || "uploaded document"}`,
+              direction: "neutral",
+              strength: "Medium",
+              reliability: "Probable",
+              impact: 2,
+              category: "evidence",
+              source: "system",
+              accepted: false,
+              signal_class: "observed",
+              signal_family: "brand_clinical_regulatory",
+              signal_source: "external",
+              source_url: null,
+              source_type: "document interpretation",
+              observed_date: null,
+              citation_excerpt: null,
+              brand_verified: false,
+              priority_source: "ai_derived",
+              is_locked: false,
+            },
+            ...(decisionPack.competitiveContext ? [{
+              id: `context-2`,
+              text: `Competitive landscape: ${decisionPack.competitiveContext}`,
+              caveat: "",
+              direction: "neutral",
+              strength: "Medium",
+              reliability: "Probable",
+              impact: 2,
+              category: "competition",
+              source: "system",
+              accepted: false,
+              signal_class: "observed",
+              signal_family: "brand_clinical_regulatory",
+              signal_source: "external",
+              source_url: null,
+              source_type: "document interpretation",
+              observed_date: null,
+              citation_excerpt: null,
+              brand_verified: false,
+              priority_source: "ai_derived",
+              is_locked: false,
+            }] : []),
+            ...(decisionPack.missingInformation || []).slice(0, 3).map((m: string, i: number) => ({
+              id: `gap-${i + 1}`,
+              text: m,
+              caveat: "Identified as missing by document interpreter",
+              direction: "neutral",
+              strength: "Medium",
+              reliability: "Speculative",
+              impact: 2,
+              category: "evidence",
+              source: "system",
+              accepted: false,
+              signal_class: "uncertainty",
+              signal_family: "brand_clinical_regulatory",
+              signal_source: "missing",
+              source_url: null,
+              source_type: "gap analysis",
+              observed_date: null,
+              citation_excerpt: null,
+              brand_verified: false,
+              priority_source: "ai_uncertainty",
+              is_locked: false,
+            })),
+          ];
+
+          try {
+            localStorage.setItem(`cios.signals:${newCaseId}`, JSON.stringify(contextSignals));
+            localStorage.setItem(`cios.aiRequested:${newCaseId}`, `interpreted-${Date.now()}`);
+          } catch {}
+        } catch (err) {
+          console.error(`Failed to create case for question ${qi}:`, err);
+          failedQuestions.push(q.text);
+        }
+      }
+
+      if (createdCaseIds.length > 0) {
+        const firstCaseId = createdCaseIds[0];
+        const firstQuestion = questions[0];
+        const payload = {
+          text: firstQuestion.text,
+          rawInput: firstQuestion.text,
+          caseId: firstCaseId,
+          timeHorizon: firstQuestion.suggestedTimeHorizon || "12 months",
+          questionType: "binary",
+          entities: [],
+          subject: firstQuestion.suggestedSubject || undefined,
+          outcome: undefined,
+        };
+        createQuestion(payload);
+        setShowImportProject(false);
+
+        if (failedQuestions.length > 0) {
+          setSubmitError(`Created ${createdCaseIds.length} case${createdCaseIds.length > 1 ? "s" : ""}, but ${failedQuestions.length} failed. You can find all cases in the Forecasts page.`);
+        }
+        navigate("/signals");
+      } else {
+        setSubmitError("No cases could be created. Please try again.");
+        setPageState("input");
+      }
+    } catch (err) {
+      console.error("Failed to create multi-import cases:", err);
+      if (createdCaseIds.length > 0) {
+        setSubmitError(`Partially completed: ${createdCaseIds.length} case${createdCaseIds.length > 1 ? "s" : ""} created before error. Check the Forecasts page.`);
+        navigate("/signals");
+      } else {
+        setSubmitError("Unable to create cases. Check your connection and try again.");
+        setPageState("input");
+      }
+    }
+  };
+
   return (
     <WorkflowLayout
       currentStep="question"
@@ -457,6 +610,7 @@ export default function QuestionPage() {
             {showImportProject ? (
               <ImportProjectDialog
                 onImportComplete={handleImportComplete}
+                onMultiImport={handleMultiImport}
                 initialFile={pendingImportFile}
                 onClose={() => {
                   setShowImportProject(false);

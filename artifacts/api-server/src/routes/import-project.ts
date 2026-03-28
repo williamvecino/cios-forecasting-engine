@@ -1437,4 +1437,235 @@ Respond in JSON:
   }
 });
 
+const interpretUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+router.post("/import-project/interpret", interpretUpload.array("files", 20), async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[] | undefined;
+    const pastedText = req.body?.text || "";
+    let fileBase64 = req.body?.fileBase64 || "";
+    let fileName = req.body?.fileName || "";
+    let mimeType = req.body?.mimeType || "";
+
+    let combinedText = "";
+    let imageBase64: string | null = null;
+    let imageMimeType: string | null = null;
+    const fileNames: string[] = [];
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const mime = file.mimetype || "application/octet-stream";
+        fileNames.push(file.originalname);
+        if (isImageFile(mime, file.originalname)) {
+          if (!imageBase64) {
+            imageBase64 = file.buffer.toString("base64");
+            imageMimeType = mime.startsWith("image/") ? mime : "image/jpeg";
+          }
+        } else {
+          const text = await extractTextFromFile(file.buffer.toString("base64"), mime, file.originalname);
+          if (text) combinedText += `\n\n[Source: ${file.originalname}]\n${text}`;
+        }
+      }
+    } else if (fileBase64 && fileName) {
+      fileNames.push(fileName);
+      const mime = mimeType || "application/octet-stream";
+      if (isImageFile(mime, fileName)) {
+        imageBase64 = fileBase64;
+        imageMimeType = mime.startsWith("image/") ? mime : "image/jpeg";
+      } else {
+        combinedText = await extractTextFromFile(fileBase64, mime, fileName);
+      }
+    }
+
+    if (pastedText.trim()) {
+      combinedText += `\n\n[Source: Pasted Text]\n${pastedText.trim()}`;
+    }
+
+    if (!combinedText && !imageBase64) {
+      if (fileBase64) {
+        combinedText = Buffer.from(fileBase64, "base64")
+          .toString("utf-8")
+          .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+          .replace(/\s{3,}/g, " ")
+          .trim()
+          .slice(0, 15000);
+      }
+      if (!combinedText) {
+        res.status(400).json({ error: "No readable content found in the uploaded materials." });
+        return;
+      }
+    }
+
+    const contentForPrompt = combinedText.slice(0, 12000);
+
+    const interpretPrompt = `You are a Document Interpreter Agent for a strategic decision intelligence system called CIOS. Your job is to read complex documents — RFPs, briefs, strategy memos, clinical papers, meeting notes — the way an experienced strategist would, and decompose them into a structured decision pack.
+
+CRITICAL RULE: Do NOT compress the document into one broad question. Instead, identify the distinct decision threads and explicit asks within the document and generate multiple focused, bounded questions.
+
+Your task:
+
+1. CLASSIFY THE DOCUMENT
+   - What type of document is this? (RFP, Strategy Memo, Research Brief, Clinical Paper, Competitive Update, Operational Plan, Slide Deck, Meeting Notes, Email, Report)
+   - What is the real underlying business decision?
+
+2. IDENTIFY THE PRIMARY DECISION
+   - What is the core strategic decision the document is about?
+   - Frame it as a clear statement, not a question.
+
+3. EXTRACT SECONDARY DECISIONS
+   - What subordinate decisions flow from the primary?
+   - These are distinct decision threads, not restatements.
+
+4. EXTRACT REQUIRED OUTPUTS
+   - What does the document explicitly request? (e.g., "a written proposal," "a market research plan," "3 engagement programs")
+   - What deliverables or strategic recommendations are asked for?
+
+5. MAP THE BUSINESS CONTEXT
+   - What is the therapeutic/product/business context?
+   - What are the key constraints, timelines, and competitive dynamics?
+
+6. IDENTIFY TARGET AUDIENCES
+   - Who are the stakeholders, audiences, or segments discussed?
+
+7. MAP COMPETITIVE CONTEXT
+   - What competitive dynamics are described?
+   - What differentiation challenges exist?
+
+8. FLAG MISSING INFORMATION
+   - What critical information is absent from the document?
+   - What assumptions would a strategist need to validate?
+
+9. GENERATE RECOMMENDED CIOS QUESTIONS (3-10)
+   This is the most important output. Each question must:
+   - Be specific, bounded, and suitable for probabilistic forecasting
+   - Map directly to an explicit ask or decision thread in the document
+   - Be answerable within a defined time horizon
+   - NOT be a mega-question that compresses multiple asks
+   - Include a brief rationale explaining which part of the document it addresses
+   - Be prioritized (critical, important, or supplementary)
+
+   Good questions are like:
+   - "What are the biggest launch barriers for [product] in [indication]?"
+   - "How should [product] be differentiated from [competitor] for [audience]?"
+   - "Which pre-launch program is most likely to create advantage in [market]?"
+   - "What market-research inputs are essential before final positioning?"
+
+   Bad questions are like:
+   - "What is the optimal launch strategy and brand positioning for [product]?" (too broad, compresses everything)
+
+10. EXTRACT EVIDENCE SPANS
+    - Pull 3-8 exact phrases from the document that support your classification and question generation.
+
+Respond in JSON:
+{
+  "documentType": "RFP | Strategy Memo | Research Brief | Clinical Paper | Competitive Update | Operational Plan | Slide Deck | Meeting Notes | Email | Report",
+  "primaryDecision": "Clear statement of the core strategic decision",
+  "secondaryDecisions": ["Decision thread 1", "Decision thread 2", ...],
+  "requiredOutputs": ["Output explicitly requested by the document", ...],
+  "businessContext": "2-3 sentence summary of the business/therapeutic context",
+  "targetAudiences": ["Audience 1", "Audience 2", ...],
+  "competitiveContext": "1-2 sentence summary of competitive dynamics",
+  "missingInformation": ["Critical gap 1", "Critical gap 2", ...],
+  "recommendedQuestions": [
+    {
+      "text": "Specific, bounded CIOS question",
+      "rationale": "Which part of the document this addresses",
+      "category": "launch_barrier | differentiation | market_research | audience_strategy | engagement_program | competitive_response | regulatory | access | timing | evidence_gap | channel_strategy | other",
+      "priority": "critical | important | supplementary",
+      "suggestedTimeHorizon": "e.g. 12 months, 18 months, 24 months",
+      "suggestedSubject": "The product/brand/therapy this question is about"
+    }
+  ],
+  "evidenceSpans": ["Exact phrase from document 1", "Exact phrase 2", ...],
+  "confidence": "high | moderate | low",
+  "confidenceRationale": "Why this confidence level"
+}`;
+
+    const messages: any[] = [{ role: "system", content: interpretPrompt }];
+
+    if (imageBase64 && imageMimeType && !contentForPrompt.trim()) {
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze this document image and produce a structured decision pack:" },
+          { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "high" } },
+        ],
+      });
+    } else if (imageBase64 && imageMimeType) {
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: `Analyze the following document and produce a structured decision pack:\n\n---\n${contentForPrompt}\n---` },
+          { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "high" } },
+        ],
+      });
+    } else {
+      messages.push({
+        role: "user",
+        content: `Analyze the following document and produce a structured decision pack:\n\n---\n${contentForPrompt}\n---`,
+      });
+    }
+
+    console.log(`[interpret] Starting document interpretation for: ${fileNames.join(", ") || "pasted text"} (${contentForPrompt.length} chars)`);
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      max_tokens: 4000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      res.status(500).json({ error: "AI interpretation returned empty response" });
+      return;
+    }
+
+    const parsed = JSON.parse(content);
+
+    if (!Array.isArray(parsed.recommendedQuestions) || parsed.recommendedQuestions.length === 0) {
+      parsed.recommendedQuestions = [{
+        text: parsed.primaryDecision || "What is the primary decision these materials support?",
+        rationale: "Fallback — document did not yield multiple distinct decision threads",
+        category: "other",
+        priority: "critical",
+        suggestedTimeHorizon: "12 months",
+        suggestedSubject: "Unknown",
+      }];
+    }
+
+    const result = {
+      documentType: parsed.documentType || "Unknown",
+      primaryDecision: parsed.primaryDecision || "",
+      secondaryDecisions: Array.isArray(parsed.secondaryDecisions) ? parsed.secondaryDecisions : [],
+      requiredOutputs: Array.isArray(parsed.requiredOutputs) ? parsed.requiredOutputs : [],
+      businessContext: parsed.businessContext || "",
+      targetAudiences: Array.isArray(parsed.targetAudiences) ? parsed.targetAudiences : [],
+      competitiveContext: parsed.competitiveContext || "",
+      missingInformation: Array.isArray(parsed.missingInformation) ? parsed.missingInformation : [],
+      recommendedQuestions: parsed.recommendedQuestions.map((q: any) => ({
+        text: q.text || "",
+        rationale: q.rationale || "",
+        category: q.category || "other",
+        priority: q.priority || "important",
+        suggestedTimeHorizon: q.suggestedTimeHorizon || "12 months",
+        suggestedSubject: q.suggestedSubject || "",
+      })),
+      evidenceSpans: Array.isArray(parsed.evidenceSpans) ? parsed.evidenceSpans : [],
+      confidence: parsed.confidence || "moderate",
+      confidenceRationale: parsed.confidenceRationale || "",
+      sourceFiles: fileNames,
+      extractedTextLength: combinedText.length,
+    };
+
+    console.log(`[interpret] Decision pack generated: ${result.documentType}, ${result.recommendedQuestions.length} questions, confidence: ${result.confidence}`);
+
+    res.json(result);
+  } catch (err) {
+    console.error("Document interpretation error:", err);
+    res.status(500).json({ error: "Failed to interpret document" });
+  }
+});
+
 export default router;
