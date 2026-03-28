@@ -53,16 +53,27 @@ export default function QuestionPage() {
   const { activeQuestion, createQuestion, updateQuestion, clearQuestion } = useActiveQuestion();
   const createCaseMutation = useCreateCase();
 
-  const [rawInput, setRawInput] = useState("");
+  const [rawInput, setRawInput] = useState(activeQuestion?.text ?? "");
   const [pageState, setPageState] = useState<PageState>("input");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
   const [showImportProject, setShowImportProject] = useState(false);
+  const [syncedCaseId, setSyncedCaseId] = useState<string | null>(activeQuestion?.caseId ?? null);
+  const [userCleared, setUserCleared] = useState(false);
 
   useEffect(() => {
     localStorage.removeItem("cios.questionDraft");
   }, []);
+
+  useEffect(() => {
+    if (!activeQuestion?.text || isEditMode || userCleared) return;
+    const currentCaseId = activeQuestion.caseId ?? activeQuestion.id;
+    if (currentCaseId !== syncedCaseId) {
+      setRawInput(activeQuestion.text);
+      setSyncedCaseId(currentCaseId);
+    }
+  }, [activeQuestion?.text, activeQuestion?.caseId, activeQuestion?.id, isEditMode, syncedCaseId, userCleared]);
 
   function resetAll() {
     setRawInput("");
@@ -70,6 +81,8 @@ export default function QuestionPage() {
     setSubmitError(null);
     setIsEditMode(false);
     setEditCaseId("");
+    setSyncedCaseId(null);
+    setUserCleared(true);
   }
 
   function enterEditMode() {

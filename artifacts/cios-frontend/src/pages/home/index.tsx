@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useListCases } from "@workspace/api-client-react";
 import TopNav from "@/components/top-nav";
@@ -28,7 +28,17 @@ export default function HomePage() {
   const [, navigate] = useLocation();
   const { data: cases } = useListCases();
   const { activeQuestion } = useActiveQuestion();
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(activeQuestion?.text ?? "");
+  const [syncedId, setSyncedId] = useState<string | null>(activeQuestion?.caseId ?? null);
+
+  useEffect(() => {
+    if (!activeQuestion?.text) return;
+    const id = activeQuestion.caseId ?? activeQuestion.id;
+    if (id !== syncedId) {
+      setInput(activeQuestion.text);
+      setSyncedId(id);
+    }
+  }, [activeQuestion?.text, activeQuestion?.caseId, activeQuestion?.id, syncedId]);
 
   const allCases = (cases as any[]) || [];
   const recentCases = allCases.slice(0, 5);
