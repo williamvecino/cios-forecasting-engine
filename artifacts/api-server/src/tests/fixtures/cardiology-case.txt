@@ -1,0 +1,26 @@
+STRATEGIC BRIEF: CardioAsset X — Next-Generation Beta-Blocker Combination
+
+PRODUCT OVERVIEW
+CardioAsset X is a fixed-dose combination of a next-generation selective beta-blocker with a mineralocorticoid receptor antagonist (MRA), targeting patients with heart failure with reduced ejection fraction (HFrEF) who remain symptomatic on standard guideline-directed medical therapy (GDMT).
+
+CLINICAL DATA
+- Phase III CARDIAC-PLUS trial: Met primary composite endpoint of cardiovascular death + HF hospitalization (HR 0.78, p=0.003)
+- Secondary endpoint: 6-minute walk test improvement of 32 meters vs placebo (p<0.01)
+- Safety: Hyperkalemia incidence 8.2% vs 4.1% placebo; renal function monitoring required
+- Sub-group analysis: Greatest benefit in NYHA Class III patients (HR 0.68)
+
+MARKET CONTEXT
+- Competitive landscape: Entresto (sacubitril/valsartan) dominates HFrEF market with ~65% share
+- Pricing pressure: Payers increasingly requiring step therapy through ACE/ARB before novel agents
+- Patient population: Estimated 2.4 million HFrEF patients in US; ~800K inadequately controlled
+- Physician adoption barriers: Cardiologists comfortable with current GDMT stacking approach
+
+STRATEGIC QUESTIONS
+1. Can CardioAsset X achieve meaningful market share against entrenched Entresto?
+2. What patient segments would benefit most from positioning as 2nd-line after Entresto failure?
+3. How will payer formulary decisions impact access in the first 24 months post-launch?
+
+REQUESTED ANALYSIS
+- Forecast probability of achieving ≥10% market share within 18 months of launch
+- Identify key adoption barriers and enablers across HCP segments
+- Model payer coverage scenarios and their impact on volume projections

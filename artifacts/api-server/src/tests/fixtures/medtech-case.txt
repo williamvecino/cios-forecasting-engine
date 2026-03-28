@@ -1,0 +1,30 @@
+BUSINESS CASE: AI-Powered Diagnostic Platform — OncoDetect Pro
+
+PRODUCT DESCRIPTION
+OncoDetect Pro is a machine learning-based liquid biopsy platform for multi-cancer early detection (MCED). It analyzes circulating tumor DNA (ctDNA) methylation patterns to screen for 12 cancer types simultaneously from a single blood draw.
+
+CLINICAL EVIDENCE
+- DETECT-1 Pivotal Trial (N=8,400): Sensitivity 67.3% across all stages; specificity 99.1%
+- Stage I-II sensitivity: 43.9% (the key challenge — many cancers detected too late)
+- Cancer Signal Origin (CSO) accuracy: 89% for correctly identifying tissue of origin
+- False positive rate: 0.9% — low but concerning at population screening scale
+
+REGULATORY STATUS
+- FDA Breakthrough Device Designation granted
+- De novo 510(k) pathway — no predicate device; regulatory timeline uncertain
+- CMS parallel review initiated for coverage determination
+- EU MDR classification pending
+
+MARKET DYNAMICS
+- Total addressable market: $50B globally for cancer screening
+- Competitor: Grail's Galleri test (first-mover, backed by Illumina, $949/test)
+- Pricing strategy: Targeting $799/test, below Galleri but above standard screenings
+- Reimbursement: No CPT code yet; out-of-pocket for most patients currently
+- Provider adoption: Primary care physicians unfamiliar with liquid biopsy interpretation
+- Patient demand: Growing consumer awareness of multi-cancer screening via DTC marketing
+
+KEY UNCERTAINTIES
+1. Will FDA require a randomized controlled trial showing mortality benefit?
+2. Can CMS coverage be secured without long-term outcomes data?
+3. How quickly will PCPs adopt vs specialist-driven ordering?
+4. What happens when Grail drops pricing in response?

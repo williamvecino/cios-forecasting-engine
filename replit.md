@@ -73,7 +73,8 @@ All agents follow canonical invariants: bounded (fixed I/O schema), deterministi
 | 12 | Provenance | buildProvenance() helper | SignalProvenanceDrawer | BUILT |
 | 13 | Core Engine | lib/core-forecast-engine.ts | Judge (frozen) | BUILT |
 
-**Validation Harness:** 13 tests (A-M) in `agent-validation-harness.ts`, 43 locked unit tests.
+**Validation Harness:** 13 core tests (A-M) + 40 cross-domain tests (4 cases × 10 agents) in `agent-validation-harness.ts`. 43 locked unit tests.
+**Cross-Domain Test Cases:** Oncology (anti-PDL1 RFP), Cardiology (beta-blocker combo), MedTech (AI liquid biopsy), Rare Disease (gene therapy), Digital Health (PDT for T2D).
 
 ## External Dependencies
 - **PostgreSQL:** Relational database management system.

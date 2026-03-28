@@ -1,0 +1,30 @@
+STRATEGY DOCUMENT: Prescription Digital Therapeutic for Type 2 Diabetes — GlucoCoach Rx
+
+PRODUCT OVERVIEW
+GlucoCoach Rx is an FDA-cleared prescription digital therapeutic (PDT) for Type 2 Diabetes management. The mobile app delivers personalized behavioral interventions including meal planning, glucose monitoring integration, medication adherence reminders, and cognitive behavioral therapy modules for diabetes distress. It is prescribed by physicians and requires a valid Rx.
+
+CLINICAL EVIDENCE
+- Pivotal RCT (N=1,200): 0.8% HbA1c reduction vs 0.3% for control (p<0.001) at 6 months
+- Secondary: 4.2 kg weight loss vs 1.1 kg control
+- Adherence: 62% of patients used the app ≥4x/week at 3 months (dropped to 38% at 6 months)
+- Mental health: 28% reduction in diabetes distress scores
+
+COMMERCIAL CONTEXT
+- FDA De Novo clearance received March 2025
+- Competitor PDTs: Livongo (now part of Teladoc), Omada Health, Virta Health — none are true Rx PDTs
+- Pricing: $299/month with 6-month treatment course ($1,794 total)
+- Reimbursement: Limited CPT code coverage; exploring pharmacy benefit vs medical benefit pathways
+- Prescriber workflow: Integration with EMR required for adoption; currently manual prescribing
+- Patient engagement cliff: Industry-wide problem — PDT adherence drops 40-60% after month 2
+
+MARKET CHALLENGES
+1. Physicians skeptical of digital therapeutics — "there's an app for that" fatigue
+2. No clear pharmacy or medical benefit pathway for consistent reimbursement
+3. Patient engagement decay undermines long-term efficacy claims
+4. Competing with free consumer health apps (MyFitnessPal, Glucose Buddy)
+5. Health system IT departments resist new integrations
+
+STRATEGIC QUESTIONS
+- What is the realistic 12-month prescription volume trajectory?
+- Which physician specialty will drive early adoption (endocrinology vs primary care)?
+- Can a cash-pay model sustain the business while reimbursement pathways mature?

@@ -1,0 +1,30 @@
+INTELLIGENCE BRIEF: Gene Therapy for Spinal Muscular Atrophy Type 2 — ZolgenMax
+
+PROGRAM OVERVIEW
+ZolgenMax is an intrathecal AAV9-based gene therapy delivering a functional copy of the SMN1 gene to motor neurons in SMA Type 2 patients aged 2-12 years. Unlike Zolgensma (IV, <2 years old only), ZolgenMax targets the underserved older pediatric population.
+
+CLINICAL DATA
+- Phase II SMART-2 Trial (N=42): 71% of patients achieved ≥3-point improvement on HFMSE
+- Motor function: Mean HFMSE increase of 5.2 points at 12 months (clinically meaningful threshold: 3 points)
+- Durability: 18-month data shows sustained benefit without decline in 89% of responders
+- Safety: 2 cases of transient transaminitis (resolved with corticosteroids); 1 serious dorsal root ganglion toxicity requiring hospitalization
+- No treatment-related deaths
+
+COMPETITIVE LANDSCAPE
+- Spinraza (nusinersen): Established, chronic intrathecal dosing, well-characterized safety profile
+- Evrysdi (risdiplam): Oral, convenient, growing market share especially in older patients
+- Zolgensma: IV gene therapy, limited to <2 years, one-time dose
+- Key differentiator: One-time treatment for the 2-12 age gap not covered by Zolgensma
+
+MARKET CONSIDERATIONS
+- Ultra-rare: ~3,000-5,000 SMA Type 2 patients in US
+- Pricing benchmark: Zolgensma at $2.1M; market expects $1.5-2.5M for ZolgenMax
+- Payer resistance: Outcomes-based contracts likely required for reimbursement
+- Patient identification: Many patients already on Spinraza/Evrysdi — switching dynamics complex
+- KOL sentiment: Cautiously optimistic; want longer durability and DRG toxicity data
+- Parent advocacy: SMA community highly organized and vocal; strong pull-through potential
+
+DECISION QUESTIONS
+1. What is the probability of successful Phase III completion and FDA approval by 2027?
+2. Will payers cover at the expected price point without outcomes-based contracts?
+3. Can ZolgenMax capture patients currently stable on Spinraza or Evrysdi?
