@@ -1,8 +1,14 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+import {
+  recalculateGatesFromSignals,
+  type RecalculationResult,
+  type SignalDiagnostic,
+  type GateImpact,
+} from "@/lib/signal-gate-engine";
 import {
   Plus,
   Sparkles,
@@ -374,6 +380,11 @@ export default function SignalsPage() {
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
   const [translationSummary, setTranslationSummary] = useState<string | null>(null);
   const [eventGates, setEventGates] = useState<EventGate[] | null>(null);
+  const [baseGates, setBaseGates] = useState<EventGate[] | null>(null);
+  const [brandOutlook, setBrandOutlook] = useState<number>(0.5);
+  const [recalcResult, setRecalcResult] = useState<RecalculationResult | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [lastImpact, setLastImpact] = useState<{ signalText: string; gateImpact: GateImpact | null; forecastBefore: number; forecastAfter: number } | null>(null);
   const [brandCheckDone, setBrandCheckDone] = useState(false);
   const [verifiedFound, setVerifiedFound] = useState(false);
   const aiRequestedRef = useRef<string | null>(null);
@@ -399,6 +410,9 @@ export default function SignalsPage() {
     setMarketSummary(null);
     setTranslationSummary(null);
     setEventGates(null);
+    setBaseGates(null);
+    setRecalcResult(null);
+    setLastImpact(null);
     try {
       localStorage.removeItem(`cios.eventDecomposition:${clearCaseKey}`);
       localStorage.removeItem(`cios.translationSummary:${clearCaseKey}`);
@@ -532,9 +546,13 @@ export default function SignalsPage() {
             constraint_explanation: data.constraint_explanation || "",
           };
           setEventGates(decomp.event_gates);
+          setBaseGates(decomp.event_gates);
+          setBrandOutlook(decomp.brand_outlook_probability);
           localStorage.setItem(`cios.eventDecomposition:${caseKey}`, JSON.stringify(decomp));
         } else {
           setEventGates(null);
+          setBaseGates(null);
+          setRecalcResult(null);
           localStorage.removeItem(`cios.eventDecomposition:${caseKey}`);
         }
 
@@ -621,18 +639,72 @@ export default function SignalsPage() {
     }).catch(() => {});
   }
 
+  const triggerGateRecalculation = useCallback((updatedSignals: Signal[], triggerSignalText?: string) => {
+    if (!baseGates || baseGates.length === 0) return;
+    const caseKey = activeQuestion?.caseId || "unknown";
+
+    const acceptedInputs = updatedSignals
+      .filter(s => s.accepted)
+      .map(s => ({
+        id: s.id,
+        text: s.text,
+        direction: s.direction,
+        strength: s.strength,
+        reliability: s.reliability,
+        category: s.category,
+        signal_family: s.signal_family,
+        accepted: true,
+      }));
+
+    const result = recalculateGatesFromSignals(baseGates, acceptedInputs, brandOutlook);
+    setRecalcResult(result);
+    setEventGates(result.updated_gates);
+
+    const hasWeakOrUnresolved = result.updated_gates.some(g => g.status === "weak" || g.status === "unresolved");
+    const minCap = Math.min(...result.updated_gates.map(g => g.constrains_probability_to));
+    const enforcedCap = hasWeakOrUnresolved ? Math.min(minCap, 0.70) : minCap;
+    const updatedDecomp: EventDecomposition = {
+      event_gates: result.updated_gates,
+      brand_outlook_probability: brandOutlook,
+      constrained_probability: enforcedCap,
+      constraint_explanation: "Recalculated from signal evidence",
+    };
+    localStorage.setItem(`cios.eventDecomposition:${caseKey}`, JSON.stringify(updatedDecomp));
+
+    if (triggerSignalText) {
+      const triggerDiag = result.diagnostics.find(d => d.signal_text === triggerSignalText);
+      const gateImpact = triggerDiag
+        ? result.gate_impacts.find(gi => gi.gate_id === triggerDiag.gate_affected) || null
+        : null;
+      setLastImpact({
+        signalText: triggerSignalText,
+        gateImpact,
+        forecastBefore: result.previous_forecast,
+        forecastAfter: result.new_forecast,
+      });
+      setTimeout(() => setLastImpact(null), 8000);
+    }
+  }, [baseGates, brandOutlook, activeQuestion]);
+
   function acceptSignal(id: string) {
     setSignals((prev) => {
       const signal = prev.find((s) => s.id === id);
       if (signal && !signal.accepted) {
         persistSignalToDb(signal);
+        const updated = prev.map((s) => (s.id === id ? { ...s, accepted: true } : s));
+        setTimeout(() => triggerGateRecalculation(updated, signal.text), 0);
+        return updated;
       }
       return prev.map((s) => (s.id === id ? { ...s, accepted: true } : s));
     });
   }
 
   function dismissSignal(id: string) {
-    setSignals((prev) => prev.filter((s) => s.id !== id));
+    setSignals((prev) => {
+      const updated = prev.filter((s) => s.id !== id);
+      setTimeout(() => triggerGateRecalculation(updated), 0);
+      return updated;
+    });
   }
 
   function updateSignal(id: string, updates: Partial<Signal>) {
@@ -648,10 +720,17 @@ export default function SignalsPage() {
   }
 
   function commitEdit(id: string) {
-    setSignals((prev) => prev.map((s) => {
-      if (s.id !== id) return s;
-      return { ...s, impact: computeImpact(s) };
-    }));
+    setSignals((prev) => {
+      const updated = prev.map((s) => {
+        if (s.id !== id) return s;
+        return { ...s, impact: computeImpact(s) };
+      });
+      const editedSignal = updated.find(s => s.id === id);
+      if (editedSignal?.accepted) {
+        setTimeout(() => triggerGateRecalculation(updated, editedSignal.text), 0);
+      }
+      return updated;
+    });
     setEditingId(null);
   }
 
@@ -678,7 +757,11 @@ export default function SignalsPage() {
       source: "user",
       accepted: true,
     };
-    setSignals((prev) => [...prev, sig]);
+    setSignals((prev) => {
+      const updated = [...prev, sig];
+      setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
+      return updated;
+    });
     persistSignalToDb(sig);
     setNewText("");
     setNewDirection("positive");
@@ -709,7 +792,11 @@ export default function SignalsPage() {
       source: "user",
       accepted: true,
     };
-    setSignals((prev) => [...prev, sig]);
+    setSignals((prev) => {
+      const updated = [...prev, sig];
+      setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
+      return updated;
+    });
     persistSignalToDb(sig);
   }
 
@@ -1185,6 +1272,134 @@ export default function SignalsPage() {
               })}
             </div>
           </div>
+
+          {lastImpact && (
+            <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/5 via-card to-card p-5 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Signal Impact</span>
+              </div>
+              <div className="text-sm text-foreground mb-3">
+                <span className="text-muted-foreground">Signal:</span>{" "}
+                <span className="font-medium">{lastImpact.signalText.length > 80 ? lastImpact.signalText.slice(0, 80) + "…" : lastImpact.signalText}</span>
+              </div>
+              {lastImpact.gateImpact ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-muted-foreground">Gate affected:</span>
+                    <span className="font-medium text-foreground">{lastImpact.gateImpact.gate_label}</span>
+                  </div>
+                  {lastImpact.gateImpact.changed ? (
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="text-muted-foreground">Gate change:</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${lastImpact.gateImpact.previous_status === "strong" ? "bg-emerald-500/20 text-emerald-300" : lastImpact.gateImpact.previous_status === "moderate" ? "bg-yellow-500/20 text-yellow-300" : "bg-red-500/20 text-red-300"}`}>
+                        {lastImpact.gateImpact.previous_status}
+                      </span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${lastImpact.gateImpact.new_status === "strong" ? "bg-emerald-500/20 text-emerald-300" : lastImpact.gateImpact.new_status === "moderate" ? "bg-yellow-500/20 text-yellow-300" : "bg-red-500/20 text-red-300"}`}>
+                        {lastImpact.gateImpact.new_status}
+                      </span>
+                    </div>
+                  ) : lastImpact.gateImpact.ceiling_hit ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-amber-300">No change — gate already strong</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">Gate unchanged — insufficient cumulative evidence for status shift</div>
+                  )}
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-muted-foreground">Forecast:</span>
+                    {lastImpact.forecastBefore !== lastImpact.forecastAfter ? (
+                      <span className="font-medium">
+                        <span className="text-muted-foreground">{lastImpact.forecastBefore}%</span>
+                        <span className="text-muted-foreground mx-1">→</span>
+                        <span className={lastImpact.forecastAfter > lastImpact.forecastBefore ? "text-emerald-400" : "text-red-400"}>
+                          {lastImpact.forecastAfter}%
+                        </span>
+                        <span className={`ml-2 text-xs ${lastImpact.forecastAfter > lastImpact.forecastBefore ? "text-emerald-400" : "text-red-400"}`}>
+                          ({lastImpact.forecastAfter > lastImpact.forecastBefore ? "+" : ""}{lastImpact.forecastAfter - lastImpact.forecastBefore}pp)
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">No change ({lastImpact.forecastBefore}%)</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Signal mapped — awaiting sufficient evidence for gate adjustment</div>
+              )}
+            </div>
+          )}
+
+          {recalcResult && recalcResult.diagnostics.length > 0 && !aiLoading && (
+            <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/5 via-card to-card p-5">
+              <button
+                onClick={() => setShowDiagnostics(!showDiagnostics)}
+                className="flex items-center gap-2 w-full text-left"
+              >
+                <BrainCircuit className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Signal Diagnostics</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-medium ml-1">
+                  {recalcResult.diagnostics.length} mapped
+                </span>
+                <span className="ml-auto">
+                  {showDiagnostics ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </span>
+              </button>
+              {showDiagnostics && (
+                <div className="mt-4 space-y-3">
+                  {recalcResult.gate_impacts.filter(gi => gi.signal_count > 0).map((gi) => (
+                    <div key={gi.gate_id} className="rounded-xl border border-border/50 bg-card/50 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">{gi.gate_label}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${gi.changed ? "bg-cyan-500/20 text-cyan-300" : gi.ceiling_hit ? "bg-amber-500/20 text-amber-300" : "bg-muted/30 text-muted-foreground"}`}>
+                          {gi.changed ? "Updated" : gi.ceiling_hit ? "Ceiling" : "Stable"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`px-1.5 py-0.5 rounded ${gi.previous_status === "strong" ? "bg-emerald-500/20 text-emerald-300" : gi.previous_status === "moderate" ? "bg-yellow-500/20 text-yellow-300" : "bg-red-500/20 text-red-300"}`}>
+                          {gi.previous_status}
+                        </span>
+                        {gi.changed && (
+                          <>
+                            <span className="text-muted-foreground">→</span>
+                            <span className={`px-1.5 py-0.5 rounded ${gi.new_status === "strong" ? "bg-emerald-500/20 text-emerald-300" : gi.new_status === "moderate" ? "bg-yellow-500/20 text-yellow-300" : "bg-red-500/20 text-red-300"}`}>
+                              {gi.new_status}
+                            </span>
+                          </>
+                        )}
+                        <span className="text-muted-foreground ml-2">{gi.signal_count} signal(s) · net evidence: {gi.net_evidence > 0 ? "+" : ""}{gi.net_evidence.toFixed(1)}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {recalcResult.diagnostics.filter(d => d.gate_affected === gi.gate_id).map((diag) => (
+                          <div key={diag.signal_id} className="flex items-start gap-2 text-[11px] text-muted-foreground">
+                            <span className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-400/50 shrink-0" />
+                            <span className="flex-1">{diag.signal_text.length > 100 ? diag.signal_text.slice(0, 100) + "…" : diag.signal_text}</span>
+                            <span className={`shrink-0 ${diag.evidence_weight > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {diag.evidence_weight > 0 ? "+" : ""}{diag.evidence_weight.toFixed(1)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {recalcResult.previous_forecast !== recalcResult.new_forecast && (
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 flex items-center justify-between">
+                      <span className="text-xs font-medium text-cyan-300">Overall Forecast Impact</span>
+                      <span className="text-sm font-semibold">
+                        <span className="text-muted-foreground">{recalcResult.previous_forecast}%</span>
+                        <span className="text-muted-foreground mx-1.5">→</span>
+                        <span className={recalcResult.new_forecast > recalcResult.previous_forecast ? "text-emerald-400" : "text-red-400"}>
+                          {recalcResult.new_forecast}%
+                        </span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end">
             <Link href="/forecast" className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
