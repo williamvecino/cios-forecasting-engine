@@ -53,7 +53,7 @@ export default function HomePage() {
             What do you want to forecast?
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Define a strategic question and get a Bayesian probability assessment with actionable insights.
+            Frame a critical business question and receive a structured forecast with clear decision guidance.
           </p>
 
           <div className="max-w-2xl mx-auto">
