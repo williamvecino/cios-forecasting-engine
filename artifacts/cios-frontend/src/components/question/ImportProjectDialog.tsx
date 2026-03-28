@@ -73,6 +73,12 @@ interface ExtractedQuestion {
   decisionType: string;
 }
 
+interface DetectedEnvironment {
+  context: string;
+  label: string;
+  rationale: string;
+}
+
 interface ImportResult {
   question: ExtractedQuestion;
   signals: ExtractedSignal[];
@@ -80,6 +86,7 @@ interface ImportResult {
   suggestedCaseType?: string;
   confidence?: string;
   summary: string;
+  environment?: DetectedEnvironment;
 }
 
 interface Props {
@@ -339,6 +346,26 @@ export default function ImportProjectDialog({ onImportComplete, onClose, initial
             </div>
           </div>
         </div>
+
+        {result.environment && (() => {
+          const envColors: Record<string, string> = {
+            clinical_adoption: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
+            operational_deployment: "text-amber-400 bg-amber-400/10 border-amber-400/30",
+            regulatory_approval: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+            commercial_launch: "text-violet-400 bg-violet-400/10 border-violet-400/30",
+            technology_implementation: "text-cyan-400 bg-cyan-400/10 border-cyan-400/30",
+          };
+          const cls = envColors[result.environment!.context] || "text-primary bg-primary/10 border-primary/30";
+          return (
+            <div className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${cls}`}>
+              <div className="mt-0.5 w-2 h-2 rounded-full bg-current shrink-0" />
+              <div>
+                <div className="text-xs font-semibold">{result.environment!.label}</div>
+                <div className="text-[11px] opacity-80 mt-0.5">{result.environment!.rationale}</div>
+              </div>
+            </div>
+          );
+        })()}
 
         {result.signals.length > 0 && (
           <div>

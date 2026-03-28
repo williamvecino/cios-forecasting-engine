@@ -1,8 +1,22 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, FileSpreadsheet, FileText, FileJson, AlertTriangle, CheckCircle2, X, ArrowRight, Image, FileType, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, FileText, FileJson, AlertTriangle, CheckCircle2, X, ArrowRight, Image, FileType, Loader2, Crosshair } from "lucide-react";
 import { parseFile, type ImportPreview, type ImportedRow } from "@/lib/data-import";
 
 const API = import.meta.env.VITE_API_URL || "";
+
+interface DetectedEnvironment {
+  context: string;
+  label: string;
+  rationale: string;
+}
+
+const ENV_COLORS: Record<string, string> = {
+  clinical_adoption: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
+  operational_deployment: "text-amber-400 bg-amber-400/10 border-amber-400/30",
+  regulatory_approval: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+  commercial_launch: "text-violet-400 bg-violet-400/10 border-violet-400/30",
+  technology_implementation: "text-cyan-400 bg-cyan-400/10 border-cyan-400/30",
+};
 
 function isImageFile(file: File): boolean {
   return file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
@@ -31,6 +45,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
   const [pasteText, setPasteText] = useState("");
   const [aiSignals, setAiSignals] = useState<ImportedRow[] | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [detectedEnv, setDetectedEnv] = useState<DetectedEnvironment | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleStructuredFile = useCallback(async (file: File) => {
@@ -70,6 +85,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
       });
       if (!resp.ok) throw new Error("Analysis failed");
       const data = await resp.json();
+      if (data.environment) setDetectedEnv(data.environment);
       const signals: ImportedRow[] = (data.signals || []).map((s: any) => ({
         text: s.text || s.signal || "",
         direction: s.direction === "Supports" || s.direction === "positive" ? "positive"
@@ -89,7 +105,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeQuestion]);
 
   const handleFile = useCallback(async (file: File) => {
     setPreview(null);
@@ -115,6 +131,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
       });
       if (!resp.ok) throw new Error("Analysis failed");
       const data = await resp.json();
+      if (data.environment) setDetectedEnv(data.environment);
       const signals: ImportedRow[] = (data.signals || []).map((s: any) => ({
         text: s.text || s.signal || "",
         direction: s.direction === "Supports" || s.direction === "positive" ? "positive"
@@ -134,7 +151,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
     } finally {
       setLoading(false);
     }
-  }, [pasteText]);
+  }, [pasteText, activeQuestion]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -161,6 +178,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
     setAiSignals(null);
     setFileName("");
     setError(null);
+    setDetectedEnv(null);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(null);
   };
@@ -413,6 +431,16 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
                   </div>
                 </div>
               </div>
+
+              {detectedEnv && (
+                <div className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${ENV_COLORS[detectedEnv.context] || "text-slate-400 bg-slate-400/10 border-slate-400/30"}`}>
+                  <Crosshair className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold">{detectedEnv.label}</div>
+                    <div className="text-[11px] opacity-80 mt-0.5">{detectedEnv.rationale}</div>
+                  </div>
+                </div>
+              )}
 
               {imagePreview && (
                 <div className="rounded-xl border border-border bg-muted/5 p-3 flex justify-center">
