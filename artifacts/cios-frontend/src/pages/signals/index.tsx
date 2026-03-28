@@ -53,7 +53,7 @@ import SignalQualityPanel from "@/components/signals/SignalQualityPanel";
 import ConflictResolverPanel from "@/components/signals/ConflictResolverPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
-import { getSignalsForBrand } from "@/lib/workbook/prebuiltSignals";
+import MiosBaosPanel from "@/components/signals/MiosBaosPanel";
 
 function isMiosBaosSignal(s: any): boolean {
   const st = (s.source_type || "").toUpperCase();
@@ -69,11 +69,12 @@ function isMiosBaosSignal(s: any): boolean {
 
 function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): any[] {
   if (!signals || signals.length === 0) return signals;
-  const brandSignalIds = currentSubject ? new Set(getSignalsForBrand(currentSubject).map(s => s.id)) : new Set<string>();
+  if (!currentSubject) return signals.filter((s: any) => !isMiosBaosSignal(s));
+  const brandUpper = currentSubject.toUpperCase().replace(/\s+/g, "_");
   return signals.filter((s: any) => {
     if (!isMiosBaosSignal(s)) return true;
-    if (!currentSubject || brandSignalIds.size === 0) return false;
-    return brandSignalIds.has(s.id);
+    const pid = (s.workbook_meta?.programId || "").toUpperCase();
+    return pid.includes(brandUpper);
   });
 }
 
@@ -488,14 +489,8 @@ export default function SignalsPage() {
 
   const [signals, setSignals] = useState<Signal[]>(() => {
     const persisted = (() => { try { const raw = localStorage.getItem(`cios.signals:${caseKey}`); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return stripNonMatchingBrandSignals(p, subject) as Signal[]; } } catch {} return null; })();
-    const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
-    if (persisted) {
-      const existingIds = new Set(persisted.map((s: Signal) => s.id));
-      const missing = brandSignals.filter(s => !existingIds.has(s.id));
-      if (missing.length > 0) return [...missing, ...persisted];
-      return persisted;
-    }
-    return [...brandSignals, ...fallbackSuggestions];
+    if (persisted) return persisted;
+    return [...fallbackSuggestions];
   });
   const [incomingEvents, setIncomingEvents] = useState<IncomingEvent[]>(fallbackEvents);
   const [aiLoading, setAiLoading] = useState(false);
@@ -542,13 +537,10 @@ export default function SignalsPage() {
       } catch {}
       return null;
     })();
-    const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
     if (persisted && persisted.length > 0) {
-      const existingIds = new Set(persisted.map((s: Signal) => s.id));
-      const missing = brandSignals.filter(s => !existingIds.has(s.id));
-      setSignals(missing.length > 0 ? [...missing, ...persisted] : persisted);
+      setSignals(persisted);
     } else {
-      setSignals([...brandSignals, ...fallbackSuggestions]);
+      setSignals([...fallbackSuggestions]);
     }
     setIncomingEvents(fallbackEvents);
     setAiLoading(false);
@@ -637,10 +629,7 @@ export default function SignalsPage() {
     if (!hasPersistedSignals()) {
       setSignals((prev) => {
         const userSignals = prev.filter((s) => s.source === "user" || s.is_locked);
-        const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
-        const existingIds = new Set(userSignals.map(s => s.id));
-        const newBrand = brandSignals.filter(s => !existingIds.has(s.id));
-        return [...newBrand, ...fallbackSuggestions, ...userSignals];
+        return [...fallbackSuggestions, ...userSignals];
       });
     }
 
@@ -1411,6 +1400,21 @@ export default function SignalsPage() {
               {aiError}
             </div>
           )}
+
+          <MiosBaosPanel
+            brand={subject || ""}
+            question={questionText}
+            onAcceptSignals={(accepted) => {
+              setSignals((prev) => {
+                const filtered = prev.filter((s) => !isMiosBaosSignal(s));
+                const updated = [...accepted as Signal[], ...filtered];
+                persistSignals(updated);
+                accepted.forEach((s) => persistSignalToDb(s as Signal));
+                setTimeout(() => triggerGateRecalculation(updated), 0);
+                return updated;
+              });
+            }}
+          />
 
           <ExternalSignalScoutPanel
             activeQuestion={questionText}

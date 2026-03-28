@@ -51,10 +51,10 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Simulate Adoption Reaction:** Allows testing segment responses to materials.
 - **Extraction Validation Framework:** Ensures minimally viable case generation through graceful degradation.
 - **Assumption Registry (DB-backed):** Automatically extracts and tracks all inferred/explicit assumptions.
-- **MIOS/BAOS Signal Integration:** MIOS provides brand-specific clinical evidence only (trial results with citations, FDA approvals, safety data from PubMed-level sources). BAOS takes MIOS evidence and passes it through cognitive lenses (Status Quo Bias, Loss Aversion, Anchoring, etc.) to identify adoption objections specific to that brand. Neither generates analogs, external searches, or unrelated market signals — those are CIOS-level functions. Signals are loaded only for the matched brand; no cross-brand fallback.
+- **MIOS/BAOS AI Agents:** MIOS (POST /api/agents/mios) is a bounded AI agent that takes brand+question, identifies belief shifts, and finds brand-specific clinical evidence with trial citations (PubMed-style). BAOS (POST /api/agents/baos) takes MIOS evidence + brand + question, identifies HCP cognitive barriers with named cognitive lenses (Status Quo Bias, Loss Aversion, etc.). MiosBaosPanel on signals page runs MIOS → BAOS pipeline sequentially, accepted signals are persisted and trigger gate recalculation. MIOS signals: signal_family="brand_clinical_regulatory", category="evidence", source_type="MIOS". BAOS signals: signal_family="provider_behavioral", category="adoption", source_type="BAOS". No prebuilt hardcoded signals auto-injected; Excel workbook import remains as alternative path.
 - **Decision Gating Agent:** An orchestration agent that reads uploaded documents, identifies the real business decision, filters noise, and routes content to MIOS, BAOS, or CIOS, generating separate recommended questions per system.
 
-## Bounded Agent Architecture (13 agents total)
+## Bounded Agent Architecture (15 agents total)
 All agents follow canonical invariants: bounded (fixed I/O schema), deterministic (temperature=0, seed=42), single-purpose, and optional.
 
 | # | Agent | Endpoint | Frontend Location | Status |
@@ -72,6 +72,8 @@ All agents follow canonical invariants: bounded (fixed I/O schema), deterministi
 | 11 | Prioritization | POST /api/agents/prioritization | Decide | BUILT |
 | 12 | Provenance | buildProvenance() helper | SignalProvenanceDrawer | BUILT |
 | 13 | Core Engine | lib/core-forecast-engine.ts | Judge (frozen) | BUILT |
+| 14 | MIOS | POST /api/agents/mios | Add Information (MiosBaosPanel) | BUILT |
+| 15 | BAOS | POST /api/agents/baos | Add Information (MiosBaosPanel) | BUILT |
 
 **Validation Harness:** 13 core tests (A-M) + 40 cross-domain tests (4 cases × 10 agents) in `agent-validation-harness.ts`. 43 locked unit tests.
 **Cross-Domain Test Cases:** Oncology (anti-PDL1 RFP), Cardiology (beta-blocker combo), MedTech (AI liquid biopsy), Rare Disease (gene therapy), Digital Health (PDT for T2D).

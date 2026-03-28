@@ -46,6 +46,8 @@ import agentSignalQualityRouter from "./agent-signal-quality.js";
 import agentConflictResolverRouter from "./agent-conflict-resolver.js";
 import agentIntegrityRouter from "./agent-integrity.js";
 import agentStakeholderReactionRouter from "./agent-stakeholder-reaction.js";
+import agentMiosRouter from "./agent-mios.js";
+import agentBaosRouter from "./agent-baos.js";
 
 const router: IRouter = Router();
 
@@ -96,5 +98,7 @@ router.use(agentSignalQualityRouter);
 router.use(agentConflictResolverRouter);
 router.use(agentIntegrityRouter);
 router.use(agentStakeholderReactionRouter);
+router.use(agentMiosRouter);
+router.use(agentBaosRouter);
 
 export default router;
