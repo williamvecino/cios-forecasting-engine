@@ -947,6 +947,11 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 questionText: activeQuestion?.text || "",
               });
 
+              try {
+                const cid = activeQuestion?.caseId || "unknown";
+                localStorage.setItem(`cios.judgmentResult:${cid}`, JSON.stringify(judgmentResult));
+              } catch {}
+
               return (
                 <>
                   <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} />

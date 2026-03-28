@@ -39,7 +39,10 @@ import {
   Globe,
   AlertTriangle,
   Lock,
+  Upload,
 } from "lucide-react";
+import DataImportDialog from "@/components/signals/DataImportDialog";
+import type { ImportedRow } from "@/lib/data-import";
 
 type Direction = "positive" | "negative" | "neutral";
 type Strength = "High" | "Medium" | "Low";
@@ -712,6 +715,7 @@ export default function SignalsPage() {
   }, [questionText, fallbackSuggestions]);
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -827,7 +831,7 @@ export default function SignalsPage() {
     if (!caseId) return;
 
     const API = import.meta.env.VITE_API_URL || "";
-    const dbDirection = signal.direction === "negative" ? "Negative" : "Positive";
+    const dbDirection = signal.direction === "negative" ? "Negative" : signal.direction === "neutral" ? "Neutral" : "Positive";
 
     fetch(`${API}/api/cases/${caseId}/signals`, {
       method: "POST",
@@ -992,6 +996,51 @@ export default function SignalsPage() {
     setNewStrength("Medium");
     setNewReliability("Probable");
     setShowAddForm(false);
+  }
+
+  function handleImportedRows(rows: ImportedRow[]) {
+    const newSignals: Signal[] = rows.map((row, i) => {
+      const dir = row.direction || "neutral";
+      const str = row.strength || "Medium";
+      const rel = row.reliability || "Probable";
+      const base = { strength: str as Strength, reliability: rel as Reliability };
+      const cat = (row.category as Category) || inferCategory(row.text);
+      return {
+        id: `import-${Date.now()}-${i}`,
+        text: row.text,
+        caveat: "",
+        direction: dir as Direction,
+        strength: str as Strength,
+        reliability: rel as Reliability,
+        impact: computeImpact(base),
+        category: cat,
+        source: "user" as const,
+        accepted: true,
+        priority_source: "manual_confirmed" as const,
+        is_locked: true,
+        source_url: row.source_url,
+      };
+    });
+
+    const seen = new Set<string>();
+    const intraDeduped = newSignals.filter((s) => {
+      const key = s.text.toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    setSignals((prev) => {
+      const existing = new Set(prev.map((s) => s.text.toLowerCase().trim()));
+      const deduped = intraDeduped.filter((s) => !existing.has(s.text.toLowerCase().trim()));
+      const updated = [...prev, ...deduped];
+      persistSignals(updated);
+      if (deduped.length > 0) {
+        setTimeout(() => triggerGateRecalculation(updated, `Imported ${deduped.length} signals`), 0);
+      }
+      deduped.forEach((sig) => persistSignalToDb(sig));
+      return updated;
+    });
   }
 
   function convertEvent(ev: IncomingEvent) {
@@ -1203,6 +1252,14 @@ export default function SignalsPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setShowImportDialog(true)}
+                className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition"
+              >
+                <Upload className="w-4 h-4" />
+                Import Data
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   try { localStorage.removeItem(`cios.aiRequested:${caseKey}`); } catch {}
                   setForceRefreshAi(prev => prev + 1);
@@ -1388,6 +1445,11 @@ export default function SignalsPage() {
           </div>
         </section>
       </QuestionGate>
+      <DataImportDialog
+        open={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        onImport={handleImportedRows}
+      />
     </WorkflowLayout>
   );
 }

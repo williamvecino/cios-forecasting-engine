@@ -17,7 +17,12 @@ import {
   Link2,
   Eye,
   ArrowRight,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  FileJson,
 } from "lucide-react";
+import { exportToExcel, exportToPDF, exportToJSON } from "@/lib/forecast-export";
 
 interface SegmentGroup {
   segments: string[];
@@ -203,7 +208,12 @@ export default function DecisionPanels() {
         if (!r.ok) throw new Error(`API returned ${r.status}`);
         return r.json();
       })
-      .then((result) => setData(result))
+      .then((result) => {
+        setData(result);
+        try {
+          localStorage.setItem(`cios.decideResult:${caseId}`, JSON.stringify(result));
+        } catch {}
+      })
       .catch((err) => {
         console.error("[CIOS Decide] AI analysis failed:", err);
         setError("Decision analysis unavailable. The analysis will appear once the AI service responds.");
@@ -236,14 +246,43 @@ export default function DecisionPanels() {
                 ? "Decision layer — every barrier, action, and segment is derived from the forecast gates."
                 : "Commercial decision layer — segmentation, barriers, readiness, competitive risk, and growth feasibility."}
             </p>
-            {isForecastDerived && fc && (
-              <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
-                <span>Gates: {fc.gate_count}</span>
-                <span>Weak/Unresolved: {fc.weak_gate_count}</span>
-                {fc.brand_outlook != null && <span>Brand Outlook: {Math.round(fc.brand_outlook * 100)}%</span>}
-                {fc.constrained_probability != null && <span>Forecast: {Math.round(fc.constrained_probability * 100)}%</span>}
+            <div className="mt-3 flex items-center justify-between">
+              {isForecastDerived && fc ? (
+                <div className="flex items-center gap-4 text-xs text-slate-400">
+                  <span>Gates: {fc.gate_count}</span>
+                  <span>Weak/Unresolved: {fc.weak_gate_count}</span>
+                  {fc.brand_outlook != null && <span>Brand Outlook: {Math.round(fc.brand_outlook * 100)}%</span>}
+                  {fc.constrained_probability != null && <span>Forecast: {Math.round(fc.constrained_probability * 100)}%</span>}
+                </div>
+              ) : <div />}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Export</span>
+                <button
+                  onClick={exportToPDF}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition"
+                  title="Export as PDF"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  PDF
+                </button>
+                <button
+                  onClick={exportToExcel}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition"
+                  title="Export as Excel"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  Excel
+                </button>
+                <button
+                  onClick={exportToJSON}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition"
+                  title="Export as JSON"
+                >
+                  <FileJson className="w-3.5 h-3.5" />
+                  JSON
+                </button>
               </div>
-            )}
+            </div>
           </div>
 
           {loading && (
