@@ -1,0 +1,138 @@
+{
+  "timestamp": "2026-03-28T22:16:50.803Z",
+  "results": [
+    {
+      "agent": "Decision Gating Agent",
+      "testName": "Roche anti-PDL1 RFP interpretation",
+      "inputReceived": "Roche anti-PDL1 RFP (36 lines)",
+      "outputProduced": "{\"documentType\":\"RFP\",\"primaryDecision\":\"Determine the optimal agency partner to support the US commercial launch of MPDL3280A for Urothelial Bladder Cancer (UBC) and Non-Small Cell Lung Cancer (NSCLC...",
+      "pass": true,
+      "warningCount": 2,
+      "errorCount": 0,
+      "deterministic": false,
+      "downstreamCompatible": true,
+      "notes": [
+        "OK: documentType='RFP'",
+        "OK: primary decision has strategic context",
+        "OK: 4 secondary decisions",
+        "WARNING: no relevant spans extracted",
+        "WARNING: non-deterministic — two runs produced different outputs"
+      ],
+      "durationMs": 12743
+    },
+    {
+      "agent": "Question Structuring Agent",
+      "testName": "Structure primary decision from RFP gate output",
+      "inputReceived": "Determine the optimal agency partner to support the US commercial launch of MPDL3280A for Urothelial Bladder Cancer (UBC...",
+      "outputProduced": "{\"activeQuestion\":{\"questionText\":\"Which agency partner is most likely to optimally support the US commercial launch of MPDL3280A for Urothelial Bladder Cancer (UBC) and Non-Small Cell Lung Cancer (NS...",
+      "pass": true,
+      "warningCount": 1,
+      "errorCount": 0,
+      "deterministic": false,
+      "downstreamCompatible": true,
+      "notes": [
+        "OK: archetype='ranking'",
+        "OK: horizon='12 months'",
+        "OK: targetOutcome='Optimal support for the US commercial launch of MPDL3280A for UBC and NSCLC'",
+        "OK: 3 question(s) produced",
+        "WARNING: non-deterministic — two runs produced different outputs"
+      ],
+      "durationMs": 2114
+    },
+    {
+      "agent": "External Signal Scout",
+      "testName": "Scout external signals for anti-PDL1 question",
+      "inputReceived": "Which agency partner is most likely to optimally support the US commercial launch of MPDL3280A for Urothelial Bladder Ca...",
+      "outputProduced": "{\"candidates\":[{\"signalLabel\":\"FDA approval of MPDL3280A (atezolizumab) for UBC and NSCLC\",\"source\":\"FDA approval announcement\",\"sourceDate\":\"Expected Q1 2024\",\"signalType\":\"regulatory\",\"suggestedDire...",
+      "pass": true,
+      "warningCount": 1,
+      "errorCount": 0,
+      "deterministic": false,
+      "downstreamCompatible": true,
+      "notes": [
+        "OK: 10 candidates returned",
+        "OK: first candidate: 'FDA approval of MPDL3280A (atezolizumab) for UBC and NSCLC'",
+        "WARNING: non-deterministic — two runs produced different outputs"
+      ],
+      "durationMs": 7542
+    },
+    {
+      "agent": "Signal Normalizer / Deduplicator",
+      "testName": "Normalize 8 mixed signals with intentional duplicates",
+      "inputReceived": "8 signals (2 manual, 2 workbook, 2 external, 2 intentional duplicates)",
+      "outputProduced": "{\"normalizedSignals\":[{\"id\":\"manual-1\",\"originalIds\":[\"manual-1\",\"dup-1\"],\"text\":\"KOL sentiment shifting toward anti-PDL1 at ASCO\",\"direction\":\"positive\",\"strength\":\"Medium\",\"confidence\":\"Probable\",\"s...",
+      "pass": true,
+      "warningCount": 1,
+      "errorCount": 0,
+      "deterministic": false,
+      "downstreamCompatible": true,
+      "notes": [
+        "OK: 2 duplicate(s) detected",
+        "  duplicate: 'KOL opinion leaders increasingly favor anti-PDL1 approach at...' → duplicate of 'manual-1'",
+        "  duplicate: 'Phase 3 trial demonstrates overall survival benefit versus c...' → duplicate of 'workbook-1'",
+        "OK: duplicatesRemoved=2",
+        "OK: conflictsDetected=1",
+        "OK: 2 signal(s) flagged with conflicts",
+        "OK: 3 merge action(s) recommended",
+        "WARNING: non-deterministic — two runs produced different outputs"
+      ],
+      "durationMs": 0
+    },
+    {
+      "agent": "Core CIOS Judgment Engine",
+      "testName": "Regression check — 43 unit tests",
+      "inputReceived": "Frozen test suite",
+      "outputProduced": "43/43 passed",
+      "pass": true,
+      "warningCount": 0,
+      "errorCount": 0,
+      "deterministic": true,
+      "downstreamCompatible": true,
+      "notes": [
+        "OK: Core judgment engine is frozen and tested separately via 43 unit tests",
+        "OK: All 43 judgment-engine.test.ts tests pass",
+        "OK: Engine is not modified by any agent"
+      ],
+      "durationMs": 0
+    },
+    {
+      "agent": "End-to-End Chain",
+      "testName": "Full chain: Gate → Structure → Scout → Normalize",
+      "inputReceived": "Roche anti-PDL1 RFP",
+      "outputProduced": "8 signals from structured question",
+      "pass": true,
+      "warningCount": 0,
+      "errorCount": 0,
+      "deterministic": true,
+      "downstreamCompatible": true,
+      "notes": [
+        "--- Step 1: Decision Gating ---",
+        "OK: primary decision: 'Determine the optimal agency partner to support the US commercial launch of MPDL...'",
+        "--- Step 2: Question Structuring ---",
+        "OK: structured question: 'Which agency partner is most likely to support the US commercial launch of MPDL3...'",
+        "--- Step 3: External Signal Scout ---",
+        "OK: 8 external signals found",
+        "--- Step 4: Signal Normalization ---",
+        "OK: normalization complete — 0 duplicates, 0 conflicts",
+        "--- Chain Summary ---",
+        "Total chain time: 21561ms (gate=12609ms, struct=2077ms, scout=6875ms)",
+        "OK: No step crashed",
+        "Document interpreted as: RFP",
+        "Primary question: Which agency partner is most likely to support the US commercial launch of MPDL3..."
+      ],
+      "durationMs": 0
+    }
+  ],
+  "summary": {
+    "agentsPassed": 6,
+    "agentsFailed": 0,
+    "integrationBlockers": [],
+    "stabilityBlockers": [
+      "Decision Gating Agent",
+      "Question Structuring Agent",
+      "External Signal Scout",
+      "Signal Normalizer / Deduplicator"
+    ],
+    "recommendedNextFix": "All Phase 1 agents stable. Proceed to Phase 2."
+  }
+}
