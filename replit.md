@@ -18,15 +18,56 @@ Every agent in the CIOS system must satisfy four invariants:
 
 Outputs from all agents must be structured and auditable before being consumed by downstream systems.
 
-**Canonical Orchestration Flow:**
-Upload / Brief → Decision Gating Agent → MIOS / BAOS → External Signal Agent → Case Comparator Agent → Simulation Agent → CIOS Judgment → Respond Layer
+**Important rule:** Agents live behind the visible steps, not as extra visible UI. The 6-step workflow stays clean: Define Question → Add Information → Judge → Decide → Respond → Simulate. Agents are modular underneath.
 
-**Agent Registry (build order):**
-1. Decision Gating Agent — reads documents, identifies real business decisions, routes content to MIOS/BAOS/CIOS. **BUILT** (`POST /api/import-project/gate`)
-2. External Signal Agent — finds only external information relevant to the current case. Outputs structured external signals with source, type, relevance, freshness, confidence. **PLANNED**
-3. Case Comparator Agent — compares current case to prior cases, identifies analogs, structures priors and probability updates, explains divergence from known precedents. **PLANNED**
-4. Simulation Agent — simulates likely stakeholder reactions and scenario paths using known behavioral rules. Outputs scenario tree, adoption friction points, catalysts, timing implications. **PLANNED**
-5. Respond Layer — converts decision output into client-ready executive response. **BUILT** (existing Respond step)
+**Full Agent Architecture Map:**
+
+Step 1 — Define Question:
+- Decision Gating Agent — reads briefs/RFPs/PDFs, identifies real business decision, routes to MIOS/BAOS/CIOS, filters noise. **BUILT** (`POST /api/import-project/gate`)
+- Question Structuring Agent — turns broad/messy text into 1-3 clean bounded decision questions, flags overly broad or non-decision inputs. Output: final active question, supporting questions, archetype, horizon, target outcome. **PARTIAL** (existing AI interpret endpoint)
+
+Step 2 — Add Information:
+- MIOS Agent — evidence interpreter. Takes belief bridge inputs, generates sub-bridges/statements, connects to evidence/verbatims, classifies strong/weak/contradictory endpoints, exports decision-relevant signals. **PARTIAL** (MIOS signal integration exists)
+- BAOS Agent — behavioral friction interpreter. Translates evidence/context into behavioral friction, objections, stakeholder resistance, perception risk, adherence issues. Exports forecast-relevant behavioral signals. **PARTIAL** (BAOS signal integration exists)
+- External Signal Scout — searches external relevant information (competitor events, payer changes, guideline shifts, KOL signals). Filters only what matters to active case. Output: structured signals with source, freshness, confidence, relevance. **PLANNED**
+- Signal Normalizer / Deduplicator — merges manual, MIOS, BAOS, workbook, and external signals. Removes duplicates, collapses overlap, detects double-counting, normalizes direction/strength/confidence. Output: clean signal register. **PLANNED**
+- Import Adapter Agent — reads Excel/MIOS-BAOS workbook/imported files, normalizes into signals. Never lets raw structure leak into engine. **BUILT** (existing workbook import)
+- Assumption Registry Agent — detects hidden assumptions, registers explicitly, flags unsupported assumptions, separates facts from inferred conditions. **BUILT** (DB-backed assumption registry exists)
+
+Step 3 — Judge:
+- Core CIOS Judgment Engine — the central decision engine. Takes structured signals/gates, computes weighted judgment, produces forecast/posture/confidence, surfaces drivers/constraints, runs integrity checks. **BUILT** (core-forecast-engine.ts — DO NOT MODIFY)
+- Case Comparator / Prior Structuring Agent — compares current case to prior internal/external cases, finds analogs, structures priors, explains similarity/divergence, supports judgment with precedent. **PLANNED**
+- Explanation Agent / Ask CIOS — answers "why this forecast?", "what if this changes?", "how do I improve this?" with traceable case-grounded answers. **BUILT** (ExplainBox.tsx / explain-service.ts)
+- Constraint Decomposition Agent — breaks vague constraints into ranked concrete drivers, prevents abstraction-only outputs. **BUILT** (constraint decomposition in judgment engine)
+- Integrity / Consistency Agent — detects contradictions between signals, confidence, narrative, and recommendation. Enforces consistency rules. **PARTIAL** (integrity checks in judgment engine)
+
+Step 4 — Decide:
+- Decision Translation Agent — converts forecast into specific choice structure, recommends what to do now, identifies highest-leverage actions, defines kill criteria/falsifiers. **BUILT** (existing Decide step)
+- Prioritization Agent — ranks actions by expected impact, separates strategic vs tactical, ranks barrier-resolution priorities. **PLANNED**
+
+Step 5 — Respond:
+- Response Composer — translates decision into output format (RFP response, strategic recommendation, action plan, executive summary). **BUILT** (existing Respond step)
+- Audience Adaptation Agent — adapts response for CMO, brand team, agency pitch team, medical lead, patient strategy team. **PLANNED**
+
+Step 6 — Simulate:
+- Simulation Agent — simulates stakeholder reactions over time, creates scenario trees, models catalyst/barrier resolution paths, estimates best/base/worst pathways. **PARTIAL** (existing simulate step)
+- Stakeholder Reaction Agent — sub-agent simulating HCP, payer, patient, competitor, KOL reactions using known behavioral rules. **PLANNED**
+
+Cross-system / Diagnostics (not visible steps):
+- Provenance / Traceability Agent — tracks where every signal came from (workbook, MIOS, BAOS, manual, external). **PLANNED**
+- Signal Quality Agent — scores signal reliability, freshness, directness, duplication, bias risk. **PLANNED**
+- Conflict Resolver Agent — detects when MIOS, BAOS, external, manual signals conflict; decides merge/separate/flag. **PLANNED**
+- Forecast Ledger Agent — stores previous forecasts, compares updates over time, measures drift, supports calibration. **PARTIAL** (forecast ledger exists)
+- Calibration Agent — compares forecast vs actual, detects systematic bias, adjusts weights/confidence. **PARTIAL** (calibration system exists)
+- Human Override / Editorial Agent — allows expert correction without breaking structure. **PARTIAL** (manual signal editing exists)
+
+**Build priority order (next agents):**
+1. External Signal Scout (Add Information)
+2. Signal Normalizer / Deduplicator (Add Information)
+3. Case Comparator / Prior Structuring Agent (Judge)
+4. Simulation Agent enhancement (Simulate)
+5. Prioritization Agent (Decide)
+6. Audience Adaptation Agent (Respond)
 
 **Core System Design Principles:**
 - **Bayesian Forecast Engine:** Calculates posterior probabilities considering signal conflict and brand/final gap penalties. It includes a transparent forecast calculation path.
