@@ -47,9 +47,9 @@ Step 4 — Decide:
 
 Step 5 — Respond:
 - Response Composer — translates decision into output format (RFP response, strategic recommendation, action plan, executive summary). **BUILT** (existing Respond step)
-- Audience Adaptation Agent — adapts response for CMO, brand team, agency pitch team, medical lead, patient strategy team. **PLANNED**
 
 Step 6 — Simulate:
+- Actor Segmentation Agent — identifies key market actors/segments that drive adoption and behavior in the current case. Defines their behavioral rules and influence. This is a core behavioral modeling component, not a messaging feature. Must produce for each segment: segment name, role in market, behavioral characteristics, primary constraint, adoption trigger, influence weight, likely adoption timing, sensitivity to key signals, interaction with other actors. Lives primarily in Simulate but also provides structured inputs to Judge. **PLANNED**
 - Simulation Agent — simulates stakeholder reactions over time, creates scenario trees, models catalyst/barrier resolution paths, estimates best/base/worst pathways. **PARTIAL** (existing simulate step)
 - Stakeholder Reaction Agent — sub-agent simulating HCP, payer, patient, competitor, KOL reactions using known behavioral rules. **PLANNED**
 
@@ -65,9 +65,9 @@ Cross-system / Diagnostics (not visible steps):
 1. External Signal Scout (Add Information)
 2. Signal Normalizer / Deduplicator (Add Information)
 3. Case Comparator / Prior Structuring Agent (Judge)
-4. Simulation Agent enhancement (Simulate)
-5. Prioritization Agent (Decide)
-6. Audience Adaptation Agent (Respond)
+4. Actor Segmentation Agent (Simulate + Judge)
+5. Simulation Agent enhancement (Simulate)
+6. Prioritization Agent (Decide)
 
 **Core System Design Principles:**
 - **Bayesian Forecast Engine:** Calculates posterior probabilities considering signal conflict and brand/final gap penalties. It includes a transparent forecast calculation path.
