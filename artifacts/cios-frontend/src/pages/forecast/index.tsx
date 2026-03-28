@@ -936,9 +936,31 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
               const audit = judgmentResult._audit;
 
+              const caseCtxForExplain = {
+                questionText: activeQuestion?.text || "",
+                gates: decomp!.event_gates.map(g => {
+                  const upgradeScenario = gateScenarios.find(s => s.id === `upgrade_${g.gate_id}`);
+                  const downgradeScenario = gateScenarios.find(s => s.id === `regress_${g.gate_id}`);
+                  return {
+                    gateLabel: g.gate_label,
+                    gateStatus: g.status,
+                    upgradedProbability: upgradeScenario ? upgradeScenario.newProbability : null,
+                    downgradedProbability: downgradeScenario ? downgradeScenario.newProbability : null,
+                    baseProbability: finalPct,
+                    delta: upgradeScenario ? upgradeScenario.delta : null,
+                  };
+                }),
+                drivers: drivers.map(d => ({
+                  name: d.name,
+                  direction: d.direction as "Upward" | "Downward",
+                  strength: d.strength,
+                  contributionPoints: d.contributionPoints,
+                })),
+              };
+
               return (
                 <>
-                  <ExplainBox judgment={judgmentResult} />
+                  <ExplainBox judgment={judgmentResult} caseContext={caseCtxForExplain} />
                   <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} />
 
                   <ForecastComparisonCircles
