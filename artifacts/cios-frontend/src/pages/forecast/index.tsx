@@ -1019,38 +1019,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                         ))}
                       </div>
 
-                      {audit.constraintDecomposition && audit.constraintDecomposition.filter(cd => cd.drivers.length > 0).length > 0 && (
-                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-amber-400 mb-2">Constraint Decomposition — Ranked Drivers</div>
-                          <div className="space-y-3">
-                            {audit.constraintDecomposition.filter(cd => cd.drivers.length > 0).map((cd) => (
-                              <div key={cd.gateId}>
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <span className="text-[11px] font-semibold text-slate-200">{cd.gateLabel}</span>
-                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${cd.gateStatus === "strong" ? "bg-green-900/40 text-green-400" : cd.gateStatus === "moderate" ? "bg-amber-900/40 text-amber-400" : "bg-red-900/40 text-red-400"}`}>
-                                    {cd.gateStatus}
-                                  </span>
-                                  {cd.isAbstract && (
-                                    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-blue-900/30 text-blue-400 uppercase">decomposed</span>
-                                  )}
-                                </div>
-                                <div className="space-y-1 ml-2">
-                                  {cd.drivers.map((dr, di) => (
-                                    <div key={di} className="flex items-center gap-2 text-[11px]">
-                                      <span className={`w-14 text-right font-mono text-[10px] ${dr.rank === "High" ? "text-red-400" : dr.rank === "Moderate" ? "text-amber-400" : "text-slate-500"}`}>
-                                        {dr.rank}
-                                      </span>
-                                      <span className="text-slate-300">{dr.name}</span>
-                                      <span className="text-slate-600 text-[9px] ml-auto">{dr.impactScore}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
                         <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Confidence Breakdown</div>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">

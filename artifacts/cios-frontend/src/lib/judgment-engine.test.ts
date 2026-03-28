@@ -511,6 +511,35 @@ describe("NARRATIVE INTEGRITY", () => {
     expect(lowProb.decisionPosture).not.toMatch(/plan for this outcome.*shift resources/i);
   });
 
+  it("primaryConstraints includes non-strong gates with top 1-3 drivers and lever text", () => {
+    const result = run({
+      brandOutlookPct: 70,
+      finalForecastPct: 40,
+      executionGapPts: 30,
+      gates: [gate("Operational Readiness", "weak", 0.35), gate("Payer Access", "moderate", 0.55), gate("Clinical Evidence", "strong", 0.85)],
+    });
+    expect(result.primaryConstraints.length).toBe(2);
+    const opReady = result.primaryConstraints.find(c => c.label === "Operational Readiness");
+    expect(opReady).toBeDefined();
+    expect(opReady!.status).toBe("weak");
+    expect(opReady!.drivers.length).toBeGreaterThan(0);
+    expect(opReady!.drivers.length).toBeLessThanOrEqual(3);
+    expect(opReady!.lever).toMatch(/Resolving .+ could raise the outlook from \d+% to ~\d+%/);
+    for (const d of opReady!.drivers) {
+      expect(d.name).toBeTypeOf("string");
+      expect(["High", "Moderate", "Low"]).toContain(d.rank);
+    }
+    const clinical = result.primaryConstraints.find(c => c.label === "Clinical Evidence");
+    expect(clinical).toBeUndefined();
+  });
+
+  it("primaryConstraints is empty when all gates are strong", () => {
+    const result = run({
+      gates: [gate("Clinical Evidence", "strong", 0.85), gate("Guideline Endorsement", "strong", 0.80)],
+    });
+    expect(result.primaryConstraints.length).toBe(0);
+  });
+
   it("Reasoning includes specific driver names when abstract constraints are present", () => {
     const result = run({
       brandOutlookPct: 70,

@@ -13,7 +13,7 @@ import {
   Lightbulb,
   TrendingUp,
 } from "lucide-react";
-import type { ExecutiveJudgmentResult } from "@/lib/judgment-engine";
+import type { ExecutiveJudgmentResult, PrimaryConstraint } from "@/lib/judgment-engine";
 
 interface ExecutiveJudgmentProps {
   judgment: ExecutiveJudgmentResult;
@@ -152,16 +152,55 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Why This Is the Current Outlook</h3>
         </div>
         <p className="text-sm text-slate-200 leading-relaxed pl-5">{judgment.reasoning}</p>
-        {judgment.keyDrivers.length > 0 && (
-          <div className="flex flex-wrap gap-2 pl-5 pt-1">
-            {judgment.keyDrivers.map((driver, i) => (
-              <span key={i} className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-1 text-[11px] text-slate-300 font-medium">
-                {driver}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
+
+      {judgment.primaryConstraints.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <h3 className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">What Is Holding This Back</h3>
+          </div>
+          {judgment.primaryConstraints.map((constraint, ci) => (
+            <div key={ci} className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.03] p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white">{constraint.label}</span>
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                  constraint.status === "weak" ? "bg-red-900/40 text-red-400" :
+                  constraint.status === "unresolved" ? "bg-orange-900/40 text-orange-400" :
+                  "bg-amber-900/40 text-amber-400"
+                }`}>
+                  {constraint.status}
+                </span>
+              </div>
+
+              {constraint.drivers.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Primary drivers</div>
+                  <div className="space-y-1.5">
+                    {constraint.drivers.map((dr, di) => (
+                      <div key={di} className="flex items-center gap-3">
+                        <span className={`text-xs font-semibold w-20 text-right ${
+                          dr.rank === "High" ? "text-red-400" :
+                          dr.rank === "Moderate" ? "text-amber-400" :
+                          "text-slate-500"
+                        }`}>
+                          {dr.rank} impact
+                        </span>
+                        <span className="text-sm text-slate-200">{dr.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-xl bg-indigo-500/8 border border-indigo-500/15 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wider text-indigo-400 mb-0.5">Most effective lever</div>
+                <p className="text-xs text-slate-200 leading-relaxed">{constraint.lever}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {judgment.uncertaintyType !== "well_resolved" && (
         <div className="space-y-1.5">

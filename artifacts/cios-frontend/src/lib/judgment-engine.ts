@@ -1,4 +1,4 @@
-import { decomposeConstraints, enforceDecomposition } from "./constraint-drivers";
+import { decomposeConstraints, enforceDecomposition, type ConstraintDecomposition } from "./constraint-drivers";
 
 interface EventGate {
   gate_id: string;
@@ -138,12 +138,26 @@ export interface JudgmentAudit {
   constraintDecomposition: ConstraintDecompositionAudit[];
 }
 
+export interface PrimaryConstraintDriver {
+  name: string;
+  rank: "High" | "Moderate" | "Low";
+  impactScore: number;
+}
+
+export interface PrimaryConstraint {
+  label: string;
+  status: string;
+  drivers: PrimaryConstraintDriver[];
+  lever: string;
+}
+
 export interface ExecutiveJudgmentResult {
   mostLikelyOutcome: string;
   probability: number;
   confidence: ConfidenceLevel;
   reasoning: string;
   keyDrivers: string[];
+  primaryConstraints: PrimaryConstraint[];
   analogPattern: AnalogPatternSummary | null;
   reversalTriggers: ReversalTrigger[];
   convergenceNote: string | null;
@@ -373,7 +387,7 @@ function buildReasoningWithDrivers(
   brandPct: number,
   finalPct: number,
   analogContext: AnalogContext | null,
-  decompositions: import("./constraint-drivers").ConstraintDecomposition[]
+  decompositions: ConstraintDecomposition[]
 ): string {
   const weakGates = gates.filter(g => g.status === "weak" || g.status === "unresolved");
   const strongGateNames = gates.filter(g => g.status === "strong").map(g => g.gate_label);
@@ -557,6 +571,40 @@ function buildMonitorList(
   return items.slice(0, 4);
 }
 
+function buildPrimaryConstraints(
+  constraintDecompositions: ConstraintDecomposition[],
+  finalPct: number,
+  brandOutlookPct: number
+): PrimaryConstraint[] {
+  const nonStrong = constraintDecompositions.filter(cd => cd.gateStatus !== "strong");
+  if (nonStrong.length === 0) return [];
+
+  return nonStrong.map(cd => {
+    const topDrivers = cd.drivers.slice(0, 3).map(d => ({
+      name: d.name,
+      rank: d.rank,
+      impactScore: d.impactScore,
+    }));
+
+    let lever: string;
+    const topDriver = cd.drivers[0];
+    if (topDriver) {
+      const upliftEstimate = cd.gateStatus === "weak" ? 15 : cd.gateStatus === "unresolved" ? 12 : 8;
+      const projectedPct = Math.min(brandOutlookPct, finalPct + upliftEstimate);
+      lever = `Resolving ${topDriver.name.toLowerCase()} could raise the outlook from ${finalPct}% to ~${projectedPct}%.`;
+    } else {
+      lever = `Resolving this constraint would improve the outlook.`;
+    }
+
+    return {
+      label: cd.gateLabel,
+      status: cd.gateStatus,
+      drivers: topDrivers,
+      lever,
+    };
+  });
+}
+
 function buildNextBestQuestion(
   gates: EventGate[],
   drivers: Driver[]
@@ -713,6 +761,8 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
   const monitorList = buildMonitorList(correctedGates, drivers, reversalTriggers);
   const nextBestQuestion = buildNextBestQuestion(correctedGates, drivers);
 
+  const primaryConstraints = buildPrimaryConstraints(constraintDecompositions, adjustedFinalPct, brandOutlookPct);
+
   const constraintDecompositionAudit = constraintDecompositions.map(cd => ({
     gateId: cd.gateId,
     gateLabel: cd.gateLabel,
@@ -748,6 +798,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     confidence: adjustedConfidence,
     reasoning,
     keyDrivers,
+    primaryConstraints,
     analogPattern,
     reversalTriggers,
     convergenceNote,
