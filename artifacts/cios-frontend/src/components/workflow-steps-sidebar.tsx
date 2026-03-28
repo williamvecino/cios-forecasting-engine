@@ -5,7 +5,7 @@ import type { WorkflowStep } from "../lib/workflow";
 const STEPS = [
   { key: "question", label: "Define Question", path: "/question" },
   { key: "signals", label: "Add Information", path: "/signals" },
-  { key: "forecast", label: "See Forecast", path: "/forecast" },
+  { key: "forecast", label: "Judge", path: "/forecast" },
   { key: "decide", label: "Decide", path: "/decide" },
 ] as const;
 

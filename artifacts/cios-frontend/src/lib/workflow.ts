@@ -39,16 +39,16 @@ export function getWorkflowSteps(): {
     },
     {
       key: "forecast",
-      label: "3 — See Forecast",
-      title: "See Forecast",
-      description: "Review the probability, drivers, and forecast state.",
+      label: "3 — Judge",
+      title: "Judge",
+      description: "Review the executive judgment, probability, and what drives the call.",
       path: "/forecast",
     },
     {
       key: "decide",
       label: "4 — Decide",
       title: "Decide",
-      description: "Turn the forecast into action.",
+      description: "Turn the judgment into action.",
       path: "/decide",
     },
   ];

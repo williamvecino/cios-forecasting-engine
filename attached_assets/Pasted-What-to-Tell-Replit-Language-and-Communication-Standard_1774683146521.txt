@@ -1,0 +1,197 @@
+What to Tell Replit — Language and Communication Standard
+
+From now on, all user-facing outputs in CIOS must use clear, direct, executive language.
+The system should communicate like a senior pharmaceutical leader explaining a situation to a team — not like a statistician, data scientist, or technical model.
+
+Avoid mathematical or technical wording unless explicitly requested in advanced detail mode.
+
+The goal is clarity, judgment, and action — not explanation of calculations.
+
+The Communication Model the System Must Follow
+
+Every output should answer four questions immediately:
+
+What is most likely?
+Why do we think that?
+What should we do now?
+What would change the situation?
+
+If the output does not clearly answer those four questions, it is incomplete.
+
+Replace Technical Language with Executive Language
+
+Tell Replit to enforce these substitutions.
+
+Do not say:
+
+Probability cap
+Constraint hierarchy
+Likelihood ratio
+Signal weighting
+Posterior probability
+Model uncertainty
+Driver interactions
+Bayesian update
+
+Say instead:
+
+What is limiting progress
+What is holding this back
+How strongly this factor matters
+What evidence supports this
+How confident we are
+What is driving the outcome
+How the situation is evolving
+
+The Required Structure of Every Decision Output
+
+Every case must produce a short, readable executive summary in this exact order.
+
+Executive Judgment
+
+Most likely outcome
+[clear statement]
+
+Confidence
+[High / Moderate / Low]
+
+Why this is the current outlook
+
+Key reason
+Key reason
+Key reason
+
+What this means for planning
+[action-oriented guidance]
+
+What to watch next
+[specific signals that could change the outlook]
+
+Example — Current Case (How It Should Read)
+
+Most likely outcome
+A 2026 launch is unlikely. A delay into 2027 is more probable.
+
+Confidence
+Moderate
+
+Why this is the current outlook
+
+No evidence that manufacturing validation has been completed
+No confirmed readiness signals from regulators or production facilities
+Similar sterile injectable launches typically show visible readiness milestones 12–18 months before launch
+
+What this means for planning
+Do not base 2026 commercial plans on this launch timing. Prepare contingency planning for a later entry.
+
+What to watch next
+
+Completion of validation batches
+Regulatory inspection scheduling
+Public confirmation of manufacturing readiness
+
+That is the tone.
+
+Short. Direct. Decisive.
+
+Tone Rules the System Must Follow
+
+Tell Replit to implement these as defaults.
+
+Use:
+
+Short sentences
+Plain language
+Direct statements
+Active voice
+Action-oriented wording
+Specific signals
+
+Avoid:
+
+Formulas
+Math terminology
+Jargon
+Long explanations
+Hedging language
+Academic tone
+Model descriptions
+
+The System Must Sound Like an Executive, Not an Analyst
+
+Correct tone:
+
+We see no readiness signals yet.
+Historically, that pattern leads to delays.
+Plan for a later launch unless new evidence emerges.
+
+Incorrect tone:
+
+The forecast reflects unresolved constraints across operational readiness domains, resulting in a capped probability ceiling.
+
+Confidence Language Standard
+
+Confidence should always be expressed in words, not numbers.
+
+Allowed:
+
+High
+Moderate
+Low
+
+Optional clarification:
+
+High — strong and consistent signals
+Moderate — mixed or incomplete signals
+Low — limited or conflicting evidence
+
+The System Should Use Judgment Words
+
+Encourage language like:
+
+More likely
+Less likely
+Unlikely
+Plausible
+Early signs
+No evidence yet
+Signals are emerging
+Risk is increasing
+Momentum is slowing
+Situation remains uncertain
+
+These sound like real decision-making.
+
+UI Rule — Always Lead With the Answer
+
+The first line on the screen should always be:
+
+Most likely outcome
+
+Not:
+
+Probability
+Score
+Constraint
+Analysis
+
+Executives read conclusions first.
+
+Fallback Rule — When Evidence Is Thin
+
+The system should never say:
+
+We do not know
+
+Instead say:
+
+There is not enough evidence yet to support a confident decision.
+Based on current signals, delay remains the safer assumption.
+
+That preserves authority.
+
+The One-Line Instruction to Give Replit
+
+Use this exactly.
+
+All user-facing language in CIOS must be written in clear, direct executive terms. Avoid mathematical, statistical, or technical wording. Every output should state what is most likely, why we believe it, what it means for planning, and what to watch next. The system should sound like a senior pharmaceutical leader making a decision, not a model explaining calculations.

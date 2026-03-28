@@ -171,7 +171,7 @@ export const MOCK_CASE_STEPS: MockCaseStep[] = [
   },
   {
     key: "forecast",
-    label: "3 — See Forecast",
+    label: "3 — Judge",
     title: "Convert the signal picture into a forecast",
     description:
       "The system estimates what is likely to happen, why, and on what time scale.",

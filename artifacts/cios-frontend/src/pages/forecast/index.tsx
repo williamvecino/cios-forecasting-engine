@@ -108,14 +108,14 @@ export default function ForecastPage() {
         <section className="space-y-6">
           <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-              Step 3
+              Judge
             </div>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-              What is likely to happen?
+              What is the most likely outcome?
             </h1>
             <p className="mt-2 max-w-3xl text-base text-slate-300">
-              Review the forecast, see what is driving movement, understand which stakeholders
-              are likely to adopt first, and identify what would change the trajectory.
+              Review the executive judgment, understand what is driving the call,
+              see the closest historical analog, and identify what would change this outcome.
             </p>
 
             <div className="mt-5 border-b border-white/10">
@@ -944,7 +944,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 gates: decomp!.event_gates,
                 drivers,
                 analogContext: analogContext ?? null,
-                questionText: activeQuestion?.questionText || "",
+                questionText: activeQuestion?.text || "",
               });
 
               return (

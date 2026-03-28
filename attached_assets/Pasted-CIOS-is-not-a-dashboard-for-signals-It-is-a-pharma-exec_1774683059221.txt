@@ -1,0 +1,276 @@
+CIOS is not a dashboard for signals. It is a pharma executive decision tool. From this point forward, all development should optimize for one purpose: helping a senior decision-maker make a better call faster. Every feature, UI element, workflow, and backend module should be evaluated by one question: does this improve executive judgment, or is it just displaying information?
+
+Then give these operating rules.
+
+1) Product identity rule
+
+CIOS is a judgment engine for pharma strategy, not a research viewer, signal repository, or analytics dashboard.
+
+It should behave like:
+
+pharma executive in your pocket
+structured strategic judgment assistant
+decision support system for uncertain, high-stakes commercial and medical questions
+
+It should not behave like:
+
+generic BI tool
+passive scorecard
+signal scrapbook
+reporting interface
+2) Core output rule
+
+Every workflow must end in a decision-grade answer.
+
+That means every completed case must produce:
+
+Most likely outcome
+Probability
+Confidence
+Why that outcome is most likely
+What evidence most drove the call
+What would overturn the call
+Recommended decision posture
+
+Add that last line too:
+
+Recommended decision posture
+Examples:
+
+Plan for delay
+Prepare upside scenario but do not commit resources yet
+Monitor one milestone before acting
+Prioritize segment A first
+Treat this as low-probability / high-upside
+Do not base the plan on this scenario yet
+
+That makes it executive.
+
+3) Development filter rule
+
+For all future development, features should be prioritized in this order:
+
+Improves judgment quality
+Improves decision clarity
+Improves uncertainty interpretation
+Improves speed to a usable call
+Improves auditability / defensibility
+Improves signal intake efficiency
+Improves UI polish
+
+This means if a feature is visually interesting but does not improve judgment, it is secondary.
+
+4) Question architecture rule
+
+Every case must begin by classifying the question into an executive decision type.
+
+Required decision types:
+
+timing
+adoption level
+share movement
+payer access
+guideline inclusion
+competitive threat
+segmentation / who adopts first
+account expansion
+launch readiness
+scenario comparison
+priority ranking
+
+The UI should not just ask “what are you trying to predict?”
+It should infer and display:
+
+decision type
+event or outcome
+horizon
+outcome options
+what resolution means
+
+That makes the whole system more reliable.
+
+5) Outcome-set rule
+
+Every case must define explicit possible outcomes before forecasting.
+
+Examples:
+
+Launch by 2026 / launch in 2027 / later
+Low / moderate / high adoption
+Included / deferred / rejected
+Academic-first / community-first / mixed uptake
+Gain share / hold share / lose share
+
+The judgment layer can only work well if the system knows what outcomes it is choosing among.
+
+6) Analog rule
+
+CIOS must increasingly reason like an operator using precedent.
+
+So tell Replit:
+
+Build the system to use historical analogs as a standard input to judgment. Every important case should eventually be compared to similar prior launches, access events, adoption curves, market entries, or competitive shifts. The purpose is not to copy the past mechanically, but to use precedent to discipline judgment.
+
+That means future architecture should assume:
+
+case library is strategic infrastructure
+analog matching is not optional
+every resolved case becomes future training material
+7) Recommendation rule
+
+Do not stop at forecast. Add a recommendation layer.
+
+Every case should end with:
+
+executive judgment
+decision posture
+monitor list
+next-best question
+
+Example:
+
+Judgment: delay more likely than 2026 launch
+Decision posture: do not base 2026 planning on launch
+Monitor list: validation batch, inspection, capacity allocation
+Next-best question: which manufacturing milestone would most change the timing outlook?
+
+That turns output into action.
+
+8) Uncertainty rule
+
+The system must distinguish between:
+
+true uncertainty
+lack of evidence
+conflicting evidence
+weak evidence
+gating barriers
+
+These are not the same thing.
+
+The judgment layer should explicitly say which one is driving uncertainty.
+
+Example:
+
+uncertainty is high because evidence is missing
+uncertainty is moderate because signals conflict
+confidence is high despite incomplete data because analog pattern is strong
+
+That is executive-grade interpretation.
+
+9) UI principle rule
+
+The UI should always be organized around the executive flow:
+
+Ask → Add Information → Judge → Decide
+
+Not:
+
+enter data
+inspect charts
+browse modules
+
+So Step 3 should become Judge, not just Forecast.
+
+And Step 4 should become Decide, not generic analysis.
+
+Suggested Step 3 structure:
+
+Executive Judgment
+Most likely outcome
+Why
+Analog pattern
+What would change the call
+Supporting charts below
+
+Charts should support judgment, not replace it.
+
+10) Language rule
+
+All user-facing language should sound like an executive strategic system.
+
+Prefer:
+
+Most likely outcome
+What is driving the call
+Decision posture
+What would change this
+Closest analog pattern
+Confidence in this judgment
+
+Avoid excessive internal language like:
+
+gate-constrained
+probability cap
+driver hierarchy
+unless nested in expandable technical detail
+
+The default surface layer should be decision language, not engine language.
+
+11) Persistence rule
+
+Every resolved case should feed the future system.
+
+Tell Replit:
+
+Design all new modules so resolved forecasts, outcomes, signal histories, and key drivers become reusable case memory. CIOS should improve over time by accumulating a structured case library, not by treating each case as isolated.
+
+This matters for:
+
+analog matching
+calibration
+executive trust
+institutional memory
+12) Calibration rule
+
+The system should not just make calls. It should learn whether its calls were right.
+
+So development must preserve:
+
+original judgment
+original probability
+original reasoning
+final real-world resolution
+what signals mattered most
+whether reversal triggers occurred
+
+That turns CIOS into a true strategic intelligence system.
+
+13) Pharma-specific rule
+
+Since this is “pharma executive in your pocket,” every future design should assume common executive use cases such as:
+
+launch timing
+competitive entry risk
+who adopts first
+payer friction
+guideline timing
+field deployment priorities
+account targeting
+message / evidence vulnerability
+access bottlenecks
+scenario planning under uncertainty
+
+That means UI defaults, case templates, analogs, and outputs should prioritize pharma decision patterns, not generic forecasting.
+
+14) Design rejection rule
+
+Tell Replit to actively avoid features that:
+
+add cognitive clutter
+force the user to interpret the engine manually
+expose too much scaffolding before giving a call
+require the user to do the final synthesis
+optimize for “interesting” instead of “decision-useful”
+
+The system should synthesize, not make the executive synthesize.
+
+15) Canonical build rule
+
+Use this exact instruction:
+
+From now on, treat CIOS as a pharma executive judgment system. Preserve the core forecasting engine, but ensure all new development is organized around producing decision-grade judgments, recommended action posture, analog-based reasoning, and learning over time from resolved cases. The UI, workflow, and architecture should prioritize executive decision usefulness over descriptive analytics. Every major screen should answer: what is most likely, why, what should I do, and what would change the call?
+
+Then add this final line:
+
+Any feature that does not improve judgment, decision clarity, calibration, or executive usability should be deprioritized.
