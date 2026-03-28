@@ -22,13 +22,18 @@ async function extractTextFromFile(
     mimeType === "application/pdf" ||
     fileName.toLowerCase().endsWith(".pdf")
   ) {
+    let parser: any = null;
     try {
-      const pdfModule = await import("pdf-parse");
-      const pdfParse = typeof pdfModule.default === "function" ? pdfModule.default : pdfModule;
-      const result = await pdfParse(buffer);
-      return result.text.slice(0, 15000);
+      const { PDFParse } = await import("pdf-parse");
+      parser = new PDFParse({ data: buffer });
+      await parser.load();
+      const textResult = await parser.getText();
+      const text = (textResult.text || "").slice(0, 15000);
+      try { await parser.destroy(); } catch (cleanupErr) { console.error("PDF parser cleanup error (non-fatal):", cleanupErr); }
+      return text;
     } catch (e) {
       console.error("PDF parse failed:", e);
+      try { if (parser) await parser.destroy(); } catch (_) {}
       return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000);
     }
   }

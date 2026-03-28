@@ -67,4 +67,4 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Drizzle ORM:** Object-Relational Mapper.
 - **OpenAPI 3.1 & orval:** API specification and code generation.
 - **OpenAI (via Replit AI Integrations):** For AI signal generation, market intelligence research, and project material analysis.
-- **pdf-parse, mammoth, jszip:** Backend document text extraction.
+- **pdf-parse (v2.4.5), mammoth, jszip:** Backend document text extraction. Note: pdf-parse v2 uses a class-based API (`new PDFParse({ data: buffer })` → `load()` → `getText()` → `destroy()`), not the v1 callback API.

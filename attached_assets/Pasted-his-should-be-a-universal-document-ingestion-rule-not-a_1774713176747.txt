@@ -1,0 +1,98 @@
+his should be a universal document ingestion rule, not a PDF feature.
+
+The standard it needs to meet
+
+If a human can reasonably read the material, CIOS should be able to extract from it.
+
+That includes:
+
+PDF
+PPT / PPTX
+DOC / DOCX
+JPG / PNG
+screenshots
+pasted email text
+mixed bundles of files
+The real requirement
+
+The system should not care about file type first.
+It should care about:
+
+Can usable content be recovered?
+
+So ingestion needs to work in layers:
+
+1. Content recovery
+
+Extract text and visible meaning from:
+
+native text
+slide text
+image text
+screenshots
+tables
+charts with labels
+2. Domain recognition
+
+Figure out what kind of material it is:
+
+RFP
+launch plan
+medical strategy
+clinical document
+competitive deck
+operations issue
+market research
+3. Decision extraction
+
+Infer:
+
+likely decision question
+likely case type
+likely stakeholders
+4. Signal extraction
+
+Pull:
+
+explicit signals
+inferred signals
+missing signals to investigate
+5. Confidence scoring
+
+Return:
+
+high confidence
+moderate confidence
+low confidence
+
+But never dead-end.
+
+The non-negotiable rule
+
+No file type should be treated as unsupported if the content is visually readable.
+
+That means screenshots and images are not edge cases.
+They are normal inputs.
+
+What to tell Replit
+
+Use this:
+
+CIOS ingestion must be universal across human-readable formats, including PDF, PPT/PPTX, DOC/DOCX, JPG, PNG, screenshots, pasted text, and mixed file bundles. The system should first recover content from the material, then classify the domain, extract the likely decision question, generate candidate signals, and identify missing signals. File type should never determine success or failure by itself. If a human can read the content, the system should produce at least a low-confidence draft case rather than failing.
+
+The key design principle
+
+Graceful degradation across all formats.
+
+Best case:
+high-confidence extraction
+
+Worst acceptable case:
+low-confidence draft question + draft signals
+
+Unacceptable case:
+“could not extract enough content” and stop
+
+The practical implication
+
+You need one unified ingestion standard for all formats, with file-type-specific parsers underneath.

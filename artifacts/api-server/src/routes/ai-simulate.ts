@@ -44,10 +44,16 @@ async function extractTextFromFile(base64: string, mimeType: string, fileName: s
 
   if (mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
     try {
-      const pdfParse = (await import("pdf-parse")).default;
-      const result = await pdfParse(buffer);
-      return result.text.slice(0, 15000);
-    } catch { return "[PDF extraction failed]"; }
+      const { PDFParse } = await import("pdf-parse");
+      const parser = new PDFParse({ data: buffer });
+      await parser.load();
+      const textResult = await parser.getText();
+      const text = (textResult.text || "").slice(0, 15000);
+      try { await parser.destroy(); } catch (cleanupErr) { console.error("PDF parser cleanup error (non-fatal):", cleanupErr); }
+      return text;
+    } catch {
+      return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000) || "[PDF extraction failed]";
+    }
   }
 
   if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" || fileName.toLowerCase().endsWith(".pptx")) {
