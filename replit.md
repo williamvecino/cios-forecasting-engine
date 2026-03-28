@@ -36,7 +36,9 @@ The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built
 - **AI-Powered Signal Generation:** Generates `observed`, `derived`, or `uncertainty` signals with translation fields and `question_relevance_note`, informed by brand development checks and real-time web research using GPT-4o.
 - **Event Decomposition Layer:** AI decomposes questions into 3-6 "event gates," each with a `status` and `constrains_probability_to`, influencing the `constrained_probability`.
 - **Engine Guardrails:** Critical pre- and post-processing steps including driver deduplication, max single-driver shift caps, total shift normalization, event gating constraints, relevance penalties, recalculation consistency, and input validation.
-- **Signal Persistence Flow:** Accepted signals are saved to the database with `human` origin and `active` status.
+- **Signal Persistence Flow:** Accepted signals are saved to the database with `human` origin and `active` status. Signals are also persisted to `localStorage` (`cios.signals:${caseId}`) on every accept/dismiss/edit/add/AI-receive, surviving navigation between steps. AI regeneration is tracked via `cios.aiRequested:${caseId}` with an explicit "Refresh AI Signals" button for manual re-triggering.
+- **Signal Priority & Locking:** Signals carry `priority_source` (manual_confirmed > observed_verified > ai_derived > ai_uncertainty) and `is_locked` fields. Manual/user signals are locked by default, surviving AI regeneration. Priority boosts evidence weight in gate calculations (1.5x for manual, 1.25x for verified).
+- **Signal Conflict Detection:** Opposing-direction signals on the same category are flagged with conflict indicators. Higher-priority sources win in conflict resolution.
 - **Driver Impact Distribution:** Total probability shift is proportionally distributed across signals using the largest-remainder method.
 - **Forecast Meaning Panel:** Provides plain-language interpretations, identifies primary constraints, and suggests actions to change forecasts.
 - **Gate-Driven Scenario Planning:** Allows deterministic counterfactual forecasts by modifying gate states without AI involvement.

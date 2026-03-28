@@ -18,6 +18,8 @@ interface SignalInput {
   category: string;
   signal_family?: string;
   accepted: boolean;
+  priority_source?: "manual_confirmed" | "observed_verified" | "ai_derived" | "ai_uncertainty";
+  is_locked?: boolean;
 }
 
 export interface SignalGateMapping {
@@ -141,6 +143,20 @@ export function createSignalGateMapping(signal: SignalInput, gate: EventGate): S
   const rawWeight = (STRENGTH_WEIGHT[signal.strength] || 2) * (RELIABILITY_WEIGHT[signal.reliability] || 2);
   const confidence = signal.reliability === "Confirmed" ? "High" : signal.reliability === "Probable" ? "Medium" : "Low";
   const directionMultiplier = signal.direction === "negative" ? -1 : signal.direction === "neutral" ? 0 : 1;
+  let evidenceWeight = rawWeight * directionMultiplier;
+
+  if (signal.direction === "positive" && evidenceWeight < 0) {
+    evidenceWeight = Math.abs(evidenceWeight);
+  }
+  if (signal.direction === "negative" && evidenceWeight > 0) {
+    evidenceWeight = -Math.abs(evidenceWeight);
+  }
+
+  const priorityBoost = signal.priority_source === "manual_confirmed" ? 1.5
+    : signal.priority_source === "observed_verified" ? 1.25
+    : 1;
+
+  evidenceWeight = evidenceWeight * priorityBoost;
 
   return {
     signal_id: signal.id,
@@ -150,7 +166,7 @@ export function createSignalGateMapping(signal: SignalInput, gate: EventGate): S
     direction: signal.direction,
     strength: signal.strength,
     confidence,
-    evidence_weight: rawWeight * directionMultiplier,
+    evidence_weight: evidenceWeight,
     signal_type: signal.category,
   };
 }

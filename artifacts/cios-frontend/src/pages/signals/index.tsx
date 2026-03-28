@@ -38,6 +38,7 @@ import {
   ExternalLink,
   Globe,
   AlertTriangle,
+  Lock,
 } from "lucide-react";
 
 type Direction = "positive" | "negative" | "neutral";
@@ -88,6 +89,15 @@ interface EventDecomposition {
 type LineOfTherapyApplicability = "current_label" | "future_label" | "uncertain";
 type TimeHorizonApplicability = "yes" | "partial" | "unlikely";
 
+type PrioritySource = "manual_confirmed" | "observed_verified" | "ai_derived" | "ai_uncertainty";
+
+const PRIORITY_RANK: Record<PrioritySource, number> = {
+  manual_confirmed: 4,
+  observed_verified: 3,
+  ai_derived: 2,
+  ai_uncertainty: 1,
+};
+
 interface Signal {
   id: string;
   text: string;
@@ -111,6 +121,9 @@ interface Signal {
   applies_within_time_horizon?: TimeHorizonApplicability;
   translation_confidence?: TranslationConfidence;
   question_relevance_note?: string;
+  priority_source?: PrioritySource;
+  is_locked?: boolean;
+  conflict_with?: string;
 }
 
 interface IncomingEvent {
@@ -373,21 +386,61 @@ export default function SignalsPage() {
     [questionCtx]
   );
 
-  const [signals, setSignals] = useState<Signal[]>(fallbackSuggestions);
+  const caseKey = activeQuestion?.caseId || "unknown";
+
+  const loadPersistedSignals = useCallback((): Signal[] | null => {
+    try {
+      const raw = localStorage.getItem(`cios.signals:${caseKey}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return null;
+  }, [caseKey]);
+
+  const persistSignals = useCallback((sigs: Signal[]) => {
+    try {
+      const serializable = sigs.map(({ ...s }) => s);
+      localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(serializable));
+    } catch {}
+  }, [caseKey]);
+
+  const [signals, setSignals] = useState<Signal[]>(() => {
+    const persisted = (() => { try { const raw = localStorage.getItem(`cios.signals:${caseKey}`); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; } } catch {} return null; })();
+    return persisted || fallbackSuggestions;
+  });
   const [incomingEvents, setIncomingEvents] = useState<IncomingEvent[]>(fallbackEvents);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
   const [translationSummary, setTranslationSummary] = useState<string | null>(null);
-  const [eventGates, setEventGates] = useState<EventGate[] | null>(null);
-  const [baseGates, setBaseGates] = useState<EventGate[] | null>(null);
-  const [brandOutlook, setBrandOutlook] = useState<number>(0.5);
+  const [eventGates, setEventGates] = useState<EventGate[] | null>(() => {
+    try {
+      const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
+      if (raw) { const p = JSON.parse(raw); if (p?.event_gates) return p.event_gates; }
+    } catch {}
+    return null;
+  });
+  const [baseGates, setBaseGates] = useState<EventGate[] | null>(() => {
+    try {
+      const raw = localStorage.getItem(`cios.baseGates:${caseKey}`);
+      if (raw) { const p = JSON.parse(raw); if (Array.isArray(p)) return p; }
+    } catch {}
+    return null;
+  });
+  const [brandOutlook, setBrandOutlook] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
+      if (raw) { const p = JSON.parse(raw); if (typeof p?.brand_outlook_probability === "number") return p.brand_outlook_probability; }
+    } catch {}
+    return 0.5;
+  });
   const [recalcResult, setRecalcResult] = useState<RecalculationResult | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [lastImpact, setLastImpact] = useState<{ signalText: string; gateImpact: GateImpact | null; forecastBefore: number; forecastAfter: number } | null>(null);
   const [brandCheckDone, setBrandCheckDone] = useState(false);
   const [verifiedFound, setVerifiedFound] = useState(false);
-  const aiRequestedRef = useRef<string | null>(null);
   const aiRequestIdRef = useRef(0);
 
   const VALID_CATEGORIES = new Set(["evidence", "access", "competition", "guideline", "timing", "adoption"]);
@@ -397,31 +450,58 @@ export default function SignalsPage() {
 
   const contextKey = `${subject}|${questionText}|${outcome}|${questionType}|${entities.join(",")}|${timeHorizon}`;
 
+  const hasPersistedSignals = useCallback(() => {
+    try {
+      const raw = localStorage.getItem(`cios.signals:${caseKey}`);
+      if (raw) { const p = JSON.parse(raw); return Array.isArray(p) && p.length > 0; }
+    } catch {}
+    return false;
+  }, [caseKey]);
+
+  const aiAlreadyRan = useCallback(() => {
+    try {
+      return localStorage.getItem(`cios.aiRequested:${caseKey}`) === contextKey;
+    } catch {}
+    return false;
+  }, [caseKey, contextKey]);
+
+  const markAiRan = useCallback(() => {
+    try { localStorage.setItem(`cios.aiRequested:${caseKey}`, contextKey); } catch {}
+  }, [caseKey, contextKey]);
+
+  const [forceRefreshAi, setForceRefreshAi] = useState(0);
+
   useEffect(() => {
     if (!subject || !questionText) return;
-    if (aiRequestedRef.current === contextKey) return;
-    aiRequestedRef.current = contextKey;
 
+    if (hasPersistedSignals() && aiAlreadyRan() && forceRefreshAi === 0) return;
+
+    if (aiAlreadyRan() && forceRefreshAi === 0) return;
+
+    markAiRan();
     const requestId = ++aiRequestIdRef.current;
 
-    const clearCaseKey = activeQuestion?.caseId || "unknown";
     setAiLoading(true);
     setAiError(null);
     setMarketSummary(null);
     setTranslationSummary(null);
-    setEventGates(null);
-    setBaseGates(null);
-    setRecalcResult(null);
-    setLastImpact(null);
-    try {
-      localStorage.removeItem(`cios.eventDecomposition:${clearCaseKey}`);
-      localStorage.removeItem(`cios.translationSummary:${clearCaseKey}`);
-    } catch {}
+    if (!hasPersistedSignals()) {
+      setEventGates(null);
+      setBaseGates(null);
+      setRecalcResult(null);
+      setLastImpact(null);
+      try {
+        localStorage.removeItem(`cios.eventDecomposition:${caseKey}`);
+        localStorage.removeItem(`cios.translationSummary:${caseKey}`);
+      } catch {}
+    }
     setIncomingEvents(fallbackEvents);
-    setSignals((prev) => {
-      const userSignals = prev.filter((s) => s.source === "user");
-      return [...fallbackSuggestions, ...userSignals];
-    });
+    if (!hasPersistedSignals()) {
+      setSignals((prev) => {
+        const userSignals = prev.filter((s) => s.source === "user" || s.is_locked);
+        return [...fallbackSuggestions, ...userSignals];
+      });
+    }
 
     const API = import.meta.env.VITE_API_URL || "";
     fetch(`${API}/api/ai-signals/generate`, {
@@ -482,11 +562,17 @@ export default function SignalsPage() {
               applies_within_time_horizon,
               translation_confidence,
               question_relevance_note: s.question_relevance_note || undefined,
+              priority_source: signal_class === "uncertainty" ? "ai_uncertainty" as PrioritySource : "ai_derived" as PrioritySource,
+              is_locked: false,
             };
           });
           setSignals((prev) => {
-            const userSignals = prev.filter((s) => s.source === "user");
-            return [...mapped, ...userSignals];
+            const lockedSignals = prev.filter((s) => s.is_locked || s.source === "user");
+            const lockedTexts = new Set(lockedSignals.map(s => s.text.toLowerCase().trim()));
+            const newAi = mapped.filter(s => !lockedTexts.has(s.text.toLowerCase().trim()));
+            const merged = [...newAi, ...lockedSignals];
+            persistSignals(merged);
+            return merged;
           });
         }
 
@@ -549,6 +635,7 @@ export default function SignalsPage() {
           setBaseGates(decomp.event_gates);
           setBrandOutlook(decomp.brand_outlook_probability);
           localStorage.setItem(`cios.eventDecomposition:${caseKey}`, JSON.stringify(decomp));
+          try { localStorage.setItem(`cios.baseGates:${caseKey}`, JSON.stringify(decomp.event_gates)); } catch {}
         } else {
           setEventGates(null);
           setBaseGates(null);
@@ -571,7 +658,7 @@ export default function SignalsPage() {
           setAiLoading(false);
         }
       });
-  }, [contextKey]);
+  }, [contextKey, forceRefreshAi]);
 
   const prevQuestionRef = useRef(questionText);
   useEffect(() => {
@@ -579,8 +666,8 @@ export default function SignalsPage() {
       prevQuestionRef.current = questionText;
       if (!aiLoading) {
         setSignals((prev) => {
-          const userSignals = prev.filter((s) => s.source === "user");
-          return [...fallbackSuggestions, ...userSignals];
+          const lockedSignals = prev.filter((s) => s.is_locked || s.source === "user");
+          return [...fallbackSuggestions, ...lockedSignals];
         });
       }
       setEditingId(null);
@@ -608,6 +695,54 @@ export default function SignalsPage() {
 
   const STRENGTH_TO_SCORE: Record<Strength, number> = { High: 4, Medium: 3, Low: 2 };
   const RELIABILITY_TO_SCORE: Record<Reliability, number> = { Confirmed: 5, Probable: 3, Speculative: 2 };
+
+  function detectConflicts(sigs: Signal[]): Signal[] {
+    const accepted = sigs.filter(s => s.accepted);
+    const gateGroups: Record<string, Signal[]> = {};
+    for (const s of accepted) {
+      const cat = s.category;
+      if (!gateGroups[cat]) gateGroups[cat] = [];
+      gateGroups[cat].push(s);
+    }
+
+    const PRIORITY_RANK: Record<string, number> = {
+      manual_confirmed: 4,
+      observed_verified: 3,
+      ai_derived: 2,
+      ai_uncertainty: 1,
+    };
+
+    const updated = sigs.map(s => ({ ...s, conflict_with: undefined as string | undefined }));
+
+    for (const cat of Object.keys(gateGroups)) {
+      const group = gateGroups[cat];
+      if (group.length < 2) continue;
+
+      const positives = group.filter(s => s.direction === "positive");
+      const negatives = group.filter(s => s.direction === "negative");
+
+      if (positives.length > 0 && negatives.length > 0) {
+        for (const pos of positives) {
+          const posRank = PRIORITY_RANK[pos.priority_source || "ai_derived"] || 2;
+          for (const neg of negatives) {
+            const negRank = PRIORITY_RANK[neg.priority_source || "ai_derived"] || 2;
+            const posIdx = updated.findIndex(s => s.id === pos.id);
+            const negIdx = updated.findIndex(s => s.id === neg.id);
+            if (posIdx >= 0 && negIdx >= 0) {
+              if (posRank <= negRank) {
+                updated[posIdx].conflict_with = neg.id;
+              }
+              if (negRank <= posRank) {
+                updated[negIdx].conflict_with = pos.id;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return updated;
+  }
 
   function persistSignalToDb(signal: Signal) {
     const caseId = activeQuestion?.caseId;
@@ -654,6 +789,8 @@ export default function SignalsPage() {
         category: s.category,
         signal_family: s.signal_family,
         accepted: true,
+        priority_source: s.priority_source,
+        is_locked: s.is_locked,
       }));
 
     const result = recalculateGatesFromSignals(baseGates, acceptedInputs, brandOutlook);
@@ -692,16 +829,20 @@ export default function SignalsPage() {
       if (signal && !signal.accepted) {
         persistSignalToDb(signal);
         const updated = prev.map((s) => (s.id === id ? { ...s, accepted: true } : s));
+        persistSignals(updated);
         setTimeout(() => triggerGateRecalculation(updated, signal.text), 0);
         return updated;
       }
-      return prev.map((s) => (s.id === id ? { ...s, accepted: true } : s));
+      const updated = prev.map((s) => (s.id === id ? { ...s, accepted: true } : s));
+      persistSignals(updated);
+      return updated;
     });
   }
 
   function dismissSignal(id: string) {
     setSignals((prev) => {
       const updated = prev.filter((s) => s.id !== id);
+      persistSignals(updated);
       setTimeout(() => triggerGateRecalculation(updated), 0);
       return updated;
     });
@@ -729,6 +870,7 @@ export default function SignalsPage() {
       if (editedSignal?.accepted) {
         setTimeout(() => triggerGateRecalculation(updated, editedSignal.text), 0);
       }
+      persistSignals(updated);
       return updated;
     });
     setEditingId(null);
@@ -756,9 +898,12 @@ export default function SignalsPage() {
       category: newCategory,
       source: "user",
       accepted: true,
+      priority_source: "manual_confirmed",
+      is_locked: true,
     };
     setSignals((prev) => {
       const updated = [...prev, sig];
+      persistSignals(updated);
       setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
       return updated;
     });
@@ -791,16 +936,19 @@ export default function SignalsPage() {
       category: ev.type as Category,
       source: "user",
       accepted: true,
+      priority_source: "observed_verified",
+      is_locked: true,
     };
     setSignals((prev) => {
       const updated = [...prev, sig];
+      persistSignals(updated);
       setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
       return updated;
     });
     persistSignalToDb(sig);
   }
 
-  const allSignals = signals;
+  const allSignals = useMemo(() => detectConflicts(signals), [signals]);
   const primaryDrivers = allSignals.filter((s) => s.impact === "High");
   const supportingSignals = allSignals.filter((s) => s.impact !== "High");
   const pending = allSignals.filter((s) => !s.accepted);
@@ -1207,14 +1355,28 @@ export default function SignalsPage() {
           </div>
 
           {!showAddForm ? (
-            <button
-              type="button"
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition w-full justify-center"
-            >
-              <Plus className="w-4 h-4" />
-              Add Signal Manually
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowAddForm(true)}
+                className="flex-1 flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                Add Signal Manually
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try { localStorage.removeItem(`cios.aiRequested:${caseKey}`); } catch {}
+                  setForceRefreshAi(prev => prev + 1);
+                }}
+                disabled={aiLoading}
+                className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-300 hover:bg-blue-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="w-4 h-4" />
+                Refresh AI Signals
+              </button>
+            </div>
           ) : (
             <div className="rounded-xl border border-border bg-card p-5 space-y-4">
               <div className="flex items-center justify-between">
@@ -1412,6 +1574,45 @@ export default function SignalsPage() {
   );
 }
 
+function SignalSourceTags({ signal }: { signal: Signal }) {
+  const tags: React.ReactElement[] = [];
+  if (signal.is_locked) {
+    tags.push(
+      <span key="locked" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-amber-500/15 text-amber-300">
+        <Lock className="w-2.5 h-2.5" />
+        Locked
+      </span>
+    );
+  }
+  if (signal.priority_source === "manual_confirmed") {
+    tags.push(
+      <span key="manual" className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-cyan-500/15 text-cyan-300">Manual</span>
+    );
+  } else if (signal.priority_source === "observed_verified") {
+    tags.push(
+      <span key="observed" className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-blue-500/15 text-blue-300">Verified</span>
+    );
+  } else if (signal.priority_source === "ai_derived") {
+    tags.push(
+      <span key="ai" className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-violet-500/15 text-violet-300">AI</span>
+    );
+  } else if (signal.priority_source === "ai_uncertainty") {
+    tags.push(
+      <span key="ai-unc" className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-slate-500/15 text-slate-400">AI Uncertain</span>
+    );
+  }
+  if (signal.conflict_with) {
+    tags.push(
+      <span key="conflict" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-red-500/15 text-red-300">
+        <AlertTriangle className="w-2.5 h-2.5" />
+        Conflict
+      </span>
+    );
+  }
+  if (tags.length === 0) return null;
+  return <>{tags}</>;
+}
+
 function PrimaryDriverCard({
   signal,
   editing,
@@ -1470,6 +1671,7 @@ function PrimaryDriverCard({
             {signal.translation_confidence && (
               <TranslationBadge confidence={signal.translation_confidence} />
             )}
+            <SignalSourceTags signal={signal} />
             {!signal.accepted && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-300 font-semibold">Pending</span>}
           </div>
           {signal.question_relevance_note && (
@@ -1575,6 +1777,7 @@ function SupportingSignalRow({
                 Source
               </a>
             )}
+            <SignalSourceTags signal={signal} />
             {!signal.accepted && <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] text-amber-300 font-semibold">Pending</span>}
           </div>
         </div>
