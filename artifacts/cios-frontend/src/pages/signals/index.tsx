@@ -501,7 +501,11 @@ export default function SignalsPage() {
 
   const aiAlreadyRan = useCallback(() => {
     try {
-      return localStorage.getItem(`cios.aiRequested:${caseKey}`) === contextKey;
+      const stored = localStorage.getItem(`cios.aiRequested:${caseKey}`);
+      if (!stored) return false;
+      if (stored === contextKey) return true;
+      if (stored.startsWith("imported-")) return true;
+      return false;
     } catch {}
     return false;
   }, [caseKey, contextKey]);

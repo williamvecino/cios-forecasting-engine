@@ -19,7 +19,10 @@ import {
   Check,
   RotateCcw,
   Edit3,
+  Upload,
+  MessageSquare,
 } from "lucide-react";
+import ImportProjectDialog from "@/components/question/ImportProjectDialog";
 
 const API = import.meta.env.VITE_API_URL || "";
 
@@ -60,6 +63,7 @@ export default function QuestionPage() {
   const [interpretError, setInterpretError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
+  const [showImportProject, setShowImportProject] = useState(false);
 
   useEffect(() => {
     localStorage.removeItem("cios.questionDraft");
@@ -202,6 +206,125 @@ export default function QuestionPage() {
     }
   }
 
+  const handleImportComplete = async (result: any) => {
+    const q = result.question;
+    if (!q) return;
+
+    setPageState("submitting");
+    setSubmitError(null);
+
+    try {
+      const dq: DecisionQuestion = {
+        id: `DQ-${Date.now()}`,
+        rawInput: q.text || q.restatedQuestion,
+        questionType: (q.questionType || "binary") as any,
+        subject: q.subject || "",
+        outcome: q.outcome || "",
+        populationOrEntities: q.entities || [],
+        timeHorizon: q.timeHorizon || "12 months",
+        missingFields: [],
+        isComplete: true,
+        interpretedQuestion: q.restatedQuestion || q.text,
+        createdAt: new Date().toISOString(),
+      };
+      const caseInput = mapDecisionQuestionToCaseInput(dq);
+      const created = await createCaseMutation.mutateAsync({
+        data: caseInput as any,
+      });
+      const newCaseId = (created as any).caseId || (created as any).id;
+      if (!newCaseId) {
+        setSubmitError("Case was created but returned no identifier.");
+        setPageState("input");
+        setShowImportProject(false);
+        return;
+      }
+
+      const STRENGTH_MAP: Record<string, string> = { High: "High", Medium: "Medium", Low: "Low" };
+      const CONFIDENCE_MAP: Record<string, string> = { Strong: "Confirmed", Moderate: "Probable", Weak: "Speculative" };
+      const importedSignals = (result.signals || []).map((s: any, i: number) => ({
+        id: `import-${i + 1}`,
+        text: s.text,
+        caveat: s.rationale || "",
+        direction: s.direction === "positive" ? "positive" : s.direction === "negative" ? "negative" : "neutral",
+        strength: STRENGTH_MAP[s.importance] || "Medium",
+        reliability: CONFIDENCE_MAP[s.confidence] || "Probable",
+        impact: s.importance === "High" ? 3 : s.importance === "Low" ? 1 : 2,
+        category: ["evidence", "access", "competition", "guideline", "timing", "adoption"].includes(s.category) ? s.category : "evidence",
+        source: "system",
+        accepted: false,
+        signal_class: "observed",
+        signal_family: "brand_clinical_regulatory",
+        source_url: null,
+        source_type: s.source_description || "imported",
+        observed_date: null,
+        citation_excerpt: null,
+        brand_verified: false,
+        priority_source: "ai_derived",
+        is_locked: false,
+      }));
+
+      const missingAsSignals = (result.missingSignals || []).map((s: any, i: number) => ({
+        id: `missing-${i + 1}`,
+        text: s.text,
+        caveat: s.reason || "",
+        direction: "neutral",
+        strength: STRENGTH_MAP[s.importance] || "Medium",
+        reliability: "Speculative",
+        impact: s.importance === "High" ? 3 : s.importance === "Low" ? 1 : 2,
+        category: ["evidence", "access", "competition", "guideline", "timing", "adoption"].includes(s.category) ? s.category : "evidence",
+        source: "system",
+        accepted: false,
+        signal_class: "uncertainty",
+        signal_family: "brand_clinical_regulatory",
+        source_url: null,
+        source_type: "gap analysis",
+        observed_date: null,
+        citation_excerpt: null,
+        brand_verified: false,
+        priority_source: "ai_uncertainty",
+        is_locked: false,
+      }));
+
+      const allSignals = [...importedSignals, ...missingAsSignals];
+
+      try {
+        localStorage.removeItem(`cios.signals:${newCaseId}`);
+        localStorage.removeItem(`cios.aiRequested:${newCaseId}`);
+        localStorage.removeItem(`cios.eventDecomposition:${newCaseId}`);
+        localStorage.removeItem(`cios.translationSummary:${newCaseId}`);
+        localStorage.removeItem(`cios.baseGates:${newCaseId}`);
+        localStorage.removeItem(`cios.signalReadiness:${newCaseId}`);
+        localStorage.removeItem(`cios.judgmentResult:${newCaseId}`);
+        localStorage.removeItem(`cios.decideResult:${newCaseId}`);
+      } catch {}
+
+      if (allSignals.length > 0) {
+        try {
+          localStorage.setItem(`cios.signals:${newCaseId}`, JSON.stringify(allSignals));
+          localStorage.setItem(`cios.aiRequested:${newCaseId}`, `imported-${Date.now()}`);
+        } catch {}
+      }
+
+      const payload = {
+        text: q.restatedQuestion || q.text,
+        rawInput: q.text,
+        caseId: newCaseId,
+        timeHorizon: q.timeHorizon || "12 months",
+        questionType: q.questionType || "binary",
+        entities: q.entities || [],
+        subject: q.subject || undefined,
+        outcome: q.outcome || undefined,
+      };
+      createQuestion(payload);
+      setShowImportProject(false);
+      navigate("/signals");
+    } catch (err) {
+      console.error("Failed to create imported case:", err);
+      setSubmitError("Unable to create the case. Check your connection and try again.");
+      setPageState("input");
+    }
+  };
+
   const interpretationFields = interpretation ? [
     { key: "decisionType", label: "Decision", value: interpretation.decisionType },
     { key: "event", label: "Event", value: interpretation.event },
@@ -259,77 +382,126 @@ export default function QuestionPage() {
           </div>
         )}
 
-        {(pageState === "input" || pageState === "interpreting") && (
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <label className="mb-3 block text-lg font-semibold text-foreground">
-              What decision are you trying to make?
-            </label>
-            <p className="text-sm text-muted-foreground mb-4">
-              Type your question in plain language. We will interpret and structure it for you.
-            </p>
-            <textarea
-              value={rawInput}
-              onChange={(e) => setRawInput(e.target.value)}
-              placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
-              rows={4}
-              autoFocus
-              disabled={pageState === "interpreting"}
-              className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
-                  e.preventDefault();
-                  interpretQuestion();
-                }
+        {showImportProject && (
+          <>
+            {submitError && (
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {submitError}
+              </div>
+            )}
+            <ImportProjectDialog
+              onImportComplete={handleImportComplete}
+              onClose={() => {
+                setShowImportProject(false);
+                setSubmitError(null);
               }}
             />
+          </>
+        )}
 
-            {interpretError && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                {interpretError}
-              </div>
-            )}
-
-            {!rawInput.trim() && pageState === "input" && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Or start with one of these:</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {EXAMPLE_QUESTIONS.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => setRawInput(q)}
-                      className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-4 flex items-center gap-3">
+        {!showImportProject && (pageState === "input" || pageState === "interpreting") && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={interpretQuestion}
-                disabled={!rawInput.trim() || pageState === "interpreting"}
-                className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
+                onClick={() => setShowImportProject(false)}
+                className="rounded-xl border-2 border-primary/40 bg-primary/5 px-4 py-3 text-left transition group"
               >
-                {pageState === "interpreting" ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Interpreting...
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                <div className="flex items-center gap-2.5">
+                  <MessageSquare className="w-5 h-5 text-primary" />
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Ask a Question</div>
+                    <div className="text-[11px] text-muted-foreground">Type a decision question</div>
+                  </div>
+                </div>
               </button>
+              <button
+                type="button"
+                onClick={() => setShowImportProject(true)}
+                className="rounded-xl border border-border hover:border-primary/30 bg-card px-4 py-3 text-left transition group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Upload className="w-5 h-5 text-muted-foreground group-hover:text-primary transition" />
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Import Project</div>
+                    <div className="text-[11px] text-muted-foreground">Upload files or paste text</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <label className="mb-3 block text-lg font-semibold text-foreground">
+                What decision are you trying to make?
+              </label>
+              <p className="text-sm text-muted-foreground mb-4">
+                Type your question in plain language. We will interpret and structure it for you.
+              </p>
+              <textarea
+                value={rawInput}
+                onChange={(e) => setRawInput(e.target.value)}
+                placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
+                rows={4}
+                autoFocus
+                disabled={pageState === "interpreting"}
+                className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
+                    e.preventDefault();
+                    interpretQuestion();
+                  }
+                }}
+              />
+
+              {interpretError && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  {interpretError}
+                </div>
+              )}
+
+              {!rawInput.trim() && pageState === "input" && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Or start with one of these:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {EXAMPLE_QUESTIONS.map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setRawInput(q)}
+                        className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={interpretQuestion}
+                  disabled={!rawInput.trim() || pageState === "interpreting"}
+                  className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {pageState === "interpreting" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Interpreting...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}
