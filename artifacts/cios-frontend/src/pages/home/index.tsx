@@ -47,7 +47,7 @@ export default function HomePage() {
   const openCase = useCallback((c: any) => {
     const cid = c.caseId || c.id;
     if (activeQuestion?.caseId === cid) {
-      navigate("/question");
+      navigate("/signals");
       return;
     }
     const prevCaseId = activeQuestion?.caseId;
@@ -68,7 +68,7 @@ export default function HomePage() {
     if (c.therapeuticArea) {
       try { localStorage.setItem("cios.therapeuticArea", c.therapeuticArea); } catch {}
     }
-    navigate("/question");
+    navigate("/signals");
   }, [activeQuestion, createQuestion, navigate]);
 
   function handleStart() {

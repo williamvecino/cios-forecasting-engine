@@ -76,6 +76,14 @@ export default function QuestionPage() {
   }, [activeQuestion?.text, activeQuestion?.caseId, activeQuestion?.id, isEditMode, syncedCaseId, userCleared]);
 
   function resetAll() {
+    setRawInput(activeQuestion?.text ?? "");
+    setPageState("input");
+    setSubmitError(null);
+    setIsEditMode(false);
+    setEditCaseId("");
+  }
+
+  function startNewForecast() {
     setRawInput("");
     setPageState("input");
     setSubmitError(null);
@@ -316,48 +324,10 @@ export default function QuestionPage() {
       draftText={pageState === "input" && !activeQuestion && rawInput.trim() ? rawInput.trim() : undefined}
       onClearQuestion={() => {
         clearQuestion();
-        resetAll();
+        startNewForecast();
       }}
     >
       <div className="space-y-5 max-w-3xl mx-auto">
-        {activeQuestion && pageState === "input" && !isEditMode && (
-          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-blue-200/80">
-                Active case: <span className="font-medium text-foreground">{activeQuestion.text}</span>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={enterEditMode}
-                  className="rounded-lg border border-blue-500/30 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-500/10 inline-flex items-center gap-1.5"
-                >
-                  <PenLine className="w-3 h-3" />
-                  Edit this case
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isEditMode && (
-          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-amber-200/80">
-                Editing existing case — changes will update the current case.
-              </div>
-              <button
-                type="button"
-                onClick={resetAll}
-                className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/10 inline-flex items-center gap-1.5"
-              >
-                <Plus className="w-3 h-3" />
-                New question instead
-              </button>
-            </div>
-          </div>
-        )}
-
         {submitError && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
             <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -365,121 +335,172 @@ export default function QuestionPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => setShowImportProject(false)}
-            className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
-              !showImportProject
-                ? "border-primary/50 bg-primary/5"
-                : "border-border hover:border-primary/30 bg-card"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`rounded-lg p-2.5 ${!showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
-                <MessageSquare className={`w-5 h-5 ${!showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
+        {activeQuestion && pageState === "input" && !isEditMode ? (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60 mb-3">
+                Active Question
               </div>
-              <div>
-                <div className="text-sm font-semibold text-foreground">Ask a Question</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">Type a decision question in plain language</div>
+              <div className="text-lg font-medium text-foreground leading-relaxed">
+                {activeQuestion.text}
               </div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowImportProject(true)}
-            className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
-              showImportProject
-                ? "border-primary/50 bg-primary/5"
-                : "border-border hover:border-primary/30 bg-card"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`rounded-lg p-2.5 ${showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
-                <Upload className={`w-5 h-5 ${showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-foreground">Import Project</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">Upload files, images, or paste text</div>
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate("/signals")}
+                  className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2"
+                >
+                  Continue to Add Information
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={enterEditMode}
+                  className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 inline-flex items-center gap-1.5 transition"
+                >
+                  <PenLine className="w-3.5 h-3.5" />
+                  Edit question
+                </button>
               </div>
             </div>
-          </button>
-        </div>
-
-        {showImportProject ? (
-          <ImportProjectDialog
-            onImportComplete={handleImportComplete}
-            onClose={() => {
-              setShowImportProject(false);
-              setSubmitError(null);
-            }}
-          />
+          </div>
         ) : (
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <label className="mb-3 block text-lg font-semibold text-foreground">
-              What decision are you trying to make?
-            </label>
-            <p className="text-sm text-muted-foreground mb-4">
-              Type your question in plain language. We will interpret and structure it for you.
-            </p>
-            <textarea
-              value={rawInput}
-              onChange={(e) => setRawInput(e.target.value)}
-              placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
-              rows={4}
-              autoFocus
-              disabled={pageState === "creating"}
-              className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
-                  e.preventDefault();
-                  handleContinue();
-                }
-              }}
-            />
-
-            {!rawInput.trim() && pageState === "input" && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Or start with one of these:</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {EXAMPLE_QUESTIONS.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => setRawInput(q)}
-                      className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
-                    >
-                      {q}
-                    </button>
-                  ))}
+          <>
+            {isEditMode && (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-amber-200/80">
+                    Editing existing case — changes will update the current case.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetAll}
+                    className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/10 inline-flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Cancel edit
+                  </button>
                 </div>
               </div>
             )}
 
-            <div className="mt-4 flex items-center gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
-                onClick={handleContinue}
-                disabled={!rawInput.trim() || pageState === "creating"}
-                className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
+                onClick={() => setShowImportProject(false)}
+                className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
+                  !showImportProject
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:border-primary/30 bg-card"
+                }`}
               >
-                {pageState === "creating" ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating case...
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-lg p-2.5 ${!showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
+                    <MessageSquare className={`w-5 h-5 ${!showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Ask a Question</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">Type a decision question in plain language</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowImportProject(true)}
+                className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
+                  showImportProject
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:border-primary/30 bg-card"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-lg p-2.5 ${showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
+                    <Upload className={`w-5 h-5 ${showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Import Project</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">Upload files, images, or paste text</div>
+                  </div>
+                </div>
               </button>
             </div>
-          </div>
+
+            {showImportProject ? (
+              <ImportProjectDialog
+                onImportComplete={handleImportComplete}
+                onClose={() => {
+                  setShowImportProject(false);
+                  setSubmitError(null);
+                }}
+              />
+            ) : (
+              <div className="rounded-2xl border border-border bg-card p-6">
+                <label className="mb-3 block text-lg font-semibold text-foreground">
+                  What decision are you trying to make?
+                </label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Type your question in plain language. We will interpret and structure it for you.
+                </p>
+                <textarea
+                  value={rawInput}
+                  onChange={(e) => setRawInput(e.target.value)}
+                  placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
+                  rows={4}
+                  autoFocus
+                  disabled={pageState === "creating"}
+                  className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
+                      e.preventDefault();
+                      handleContinue();
+                    }
+                  }}
+                />
+
+                {!rawInput.trim() && pageState === "input" && !isEditMode && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Or start with one of these:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {EXAMPLE_QUESTIONS.map((q) => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => setRawInput(q)}
+                          className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleContinue}
+                    disabled={!rawInput.trim() || pageState === "creating"}
+                    className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
+                  >
+                    {pageState === "creating" ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating case...
+                      </>
+                    ) : (
+                      <>
+                        Continue
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </WorkflowLayout>
