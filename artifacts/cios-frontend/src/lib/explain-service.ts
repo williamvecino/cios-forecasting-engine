@@ -92,7 +92,7 @@ function classifyQuestion(q: string): AnswerCategory {
     return "explanation";
   }
 
-  if (lower.match(/what does|what is|define|meaning|explain|what are|is this|due to|timing|access|behavior|evidence|relevant|tell me about/)) {
+  if (lower.match(/what does|what is|define|meaning|explain|what are|is this|due to|timing|access|behavior|evidence|relevant|tell me about|analog(?:ue)?[\s\-_]*\d+|what.+on it/)) {
     return "interpretation";
   }
 
@@ -137,7 +137,13 @@ function findMatchingConstraint(question: string, judgment: ExecutiveJudgmentRes
 function findMatchingAnalog(question: string, judgment: ExecutiveJudgmentResult): AnalogCaseDetail | null {
   const lower = question.toLowerCase();
   for (const ac of judgment.analogCases) {
+    if (lower.includes(ac.caseId.toLowerCase())) return ac;
     if (lower.includes(ac.brand.toLowerCase())) return ac;
+  }
+  const analogIdMatch = lower.match(/analog(?:ue)?[\s\-_]*(\d+)/);
+  if (analogIdMatch) {
+    const idx = parseInt(analogIdMatch[1], 10) - 1;
+    if (idx >= 0 && idx < judgment.analogCases.length) return judgment.analogCases[idx];
   }
   return null;
 }
@@ -634,6 +640,43 @@ function handleResolution(question: string, judgment: ExecutiveJudgmentResult, c
 function handleInterpretation(question: string, judgment: ExecutiveJudgmentResult, caseCtx: CaseContext): CaseAnswer {
   const lower = question.toLowerCase();
 
+  const analogMatch = findMatchingAnalog(question, judgment);
+  if (analogMatch) {
+    const dims = analogMatch.matchedDimensions.length > 0
+      ? `Matched on: ${analogMatch.matchedDimensions.join(", ")}.`
+      : "";
+    const diffs = analogMatch.keyDifferences.length > 0
+      ? `Key differences from this case: ${analogMatch.keyDifferences.join(", ")}.`
+      : "";
+
+    return {
+      category: "interpretation",
+      categoryLabel: CATEGORY_LABELS.interpretation,
+      answer: `${analogMatch.caseId}: ${analogMatch.brand} — ${analogMatch.indication}.\n\nOutcome: ${analogMatch.outcome}.\nSimilarity: ${analogMatch.similarity} (${Math.round(analogMatch.similarityScore * 100)}% match, ${analogMatch.confidence} confidence).\n${dims ? `\n${dims}` : ""}${diffs ? `\n${diffs}` : ""}\n\nKey lesson: ${analogMatch.lesson}${analogMatch.keyBarrier ? `\nKey barrier encountered: ${analogMatch.keyBarrier}` : ""}${analogMatch.keyEnabler ? `\nKey enabler: ${analogMatch.keyEnabler}` : ""}`,
+      evidence: [
+        `Case ID: ${analogMatch.caseId}`,
+        `Brand: ${analogMatch.brand}`,
+        `Indication: ${analogMatch.indication}`,
+        `Observed outcome: ${analogMatch.outcome}`,
+        `Similarity score: ${Math.round(analogMatch.similarityScore * 100)}%`,
+        `Confidence band: ${analogMatch.confidence}`,
+        analogMatch.keyBarrier ? `Key barrier: ${analogMatch.keyBarrier}` : "",
+        analogMatch.keyEnabler ? `Key enabler: ${analogMatch.keyEnabler}` : "",
+        ...analogMatch.matchedDimensions.map(d => `Matched dimension: ${d}`),
+        ...analogMatch.keyDifferences.map(d => `Difference: ${d}`),
+      ].filter(Boolean),
+      affectedVariable: analogMatch.brand,
+      directionalEffect: null,
+      sourceLabel: "Historical Precedent — Case Detail",
+      followUp: analogMatch.keyBarrier
+        ? `Ask "What happens if ${analogMatch.keyBarrier.split(/[,.]/, 1)[0].toLowerCase()} resolves?" to see the projected impact.`
+        : null,
+      followUpQuery: analogMatch.keyBarrier
+        ? `What happens if ${analogMatch.keyBarrier.split(/[,.]/, 1)[0].toLowerCase()} resolves?`
+        : null,
+    };
+  }
+
   const termMatch = findTermMatch(question);
   if (termMatch) {
     let contextNote = "";
@@ -647,7 +690,7 @@ function handleInterpretation(question: string, judgment: ExecutiveJudgmentResul
     if (!contextNote) {
       for (const ac of judgment.analogCases) {
         if (ac.brand.toLowerCase().includes(termMatch.term) || termMatch.term.includes(ac.brand.toLowerCase())) {
-          contextNote = `Referenced as a historical precedent with ${ac.confidence} confidence. ${ac.lesson}`;
+          contextNote = `Referenced as historical precedent: ${ac.brand} (${ac.indication}). Outcome: ${ac.outcome}. Confidence: ${ac.confidence}. Lesson: ${ac.lesson}`;
           break;
         }
       }
@@ -677,33 +720,6 @@ function handleInterpretation(question: string, judgment: ExecutiveJudgmentResul
       affectedVariable: null,
       directionalEffect: null,
       sourceLabel: contextNote ? "Case Context" : "Term Definition",
-      followUp: null,
-      followUpQuery: null,
-    };
-  }
-
-  const analogMatch = findMatchingAnalog(question, judgment);
-  if (analogMatch) {
-    const dims = analogMatch.matchedDimensions.length > 0
-      ? `Matched on: ${analogMatch.matchedDimensions.join(", ")}.`
-      : "";
-    const diffs = analogMatch.keyDifferences.length > 0
-      ? `Key differences from this case: ${analogMatch.keyDifferences.join(", ")}.`
-      : "";
-
-    return {
-      category: "interpretation",
-      categoryLabel: CATEGORY_LABELS.interpretation,
-      answer: `"${analogMatch.brand}" (${analogMatch.indication}) is relevant because it shares ${analogMatch.similarity} with the current case (confidence: ${analogMatch.confidence}). ${dims} ${diffs} Lesson: ${analogMatch.lesson}`,
-      evidence: [
-        `Outcome: ${analogMatch.outcome}`,
-        analogMatch.keyBarrier ? `Key barrier: ${analogMatch.keyBarrier}` : "",
-        analogMatch.keyEnabler ? `Key enabler: ${analogMatch.keyEnabler}` : "",
-        ...analogMatch.matchedDimensions.map(d => `Matched: ${d}`),
-      ].filter(Boolean),
-      affectedVariable: null,
-      directionalEffect: null,
-      sourceLabel: "Historical Precedent",
       followUp: null,
       followUpQuery: null,
     };
@@ -752,6 +768,43 @@ function handleInterpretation(question: string, judgment: ExecutiveJudgmentResul
           ? `How do I solve ${activeIssues[0].label.toLowerCase()}?`
           : null,
       };
+  }
+
+  if (lower.match(/what.+on it|summary|overview|summarize|what.+case|what.+this|tell me everything|break.*down/)) {
+    const constraintSummary = judgment.primaryConstraints.length > 0
+      ? `Primary constraints: ${judgment.primaryConstraints.map(pc => `${pc.label} (${pc.status})`).join(", ")}.`
+      : "No active constraints.";
+    const analogSummary = judgment.analogCases.length > 0
+      ? `Historical precedents: ${judgment.analogCases.map(ac => `${ac.caseId} — ${ac.brand} (${ac.indication}, ${ac.confidence} confidence)`).join("; ")}.`
+      : "No historical precedents identified.";
+    const sh = judgment.signalHierarchy;
+    const signalSummary = sh.dominant.length > 0
+      ? `Dominant evidence: ${sh.dominant.map(s => s.name).join(", ")}. ${sh.contradictory.length > 0 ? `Weak/non-confirmatory: ${sh.contradictory.map(s => s.name).join(", ")}.` : ""}`
+      : "No dominant signals identified.";
+
+    return {
+      category: "interpretation",
+      categoryLabel: CATEGORY_LABELS.interpretation,
+      answer: `Current forecast: ${judgment.probability}% — ${judgment.mostLikelyOutcome}. Confidence: ${judgment.confidence}. ${constraintSummary} ${signalSummary} ${analogSummary}\n\nPosture: ${judgment.decisionPosture}`,
+      evidence: [
+        `Probability: ${judgment.probability}%`,
+        `Outcome: ${judgment.mostLikelyOutcome}`,
+        `Confidence: ${judgment.confidence}`,
+        `Uncertainty: ${judgment.uncertaintyType}`,
+        constraintSummary,
+        signalSummary,
+        analogSummary,
+      ],
+      affectedVariable: null,
+      directionalEffect: null,
+      sourceLabel: "Case Summary",
+      followUp: judgment.primaryConstraints.length > 0
+        ? `Ask "What should be addressed first?" for the priority constraint.`
+        : `Ask "Where is the evidence strong?" for the signal hierarchy.`,
+      followUpQuery: judgment.primaryConstraints.length > 0
+        ? "What should be addressed first?"
+        : "Where is the evidence strong?",
+    };
   }
 
   return makeUnanswerable(question, judgment, caseCtx, `The system could not find a specific term, gate, or analogue matching your question in the current case data. Try asking about a specific element visible in the judgment panel.`);
