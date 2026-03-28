@@ -30,6 +30,7 @@ import signalDetectionRouter from "./signal-detection.js";
 import recalculateRouter from "./recalculate.js";
 import aiSignalsRouter from "./ai-signals.js";
 import aiDecideRouter from "./ai-decide.js";
+import aiInterpretRouter from "./ai-interpret.js";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(signalDetectionRouter);
 router.use(recalculateRouter);
 router.use(aiSignalsRouter);
 router.use(aiDecideRouter);
+router.use(aiInterpretRouter);
 
 export default router;

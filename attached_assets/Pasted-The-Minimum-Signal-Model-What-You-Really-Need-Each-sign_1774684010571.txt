@@ -1,0 +1,237 @@
+The Minimum Signal Model (What You Really Need)
+
+Each signal should display only this:
+
+Signal
+Direction
+Importance
+Confidence
+Source
+
+Nothing more.
+
+Example — Clean Version of Your Screen
+
+Instead of:
+
+Impact: High
+Positive
+High
+Confirmed
+Evidence
+Pending
+Competition
+
+You show:
+
+Clinical evidence supports differentiation
+Direction: Supports adoption
+Importance: High
+Confidence: Strong
+Source: Published clinical data
+
+And:
+
+Entrenched standard of care creates switching inertia
+Direction: Slows adoption
+Importance: High
+Confidence: Strong
+Source: Market behavior
+
+That is enough.
+
+The New Signal Card Design
+
+One line summary.
+
+Then four simple attributes.
+
+Signal
+
+Entrenched standard of care creates switching inertia
+
+Direction
+
+Slows adoption
+
+Importance
+
+High
+
+Confidence
+
+Strong
+
+No color badges.
+No taxonomy labels.
+No technical flags.
+
+What the AI Should Do Automatically
+
+You should not manually assign weight.
+
+The system should estimate it from:
+
+public data
+historical cases
+signal strength
+signal frequency
+precedent patterns
+
+That is the real value of the engine.
+
+What the User Should Control
+
+Only two things.
+
+Confirm the signal
+Edit the signal
+
+Not configure the model.
+
+What to Remove From This Screen
+
+Tell Replit to hide these by default:
+
+Signal families
+Coverage gaps
+Pending / confirmed status flags
+Category tags
+Evidence labels
+Internal scoring metadata
+
+Keep them available in:
+
+Advanced view
+
+What to Keep
+
+Primary Drivers
+Supporting Signals
+Add Signal
+
+Those are essential.
+
+The New Step 2 Layout
+
+Very simple.
+
+STEP 2
+What new information do we have?
+
+Primary Signals
+
+Clinical evidence supports differentiation
+Direction: Supports adoption
+Importance: High
+Confidence: Strong
+
+Entrenched standard of care creates switching inertia
+Direction: Slows adoption
+Importance: High
+Confidence: Strong
+
+Suggested Signals From AI
+
+Payer resistance in early access discussions
+Direction: Slows adoption
+Importance: Medium
+Confidence: Moderate
+
+Guideline committee review underway
+Direction: Supports adoption
+Importance: Medium
+Confidence: Moderate
+
+Add Signal
+
+That is the entire screen.
+
+How AI Should Assign Weight
+
+Tell Replit to calculate importance using these inputs:
+
+Evidence strength
+Frequency in similar cases
+Outcome correlation
+Recency
+Consistency across sources
+
+And output:
+
+High
+Medium
+Low
+
+Not numbers.
+
+Direction Must Be Explicit
+
+Every signal must answer:
+
+Does this push the outcome forward or hold it back?
+
+Allowed directions:
+
+Supports outcome
+Slows outcome
+Neutral
+Unclear
+
+That is all.
+
+Confidence Must Be Explicit
+
+Every signal must answer:
+
+How reliable is the evidence?
+
+Allowed levels:
+
+Strong
+Moderate
+Weak
+
+The Forecast Should Then Show
+
+Not math.
+
+A directional summary.
+
+Example:
+
+Overall outlook
+
+Moderate adoption likely
+
+Key forces
+
+Strong clinical evidence supporting use
+Entrenched standard of care slowing switching
+Early payer resistance limiting access
+
+Confidence
+
+Moderate
+
+That is a usable forecast.
+
+The One Rule for Step 2
+
+Tell Replit this:
+
+Step 2 must show only the signals that matter and how strongly they influence the outcome. Remove internal technical labels and reduce each signal to Direction, Importance, and Confidence. AI should estimate signal weight automatically based on public evidence and historical patterns. The interface should feel like a strategic briefing, not a data dashboard.
+
+Why This Matters
+
+Executives do not interpret models.
+
+They interpret signals.
+
+And they decide based on:
+
+direction
+strength
+reliability
+
+That is the product.

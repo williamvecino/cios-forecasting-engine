@@ -30,9 +30,9 @@ The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built
 - **Performance Stabilization Controls:** Implements state hashing, driver limits, duplicate driver checks, lightweight logging, and partial UI rendering to maintain performance.
 
 **Key Features and Implementations:**
-- **UI/UX:** Employs a question definition layer, workflow test harness, forecast readiness gate, redesigned forecast page with dark panel theme, and a 6-panel enterprise decision layout. Information is structured using tables, collapsible sections, and color-coded indicators.
-- **Workflow Gating:** `QuestionGate` blocks content until an active question exists, with a robust question parser supporting comprehensive verb and outcome extraction.
-- **Draft vs. Active Case Isolation:** Strict separation between in-progress `draftQuestion` and stored `activeCase` for parser accuracy and case binding.
+- **UI/UX:** Conversational question entry (single input → AI interpretation → one-click confirm), redesigned forecast page with dark panel theme, and enterprise decision layout. Information is structured using tables, collapsible sections, and color-coded indicators. All language uses executive decision terms — no statistical or model terminology.
+- **Conversational Question Interpreter:** Users type any question in plain language. The system uses GPT-4o to extract decision type, event, outcomes, time horizon, primary constraint, subject, and entities, then presents a structured interpretation for confirmation. Falls back to local regex parser if AI is unavailable. API: `/api/ai-interpret-question`.
+- **Workflow Gating:** `QuestionGate` blocks content until an active question exists.
 - **AI-Powered Signal Generation:** Generates `observed`, `derived`, or `uncertainty` signals with translation fields and `question_relevance_note`, informed by brand development checks and real-time web research using GPT-4o.
 - **Event Decomposition Layer:** AI decomposes questions into 3-6 "event gates," each with a `status` and `constrains_probability_to`, influencing the `constrained_probability`.
 - **Engine Guardrails:** Critical pre- and post-processing steps including driver deduplication, max single-driver shift caps, total shift normalization, event gating constraints, relevance penalties, recalculation consistency, and input validation.

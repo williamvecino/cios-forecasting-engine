@@ -39,10 +39,14 @@ interface DecisionLabSummaryProps {
   topGateDriverDelta: number;
 }
 
-
-
-function gateStatusLabel(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    unresolved: "Not yet resolved",
+    weak: "Early stage",
+    moderate: "Progressing",
+    strong: "In place",
+  };
+  return labels[status] || status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 const DecisionLabSummary = memo(function DecisionLabSummary({
@@ -75,78 +79,78 @@ const DecisionLabSummary = memo(function DecisionLabSummary({
   const forecastHigh = finalForecastPct >= 60;
   const largeGap = executionGap >= 15;
 
-  let executiveDiagnosis = "";
+  let situationAssessment = "";
   if (brandHigh && forecastLow) {
-    executiveDiagnosis = `The therapy demonstrates strong clinical positioning (${brandOutlookPct}% brand outlook), but the current forecast stands at only ${finalForecastPct}%. This ${executionGap}-point gap indicates that execution barriers — not product weakness — are preventing the forecast from reflecting the underlying brand strength.`;
+    situationAssessment = `The therapy shows strong clinical positioning, but the outlook stands at only ${finalForecastPct}%. This gap indicates that practical barriers — not product weakness — are preventing progress.`;
     if (primaryConstraint) {
-      executiveDiagnosis += ` The primary bottleneck is "${primaryConstraint.gate_label}" (${gateStatusLabel(primaryConstraint.status)}), which is placing the strongest ceiling on achievable probability.`;
+      situationAssessment += ` The primary bottleneck is "${primaryConstraint.gate_label}" (${statusLabel(primaryConstraint.status)}), which is placing the strongest limit on what is achievable.`;
     }
   } else if (brandHigh && forecastModerate) {
-    executiveDiagnosis = `The therapy has strong upstream signals (${brandOutlookPct}% brand outlook), but event gates are partially constraining the forecast to ${finalForecastPct}%.`;
+    situationAssessment = `The therapy has strong underlying evidence, but some conditions are partially holding back the outlook to ${finalForecastPct}%.`;
     if (primaryConstraint && (primaryConstraint.status === "weak" || primaryConstraint.status === "unresolved")) {
-      executiveDiagnosis += ` Clearing the "${primaryConstraint.gate_label}" constraint could allow the forecast to better align with brand strength.`;
+      situationAssessment += ` Resolving "${primaryConstraint.gate_label}" could allow the outlook to better reflect the underlying strength.`;
     }
   } else if (brandHigh && forecastHigh) {
-    executiveDiagnosis = `Both evidence strength and operational readiness support adoption at ${finalForecastPct}%. The clinical profile is strong and key conditions for market uptake are largely in place. The execution gap is minimal (${executionGap} pts).`;
+    situationAssessment = `Both the evidence and operational readiness support this outcome at ${finalForecastPct}%. The clinical profile is strong and key conditions for success are largely in place.`;
   } else if (forecastLow && !brandHigh) {
-    executiveDiagnosis = `Both clinical evidence strength and operational readiness remain limited. The forecast of ${finalForecastPct}% reflects genuine uncertainty — regulatory, clinical, or competitive factors have not yet resolved favorably.`;
+    situationAssessment = `Both the clinical evidence and operational readiness remain limited. The outlook of ${finalForecastPct}% reflects genuine uncertainty — key conditions have not yet resolved favorably.`;
   } else if (forecastModerate) {
-    executiveDiagnosis = `Adoption depends on resolving remaining barriers. The therapy has a ${brandModerate ? "moderate" : "developing"} evidence base at ${brandOutlookPct}% brand outlook, but key gating conditions have not fully cleared, holding the forecast at ${finalForecastPct}%.`;
+    situationAssessment = `The outcome depends on resolving remaining barriers. The therapy has a ${brandModerate ? "moderate" : "developing"} evidence base, but key conditions have not fully cleared, holding the outlook at ${finalForecastPct}%.`;
   } else {
-    executiveDiagnosis = `The forecast of ${finalForecastPct}% reflects the current balance between evidence strength (${brandOutlookPct}% brand outlook) and operational readiness. Monitor the primary constraint below for shifts.`;
+    situationAssessment = `The outlook of ${finalForecastPct}% reflects the current balance between evidence strength and operational readiness. Watch the primary barrier below for shifts.`;
   }
 
-  let primaryConstraintExplanation = "";
+  let primaryBarrierExplanation = "";
   if (primaryConstraint) {
-    primaryConstraintExplanation = `The primary constraint is "${primaryConstraint.gate_label}" (${gateStatusLabel(primaryConstraint.status)}). This is the factor currently placing the strongest ceiling on the forecast`;
+    primaryBarrierExplanation = `"${primaryConstraint.gate_label}" (${statusLabel(primaryConstraint.status)}) is the factor currently placing the strongest limit on what is achievable`;
     if (primaryConstraint.constrains_probability_to < 1) {
-      primaryConstraintExplanation += `, capping achievable probability at ${Math.round(primaryConstraint.constrains_probability_to * 100)}%`;
+      primaryBarrierExplanation += `, even though other conditions may be favorable`;
     }
-    primaryConstraintExplanation += `, even though other conditions may be favorable.`;
+    primaryBarrierExplanation += `.`;
   }
 
   const notHigherReasons: string[] = [];
   for (const g of weakGates) {
-    notHigherReasons.push(`"${g.gate_label}" remains ${gateStatusLabel(g.status).toLowerCase()}, constraining the forecast to ≤${Math.round(g.constrains_probability_to * 100)}%.`);
+    notHigherReasons.push(`"${g.gate_label}" remains ${statusLabel(g.status).toLowerCase()}, limiting what is achievable.`);
   }
   for (const g of moderateGates) {
-    notHigherReasons.push(`"${g.gate_label}" is only moderate — full resolution would unlock additional upside.`);
+    notHigherReasons.push(`"${g.gate_label}" is progressing but not yet fully resolved — completing this would unlock additional upside.`);
   }
   if (downwardDrivers.length > 0) {
     const topDown = [...downwardDrivers].sort((a, b) => a.contributionPoints - b.contributionPoints);
     const themes = topDown.slice(0, 3).map(d => d.name);
-    notHigherReasons.push(`Downward pressure from: ${themes.join(", ")} (total: -${downsideTotal} pts).`);
+    notHigherReasons.push(`Negative pressure from: ${themes.join(", ")}.`);
   }
   if (largeGap && notHigherReasons.length === 0) {
-    notHigherReasons.push(`A ${executionGap}-point execution gap between brand strength and forecast suggests unresolved operational or market barriers.`);
+    notHigherReasons.push(`A significant gap between evidence strength and outlook suggests unresolved operational or market barriers.`);
   }
 
-  const increaseLevers: string[] = [];
+  const whatWouldHelp: string[] = [];
   if (primaryConstraint && (primaryConstraint.status === "weak" || primaryConstraint.status === "unresolved")) {
-    const potentialGain = topGateDriverDelta > 0 ? ` (estimated +${topGateDriverDelta} pts)` : "";
-    increaseLevers.push(`Resolve the primary constraint "${primaryConstraint.gate_label}"${potentialGain}. This is the single highest-leverage change.`);
+    const potentialGain = topGateDriverDelta > 0 ? ` (estimated improvement: +${topGateDriverDelta} points)` : "";
+    whatWouldHelp.push(`Resolve "${primaryConstraint.gate_label}"${potentialGain}. This is the single highest-impact action.`);
   }
   for (const g of weakGates.filter(g => g.gate_id !== primaryConstraint?.gate_id).slice(0, 2)) {
-    increaseLevers.push(`Address "${g.gate_label}" — currently ${gateStatusLabel(g.status).toLowerCase()}, improving this would raise the probability cap.`);
+    whatWouldHelp.push(`Address "${g.gate_label}" — currently ${statusLabel(g.status).toLowerCase()}, resolving this would improve the outlook.`);
   }
   for (const g of moderateGates.slice(0, 1)) {
-    increaseLevers.push(`Strengthen "${g.gate_label}" from moderate to strong to unlock the remaining cap it imposes.`);
+    whatWouldHelp.push(`Strengthen "${g.gate_label}" to fully resolved status to unlock the remaining upside.`);
   }
-  if (increaseLevers.length === 0) {
-    increaseLevers.push("All gates are currently strong or moderate. Focus on strengthening signal evidence to increase the Bayesian posterior.");
+  if (whatWouldHelp.length === 0) {
+    whatWouldHelp.push("All key conditions are progressing or resolved. Focus on strengthening the evidence base to improve the outlook further.");
   }
 
-  let decisionImplication = "";
+  let planningGuidance = "";
   if (brandHigh && forecastLow && largeGap) {
-    decisionImplication = "The product appears viable, but success within the selected timeframe depends more on removing execution friction than on improving clinical positioning. Prioritize operational and access barrier resolution.";
+    planningGuidance = "The product appears viable, but success within this timeframe depends more on removing practical barriers than on improving clinical positioning. Prioritize operational and access resolution.";
   } else if (brandHigh && forecastModerate) {
-    decisionImplication = "The therapy is well-positioned clinically. Forecast improvement is achievable by addressing the remaining gate constraints. Focus resources on the primary bottleneck.";
+    planningGuidance = "The therapy is well-positioned clinically. Improvement is achievable by addressing the remaining barriers. Focus resources on the primary bottleneck.";
   } else if (forecastHigh) {
-    decisionImplication = "Conditions are favorable for adoption within the forecast window. Shift focus to monitoring for emerging headwinds and sustaining current momentum.";
+    planningGuidance = "Conditions are favorable. Shift focus to monitoring for emerging headwinds and sustaining current momentum.";
   } else if (forecastLow && !brandHigh) {
-    decisionImplication = "Both product positioning and execution readiness need improvement before committing to aggressive adoption targets. Consider extending the time horizon or addressing fundamental evidence gaps.";
+    planningGuidance = "Both product positioning and operational readiness need improvement before committing to aggressive targets. Consider extending the time horizon or addressing fundamental evidence gaps.";
   } else {
-    decisionImplication = "The forecast is in a transitional range. The most impactful action is resolving the primary constraint identified above.";
+    planningGuidance = "The situation is in a transitional range. The most impactful action is resolving the primary barrier identified above.";
   }
 
   const upwardCategories = new Set(upwardDrivers.map(d => {
@@ -173,16 +177,16 @@ const DecisionLabSummary = memo(function DecisionLabSummary({
           <Lightbulb className="w-5 h-5 text-indigo-400" />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Decision Lab Summary</h2>
-          <p className="text-[10px] text-slate-500 mt-0.5">Deterministic interpretation of forecast outputs</p>
+          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Situation Analysis</h2>
+          <p className="text-[10px] text-slate-500 mt-0.5">What the evidence tells us and what to do about it</p>
         </div>
       </div>
 
-      <Section icon={<Target className="w-4 h-4 text-blue-400" />} title="Executive Diagnosis">
-        <p className="text-sm text-slate-200 leading-relaxed">{executiveDiagnosis}</p>
+      <Section icon={<Target className="w-4 h-4 text-blue-400" />} title="Current Assessment">
+        <p className="text-sm text-slate-200 leading-relaxed">{situationAssessment}</p>
       </Section>
 
-      <Section icon={<ShieldAlert className="w-4 h-4 text-amber-400" />} title="Primary Constraint">
+      <Section icon={<ShieldAlert className="w-4 h-4 text-amber-400" />} title="What Is Holding This Back">
         {primaryConstraint ? (
           <>
             <div className="flex items-center gap-3 mb-2">
@@ -192,19 +196,18 @@ const DecisionLabSummary = memo(function DecisionLabSummary({
                 primaryConstraint.status === "moderate" ? "bg-yellow-500/15 text-yellow-300" :
                 "bg-emerald-500/15 text-emerald-300"
               }`}>
-                {gateStatusLabel(primaryConstraint.status)}
+                {statusLabel(primaryConstraint.status)}
               </span>
               <span className="text-sm font-semibold text-white">{primaryConstraint.gate_label}</span>
-              <span className="text-[10px] text-slate-500">cap: ≤{Math.round(primaryConstraint.constrains_probability_to * 100)}%</span>
             </div>
-            <p className="text-sm text-slate-300 leading-relaxed">{primaryConstraintExplanation}</p>
+            <p className="text-sm text-slate-300 leading-relaxed">{primaryBarrierExplanation}</p>
           </>
         ) : (
-          <p className="text-sm text-slate-400 leading-relaxed">No individual gate has been identified as the primary constraint. All gates are contributing evenly to the current forecast level.</p>
+          <p className="text-sm text-slate-400 leading-relaxed">No single barrier has been identified as the primary limiting factor. All conditions are contributing evenly to the current outlook.</p>
         )}
       </Section>
 
-      <Section icon={<Layers className="w-4 h-4 text-violet-400" />} title="Constraint Hierarchy">
+      <Section icon={<Layers className="w-4 h-4 text-violet-400" />} title="Key Conditions">
         <div className="space-y-1.5">
           {sortedByImpact.map((g, i) => (
             <div key={g.gate_id} className="flex items-center gap-3 rounded-lg bg-white/[0.02] px-3 py-2">
@@ -222,15 +225,14 @@ const DecisionLabSummary = memo(function DecisionLabSummary({
                 g.status === "moderate" ? "text-yellow-400" :
                 "text-emerald-400"
               }`}>
-                {gateStatusLabel(g.status)}
+                {statusLabel(g.status)}
               </span>
-              <span className="text-[10px] text-slate-500">≤{Math.round(g.constrains_probability_to * 100)}%</span>
             </div>
           ))}
         </div>
       </Section>
 
-      <Section icon={<TrendingDown className="w-4 h-4 text-rose-400" />} title="Why the Forecast Is Not Higher">
+      <Section icon={<TrendingDown className="w-4 h-4 text-rose-400" />} title="Why the Outlook Is Not Better">
         {notHigherReasons.length > 0 ? (
           <ul className="space-y-2">
             {notHigherReasons.map((reason, i) => (
@@ -241,15 +243,15 @@ const DecisionLabSummary = memo(function DecisionLabSummary({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-400 leading-relaxed">All gates are currently at moderate or strong status with no significant downward pressure identified. The forecast reflects the full weight of available evidence.</p>
+          <p className="text-sm text-slate-400 leading-relaxed">All key conditions are progressing with no significant negative pressure identified. The outlook reflects the full weight of available evidence.</p>
         )}
       </Section>
 
-      <Section icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} title="What Would Increase the Forecast">
+      <Section icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} title="What Would Improve the Outlook">
         <ul className="space-y-2">
-          {increaseLevers.map((lever, i) => (
+          {whatWouldHelp.map((lever, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-slate-300 leading-relaxed">
-              <span className="text-emerald-400 shrink-0 mt-0.5">→</span>
+              <span className="text-emerald-400 shrink-0 mt-0.5">&rarr;</span>
               <span>{lever}</span>
             </li>
           ))}
@@ -259,47 +261,39 @@ const DecisionLabSummary = memo(function DecisionLabSummary({
       {hasConflictingPressures && (
         <Section icon={<GitCompareArrows className="w-4 h-4 text-blue-400" />} title="Why Signals Can Seem Contradictory">
           <p className="text-sm text-slate-300 leading-relaxed mb-3">
-            This forecast includes both upward pressure (+{upsideTotal} pts) and downward pressure (-{downsideTotal} pts). This is not a model contradiction — it reflects asynchronous readiness across different adoption domains:
+            This outlook includes both positive and negative signals. This is not a contradiction — it reflects that different aspects of readiness are at different stages:
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {upwardDrivers.length > 0 && (
               <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/15 p-3">
-                <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-1.5">Favorable Domains</div>
+                <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-1.5">Working in Favor</div>
                 <div className="space-y-1">
                   {Array.from(upwardCategories).map(cat => (
-                    <div key={cat} className="text-xs text-emerald-300/80">• {cat}</div>
+                    <div key={cat} className="text-xs text-emerald-300/80">&bull; {cat}</div>
                   ))}
                 </div>
               </div>
             )}
             {downwardDrivers.length > 0 && (
               <div className="rounded-xl bg-rose-500/5 border border-rose-500/15 p-3">
-                <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider mb-1.5">Constraining Domains</div>
+                <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider mb-1.5">Holding Things Back</div>
                 <div className="space-y-1">
                   {Array.from(downwardCategories).map(cat => (
-                    <div key={cat} className="text-xs text-rose-300/80">• {cat}</div>
+                    <div key={cat} className="text-xs text-rose-300/80">&bull; {cat}</div>
                   ))}
                 </div>
               </div>
             )}
           </div>
           <p className="text-xs text-slate-400 mt-3 leading-relaxed">
-            Positive clinical, evidence, or market signals and negative operational, access, or behavioral signals can coexist legitimately. The system is detecting that different dimensions of adoption readiness are at different stages of maturity.
+            Positive clinical or market signals and negative operational or access signals can coexist. The system is showing that different dimensions of readiness are at different stages.
           </p>
         </Section>
       )}
 
-      <Section icon={<Crosshair className="w-4 h-4 text-indigo-400" />} title="Decision Implication">
-        <p className="text-sm text-white font-medium leading-relaxed">{decisionImplication}</p>
+      <Section icon={<Crosshair className="w-4 h-4 text-indigo-400" />} title="What This Means for Planning">
+        <p className="text-sm text-white font-medium leading-relaxed">{planningGuidance}</p>
       </Section>
-
-      <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-[10px] text-slate-600">
-        <span>Deterministic template logic</span>
-        <span>·</span>
-        <span>No generative text</span>
-        <span>·</span>
-        <span>Derived from forecast outputs</span>
-      </div>
     </div>
   );
 });

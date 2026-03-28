@@ -118,39 +118,39 @@ function inferOutcomeFromQuestion(questionText: string, pct: number): string {
   const q = questionText.toLowerCase();
 
   if (/launch|approval|fda|ema|regulatory/i.test(q)) {
-    if (pct >= 60) return "Launch or approval on track within forecast window";
-    if (pct >= 40) return "Launch timing uncertain — delay remains plausible";
-    return "Launch delay more likely than on-time approval";
+    if (pct >= 60) return "Launch or approval is on track within the forecast window";
+    if (pct >= 40) return "Launch timing is uncertain — a delay remains plausible";
+    return "A delay is more likely than on-time approval";
   }
   if (/adopt|prescrib|uptake|utiliz/i.test(q)) {
-    if (pct >= 60) return "Meaningful adoption likely within forecast window";
-    if (pct >= 40) return "Moderate adoption possible, but not yet certain";
-    return "Low adoption most probable — barriers outweigh drivers";
+    if (pct >= 60) return "Meaningful adoption is likely within the forecast window";
+    if (pct >= 40) return "Moderate adoption is possible, but not yet certain";
+    return "Low adoption is most probable — barriers outweigh supporting factors";
   }
   if (/share|market position|displacement|competitive/i.test(q)) {
-    if (pct >= 60) return "Share gain or competitive advantage likely";
-    if (pct >= 40) return "Market position uncertain — share stabilization most likely";
-    return "Share loss or competitive pressure more likely";
+    if (pct >= 60) return "Share gain or competitive advantage is likely";
+    if (pct >= 40) return "Market position is uncertain — share stabilization is the safer assumption";
+    return "Share loss or competitive pressure is more likely";
   }
   if (/guideline|nccn|recommendation|inclusion/i.test(q)) {
-    if (pct >= 60) return "Guideline inclusion likely within forecast window";
-    if (pct >= 40) return "Guideline update timing uncertain";
-    return "Guideline inclusion unlikely within forecast window";
+    if (pct >= 60) return "Guideline inclusion is likely within the forecast window";
+    if (pct >= 40) return "Guideline update timing remains uncertain";
+    return "Guideline inclusion is unlikely within the forecast window";
   }
   if (/payer|access|reimbursement|coverage|formulary/i.test(q)) {
-    if (pct >= 60) return "Favorable access outcome likely";
-    if (pct >= 40) return "Access pathway uncertain — mixed payer signals";
-    return "Access barriers likely to persist";
+    if (pct >= 60) return "A favorable access outcome is likely";
+    if (pct >= 40) return "The access pathway is uncertain — mixed payer signals";
+    return "Access barriers are likely to persist";
   }
   if (/account|target|segment|who adopt/i.test(q)) {
-    if (pct >= 60) return "Adoption concentrated in targeted segment";
-    if (pct >= 40) return "Adoption pattern uncertain across segments";
-    return "Broad adoption unlikely — segment-specific strategy needed";
+    if (pct >= 60) return "Adoption is concentrated in the targeted segment";
+    if (pct >= 40) return "Adoption patterns across segments remain uncertain";
+    return "Broad adoption is unlikely — a segment-specific strategy is needed";
   }
 
-  if (pct >= 60) return "Favorable outcome likely within forecast window";
-  if (pct >= 40) return "Outcome uncertain — competing scenarios remain plausible";
-  return "Unfavorable outcome more likely given current evidence";
+  if (pct >= 60) return "A favorable outcome is likely within the forecast window";
+  if (pct >= 40) return "The outcome is uncertain — competing scenarios remain plausible";
+  return "An unfavorable outcome is more likely given current evidence";
 }
 
 function determineConfidence(
@@ -189,7 +189,7 @@ function classifyUncertainty(
   if (confidence === "High") {
     return {
       type: "well_resolved",
-      explanation: "Confidence is high — evidence base is sufficient, gates are mostly resolved, and analog patterns reinforce the call.",
+      explanation: "We have a clear picture. The evidence is consistent, key conditions are mostly resolved, and similar prior cases reinforce this view.",
     };
   }
 
@@ -200,36 +200,38 @@ function classifyUncertainty(
   const hasConflict = upDrivers.length > 0 && downDrivers.length > 0;
 
   if (unresolvedGates.length >= 2) {
+    const names = unresolvedGates.map(g => g.gate_label).join(", ");
     return {
       type: "missing_evidence",
-      explanation: `Uncertainty is driven by missing evidence — ${unresolvedGates.length} gate${unresolvedGates.length > 1 ? "s" : ""} remain unresolved (${unresolvedGates.map(g => g.gate_label).join(", ")}). The system cannot distinguish between outcomes until these conditions are observed.`,
+      explanation: `We do not yet have enough evidence to make a confident call. ${unresolvedGates.length} key condition${unresolvedGates.length > 1 ? "s" : ""} remain unresolved (${names}). Until we observe progress on these, the picture remains incomplete.`,
     };
   }
 
   if (hasConflict && Math.abs(upDrivers.length - downDrivers.length) <= 1) {
     return {
       type: "conflicting_signals",
-      explanation: "Uncertainty is driven by conflicting evidence — positive and negative signals are roughly balanced, pulling the forecast in opposing directions. Resolution depends on which signal domain moves first.",
+      explanation: "Positive and negative signals are roughly balanced, pulling the outlook in opposite directions. The situation will become clearer as one set of signals gains momentum over the other.",
     };
   }
 
   if (weakGates.length >= 2) {
+    const names = weakGates.map(g => g.gate_label).join(", ");
     return {
       type: "gating_barriers",
-      explanation: `Uncertainty is driven by gating barriers — ${weakGates.length} condition${weakGates.length > 1 ? "s" : ""} are partially resolved but not yet strong enough to remove their probability ceiling (${weakGates.map(g => g.gate_label).join(", ")}).`,
+      explanation: `${weakGates.length} condition${weakGates.length > 1 ? "s are" : " is"} partially resolved but not yet strong enough to allow progress (${names}). These are holding back the outlook.`,
     };
   }
 
   if (drivers.length < 3) {
     return {
       type: "weak_evidence",
-      explanation: "Uncertainty is driven by weak evidence — too few signals have been evaluated to build a reliable forecast. Adding more evidence would meaningfully change confidence.",
+      explanation: "Too few signals have been evaluated to build a reliable view. Gathering more evidence would meaningfully change the confidence level.",
     };
   }
 
   return {
     type: "conflicting_signals",
-    explanation: "Uncertainty reflects a mixed evidence picture — no single factor dominates, and the outcome depends on which conditions resolve first.",
+    explanation: "No single factor dominates the picture. The outcome depends on which conditions resolve first.",
   };
 }
 
@@ -252,32 +254,32 @@ function buildReasoning(
   let reasoning = "";
 
   if (gap >= 15) {
-    reasoning += `There is a ${gap}-point gap between evidence strength (${brandPct}%) and the constrained forecast (${finalPct}%), indicating that operational barriers — not product quality — are limiting the outlook. `;
+    reasoning += `The clinical evidence is stronger than the operational readiness — there is a ${gap}-point gap between what the product deserves and what the market is ready to deliver. The barriers are practical, not clinical. `;
   } else if (gap < 5) {
-    reasoning += `Evidence strength and operational readiness are well-aligned (${brandPct}% vs ${finalPct}%), suggesting the forecast accurately reflects current conditions. `;
+    reasoning += `Evidence and operational readiness are well aligned. The current outlook accurately reflects conditions on the ground. `;
   } else {
-    reasoning += `A moderate ${gap}-point gap between evidence strength (${brandPct}%) and forecast (${finalPct}%) suggests some conditions are partially dampening the signal. `;
+    reasoning += `Some operational conditions are partially limiting what the evidence would otherwise support. `;
   }
 
   if (weakGates.length > 0) {
-    reasoning += `Key unresolved conditions: ${weakGates.slice(0, 3).join(", ")}. `;
+    reasoning += `Key conditions still holding this back: ${weakGates.slice(0, 3).join(", ")}. `;
   }
   if (strongGates.length > 0) {
-    reasoning += `Favorable conditions: ${strongGates.slice(0, 2).join(", ")}. `;
+    reasoning += `Conditions working in favor: ${strongGates.slice(0, 2).join(", ")}. `;
   }
 
   if (analogContext && analogContext.topMatches.length > 0) {
     const bestMatch = analogContext.topMatches[0];
     if (bestMatch.finalProbability !== null) {
       const analogPct = Math.round(bestMatch.finalProbability * 100);
-      reasoning += `The closest historical analog (${bestMatch.caseId}, ${bestMatch.similarityScore}% similarity) resolved at ${analogPct}%`;
+      reasoning += `Historically, the closest comparable case (${bestMatch.caseId}) resolved at ${analogPct}%`;
       const diff = finalPct - analogPct;
       if (Math.abs(diff) <= 5) {
-        reasoning += `, closely aligning with the current forecast — reinforcing this call. `;
+        reasoning += `, which closely matches the current outlook — reinforcing this view. `;
       } else if (diff > 5) {
-        reasoning += `, which is below the current forecast by ${Math.abs(diff)} pts — suggesting the call may be more optimistic than precedent supports. `;
+        reasoning += `, which is below the current outlook by ${Math.abs(diff)} points — suggesting we may be more optimistic than precedent supports. `;
       } else {
-        reasoning += `, which exceeded the current forecast by ${Math.abs(diff)} pts — suggesting room for upside if similar conditions materialize. `;
+        reasoning += `, which exceeded the current outlook by ${Math.abs(diff)} points — suggesting room for upside if similar conditions emerge. `;
       }
     }
   }
@@ -288,8 +290,8 @@ function buildReasoning(
 function extractKeyDrivers(drivers: Driver[]): string[] {
   const sorted = [...drivers].sort((a, b) => Math.abs(b.contributionPoints) - Math.abs(a.contributionPoints));
   return sorted.slice(0, 3).map(d => {
-    const sign = d.contributionPoints > 0 ? "+" : "";
-    return `${d.name} (${sign}${d.contributionPoints} pts)`;
+    const direction = d.contributionPoints > 0 ? "supporting" : "constraining";
+    return `${d.name} (${direction})`;
   });
 }
 
@@ -312,7 +314,7 @@ function buildDecisionPosture(
   }
   if (finalPct >= 50 && finalPct < 60) {
     if (weakestGate) {
-      return `Monitor "${weakestGate.gate_label}" before committing resources. This single condition is the difference between a favorable and unfavorable call.`;
+      return `Watch "${weakestGate.gate_label}" before committing resources. This single condition is the difference between a favorable and unfavorable outcome.`;
     }
     return "Wait for one more confirming signal before committing. The call is close to tipping.";
   }
@@ -323,7 +325,7 @@ function buildDecisionPosture(
     if (caseType.includes("Access Constrained")) {
       return "Prepare for an unfavorable outcome unless access conditions change. Consider alternative pathways or extended timelines.";
     }
-    return "Treat this as low-probability. Maintain awareness but do not allocate significant resources to this scenario.";
+    return "This is low-probability. Maintain awareness but do not allocate significant resources to this scenario.";
   }
   return "This outcome is unlikely under current conditions. Do not plan around it. Reassess only if a fundamental shift occurs.";
 }
@@ -339,7 +341,7 @@ function buildMonitorList(
   for (const g of weakGates.slice(0, 2)) {
     items.push({
       label: g.gate_label,
-      reason: `Currently ${g.status} — resolving this would raise the probability ceiling from ≤${Math.round(g.constrains_probability_to * 100)}%`,
+      reason: `Currently ${g.status} — progress here would improve the outlook`,
     });
   }
 
@@ -350,7 +352,7 @@ function buildMonitorList(
     if (!items.some(i => i.label.toLowerCase() === d.name.toLowerCase())) {
       items.push({
         label: d.name,
-        reason: `${d.direction === "Upward" ? "Positive" : "Negative"} driver with ${Math.abs(d.contributionPoints)} pts impact — changes here would most move the forecast`,
+        reason: `${d.direction === "Upward" ? "Positive" : "Negative"} factor — changes here would most move the outlook`,
       });
     }
   }
@@ -370,7 +372,7 @@ function buildNextBestQuestion(
 
   if (weakGates.length > 0) {
     const gate = weakGates[0];
-    return `What specific milestone or event would resolve "${gate.gate_label}" from ${gate.status} to strong?`;
+    return `What specific milestone or event would resolve "${gate.gate_label}"?`;
   }
 
   const topNegative = drivers
@@ -378,10 +380,10 @@ function buildNextBestQuestion(
     .sort((a, b) => a.contributionPoints - b.contributionPoints);
 
   if (topNegative.length > 0) {
-    return `What would need to change for "${topNegative[0].name}" to stop constraining the forecast?`;
+    return `What would need to change for "${topNegative[0].name}" to stop holding back progress?`;
   }
 
-  return "Which upcoming data readout or market event is most likely to change this forecast?";
+  return "Which upcoming data readout or market event is most likely to change this outlook?";
 }
 
 function buildAnalogPattern(
@@ -392,7 +394,7 @@ function buildAnalogPattern(
   const best = analogContext.topMatches[0];
   const probPct = best.finalProbability !== null ? Math.round(best.finalProbability * 100) : null;
 
-  let patternLabel = "Structural Reference";
+  let patternLabel = "Reference Case";
   let description = best.adoptionLesson;
 
   if (best.confidenceBand === "High") {
@@ -403,7 +405,8 @@ function buildAnalogPattern(
 
   if (analogContext.scenarios.base) {
     const basePct = Math.round(analogContext.scenarios.base.probability);
-    description += ` Analog-weighted base probability: ${basePct}% (from ${analogContext.scenarios.base.sampleSize} calibrated case${analogContext.scenarios.base.sampleSize !== 1 ? "s" : ""}).`;
+    const count = analogContext.scenarios.base.sampleSize;
+    description += ` Based on ${count} similar prior case${count !== 1 ? "s" : ""}, the expected outcome was ${basePct}%.`;
   }
 
   return {
@@ -425,7 +428,7 @@ function buildReversalTriggers(
   const weakGates = gates.filter(g => g.status === "weak" || g.status === "unresolved");
   for (const g of weakGates.slice(0, 2)) {
     triggers.push({
-      description: `"${g.gate_label}" resolves from ${g.status} to strong — removes the ≤${Math.round(g.constrains_probability_to * 100)}% cap`,
+      description: `"${g.gate_label}" resolves favorably — would remove a key barrier holding back the outlook`,
       direction: "upward",
       gate: g.gate_label,
     });
@@ -434,7 +437,7 @@ function buildReversalTriggers(
   const strongGates = gates.filter(g => g.status === "strong");
   for (const g of strongGates.slice(0, 1)) {
     triggers.push({
-      description: `"${g.gate_label}" regresses from strong — would reintroduce a probability ceiling`,
+      description: `"${g.gate_label}" deteriorates — would reintroduce a barrier that is currently cleared`,
       direction: "downward",
       gate: g.gate_label,
     });
@@ -445,7 +448,7 @@ function buildReversalTriggers(
     .sort((a, b) => b.contributionPoints - a.contributionPoints);
   if (topUpward.length > 0 && finalPct < 50) {
     triggers.push({
-      description: `New supporting evidence in "${topUpward[0].name}" domain could shift the balance`,
+      description: `New supporting evidence in the "${topUpward[0].name}" area could shift the balance`,
       direction: "upward",
     });
   }
@@ -472,12 +475,12 @@ function buildConvergenceNote(
   const diff = Math.abs(finalPct - analogBasePct);
 
   if (diff <= 5) {
-    return `The current forecast (${finalPct}%) converges with the analog-weighted base (${analogBasePct}%), providing mutual validation between the model and historical outcomes.`;
+    return `The current outlook (${finalPct}%) closely matches what similar prior cases delivered (${analogBasePct}%), reinforcing this view.`;
   }
   if (finalPct > analogBasePct) {
-    return `The current forecast (${finalPct}%) exceeds the analog-weighted base (${analogBasePct}%) by ${diff} pts. This may reflect favorable conditions not present in historical comparables, or optimism that warrants monitoring.`;
+    return `The current outlook (${finalPct}%) is more optimistic than prior cases (${analogBasePct}%) by ${diff} points. This may reflect favorable conditions not seen before, or optimism that warrants monitoring.`;
   }
-  return `The current forecast (${finalPct}%) is below the analog-weighted base (${analogBasePct}%) by ${diff} pts. Historical cases in similar contexts performed better — the gap may close as conditions resolve.`;
+  return `The current outlook (${finalPct}%) is below what prior cases delivered (${analogBasePct}%) by ${diff} points. Historically, similar situations performed better — the gap may close as conditions resolve.`;
 }
 
 export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgmentResult {
