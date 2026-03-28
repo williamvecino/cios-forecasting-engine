@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@types/multer": "^2.1.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/contracts": "workspace:*",
     "@workspace/db": "workspace:*",
@@ -19,6 +20,7 @@
     "express": "^5",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.0",
+    "multer": "^2.1.1",
     "pdf-parse": "^2.4.5",
     "xlsx": "^0.18.5"
   },

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import multer from "multer";
 
 const router = Router();
 
@@ -277,6 +278,108 @@ Respond in JSON format:
   } catch (err) {
     console.error("Import project error:", err);
     res.status(500).json({ error: "Failed to analyze project materials" });
+  }
+});
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+router.post("/import-project/analyze", upload.single("file"), async (req, res) => {
+  try {
+    let extractedText = "";
+    let imageBase64: string | null = null;
+    let imageMimeType: string | null = null;
+    let sourceName = "Uploaded content";
+
+    if (req.file) {
+      const file = req.file;
+      sourceName = file.originalname;
+      const mime = file.mimetype || "application/octet-stream";
+      const base64 = file.buffer.toString("base64");
+
+      if (isImageFile(mime, file.originalname)) {
+        imageBase64 = base64;
+        imageMimeType = mime.startsWith("image/") ? mime : "image/jpeg";
+      } else {
+        extractedText = await extractTextFromFile(base64, mime, file.originalname);
+      }
+    } else if (req.body?.text) {
+      extractedText = req.body.text.trim().slice(0, 15000);
+      sourceName = "Pasted text";
+    }
+
+    if (!extractedText && !imageBase64) {
+      res.status(400).json({ error: "Could not extract content from the provided input." });
+      return;
+    }
+
+    const systemPrompt = `You are a pharmaceutical market intelligence analyst. You receive unstructured project materials and extract structured signals from them.
+
+Extract KEY SIGNALS — concrete facts, data points, or observations from the materials.
+
+RULES:
+- Signals must be factual, specific, and sourced from the materials
+- Each signal needs: text (what was found), direction (positive/negative/neutral), importance (High/Medium/Low), confidence (Strong/Moderate/Weak), category (evidence/access/competition/guideline/timing/adoption), and source_description
+- For image inputs: carefully read all visible text, data, charts, tables, and annotations
+- Extract as many distinct signals as possible (aim for 3-15)
+
+Respond in JSON format:
+{
+  "signals": [
+    {
+      "text": "Signal description",
+      "direction": "positive|negative|neutral",
+      "importance": "High|Medium|Low",
+      "confidence": "Strong|Moderate|Weak",
+      "category": "evidence|access|competition|guideline|timing|adoption",
+      "source_description": "Where in the materials this was found"
+    }
+  ],
+  "summary": "Brief summary of the content analyzed"
+}`;
+
+    const messages: any[] = [{ role: "system", content: systemPrompt }];
+
+    if (imageBase64 && imageMimeType) {
+      const userContent: any[] = [
+        { type: "text", text: "Analyze the following image and extract structured signals:" },
+        {
+          type: "image_url",
+          image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "high" },
+        },
+      ];
+      if (extractedText) {
+        userContent.push({ type: "text", text: `\n\nAdditional context:\n---\n${extractedText}\n---` });
+      }
+      messages.push({ role: "user", content: userContent });
+    } else {
+      messages.push({
+        role: "user",
+        content: `Analyze the following materials and extract structured signals:\n\n---\n${extractedText}\n---`,
+      });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+      max_tokens: 4000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      res.status(500).json({ error: "AI analysis returned empty response" });
+      return;
+    }
+
+    const parsed = JSON.parse(content);
+    res.json({
+      signals: parsed.signals || [],
+      summary: parsed.summary || "",
+    });
+  } catch (err) {
+    console.error("Import analyze error:", err);
+    res.status(500).json({ error: "Failed to analyze content" });
   }
 });
 
