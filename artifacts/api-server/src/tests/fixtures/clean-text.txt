@@ -1,0 +1,19 @@
+ARIKAYCE Market Access Strategy
+
+Objective: Evaluate whether ARIKAYCE (amikacin liposome inhalation suspension) can achieve target formulary placement across top-20 health plans within 12 months.
+
+Key Findings:
+1. Current coverage: 8 of 20 target plans have ARIKAYCE on formulary with prior authorization
+2. Three plans have denied coverage citing insufficient long-term safety data
+3. Competitor landscape: No direct competitors in NTM lung disease; closest alternative is IV amikacin
+4. KOL sentiment: 85% of surveyed pulmonologists view ARIKAYCE favorably
+5. Patient access: Co-pay programs reach approximately 60% of eligible patients
+6. Real-world evidence: 18-month post-launch data shows 73% culture conversion rate
+7. Regulatory: FDA granted breakthrough therapy designation; supplemental NDA for expanded indication pending
+
+Barriers:
+- Prior authorization requirements extend time-to-therapy by average 14 days
+- Specialty pharmacy network limited to 3 distributors
+- Annual cost per patient: $198,000
+
+Timeline: Q4 2024 target for 15/20 plan coverage

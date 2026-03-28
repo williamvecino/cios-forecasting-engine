@@ -607,8 +607,21 @@ router.post("/import-project/analyze", upload.single("file"), async (req, res) =
     }
 
     if (!extractedText && !imageBase64) {
-      res.status(400).json({ error: "Could not extract content from the provided input." });
-      return;
+      if (req.file) {
+        const rawFallback = req.file.buffer
+          .toString("utf-8")
+          .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+          .replace(/\s{3,}/g, " ")
+          .trim()
+          .slice(0, 15000);
+        if (rawFallback.length > 30) {
+          extractedText = rawFallback;
+        } else {
+          extractedText = `Document: ${req.file.originalname}. Content could not be extracted automatically.`;
+        }
+      } else {
+        extractedText = "Unreadable content submitted for analysis.";
+      }
     }
 
     const env = await classifyEnvironment(extractedText, questionContext, imageBase64, imageMimeType);
@@ -647,14 +660,25 @@ router.post("/import-project/analyze", upload.single("file"), async (req, res) =
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      res.status(500).json({ error: "AI analysis returned empty response" });
+      res.json({
+        signals: [
+          { text: "Document content could not be fully analyzed — manual review recommended", direction: "neutral", importance: "High", confidence: "Weak", category: "evidence", signal_source: "missing", source_description: "Fallback — AI returned empty" },
+        ],
+        summary: "Extraction produced limited results. Manual review recommended.",
+        lowConfidence: true,
+        environment: { context: env.context, label: env.label, rationale: env.rationale },
+      });
       return;
     }
 
     const parsed = JSON.parse(content);
+    const signals = (parsed.signals && parsed.signals.length > 0) ? parsed.signals : [
+      { text: "No signals could be extracted from the provided materials", direction: "neutral", importance: "High", confidence: "Weak", category: "evidence", signal_source: "missing", source_description: "Inferred from limited extraction" },
+    ];
     res.json({
-      signals: parsed.signals || [],
+      signals,
       summary: parsed.summary || "",
+      lowConfidence: !extractedText || extractedText.length < 100,
       environment: {
         context: env.context,
         label: env.label,

@@ -1,0 +1,136 @@
+this file clearly, the system should extract it at high confidence. The fact that it produced a generic technology readiness question means the ingestion logic is misclassifying the domain and missing obvious signals.
+
+Below is the evidence and the system implication.
+
+1) The PDF is clearly readable — this is not an OCR problem
+
+From the actual document content:
+
+The document explicitly states this is an agency RFP for an anti-PD-L1 oncology launch.
+It describes a pre-launch oncology product with defined tumor indications and timelines (e.g., bladder cancer and NSCLC planned for launch in Q4’16).
+It outlines a competitive landscape including Merck and BMS launches across tumor types and lines of therapy.
+It defines explicit commercial objectives, including:
+accelerate immunotherapy education
+establish the role of PD-L1
+lead launch readiness activities.
+
+These are structured strategic signals, not ambiguous text.
+
+So the ingestion problem is:
+
+classification logic failure — not extraction failure
+
+2) The system’s current output is diagnostically wrong
+
+The ingestion summary produced:
+
+"Is the organization ready to deploy the new technology system?"
+
+That is a domain mismatch.
+
+Because the document is clearly:
+
+Oncology launch planning
+Commercial readiness
+Competitive positioning
+Patient engagement strategy
+
+—not IT deployment.
+
+3) What the correct extraction should look like
+
+If ingestion were working properly, the output would resemble:
+
+Proposed decision
+
+Will the anti-PD-L1 therapy achieve successful launch adoption in NSCLC and bladder cancer given competitive timing and market education requirements?
+
+Signals
+
+Pre-launch stage confirmed
+Multiple tumor indications planned
+Competitive launches already underway
+Patient education gap identified
+Launch readiness activities required
+High scientific complexity environment
+
+All of those are explicitly present in the document.
+
+4) The deeper issue — likely pervasive across the app
+
+You suspected this correctly.
+
+This is not one bug.
+
+It is a systemic pattern when:
+
+The classifier defaults to a generic template
+instead of recognizing domain context
+
+This will affect:
+
+RFP ingestion
+Market research ingestion
+Clinical documents
+Strategy decks
+Competitive intelligence inputs
+
+So testing must be generalized.
+
+5) The exact failure modes to test for across the system
+
+Test these five conditions:
+
+Domain misclassification
+Signal suppression
+Generic fallback questions
+Overly strict extraction thresholds
+Missing domain vocabulary recognition
+
+6) The universal extraction test you should run now
+
+Use this as the standardized regression test.
+
+Instruction for Replit:
+
+Create a cross-domain ingestion validation test suite. Use at least five representative documents from different categories: oncology RFP, clinical trial abstract, market research deck, competitive landscape summary, and internal strategy memo. For each document, validate that the system correctly identifies the domain, generates a relevant decision question aligned to the document’s strategic context, extracts at least five domain-specific signals, and assigns an appropriate confidence level. Flag any case where the generated decision question is generic or mismatched to the document content.
+
+7) Quick diagnostic test you can run immediately
+
+Upload the same file and check whether the system detects these keywords.
+
+Required detection list:
+
+PD-L1
+NSCLC
+launch
+patient campaign
+competitive landscape
+immunotherapy
+
+If fewer than three are detected:
+
+the extraction pipeline is failing at the entity recognition layer.
+
+8) The architectural rule going forward
+
+Extraction should follow this order:
+
+Document
+→ domain classification
+→ entity recognition
+→ signal extraction
+→ decision inference
+
+Right now it is skipping the domain step.
+
+That is why the output looks generic.
+
+Bottom line
+
+Yes — if this document is readable to a human, the system should extract it with high confidence.
+
+The issue is not resolution.
+The issue is domain recognition and signal inference logic.
+
+Fixing that layer will stabilize ingestion across the entire platform.

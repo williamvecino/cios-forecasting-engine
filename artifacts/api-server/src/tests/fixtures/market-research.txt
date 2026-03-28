@@ -1,0 +1,35 @@
+MARKET LANDSCAPE REPORT: Cardiovascular Device Market — Q1 2024
+
+EXECUTIVE SUMMARY
+The transcatheter aortic valve replacement (TAVR) market is undergoing significant structural shifts driven by trial readouts and competitive dynamics.
+
+MARKET SIZE & GROWTH
+- Global TAVR market: $6.2B (2023), projected $9.1B by 2027 (CAGR 10.1%)
+- US accounts for 58% of global procedures
+- Approximately 185,000 TAVR procedures performed in the US in 2023
+
+COMPETITIVE LANDSCAPE
+Edwards Lifesciences (SAPIEN 3 Ultra RESILIA): 62% US market share
+Medtronic (Evolut PRO+/FX): 31% US market share
+Abbott (Navitor): 5% US market share, growing
+Boston Scientific (ACURATE neo2): EU only, US IDE trial ongoing
+
+KEY DEVELOPMENTS
+1. Edwards EARLY TAVR trial showed benefit in asymptomatic severe AS (NEJM Jan 2024)
+2. Medtronic Evolut FX received expanded indication for low-risk patients
+3. Abbott Navitor 2-year data presented at TVT showed non-inferiority vs SAPIEN 3
+4. Boston Scientific US IDE trial enrollment at 78% (estimated completion Q3 2024)
+
+PAYER DYNAMICS
+- CMS national coverage determination (NCD) expanded in 2023 to include low-risk patients
+- Average reimbursement: $52,000 per procedure (hospital setting)
+- Prior authorization rates declining: 23% in 2023 vs 41% in 2021
+
+BARRIERS TO ADOPTION
+- Operator training requirements: minimum 50 procedures for certification
+- Heart team mandate adds administrative burden
+- Rural access: 73% of TAVR centers are in urban areas
+- Patient awareness remains low outside cardiology referral networks
+
+FORECAST IMPLICATIONS
+The market is moving toward expansion into moderate and low-risk populations. First-mover advantage in the asymptomatic indication could shift 5-8% market share within 18 months.

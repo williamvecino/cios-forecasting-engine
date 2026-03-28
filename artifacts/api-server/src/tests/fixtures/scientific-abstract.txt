@@ -1,0 +1,22 @@
+Abstract #4521 — ASCO Annual Meeting 2024
+
+TITLE: Phase III Randomized Trial of Novel Anti-PD-L1 Agent XYZ-2847 vs Standard Chemotherapy in Previously Treated Advanced Non-Small Cell Lung Cancer: Primary Analysis of the HORIZON-3 Study
+
+BACKGROUND: XYZ-2847 is a next-generation anti-PD-L1 antibody with enhanced Fc-mediated ADCC activity. HORIZON-3 evaluated XYZ-2847 monotherapy vs docetaxel in patients with advanced NSCLC who progressed on platinum-based chemotherapy.
+
+METHODS: 892 patients were randomized 2:1 to XYZ-2847 (1200mg IV Q3W) or docetaxel (75mg/m2 IV Q3W). Primary endpoint: overall survival (OS). Key secondary endpoints: progression-free survival (PFS), objective response rate (ORR), duration of response (DOR).
+
+RESULTS: At median follow-up of 24.1 months:
+- Median OS: 15.7 months (XYZ-2847) vs 10.3 months (docetaxel); HR 0.71 (95% CI: 0.59-0.85; p<0.001)
+- Median PFS: 5.4 months vs 3.1 months; HR 0.68 (95% CI: 0.57-0.81)
+- ORR: 28.3% vs 13.1%
+- Median DOR: 18.2 months vs 5.6 months
+- Grade ≥3 treatment-related AEs: 18.7% vs 43.2%
+- Immune-related AEs of any grade: 31.4% (pneumonitis 4.2%, hepatitis 3.1%, colitis 2.8%)
+
+PD-L1 subgroup analysis:
+- PD-L1 ≥50% (n=312): HR for OS 0.52 (0.39-0.70)
+- PD-L1 1-49% (n=341): HR for OS 0.78 (0.62-0.98)
+- PD-L1 <1% (n=239): HR for OS 0.94 (0.72-1.22)
+
+CONCLUSIONS: XYZ-2847 demonstrated statistically significant and clinically meaningful improvement in OS compared to docetaxel in previously treated advanced NSCLC, with a favorable safety profile. Benefit was most pronounced in PD-L1 ≥50% patients. These results support regulatory filing for this indication.
