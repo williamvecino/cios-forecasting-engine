@@ -1,0 +1,212 @@
+There is a logic break.
+
+The problem is not just that the forecast is low. The problem is that the Judge output is internally inconsistent with the signal and gate state shown in Add Information and the event gates.
+
+What is wrong
+1) The narrative says barriers outweigh support, but the visible system state does not clearly support that
+
+From your screenshots:
+
+Signals entered
+
+Positive:
+Clinical evidence supports differentiation
+Guideline committee reviewing for updated recommendations
+Early adopter interest after conference data
+Guideline support moved from weak to moderate
+Negative:
+Payer friction
+Entrenched standard of care / switching inertia
+
+That is 4 positive vs 2 negative, which the system itself states at the bottom.
+
+Then in the Judge screen:
+
+Brand strength = 80%
+Prior = 45%
+Final forecast = 30%
+Confidence = High
+Guideline/evidence support = Strong in the second screenshot
+Access/reimbursement = Moderate
+Regulatory/label applicability = Moderate
+Yet the conclusion remains:
+“Low adoption is most probable — barriers outweigh supporting factors”
+
+That is not coherent.
+
+If:
+
+brand strength is high,
+positive signals outnumber negatives,
+guideline support improved materially,
+major gates are moderate/strong rather than weak,
+
+then a 30% gate-constrained outcome with high confidence looks mechanically wrong.
+
+2) The confidence label is wrong relative to the explanation
+
+The narrative says:
+
+“No single factor dominates”
+“The outcome depends on which conditions resolve first”
+
+That is a description of uncertainty.
+
+But the UI shows:
+
+Confidence: High
+
+That should not be high.
+That should be moderate at best, possibly low-moderate depending on how much of the model is still assumption-based.
+
+So there is likely a bug where confidence is being calculated from quantity/structure of signals rather than from actual uncertainty and contradiction.
+
+3) The gate summary and the headline judgment are disconnected
+
+In the newer screenshot, the gates appear to be:
+
+Regulatory/label applicability → Moderate, constrains to 70%
+Guideline/evidence support → Strong, constrains to 75%
+Access/reimbursement readiness → Moderate, constrains to 50%
+Behavioral readiness is highlighted in the narrative as the main issue
+
+If that is true, then the system should be saying something like:
+
+“Adoption is plausible but still constrained by access and behavioral conversion.”
+
+Instead it says:
+
+“Low adoption is most probable — barriers outweigh supporting factors.”
+
+That sounds like a case with multiple weak gates, not a case with one strong gate and two moderate ones.
+
+So the problem is likely one of these:
+
+Old gate values are still being used in the judgment engine
+The narrative layer is not refreshing from the current structured state
+The gate-combination formula is too punitive
+A hard/soft gate flag is being applied incorrectly
+Behavioral readiness is being treated as a hidden hard cap
+Most likely root cause
+
+The strongest clue is this:
+
+In Add Information, you updated the signal set and explicitly improved guideline support.
+
+But the Judge page still behaves as if the system is anchored to an earlier state where:
+
+guideline support was weak
+access was weak
+behavioral readiness was weak
+barriers dominated
+
+So the most likely failure is:
+
+state synchronization failure between Step 2 and Step 3
+
+Meaning:
+
+Step 2 UI reflects the latest signals
+Step 3 forecast engine or summary generator is still using stale derived values
+
+That is the most plausible explanation from these screenshots.
+
+Secondary possibility
+The engine is double-counting barriers
+
+You may have:
+
+negative signal: payer friction
+gate penalty: access/reimbursement readiness
+negative signal: entrenched standard of care
+gate penalty: behavioral readiness
+
+If both the raw negative signals and the gate layer are penalizing the same constraint, then the system is effectively hitting the case twice for the same issue.
+
+That would artificially depress the forecast.
+
+Third possibility
+The gate mapping is too severe
+
+If “Moderate” is still constraining to:
+
+70%
+50%
+
+and those are compounded in a strongly multiplicative way, then the final score can collapse too fast.
+
+For example, if the system does something like:
+
+potential = 80%
+x 0.70
+x 0.75
+x 0.50
+
+that already drops to 21% before other adjustments.
+
+That would explain a low final probability even though the qualitative state looks fairly decent.
+
+If so, the problem is not just stale state. It is also over-harsh gate math.
+
+What should be true instead
+
+Given what is visible on screen, the system should probably output something closer to:
+
+Most likely outcome: constrained-but-plausible adoption
+Probability: higher than 30%
+Confidence: moderate, not high
+Planning language: selective investment / barrier-resolution strategy, not “do not allocate significant resources”
+
+That last line is especially wrong.
+A case with 80% brand strength, improving evidence support, and early adopter interest should not default to a near-dismissive planning recommendation unless there are true hard-stop barriers.
+
+What to tell Replit
+
+Paste this:
+
+The Judge step is internally inconsistent with the current signal and gate state.
+
+Observed issues:
+
+Step 2 shows 4 positive vs 2 negative signals and improved guideline support, but Step 3 still concludes “barriers outweigh supporting factors.”
+Judge displays high brand strength (80%), strong/moderate gate state, and still outputs only 30% with high confidence.
+Narrative uncertainty language (“depends on which conditions resolve first,” “no single factor dominates”) conflicts with the “Confidence: High” label.
+Planning recommendation is too negative relative to the current structured state.
+Likely causes are stale state between Step 2 and Step 3, barrier double-counting, or overly punitive gate-combination math.
+
+Required fixes:
+
+Verify Step 3 reads the latest saved signal state from Step 2, not cached derived values.
+Log the exact inputs used by the Judge engine at runtime.
+Show how each gate contributes numerically to the final forecast.
+Check whether negative signals are being penalized again inside gate constraints.
+Recalibrate Moderate/Strong gate math so moderate gates do not collapse probability excessively.
+Recompute confidence from uncertainty/contradiction, not just signal count or engine completion.
+Ensure the narrative generator is grounded in current structured outputs, not stale summaries.
+
+Add a visible debug block on the Judge page showing:
+
+active signal counts
+active gate states
+gate caps
+raw pre-gate forecast
+post-gate forecast
+confidence calculation inputs
+My read
+
+This is not a simple opinion difference.
+It looks like a system integrity issue.
+
+The biggest red flags are:
+
+4 positive vs 2 negative
+improved gate states
+80% brand strength
+30% final probability
+high confidence
+strongly negative recommendation
+
+Those do not belong together unless the engine has either stale inputs or excessively punitive constraint math.
+
+The correct next move is not to tweak another signal.
+It is to force the system to expose the full calculation path.

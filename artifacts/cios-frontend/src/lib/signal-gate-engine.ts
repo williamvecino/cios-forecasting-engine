@@ -235,9 +235,13 @@ export function recalculateGatesFromSignals(
     const newStatus = GATE_STATUS_ORDER[newIdx];
 
     const currentBand = GATE_STATUS_CAP_BAND[gate.status];
-    const posInBand = currentBand[1] > currentBand[0]
+    let posInBand = currentBand[1] > currentBand[0]
       ? (gate.constrains_probability_to - currentBand[0]) / (currentBand[1] - currentBand[0])
       : 0.5;
+
+    if (statusShift > 0) {
+      posInBand = Math.max(0.35, posInBand);
+    }
 
     const newCap = capForStatus(newStatus, Math.max(0, Math.min(1, posInBand)));
 

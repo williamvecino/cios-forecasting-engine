@@ -157,7 +157,8 @@ function determineConfidence(
   gates: EventGate[],
   analogContext: AnalogContext | null,
   brandPct: number,
-  finalPct: number
+  finalPct: number,
+  drivers?: Driver[]
 ): ConfidenceLevel {
   let score = 0;
 
@@ -173,8 +174,18 @@ function determineConfidence(
   const gap = Math.abs(brandPct - finalPct);
   if (gap < 10) score += 20;
   else if (gap < 20) score += 10;
+  else if (gap >= 35) score -= 25;
+  else if (gap >= 25) score -= 15;
 
   if (gates.length >= 3) score += 10;
+
+  if (drivers && drivers.length > 0) {
+    const up = drivers.filter(d => d.direction === "Upward" && d.contributionPoints > 0);
+    const down = drivers.filter(d => d.direction === "Downward" && d.contributionPoints < 0);
+    if (up.length > 0 && down.length > 0 && Math.abs(up.length - down.length) <= 2) {
+      score -= 10;
+    }
+  }
 
   if (score >= 60) return "High";
   if (score >= 35) return "Moderate";
@@ -184,20 +195,33 @@ function determineConfidence(
 function classifyUncertainty(
   gates: EventGate[],
   drivers: Driver[],
-  confidence: ConfidenceLevel
+  confidence: ConfidenceLevel,
+  brandPct?: number,
+  finalPct?: number
 ): { type: UncertaintyType; explanation: string } {
-  if (confidence === "High") {
+  const gap = Math.abs((brandPct ?? 0) - (finalPct ?? 0));
+  const upDrivers = drivers.filter(d => d.direction === "Upward" && d.contributionPoints > 0);
+  const downDrivers = drivers.filter(d => d.direction === "Downward" && d.contributionPoints < 0);
+  const hasConflict = upDrivers.length > 0 && downDrivers.length > 0;
+
+  if (confidence === "High" && gap < 20 && !hasConflict) {
     return {
       type: "well_resolved",
       explanation: "We have a clear picture. The evidence is consistent, key conditions are mostly resolved, and similar prior cases reinforce this view.",
     };
   }
 
+  if (gap >= 20) {
+    const weakGates = gates.filter(g => g.status === "weak" || g.status === "unresolved" || g.status === "moderate");
+    const constraintNames = weakGates.slice(0, 2).map(g => g.gate_label).join(" and ");
+    return {
+      type: "gating_barriers",
+      explanation: `The underlying evidence supports a stronger outcome, but operational constraints${constraintNames ? ` (${constraintNames})` : ""} are holding the forecast ${gap} points below the product's potential. The confidence depends on whether these barriers resolve, not on the quality of the evidence.`,
+    };
+  }
+
   const unresolvedGates = gates.filter(g => g.status === "unresolved");
-  const weakGates = gates.filter(g => g.status === "weak");
-  const upDrivers = drivers.filter(d => d.direction === "Upward" && d.contributionPoints > 0);
-  const downDrivers = drivers.filter(d => d.direction === "Downward" && d.contributionPoints < 0);
-  const hasConflict = upDrivers.length > 0 && downDrivers.length > 0;
+  const weakGatesOnly = gates.filter(g => g.status === "weak");
 
   if (unresolvedGates.length >= 2) {
     const names = unresolvedGates.map(g => g.gate_label).join(", ");
@@ -214,11 +238,11 @@ function classifyUncertainty(
     };
   }
 
-  if (weakGates.length >= 2) {
-    const names = weakGates.map(g => g.gate_label).join(", ");
+  if (weakGatesOnly.length >= 2) {
+    const names = weakGatesOnly.map(g => g.gate_label).join(", ");
     return {
       type: "gating_barriers",
-      explanation: `${weakGates.length} condition${weakGates.length > 1 ? "s are" : " is"} partially resolved but not yet strong enough to allow progress (${names}). These are holding back the outlook.`,
+      explanation: `${weakGatesOnly.length} condition${weakGatesOnly.length > 1 ? "s are" : " is"} partially resolved but not yet strong enough to allow progress (${names}). These are holding back the outlook.`,
     };
   }
 
@@ -322,10 +346,10 @@ function buildDecisionPosture(
     return "Do not base plans on this outcome yet. Competing scenarios remain equally plausible. Revisit after the next milestone.";
   }
   if (finalPct >= 25 && finalPct < 40) {
-    if (caseType.includes("Access Constrained")) {
-      return "Prepare for an unfavorable outcome unless access conditions change. Consider alternative pathways or extended timelines.";
+    if (caseType.includes("Access Constrained") || caseType.includes("Evidence")) {
+      return "Adoption is constrained by operational barriers, not product weakness. Focus investment on resolving the primary access or readiness constraint before committing to broader launch.";
     }
-    return "This is low-probability. Maintain awareness but do not allocate significant resources to this scenario.";
+    return "Current conditions make this outcome unlikely within the forecast window. Monitor the primary barrier for signs of movement before increasing investment.";
   }
   return "This outcome is unlikely under current conditions. Do not plan around it. Reassess only if a fundamental shift occurs.";
 }
@@ -488,13 +512,13 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
 
   const caseType = classifyCaseType(gates, drivers);
   const mostLikelyOutcome = inferOutcomeFromQuestion(questionText, finalForecastPct);
-  const confidence = determineConfidence(gates, analogContext, brandOutlookPct, finalForecastPct);
+  const confidence = determineConfidence(gates, analogContext, brandOutlookPct, finalForecastPct, drivers);
   const reasoning = buildReasoning(caseType, gates, drivers, brandOutlookPct, finalForecastPct, analogContext);
   const keyDrivers = extractKeyDrivers(drivers);
   const analogPattern = buildAnalogPattern(analogContext);
   const reversalTriggers = buildReversalTriggers(gates, drivers, finalForecastPct);
   const convergenceNote = buildConvergenceNote(finalForecastPct, analogContext);
-  const { type: uncertaintyType, explanation: uncertaintyExplanation } = classifyUncertainty(gates, drivers, confidence);
+  const { type: uncertaintyType, explanation: uncertaintyExplanation } = classifyUncertainty(gates, drivers, confidence, brandOutlookPct, finalForecastPct);
   const decisionPosture = buildDecisionPosture(finalForecastPct, confidence, caseType, gates, questionText);
   const monitorList = buildMonitorList(gates, drivers, reversalTriggers);
   const nextBestQuestion = buildNextBestQuestion(gates, drivers, caseType, questionText);

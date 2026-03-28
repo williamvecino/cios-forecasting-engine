@@ -415,9 +415,15 @@ export function runForecastEngine(
   };
 
   let confidenceLevel: string;
+  const positiveSignals = activeSignals.filter(s => s.direction === "Positive");
+  const negativeSignals = activeSignals.filter(s => s.direction === "Negative");
+  const hasSignalConflict = positiveSignals.length > 0 && negativeSignals.length > 0;
+  const signalBalance = Math.abs(positiveSignals.length - negativeSignals.length);
+
   if (activeSignals.length === 0) confidenceLevel = "Low";
   else if (activeSignals.length < 3) confidenceLevel = "Developing";
-  else if (Math.abs(netActorTranslation) < 0.15) confidenceLevel = "Moderate";
+  else if (hasSignalConflict && signalBalance <= 1) confidenceLevel = "Low";
+  else if (hasSignalConflict || Math.abs(netActorTranslation) < 0.15) confidenceLevel = "Moderate";
   else confidenceLevel = "High";
 
   const topSupportive = actorAggregation.reduce((best, a) =>

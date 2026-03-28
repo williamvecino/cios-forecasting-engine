@@ -10,7 +10,7 @@ I prefer clear and concise information. I appreciate high-level summaries before
 The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built with React, Vite, Tailwind CSS, Recharts, and React Query, emphasizing an "Aaru-like Decision Interface" with a question-driven design. The backend is an Express 5 application in TypeScript, exposing APIs under `/api`. Data persistence is managed by PostgreSQL via Drizzle ORM. API specifications adhere to OpenAPI 3.1, with `orval` used for client and validation library generation.
 
 **Core System Design Principles:**
-- **Bayesian Forecast Engine:** Calculates posterior probabilities using correlation-aware signal likelihood ratio products and an exponential net actor translation.
+- **Bayesian Forecast Engine:** Calculates posterior probabilities using correlation-aware signal likelihood ratio products and an exponential net actor translation. Confidence now accounts for signal conflict (positive vs negative balance) and brand/final gap penalties. Gate-constrained final forecast uses brand outlook as the pre-gate ceiling (eliminates double-constraining). Forecast Calculation Transparency panel shows full calculation path (prior, brand outlook, gate caps, final, gap, driver counts).
 - **AI-Powered Signal Detection & Review:** Facilitates AI-driven extraction of candidate signals with human oversight.
 - **Actor Behavioral Modeling:** Incorporates a 6-actor model (KOL, HCP, Payer, Patient, Administrator, Competitor) to adjust forecasts.
 - **Calibration Learning Loop:** Continuously tracks outcomes, computes Brier scores, and applies bias adjustments.

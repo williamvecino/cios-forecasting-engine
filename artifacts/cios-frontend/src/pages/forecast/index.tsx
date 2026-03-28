@@ -894,7 +894,9 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           const hasWeakOrUnresolved = decomp!.event_gates.some((g) => g.status === "weak" || g.status === "unresolved");
           constrainedProb = hasWeakOrUnresolved ? Math.min(computedCap, 0.70) : computedCap;
         }
-        const displayProb = constrainedProb != null ? Math.min(constrainedProb, f.currentProbability ?? 0.5) : (f.currentProbability ?? 0.5);
+        const displayProb = constrainedProb != null
+          ? Math.min(constrainedProb, brandOutlookProb ?? f.currentProbability ?? 0.5)
+          : (f.currentProbability ?? 0.5);
         const displayProbPct = Math.round(displayProb * 100);
 
         return (
@@ -965,6 +967,57 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                   />
 
                   <EventGatesPanel gates={decomp!.event_gates} />
+
+                  <details className="rounded-2xl border border-white/10 bg-[#0A1736]/60 overflow-hidden">
+                    <summary className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-slate-200 select-none">
+                      Forecast Calculation Transparency
+                    </summary>
+                    <div className="px-5 pb-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-slate-300">
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Prior</div>
+                        <div className="text-base font-bold text-slate-100">{Math.round((f.priorProbability ?? 0.5) * 100)}%</div>
+                      </div>
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Brand Outlook (Pre-Gate)</div>
+                        <div className="text-base font-bold text-cyan-300">{brandPct}%</div>
+                      </div>
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Min Gate Cap</div>
+                        <div className="text-base font-bold text-amber-300">{constrainedProb != null ? Math.round(constrainedProb * 100) : "—"}%</div>
+                      </div>
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Final Forecast</div>
+                        <div className="text-base font-bold text-emerald-300">{finalPct}%</div>
+                      </div>
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Execution Gap</div>
+                        <div className="text-base font-bold text-red-300">{Math.abs(brandPct - finalPct)} pts</div>
+                      </div>
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Confidence</div>
+                        <div className="text-base font-bold">{judgmentResult.confidence}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Upward Drivers</div>
+                        <div className="text-base font-bold text-green-300">{drivers.filter(d => d.direction === "Upward").length}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Downward Drivers</div>
+                        <div className="text-base font-bold text-red-300">{drivers.filter(d => d.direction === "Downward").length}</div>
+                      </div>
+                      {decomp!.event_gates.map((g) => (
+                        <div key={g.gate_id} className="rounded-xl border border-white/5 bg-white/[0.02] p-3 col-span-2">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{g.gate_label}</div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-bold ${g.status === "strong" ? "text-green-400" : g.status === "moderate" ? "text-amber-400" : "text-red-400"}`}>
+                              {g.status.toUpperCase()}
+                            </span>
+                            <span className="text-slate-400">→ caps at ≤{Math.round(g.constrains_probability_to * 100)}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
 
                   <ForecastMeaningPanel
                     interpretation={interpretation}
