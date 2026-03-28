@@ -32,6 +32,7 @@ import aiSignalsRouter from "./ai-signals.js";
 import aiDecideRouter from "./ai-decide.js";
 import aiInterpretRouter from "./ai-interpret.js";
 import importProjectRouter from "./import-project.js";
+import aiRespondRouter from "./ai-respond.js";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(aiSignalsRouter);
 router.use(aiDecideRouter);
 router.use(aiInterpretRouter);
 router.use(importProjectRouter);
+router.use(aiRespondRouter);
 
 export default router;

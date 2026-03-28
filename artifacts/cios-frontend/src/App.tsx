@@ -24,6 +24,7 @@ import QuestionPage from "@/pages/question/index";
 import SignalsPage from "@/pages/signals/index";
 import ForecastPage from "@/pages/forecast/index";
 import DecidePage from "@/pages/decide/index";
+import RespondPage from "@/pages/respond/index";
 import ForecastLedgerPage from "@/pages/forecast-ledger/index";
 import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import NotFound from "@/pages/not-found";
@@ -72,6 +73,7 @@ function Router() {
       <Route path="/signals" component={SignalsPage} />
       <Route path="/forecast" component={ForecastPage} />
       <Route path="/decide" component={DecidePage} />
+      <Route path="/respond" component={RespondPage} />
 
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
@@ -88,6 +90,7 @@ function Router() {
       <Route path="/case/:caseId/discover">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
       <Route path="/case/:caseId/analogs">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
       <Route path="/case/:caseId/portfolio">{() => <CaseWorkflowRedirect targetStep="decide" />}</Route>
+      <Route path="/case/:caseId/respond">{() => <CaseWorkflowRedirect targetStep="respond" />}</Route>
       <Route path="/case/:caseId/:rest*">{() => <CaseWorkflowRedirect targetStep="question" />}</Route>
 
       <Route path="/case-library" component={CaseLibrary} />

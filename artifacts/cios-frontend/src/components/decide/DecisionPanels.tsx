@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
@@ -166,6 +167,7 @@ function loadForecastGates(caseId: string): { gates: ForecastGate[]; brandOutloo
 
 export default function DecisionPanels() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
+  const [, navigate] = useLocation();
   const [data, setData] = useState<DecideResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -470,6 +472,16 @@ export default function DecisionPanels() {
               {data.growth_feasibility && (
                 <GrowthFeasibilityPanel data={data.growth_feasibility} />
               )}
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => navigate("/respond")}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition"
+                >
+                  Continue to Respond
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </>
           )}
         </section>

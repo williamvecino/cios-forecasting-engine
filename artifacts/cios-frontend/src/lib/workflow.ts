@@ -1,4 +1,4 @@
-export type WorkflowStep = "question" | "signals" | "forecast" | "decide";
+export type WorkflowStep = "question" | "signals" | "forecast" | "decide" | "respond";
 
 export interface ActiveQuestion {
   id: string;
@@ -51,6 +51,13 @@ export function getWorkflowSteps(): {
       description: "Turn the judgment into action.",
       path: "/decide",
     },
+    {
+      key: "respond",
+      label: "5 — Respond",
+      title: "Respond",
+      description: "Generate a client-ready response.",
+      path: "/respond",
+    },
   ];
 }
 
@@ -88,6 +95,7 @@ const CASE_SCOPED_KEYS = [
   "cios.signalReadiness",
   "cios.judgmentResult",
   "cios.decideResult",
+  "cios.respondResult",
 ];
 
 export function clearCaseState(caseId: string): void {

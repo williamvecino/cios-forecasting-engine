@@ -10,6 +10,7 @@ const STEP_MAP: Record<string, string> = {
   signals: "/signals",
   forecast: "/forecast",
   decide: "/decide",
+  respond: "/respond",
   ledger: "/forecast",
   scenario: "/forecast",
   discover: "/signals",

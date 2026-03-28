@@ -7,6 +7,7 @@ const STEPS = [
   { key: "signals", label: "Add Information", path: "/signals" },
   { key: "forecast", label: "Judge", path: "/forecast" },
   { key: "decide", label: "Decide", path: "/decide" },
+  { key: "respond", label: "Respond", path: "/respond" },
 ] as const;
 
 interface Props {

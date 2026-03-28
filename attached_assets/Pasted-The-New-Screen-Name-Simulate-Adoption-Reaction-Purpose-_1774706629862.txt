@@ -1,0 +1,257 @@
+The New Screen
+
+Name:
+
+Simulate Adoption Reaction
+
+Purpose:
+
+Test how defined segments respond to specific materials.
+
+Inputs to the Simulation
+
+These come directly from your existing system.
+
+Segment
+
+Examples:
+
+Early Adopters
+Persuadables
+Late Movers
+Resistant
+
+Materials
+
+Examples:
+
+Slide deck
+Clinical data table
+Economic model
+Visual mechanism
+Access support program
+
+Context
+
+Examples:
+
+Coverage unresolved
+Coverage resolved
+Competitive data released
+
+What the User Does
+
+Select a segment
+
+Example:
+
+Early Adopters
+
+Upload materials
+
+Examples:
+
+PPT
+PDF
+Image
+Message text
+
+Run simulation
+
+What the System Produces
+
+This is the key output.
+
+Reaction probability
+
+Example:
+
+Adoption likelihood: 42%
+
+Confidence level
+
+Example:
+
+Moderate
+
+Primary reaction
+
+Example:
+
+Interested but constrained by coverage uncertainty
+
+Barrier sensitivity
+
+Example:
+
+Coverage readiness is the dominant limiter
+
+Trigger condition
+
+Example:
+
+National coverage approval increases adoption probability to 68%
+
+Why This Works With Your Current Architecture
+
+Because you already have the necessary components.
+
+You already generate:
+
+Segments
+Barriers
+Triggers
+Gates
+
+Reaction simulation simply uses them.
+
+No new logic engine required.
+
+The Minimal Architecture
+
+One new module:
+
+Reaction Engine
+
+Inputs:
+
+Segment profile
+Material features
+Current gates
+
+Process:
+
+Evaluate alignment between message and constraint
+
+Output:
+
+Predicted behavioral response
+
+Example — Using Your Current Case
+
+Segment:
+
+Early Adopters
+
+Material:
+
+New survival data slide
+
+Current constraint:
+
+Payer coverage unresolved
+
+System output:
+
+Reaction
+
+High clinical interest
+
+Adoption behavior
+
+Trial usage only
+
+Primary limiter
+
+Coverage readiness
+
+Trigger
+
+Coverage approval increases prescribing probability
+
+What This Enables Immediately
+
+Three high-value capabilities.
+
+1) Pre-Launch Message Testing
+
+Instead of:
+
+Will this message work?
+
+You get:
+
+Which segment will move first?
+
+2) Barrier Sensitivity Testing
+
+Instead of:
+
+Is adoption slow?
+
+You get:
+
+Which constraint is blocking adoption?
+
+3) Pitch and Strategy Simulation
+
+Instead of:
+
+Here is our plan
+
+You get:
+
+Here is how the market will react
+
+The UI Pattern — Keep It Simple
+
+Button at the bottom of Respond:
+
+Simulate Segment Reaction
+
+Next screen:
+
+Select segment
+
+Early Adopters
+Persuadables
+Late Movers
+Resistant
+
+Upload material
+
+PPT
+Image
+Text
+
+Run simulation
+
+Output panel:
+
+Adoption likelihood
+Primary barrier
+Trigger to watch
+Confidence
+
+Why This Is Safe to Add Now
+
+Because it is downstream of the core engine.
+
+It does not modify:
+
+Signals
+Gates
+Forecast
+Decision
+
+It only interprets them.
+
+That keeps the system stable.
+
+What This Becomes Strategically
+
+Not message testing.
+
+Not marketing research.
+
+Not persona simulation.
+
+This becomes:
+
+Behavioral reaction forecasting
+
+The One Rule
+
+Simulation must use existing constraints.
+
+Never create new ones.
