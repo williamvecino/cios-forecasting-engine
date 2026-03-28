@@ -53,7 +53,7 @@ import SignalQualityPanel from "@/components/signals/SignalQualityPanel";
 import ConflictResolverPanel from "@/components/signals/ConflictResolverPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
-import { getAllPrebuiltSignals, getSignalsForBrand, getAnalogSignalsForBrand } from "@/lib/workbook/prebuiltSignals";
+import { getSignalsForBrand } from "@/lib/workbook/prebuiltSignals";
 
 type Direction = "positive" | "negative" | "neutral";
 type Strength = "High" | "Medium" | "Low";
@@ -464,16 +464,13 @@ export default function SignalsPage() {
   const [signals, setSignals] = useState<Signal[]>(() => {
     const persisted = (() => { try { const raw = localStorage.getItem(`cios.signals:${caseKey}`); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; } } catch {} return null; })();
     const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
-    const analogSignals = subject ? getAnalogSignalsForBrand(subject) as Signal[] : [];
-    const matched = [...brandSignals, ...analogSignals];
-    const prebuilt = matched.length > 0 ? matched : getAllPrebuiltSignals() as Signal[];
     if (persisted) {
       const existingIds = new Set(persisted.map((s: Signal) => s.id));
-      const missing = prebuilt.filter(s => !existingIds.has(s.id));
+      const missing = brandSignals.filter(s => !existingIds.has(s.id));
       if (missing.length > 0) return [...missing, ...persisted];
       return persisted;
     }
-    return [...prebuilt, ...fallbackSuggestions];
+    return [...brandSignals, ...fallbackSuggestions];
   });
   const [incomingEvents, setIncomingEvents] = useState<IncomingEvent[]>(fallbackEvents);
   const [aiLoading, setAiLoading] = useState(false);
@@ -521,15 +518,12 @@ export default function SignalsPage() {
       return null;
     })();
     const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
-    const analogSignals = subject ? getAnalogSignalsForBrand(subject) as Signal[] : [];
-    const matched = [...brandSignals, ...analogSignals];
-    const prebuilt = matched.length > 0 ? matched : getAllPrebuiltSignals() as Signal[];
     if (persisted) {
       const existingIds = new Set(persisted.map((s: Signal) => s.id));
-      const missing = prebuilt.filter(s => !existingIds.has(s.id));
+      const missing = brandSignals.filter(s => !existingIds.has(s.id));
       setSignals(missing.length > 0 ? [...missing, ...persisted] : persisted);
     } else {
-      setSignals([...prebuilt, ...fallbackSuggestions]);
+      setSignals([...brandSignals, ...fallbackSuggestions]);
     }
     setIncomingEvents(fallbackEvents);
     setAiLoading(false);
@@ -619,12 +613,9 @@ export default function SignalsPage() {
       setSignals((prev) => {
         const userSignals = prev.filter((s) => s.source === "user" || s.is_locked);
         const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
-        const analogSignals = subject ? getAnalogSignalsForBrand(subject) as Signal[] : [];
-        const matched = [...brandSignals, ...analogSignals];
-        const prebuilt = matched.length > 0 ? matched : getAllPrebuiltSignals() as Signal[];
         const existingIds = new Set(userSignals.map(s => s.id));
-        const newPrebuilt = prebuilt.filter(s => !existingIds.has(s.id));
-        return [...newPrebuilt, ...fallbackSuggestions, ...userSignals];
+        const newBrand = brandSignals.filter(s => !existingIds.has(s.id));
+        return [...newBrand, ...fallbackSuggestions, ...userSignals];
       });
     }
 

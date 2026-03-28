@@ -51,7 +51,7 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Simulate Adoption Reaction:** Allows testing segment responses to materials.
 - **Extraction Validation Framework:** Ensures minimally viable case generation through graceful degradation.
 - **Assumption Registry (DB-backed):** Automatically extracts and tracks all inferred/explicit assumptions.
-- **MIOS/BAOS Signal Integration:** Automatically loads prebuilt MIOS (evidence) and BAOS (behavioral/barrier) signals for specified brands.
+- **MIOS/BAOS Signal Integration:** MIOS provides brand-specific clinical evidence only (trial results with citations, FDA approvals, safety data from PubMed-level sources). BAOS takes MIOS evidence and passes it through cognitive lenses (Status Quo Bias, Loss Aversion, Anchoring, etc.) to identify adoption objections specific to that brand. Neither generates analogs, external searches, or unrelated market signals — those are CIOS-level functions. Signals are loaded only for the matched brand; no cross-brand fallback.
 - **Decision Gating Agent:** An orchestration agent that reads uploaded documents, identifies the real business decision, filters noise, and routes content to MIOS, BAOS, or CIOS, generating separate recommended questions per system.
 
 ## Bounded Agent Architecture (13 agents total)

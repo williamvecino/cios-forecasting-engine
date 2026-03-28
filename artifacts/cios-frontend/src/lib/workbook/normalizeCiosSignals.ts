@@ -8,6 +8,8 @@ export interface WorkbookMeta {
   sourceWorkbook: string;
   programId: string;
   whyItMatters: string;
+  trialOrSource?: string;
+  cognitiveLens?: string;
 }
 
 export interface NormalizedSignal {
@@ -22,7 +24,7 @@ export interface NormalizedSignal {
   source: "system";
   accepted: boolean;
   signal_class: "observed";
-  signal_family: "brand_clinical_regulatory";
+  signal_family: "brand_clinical_regulatory" | "provider_behavioral" | "payer_access" | "competitor" | "patient_demand" | "system_operational";
   source_type: string;
   priority_source: "observed_verified";
   is_locked: boolean;
