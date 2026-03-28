@@ -124,6 +124,8 @@ interface Signal {
   priority_source?: PrioritySource;
   is_locked?: boolean;
   conflict_with?: string;
+  superseded_by?: string;
+  superseded?: boolean;
 }
 
 interface IncomingEvent {
@@ -697,14 +699,6 @@ export default function SignalsPage() {
   const RELIABILITY_TO_SCORE: Record<Reliability, number> = { Confirmed: 5, Probable: 3, Speculative: 2 };
 
   function detectConflicts(sigs: Signal[]): Signal[] {
-    const accepted = sigs.filter(s => s.accepted);
-    const gateGroups: Record<string, Signal[]> = {};
-    for (const s of accepted) {
-      const cat = s.category;
-      if (!gateGroups[cat]) gateGroups[cat] = [];
-      gateGroups[cat].push(s);
-    }
-
     const PRIORITY_RANK: Record<string, number> = {
       manual_confirmed: 4,
       observed_verified: 3,
@@ -712,7 +706,46 @@ export default function SignalsPage() {
       ai_uncertainty: 1,
     };
 
-    const updated = sigs.map(s => ({ ...s, conflict_with: undefined as string | undefined }));
+    const updated = sigs.map(s => ({
+      ...s,
+      conflict_with: undefined as string | undefined,
+      superseded_by: undefined as string | undefined,
+      superseded: false,
+    }));
+
+    const accepted = updated.filter(s => s.accepted && !s.superseded);
+    const gateGroups: Record<string, typeof updated> = {};
+    for (const s of accepted) {
+      const cat = s.category;
+      if (!gateGroups[cat]) gateGroups[cat] = [];
+      gateGroups[cat].push(s);
+    }
+
+    const CONTRADICTION_PAIRS: Array<[RegExp, RegExp]> = [
+      [/prior\s*auth(orization)?\s*(not|no longer|no)\s*(needed|required)/i, /prior\s*auth(orization)?\s*(required|needed|barrier)/i],
+      [/formulary\s*(included|added|approved|listed)/i, /formulary\s*(excluded|removed|denied|not\s+covered)/i],
+      [/payer\s*(approved|favorable|included|no\s+barrier)/i, /payer\s*(friction|barrier|denied|restricted)/i],
+      [/reimbursement\s*(resolved|approved|favorable)/i, /reimbursement\s*(denied|barrier|restricted|challenging)/i],
+      [/access\s*(approved|granted|expanded|open)/i, /access\s*(restricted|denied|limited|barrier)/i],
+    ];
+
+    function areContradictory(a: string, b: string): boolean {
+      const aLower = a.toLowerCase();
+      const bLower = b.toLowerCase();
+      for (const [patternA, patternB] of CONTRADICTION_PAIRS) {
+        if ((patternA.test(aLower) && patternB.test(bLower)) ||
+            (patternB.test(aLower) && patternA.test(bLower))) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function signalScore(s: Signal): number {
+      const rank = PRIORITY_RANK[s.priority_source || "ai_derived"] || 2;
+      const idNum = parseInt(s.id.replace(/\D/g, ""), 10) || 0;
+      return rank * 10000 + idNum;
+    }
 
     for (const cat of Object.keys(gateGroups)) {
       const group = gateGroups[cat];
@@ -723,18 +756,29 @@ export default function SignalsPage() {
 
       if (positives.length > 0 && negatives.length > 0) {
         for (const pos of positives) {
-          const posRank = PRIORITY_RANK[pos.priority_source || "ai_derived"] || 2;
+          const posIdx = updated.findIndex(s => s.id === pos.id);
           for (const neg of negatives) {
-            const negRank = PRIORITY_RANK[neg.priority_source || "ai_derived"] || 2;
-            const posIdx = updated.findIndex(s => s.id === pos.id);
             const negIdx = updated.findIndex(s => s.id === neg.id);
-            if (posIdx >= 0 && negIdx >= 0) {
-              if (posRank <= negRank) {
+            if (posIdx < 0 || negIdx < 0) continue;
+            if (updated[posIdx].superseded || updated[negIdx].superseded) continue;
+
+            const isDirectContradiction = areContradictory(pos.text, neg.text);
+            const posScore = signalScore(pos);
+            const negScore = signalScore(neg);
+
+            if (isDirectContradiction) {
+              if (posScore >= negScore) {
+                updated[negIdx].superseded = true;
+                updated[negIdx].superseded_by = pos.id;
                 updated[posIdx].conflict_with = neg.id;
-              }
-              if (negRank <= posRank) {
+              } else {
+                updated[posIdx].superseded = true;
+                updated[posIdx].superseded_by = neg.id;
                 updated[negIdx].conflict_with = pos.id;
               }
+            } else {
+              updated[posIdx].conflict_with = neg.id;
+              updated[negIdx].conflict_with = pos.id;
             }
           }
         }
@@ -779,7 +823,7 @@ export default function SignalsPage() {
     const caseKey = activeQuestion?.caseId || "unknown";
 
     const acceptedInputs = updatedSignals
-      .filter(s => s.accepted)
+      .filter(s => s.accepted && !s.superseded)
       .map(s => ({
         id: s.id,
         text: s.text,
@@ -1601,7 +1645,13 @@ function SignalSourceTags({ signal }: { signal: Signal }) {
       <span key="ai-unc" className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-slate-500/15 text-slate-400">AI Uncertain</span>
     );
   }
-  if (signal.conflict_with) {
+  if (signal.superseded) {
+    tags.push(
+      <span key="superseded" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-slate-500/20 text-slate-400 line-through">
+        Superseded
+      </span>
+    );
+  } else if (signal.conflict_with) {
     tags.push(
       <span key="conflict" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-red-500/15 text-red-300">
         <AlertTriangle className="w-2.5 h-2.5" />
@@ -1634,7 +1684,13 @@ function PrimaryDriverCard({
   const dirAccent = signal.direction === "positive" ? "text-emerald-400" : signal.direction === "negative" ? "text-red-400" : "text-muted-foreground";
 
   return (
-    <div className={`rounded-2xl border p-5 space-y-3 ${dirColor}`}>
+    <div className={`rounded-2xl border p-5 space-y-3 ${dirColor} ${signal.superseded ? "opacity-40" : ""}`}>
+      {signal.superseded && (
+        <div className="flex items-center gap-2 text-[10px] text-slate-400 bg-slate-500/10 border border-slate-500/20 rounded-lg px-3 py-1.5 mb-1">
+          <AlertTriangle className="w-3 h-3 shrink-0" />
+          <span>Superseded by newer evidence — excluded from active calculations</span>
+        </div>
+      )}
       <div className="flex items-start gap-4">
         <div className={`shrink-0 rounded-xl p-2.5 bg-card border border-border ${dirAccent}`}>
           {signal.direction === "positive" ? <ArrowUpRight className="w-5 h-5" /> : signal.direction === "negative" ? <ArrowDownRight className="w-5 h-5" /> : <Minus className="w-5 h-5" />}
@@ -1745,7 +1801,13 @@ function SupportingSignalRow({
   const CatIcon = catCfg.icon;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-3.5 space-y-2">
+    <div className={`rounded-xl border border-border bg-card p-3.5 space-y-2 ${signal.superseded ? "opacity-40" : ""}`}>
+      {signal.superseded && (
+        <div className="flex items-center gap-1.5 text-[9px] text-slate-400 bg-slate-500/10 rounded-lg px-2 py-1">
+          <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+          Superseded — excluded from calculations
+        </div>
+      )}
       <div className="flex items-start gap-3">
         <div className={`shrink-0 mt-0.5 rounded-md bg-muted/20 p-1 ${catCfg.color}`}>
           <CatIcon className="w-3 h-3" />

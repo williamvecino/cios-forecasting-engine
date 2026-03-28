@@ -203,9 +203,11 @@ const DriverContributionBreakdown = memo(function DriverContributionBreakdown({ 
         ))}
       </div>
       {!isReconciled && totalShift !== 0 && (
-        <div className="flex items-center gap-2 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-          <CircleAlert className="w-3 h-3 shrink-0" />
-          <span>Contribution accounting mismatch: net contributions ({netContribution >= 0 ? "+" : ""}{netContribution}) differ from probability shift ({totalShift >= 0 ? "+" : ""}{totalShift}). Actor adjustments or rounding may account for the difference.</span>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3 text-[10px] bg-slate-500/10 border border-slate-500/20 rounded-xl px-3 py-2">
+            <span className="text-slate-300">Unattributed adjustment: {(totalShift - netContribution) >= 0 ? "+" : ""}{totalShift - netContribution} pts</span>
+            <span className="text-slate-500">(actor behavioral adjustments)</span>
+          </div>
         </div>
       )}
     </div>
@@ -347,6 +349,30 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
     }
     for (let i = 0; i < downContribs.length; i++) {
       if (downContribs[i] === 0 && downWeights[i] > 0) downContribs[i] = 1;
+    }
+
+    const actualUp = upContribs.reduce((s, v) => s + v, 0);
+    const actualDown = downContribs.reduce((s, v) => s + v, 0);
+    const actualNet = actualUp - actualDown;
+    if (actualNet !== totalShift && totalShift !== 0) {
+      const diff = actualNet - totalShift;
+      if (diff > 0) {
+        if (upContribs.length > 0) {
+          const maxIdx = upContribs.reduce((mi, v, i) => v > upContribs[mi] ? i : mi, 0);
+          upContribs[maxIdx] = Math.max(0, upContribs[maxIdx] - diff);
+        } else if (downContribs.length > 0) {
+          const maxIdx = downContribs.reduce((mi, v, i) => v > downContribs[mi] ? i : mi, 0);
+          downContribs[maxIdx] += diff;
+        }
+      } else {
+        if (downContribs.length > 0) {
+          const maxIdx = downContribs.reduce((mi, v, i) => v > downContribs[mi] ? i : mi, 0);
+          downContribs[maxIdx] = Math.max(0, downContribs[maxIdx] + diff);
+        } else if (upContribs.length > 0) {
+          const maxIdx = upContribs.reduce((mi, v, i) => v > upContribs[mi] ? i : mi, 0);
+          upContribs[maxIdx] -= diff;
+        }
+      }
     }
 
     const drivers: Driver[] = [];
