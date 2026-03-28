@@ -55,6 +55,28 @@ import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import { getSignalsForBrand } from "@/lib/workbook/prebuiltSignals";
 
+function isMiosBaosSignal(s: any): boolean {
+  const st = (s.source_type || "").toUpperCase();
+  if (st === "MIOS" || st === "BAOS" || st.includes("MIOS") || st.includes("BAOS")) return true;
+  const pid = (s.workbook_meta?.programId || "").toUpperCase();
+  if (pid.startsWith("MIOS-") || pid.startsWith("BAOS-")) return true;
+  const src = (s.workbook_meta?.sourceWorkbook || "").toUpperCase();
+  if (src.includes("MIOS") || src.includes("BAOS")) return true;
+  const id = (s.id || "");
+  if (id.startsWith("mios_") || id.startsWith("baos_")) return true;
+  return false;
+}
+
+function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): any[] {
+  if (!signals || signals.length === 0) return signals;
+  const brandSignalIds = currentSubject ? new Set(getSignalsForBrand(currentSubject).map(s => s.id)) : new Set<string>();
+  return signals.filter((s: any) => {
+    if (!isMiosBaosSignal(s)) return true;
+    if (!currentSubject || brandSignalIds.size === 0) return false;
+    return brandSignalIds.has(s.id);
+  });
+}
+
 type Direction = "positive" | "negative" | "neutral";
 type Strength = "High" | "Medium" | "Low";
 type Reliability = "Confirmed" | "Probable" | "Speculative";
@@ -448,11 +470,14 @@ export default function SignalsPage() {
       const raw = localStorage.getItem(`cios.signals:${caseKey}`);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = stripNonMatchingBrandSignals(parsed, subject) as Signal[];
+          return filtered.length > 0 ? filtered : null;
+        }
       }
     } catch {}
     return null;
-  }, [caseKey]);
+  }, [caseKey, subject]);
 
   const persistSignals = useCallback((sigs: Signal[]) => {
     try {
@@ -462,7 +487,7 @@ export default function SignalsPage() {
   }, [caseKey]);
 
   const [signals, setSignals] = useState<Signal[]>(() => {
-    const persisted = (() => { try { const raw = localStorage.getItem(`cios.signals:${caseKey}`); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; } } catch {} return null; })();
+    const persisted = (() => { try { const raw = localStorage.getItem(`cios.signals:${caseKey}`); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return stripNonMatchingBrandSignals(p, subject) as Signal[]; } } catch {} return null; })();
     const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
     if (persisted) {
       const existingIds = new Set(persisted.map((s: Signal) => s.id));
@@ -513,12 +538,12 @@ export default function SignalsPage() {
     const persisted = (() => {
       try {
         const raw = localStorage.getItem(`cios.signals:${caseKey}`);
-        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; }
+        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return stripNonMatchingBrandSignals(p, subject) as Signal[]; }
       } catch {}
       return null;
     })();
     const brandSignals = subject ? getSignalsForBrand(subject) as Signal[] : [];
-    if (persisted) {
+    if (persisted && persisted.length > 0) {
       const existingIds = new Set(persisted.map((s: Signal) => s.id));
       const missing = brandSignals.filter(s => !existingIds.has(s.id));
       setSignals(missing.length > 0 ? [...missing, ...persisted] : persisted);
