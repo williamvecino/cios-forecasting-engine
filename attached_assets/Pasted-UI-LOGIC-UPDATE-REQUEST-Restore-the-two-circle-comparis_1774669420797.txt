@@ -1,0 +1,384 @@
+UI + LOGIC UPDATE REQUEST
+
+Restore the two-circle comparison layout in Step 3 (Forecast page) while preserving the new attribution, gate recalculation, and driver contribution logic.
+
+This page must clearly show:
+
+Potential
+vs
+Achievable Outcome
+
+The visual comparison is essential for understanding judgment and constraints.
+
+==================================================
+OBJECTIVE
+
+Redesign Step 3 — Forecast Page so that:
+
+1) Brand Outlook and Final Forecast appear as two circular gauges
+2) The gap between them is visible and explained
+3) Event gates explain the constraint
+4) Forecast meaning interprets the math
+5) Driver contributions reconcile the probability shift
+6) All values remain dynamically recalculated from signals and gates
+
+Do not remove the new accounting logic.
+
+==================================================
+STEP 3 — FINAL PAGE STRUCTURE
+
+ROW 1
+
+Brand Outlook circle
+Final Forecast circle
+Execution Gap indicator
+
+ROW 2
+
+Event Gates
+
+ROW 3
+
+Forecast Meaning
+
+ROW 4
+
+Driver Contribution Breakdown
+
+ROW 5
+
+Scenario Planning / Driver Impact / Case Library tabs
+
+==================================================
+ROW 1 — CORE COMPARISON CIRCLES
+
+Restore the two-circle layout.
+
+LEFT CIRCLE
+
+Brand Outlook
+
+Definition:
+Overall therapy momentum and system readiness.
+
+Derived from:
+
+- clinical evidence strength
+- safety profile
+- guideline support
+- patient demand
+- infrastructure readiness
+
+RIGHT CIRCLE
+
+Final Forecast
+
+Definition:
+Probability the specific question outcome will occur within the defined time horizon.
+
+Derived from:
+
+- weakest gates
+- operational constraints
+- access readiness
+- time feasibility
+- stakeholder behavior
+
+==================================================
+REQUIRED LABELS
+
+Under each circle:
+
+Brand Outlook
+Potential / overall readiness
+
+Final Forecast
+Probability of achieving the defined outcome
+
+==================================================
+EXECUTION GAP INDICATOR
+
+Display between the two circles.
+
+Execution Gap
+
+Definition:
+
+Brand Outlook minus Final Forecast
+
+Example:
+
+Execution Gap: 40 percentage points
+
+Primary constraint:
+Access / Reimbursement readiness
+
+==================================================
+LOGIC RULE
+
+If Brand Outlook equals Final Forecast
+
+Hide Execution Gap indicator
+
+==================================================
+ROW 2 — EVENT GATES
+
+Purpose:
+
+Explain why the Final Forecast differs from the Brand Outlook.
+
+Each gate must show:
+
+- gate name
+- status
+- severity
+- constraint impact
+- derived signals
+
+Example:
+
+Access / Reimbursement Readiness
+
+Status:
+Weak
+
+Impact:
+Constrains forecast to ≤35%
+
+Derived from:
+
+Limited payer coverage clarity
+Prior authorization complexity
+
+==================================================
+GATE REQUIREMENTS
+
+Event gates must be dynamic.
+
+Every time a signal changes:
+
+Recalculate gates
+
+Then update:
+
+Final Forecast
+Execution Gap
+Decision outputs
+
+Do not allow static gates.
+
+==================================================
+ROW 3 — FORECAST MEANING
+
+Purpose:
+
+Translate calculations into operational judgment.
+
+Required fields:
+
+Interpretation
+
+Primary constraint
+
+What would change the forecast
+
+==================================================
+EXAMPLE
+
+Interpretation
+
+Clinical momentum is strong, but reimbursement and workflow readiness limit adoption within the 18-month horizon.
+
+Primary constraint
+
+Access / Reimbursement readiness
+
+What would change the forecast
+
+Coverage expansion or simplified authorization requirements
+
+==================================================
+LOGIC RULE
+
+Forecast Meaning must be derived from:
+
+Weakest gate
+
+Not from generic templates
+
+==================================================
+ROW 4 — DRIVER CONTRIBUTION BREAKDOWN
+
+Keep the current driver contribution system.
+
+Do not remove.
+
+Each driver must show:
+
+driver name
+
+direction
+
+contribution points
+
+==================================================
+ACCOUNTING RULE
+
+Probability shift must equal:
+
+Sum of Upward Contributions
+minus
+Sum of Downward Contributions
+
+==================================================
+VALIDATION RULE
+
+If probability changes:
+
+Upward or downward pressure must not equal zero.
+
+==================================================
+WARNING RULE
+
+If contribution totals do not reconcile:
+
+Display:
+
+Contribution accounting mismatch detected
+
+==================================================
+ROW 5 — SCENARIO PLANNING
+
+Keep existing tabs:
+
+Scenario Planning
+Driver Impact
+Case Library
+
+Do not move these tabs.
+
+==================================================
+SCENARIO RULE
+
+Every scenario must:
+
+Modify one or more gates
+
+Recalculate forecast
+
+Display new probability
+
+Display delta from base case
+
+==================================================
+VISUAL HIERARCHY
+
+Top priority:
+
+Comparison between Brand Outlook and Final Forecast
+
+Second priority:
+
+Event Gates
+
+Third priority:
+
+Forecast Meaning
+
+Fourth priority:
+
+Driver Contributions
+
+==================================================
+DESIGN PRINCIPLE
+
+The user must understand the system in one glance.
+
+Specifically:
+
+Strong therapy
+Weak execution
+Low probability
+
+should be immediately visible.
+
+==================================================
+TECHNICAL REQUIREMENTS
+
+Create or update components:
+
+ForecastComparisonCircles.tsx
+
+ExecutionGapIndicator.tsx
+
+EventGatesPanel.tsx
+
+ForecastMeaningPanel.tsx
+
+DriverContributionBreakdown.tsx
+
+==================================================
+STATE DEPENDENCIES
+
+These elements must be derived from:
+
+updated gate state
+
+not initial AI output
+
+==================================================
+RECALCULATION TRIGGER
+
+Whenever a signal is:
+
+added
+
+edited
+
+accepted
+
+rejected
+
+deleted
+
+Trigger:
+
+Gate recalculation
+
+Then:
+
+Forecast recalculation
+
+Then:
+
+UI refresh
+
+==================================================
+SUCCESS CONDITION
+
+This update is successful only if:
+
+Brand Outlook and Final Forecast appear as two circles
+
+Execution Gap is visible
+
+Gates update when signals change
+
+Forecast updates when gates change
+
+Driver contributions reconcile probability shift
+
+Forecast Meaning reflects weakest gate
+
+==================================================
+DO NOT CHANGE
+
+Signal entry system
+
+Gate recalculation logic
+
+Driver attribution logic
+
+Decision derivation logic
+
+Only update layout and display logic.

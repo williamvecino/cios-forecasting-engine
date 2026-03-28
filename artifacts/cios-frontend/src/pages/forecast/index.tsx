@@ -6,6 +6,9 @@ import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import { ProbabilityGauge } from "@/components/ui-components";
+import { ForecastComparisonCircles } from "@/components/forecast/ForecastComparisonCircles";
+import { EventGatesPanel } from "@/components/forecast/EventGatesPanel";
+import { ForecastMeaningPanel } from "@/components/forecast/ForecastMeaningPanel";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import {
   ArrowRight,
@@ -783,7 +786,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   }, [caseId, queryClient]);
 
   const { data: forecast, isLoading } = useRunForecast(caseId);
-  const { data: caseData } = useGetCase(caseId);
+  useGetCase(caseId);
   const drivers = useDriversFromForecast(forecast, caseId);
 
   if (isLoading) {
@@ -813,7 +816,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   }
 
   const f = forecast as any;
-  const prob = Math.round((f.currentProbability ?? 0) * 100);
   const delta = (f.currentProbability ?? 0) - (f.priorProbability ?? 0);
   const confidence: Confidence = (f.confidenceLevel ?? "Moderate") as Confidence;
   const interpretation = f.interpretation;
@@ -822,7 +824,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const topDriver = drivers[0];
   const upsideTotal = drivers.filter((d) => d.direction === "Upward").reduce((s, d) => s + d.contributionPoints, 0);
   const downsideTotal = drivers.filter((d) => d.direction === "Downward").reduce((s, d) => s + Math.abs(d.contributionPoints), 0);
-  const netContribution = upsideTotal - downsideTotal;
   const totalShiftPts = Math.round(delta * 100);
 
   return (
@@ -859,8 +860,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         }
         const displayProb = constrainedProb != null ? Math.min(constrainedProb, f.currentProbability ?? 0.5) : (f.currentProbability ?? 0.5);
         const displayProbPct = Math.round(displayProb * 100);
-        const gateStatusColor: Record<string, string> = { strong: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30", moderate: "text-amber-400 bg-amber-500/15 border-amber-500/30", weak: "text-red-400 bg-red-500/15 border-red-500/30", unresolved: "text-slate-400 bg-slate-500/15 border-slate-500/30" };
-        const gateStatusIcon: Record<string, string> = { strong: "●", moderate: "◐", weak: "○", unresolved: "?" };
 
         return (
           <>
@@ -905,68 +904,31 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
               return (
                 <>
-                  <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="flex flex-col items-center text-center space-y-2">
-                        <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
-                        <ProbabilityGauge value={brandOutlookProb ?? f.currentProbability ?? 0.5} label="Brand Strength" size={180} />
-                        <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">Overall strength of therapy and market momentum</div>
-                        <div className="text-[10px] text-slate-500 italic">Potential / overall readiness</div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500">
-                          <span>Prior: {(f.priorProbability * 100).toFixed(0)}%</span>
-                          <ArrowRight className="w-3 h-3" />
-                          <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                            {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
-                          </span>
-                        </div>
-                      </div>
+                  <ForecastComparisonCircles
+                    brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}
+                    finalForecastProb={displayProb}
+                    priorProbability={f.priorProbability}
+                    delta={delta}
+                    confidence={confidence}
+                  />
 
-                      <div className="flex flex-col items-center text-center space-y-2">
-                        <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
-                        <ProbabilityGauge value={displayProb} label="Gate-Constrained" size={180} />
-                        <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">Probability the specific question outcome will occur</div>
-                        <div className="text-[10px] text-slate-500 italic">Constrained event outcome</div>
-                        <div className={cn(
-                          "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                          confidenceBadgeClass[confidence]
-                        )}>
-                          Confidence: {confidence}
-                        </div>
-                      </div>
-                    </div>
+                  <EventGatesPanel gates={decomp!.event_gates} />
 
-                    {Math.abs(brandPct - finalPct) >= 10 && (
-                      <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-center">
-                        <span className="text-xs text-amber-300 font-semibold">{brandPct - finalPct > 0 ? "▼" : "▲"} {Math.abs(brandPct - finalPct)} pt gap</span>
-                        <span className="text-xs text-slate-400 ml-2">between brand strength and achievable outcome</span>
-                      </div>
-                    )}
+                  <ForecastMeaningPanel
+                    interpretation={interpretation}
+                    weakestGate={weakestGate}
+                    strongestUnresolved={strongestUnresolved}
+                    brandPct={brandPct}
+                  />
 
-                    <div className="mt-3 text-center text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
-                  </div>
-
-                  <div className="rounded-3xl border border-amber-500/20 bg-[#0A1736] p-5 space-y-3">
-                    <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Event Gates</div>
-                    <div className="space-y-2">
-                      {decomp!.event_gates.map((gate) => (
-                        <div key={gate.gate_id} className={`rounded-xl border px-3 py-2 ${gateStatusColor[gate.status] || gateStatusColor.unresolved}`}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold">{gate.gate_label}</span>
-                            <span className="text-[10px] font-bold uppercase flex items-center gap-1">
-                              <span>{gateStatusIcon[gate.status] || "?"}</span>
-                              {gate.status}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-[10px] opacity-80 leading-snug">{gate.reasoning}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  {drivers.length > 0 && (
+                    <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
+                  )}
 
                   <div className="grid grid-cols-12 gap-4">
                     <InfoCard
                       title="Most Sensitive Gate"
-                      value={topGateDriver?.primaryDriver || "—"}
+                      value={topGateDriver?.primaryDriver || "\u2014"}
                       body={topGateDriver ? `${topGateDriver.name}: ${topGateDriver.delta > 0 ? "+" : ""}${topGateDriver.delta} pts potential impact` : "No gate scenarios identified."}
                     />
                     <InfoCard
@@ -979,44 +941,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       value={`-${gateDownside} pts`}
                       body="Combined estimated downside if strong gates regress."
                     />
-                  </div>
-
-                  {drivers.length > 0 && (
-                    <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
-                  )}
-
-                  <div className="rounded-3xl border border-indigo-500/20 bg-[#0A1736] p-6 space-y-5">
-                    <div className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Forecast Meaning</div>
-
-                    <div className="space-y-1">
-                      <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Interpretation</div>
-                      <p className="text-sm text-slate-200 leading-relaxed">{interpretation}</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 space-y-1">
-                        <div className="text-[10px] text-red-400 font-semibold uppercase tracking-wider">Primary Constraint</div>
-                        <div className="text-sm font-semibold text-white">{weakestGate?.gate_label || "—"}</div>
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border ${gateStatusColor[weakestGate?.status || "unresolved"]}`}>
-                            {gateStatusIcon[weakestGate?.status || "unresolved"]} {weakestGate?.status || "unresolved"}
-                          </span>
-                          {weakestGate?.constrains_probability_to != null && (
-                            <span className="text-[10px] text-slate-500">caps at {Math.round(weakestGate.constrains_probability_to * 100)}%</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-1">
-                        <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">What Would Change the Forecast</div>
-                        <div className="text-sm font-semibold text-white">{strongestUnresolved?.gate_label || "—"}</div>
-                        {strongestUnresolved && (
-                          <div className="text-[10px] text-slate-400 leading-snug">
-                            Resolving this gate could raise the forecast to ~{Math.min(Math.round((strongestUnresolved.constrains_probability_to ?? 0.5) * 100 + 15), brandPct)}%
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </>
               );
