@@ -1264,8 +1264,9 @@ async function runHarness() {
 
       // N2: Question Structuring
       console.log(`  ▶ N2. Question Structuring (${c.domain})...`);
-      const { data: struct } = await fetchJson(`${API_BASE}/agents/question-structuring`, { rawText: gate.primaryDecision, context: c.domain });
-      const structQ = struct?.activeQuestion?.questionText || struct?.activeQuestion?.text || gate.primaryDecision;
+      const { data: struct } = await fetchJson(`${API_BASE}/agents/question-structuring`, { rawInput: gate.primaryDecision, context: c.domain });
+      const sq = struct?.structuredQuestions || struct;
+      const structQ = sq?.activeQuestion?.questionText || sq?.activeQuestion?.text || gate.primaryDecision;
       const hasStruct = !!structQ;
       console.log(`     ${hasStruct ? "✅" : "❌"} structured: ${truncate(structQ, 80)}`);
       results.push({
@@ -1429,7 +1430,7 @@ async function runHarness() {
       // N10: Prioritization
       console.log(`  ▶ N10. Prioritization (${c.domain})...`);
       const prData = await fetchAgent("agents/prioritization", { question: structQ, context: c.domain });
-      const prCount = prData?.actions?.length || prData?.rankedActions?.length || 0;
+      const prCount = prData?.prioritizedActions?.length || prData?.actions?.length || prData?.rankedActions?.length || 0;
       console.log(`     ${prCount > 0 ? "✅" : "⚠️"} ${prCount} prioritized actions`);
       results.push({
         agent: `Prioritization [${c.domain}]`,
