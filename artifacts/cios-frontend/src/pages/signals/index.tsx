@@ -40,6 +40,7 @@ import {
   AlertTriangle,
   Lock,
   Upload,
+  Search,
 } from "lucide-react";
 import DataImportDialog from "@/components/signals/DataImportDialog";
 import type { ImportedRow } from "@/lib/data-import";
@@ -509,14 +510,8 @@ export default function SignalsPage() {
     try { localStorage.setItem(`cios.aiRequested:${caseKey}`, contextKey); } catch {}
   }, [caseKey, contextKey]);
 
-  const [forceRefreshAi, setForceRefreshAi] = useState(0);
-
-  useEffect(() => {
+  const runSignalSearch = useCallback((searchKeywords?: string[]) => {
     if (!subject || !questionText) return;
-
-    if (hasPersistedSignals() && aiAlreadyRan() && forceRefreshAi === 0) return;
-
-    if (aiAlreadyRan() && forceRefreshAi === 0) return;
 
     markAiRan();
     const requestId = ++aiRequestIdRef.current;
@@ -554,6 +549,7 @@ export default function SignalsPage() {
         questionText,
         timeHorizon,
         entities,
+        ...(searchKeywords?.length ? { keywords: searchKeywords } : {}),
       }),
     })
       .then((r) => {
@@ -579,8 +575,9 @@ export default function SignalsPage() {
             const translation_confidence = VALID_TRANSLATION_CONFIDENCE.has(s.translation_confidence) ? s.translation_confidence as TranslationConfidence : undefined;
             const applies_to_line_of_therapy = VALID_LINE_THERAPY.has(s.applies_to_line_of_therapy) ? s.applies_to_line_of_therapy as LineOfTherapyApplicability : undefined;
             const applies_within_time_horizon = VALID_TIME_HORIZON_APP.has(s.applies_within_time_horizon) ? s.applies_within_time_horizon as TimeHorizonApplicability : undefined;
+            const idPrefix = searchKeywords?.length ? "find" : "ai";
             return {
-              id: `ai-${i + 1}`,
+              id: `${idPrefix}-${i + 1}`,
               text: s.text,
               caveat: s.rationale || "",
               direction,
@@ -607,10 +604,10 @@ export default function SignalsPage() {
             };
           });
           setSignals((prev) => {
-            const lockedSignals = prev.filter((s) => s.is_locked || s.source === "user");
-            const lockedTexts = new Set(lockedSignals.map(s => s.text.toLowerCase().trim()));
-            const newAi = mapped.filter(s => !lockedTexts.has(s.text.toLowerCase().trim()));
-            const merged = [...newAi, ...lockedSignals];
+            const keepSignals = prev.filter((s) => s.is_locked || s.source === "user" || s.accepted);
+            const keepTexts = new Set(keepSignals.map(s => s.text.toLowerCase().trim()));
+            const newAi = mapped.filter(s => !keepTexts.has(s.text.toLowerCase().trim()));
+            const merged = [...newAi, ...keepSignals];
             persistSignals(merged);
             return merged;
           });
@@ -698,7 +695,14 @@ export default function SignalsPage() {
           setAiLoading(false);
         }
       });
-  }, [contextKey, forceRefreshAi]);
+  }, [subject, questionText, outcome, questionType, timeHorizon, entities, caseKey, fallbackEvents, fallbackSuggestions]);
+
+  useEffect(() => {
+    if (!subject || !questionText) return;
+    if (hasPersistedSignals() && aiAlreadyRan()) return;
+    if (aiAlreadyRan()) return;
+    runSignalSearch();
+  }, [contextKey]);
 
   const prevQuestionRef = useRef(questionText);
   useEffect(() => {
@@ -716,6 +720,8 @@ export default function SignalsPage() {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showFindPanel, setShowFindPanel] = useState(false);
+  const [findKeywords, setFindKeywords] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -1164,6 +1170,99 @@ export default function SignalsPage() {
             </div>
           )}
 
+          {!showFindPanel ? (
+            <button
+              type="button"
+              onClick={() => setShowFindPanel(true)}
+              disabled={aiLoading}
+              className="w-full rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-6 py-4 text-left transition hover:border-primary/50 hover:from-primary/15 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-primary/15 p-2.5 group-hover:bg-primary/25 transition">
+                  <Search className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-foreground">Find New Signals</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Search public sources for regulatory, clinical, market, and competitive intelligence</div>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition" />
+              </div>
+            </button>
+          ) : (
+            <div className="rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-primary/15 p-2">
+                    <Search className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Find New Signals</h3>
+                    <p className="text-xs text-muted-foreground">What should we look for?</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setShowFindPanel(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Searches regulatory filings, press releases, clinical trial registries, congress presentations, and news</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Focus areas (optional)</label>
+                  <input
+                    type="text"
+                    value={findKeywords}
+                    onChange={(e) => setFindKeywords(e.target.value)}
+                    placeholder={`e.g. "payer coverage, competitor launch, FDA advisory committee"`}
+                    className="w-full rounded-xl border border-border bg-muted/20 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !aiLoading) {
+                        const kws = findKeywords.trim()
+                          ? findKeywords.split(",").map(k => k.trim()).filter(Boolean)
+                          : undefined;
+                        setShowFindPanel(false);
+                        runSignalSearch(kws);
+                      }
+                    }}
+                  />
+                  <p className="text-[10px] text-muted-foreground/60">Separate multiple terms with commas. Leave blank to search based on your question.</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const kws = findKeywords.trim()
+                        ? findKeywords.split(",").map(k => k.trim()).filter(Boolean)
+                        : undefined;
+                      setShowFindPanel(false);
+                      runSignalSearch(kws);
+                    }}
+                    disabled={aiLoading}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition disabled:opacity-50"
+                  >
+                    <Search className="w-4 h-4" />
+                    Search Sources
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFindKeywords("");
+                      setShowFindPanel(false);
+                    }}
+                    className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {aiLoading && (
             <div className="rounded-2xl border border-border bg-card p-5">
               <div className="flex items-center gap-3">
@@ -1261,14 +1360,14 @@ export default function SignalsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  try { localStorage.removeItem(`cios.aiRequested:${caseKey}`); } catch {}
-                  setForceRefreshAi(prev => prev + 1);
+                  setShowFindPanel(true);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 disabled={aiLoading}
                 className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Sparkles className="w-4 h-4" />
-                Refresh AI Signals
+                <Search className="w-4 h-4" />
+                Find More Signals
               </button>
             </div>
           ) : (

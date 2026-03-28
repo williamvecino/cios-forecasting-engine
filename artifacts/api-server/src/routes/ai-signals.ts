@@ -11,6 +11,7 @@ interface SignalGenerationRequest {
   questionText: string;
   timeHorizon?: string;
   entities?: string[];
+  keywords?: string[];
 }
 
 function detectTherapeuticArea(subject: string, questionText: string): string {
@@ -51,9 +52,17 @@ router.post("/ai-signals/generate", async (req, res) => {
       return;
     }
 
+    const sanitizedKeywords = Array.isArray(body.keywords)
+      ? body.keywords
+          .filter((k): k is string => typeof k === "string")
+          .map((k) => k.trim())
+          .filter((k) => k.length > 0)
+          .slice(0, 5)
+      : undefined;
+
     const therapeuticArea = detectTherapeuticArea(body.subject, body.questionText);
 
-    const research = await researchBrand(body.subject, body.questionText);
+    const research = await researchBrand(body.subject, body.questionText, sanitizedKeywords);
     const hasResearch = research.newsHeadlines.length > 0;
 
     const systemPrompt = `You are a pharmaceutical market intelligence analyst. Given a specific brand/therapy and a forecasting question, you must generate structured, multi-source signals that drive the forecast.
@@ -183,6 +192,10 @@ Return ONLY valid JSON:
       researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found for "${body.subject}". Generate signals based on known market dynamics across all 6 signal families, but classify them as "derived" or "uncertainty" — not "observed".`;
     }
 
+    const keywordSection = sanitizedKeywords?.length
+      ? `\n**Additional Focus Areas**: ${sanitizedKeywords.join(", ")}\nIMPORTANT: Pay special attention to signals related to these keywords. Search for and include any signals specifically addressing these topics.`
+      : "";
+
     const userPrompt = `Generate multi-source structured signals for:
 
 **Brand/Subject**: ${body.subject}
@@ -190,7 +203,7 @@ Return ONLY valid JSON:
 **Outcome**: ${body.outcome || "adoption"}
 **Time Horizon**: ${body.timeHorizon || "12 months"}
 **Question Type**: ${body.questionType || "binary"}
-${body.entities?.length ? `**Groups**: ${body.entities.join(" vs ")}` : ""}${researchSection}
+${body.entities?.length ? `**Groups**: ${body.entities.join(" vs ")}` : ""}${keywordSection}${researchSection}
 
 IMPORTANT: You must generate signals from ALL 6 families:
 1. brand_clinical_regulatory — what clinical/regulatory developments affect adoption?

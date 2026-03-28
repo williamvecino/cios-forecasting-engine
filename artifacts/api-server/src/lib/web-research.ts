@@ -187,6 +187,7 @@ async function fetchPageText(url: string, maxChars = 2000): Promise<string> {
 export async function researchBrand(
   subject: string,
   questionText: string,
+  keywords?: string[],
 ): Promise<ResearchResult> {
   const empty: ResearchResult = {
     newsHeadlines: [],
@@ -210,6 +211,15 @@ export async function researchBrand(
     { query: `${subject} latest news 2026`, label: "Recent news" },
     { query: `${subject} FDA approval regulatory`, label: "FDA/regulatory" },
   ];
+
+  if (keywords && keywords.length > 0) {
+    for (const kw of keywords.slice(0, 3)) {
+      searchQueries.push({
+        query: `${subject} ${kw.trim()}`,
+        label: `Keyword search: ${kw.trim()}`,
+      });
+    }
+  }
 
   const searchPromises = searchQueries.map((q) => searchGoogleNewsRSS(q.query));
   const searchResults = await Promise.allSettled(searchPromises);
