@@ -75,7 +75,26 @@ CRITICAL RULES:
 
 1. Each case is unique. Do NOT apply generic templates. Evaluate this specific brand/product/question on its own merits.
 
-2. QUESTION RELEVANCE TRANSLATION — This is the most important rule. Every signal MUST be evaluated against THE SPECIFIC QUESTION being asked, not just the brand overall. A strong brand signal that does not directly answer the question must NOT be treated as if it does.
+2. DECISION MECHANISM RELEVANCE — This is the most important rule. Every signal must be CAUSALLY relevant to the DECISION MECHANISM in the question, not just topically related to the disease area or therapeutic category.
+
+   BEFORE generating any signal, identify the decision mechanism:
+   - Parse the question to find WHAT SPECIFIC EVENT or CONDITION drives the outcome
+   - Only include signals that directly influence THAT mechanism
+   - EXCLUDE signals that are merely in the same therapeutic area but don't causally affect the asked decision
+
+   EXAMPLE: "Will publication of a Phase III trial accelerate adoption among cardiologists?"
+   - Decision mechanism: publication → guideline response → physician behavior change
+   - INCLUDE: publication timeline, guideline committee review status, KOL engagement with data, clinician prescribing patterns post-publication
+   - EXCLUDE: general statin guideline changes, unrelated gene therapy launches, general cholesterol research — these are cardiovascular topics but NOT causally linked to the decision mechanism
+
+   EXAMPLE: "Will payer restrictions delay uptake by more than 6 months?"
+   - Decision mechanism: payer coverage decisions → formulary access → prescribing volume
+   - INCLUDE: prior authorization requirements, step therapy policies, formulary review timelines
+   - EXCLUDE: clinical trial results (unless directly cited by payers), general disease epidemiology
+
+   Apply this filter BEFORE the question relevance translation below.
+
+3. QUESTION RELEVANCE TRANSLATION — Every signal MUST be evaluated against THE SPECIFIC QUESTION being asked, not just the brand overall. A strong brand signal that does not directly answer the question must NOT be treated as if it does.
 
    For EACH signal, you must assess:
    - **applies_to_line_of_therapy**: Does this signal apply to the specific line of therapy in the question? Values: "current_label" (matches current approved use), "future_label" (would require label expansion), "uncertain" (unclear applicability)
@@ -89,7 +108,9 @@ CRITICAL RULES:
    - If access/guidelines haven't changed to support first-line → applies_within_time_horizon: "partial"
    - The signal is still valid and important, but its FORECAST IMPACT must be constrained
 
-   FORECAST IMPACT RULE: A signal may only have "High" strength if translation_confidence is "high". If translation_confidence is "low", strength MUST be "Medium" or "Low" regardless of how important the brand news is. This prevents upstream brand signals from dominating the forecast when they don't directly answer the question.
+   FORECAST IMPACT RULE: This rule applies ONLY to UPSTREAM brand signals (e.g., positive trial data when the question is about market access). If a signal is an upstream brand development that doesn't directly address the decision mechanism, constrain its strength based on translation_confidence.
+   
+   However, signals that ARE PART OF the decision mechanism (e.g., guideline response when the question asks about guideline-driven adoption, prescribing behavior when the question asks about adoption) should use the IMPORTANCE CALIBRATION RULES below, NOT the translation_confidence constraint. These signals directly address the causal chain and should be weighted by their actual impact on the outcome.
 
 3. SIGNAL FAMILIES — Every signal MUST belong to exactly one of these 6 families:
    - "brand_clinical_regulatory": trial readouts, label updates, safety signals, regulatory filings, guideline updates
@@ -99,14 +120,21 @@ CRITICAL RULES:
    - "provider_behavioral": specialty ownership, workflow resistance, prescribing familiarity, risk tolerance, referral dynamics, training readiness
    - "system_operational": equipment requirements, staffing limitations, protocol readiness, pharmacy/logistics burden, administration complexity
 
-3. SIGNAL CLASSIFICATION — Every signal must also be classified as:
+3. SIGNAL CLASSIFICATION — Every signal must be classified in TWO ways:
+
+   signal_class (analytical origin):
    - "observed": Directly sourced from verified brand developments (press releases, trial results, FDA actions). MUST come first.
    - "derived": Reasonable inference from observed data or established market knowledge.
    - "uncertainty": Unresolved issue or open question to monitor.
 
-4. COVERAGE REQUIREMENT: Generate signals across ALL 6 families. You MUST include at least one signal from each family. This is critical for forecast quality.
+   signal_source (controllability):
+   - "internal": Controllable drivers — things the organization can act on (staffing, readiness, execution, internal processes, field force, manufacturing, launch preparation)
+   - "external": Environment signals outside direct control (regulatory actions, competitor moves, market conditions, payer decisions, published evidence, guideline changes, patient demand trends)
+   - "missing": Critical unknowns — information gaps that create forecast risk (unresolved decisions, pending data, unknown outcomes)
 
-5. ORDER: Observed signals first (from brand development check), then derived signals across all families, then uncertainties.
+4. COVERAGE REQUIREMENT: Generate signals from the families that are CAUSALLY relevant to the decision mechanism identified in the question. You do NOT need all 6 families — only include families with signals that directly influence the causal chain. Aim for 8-15 high-quality, causally relevant signals rather than padding with irrelevant ones.
+
+5. ORDER: Observed signals first (from brand development check), then derived signals, then uncertainties.
 
 6. For observed signals from web research, include: source_url, observed_date, citation_excerpt, brand_verified: true.
 
@@ -114,13 +142,24 @@ CRITICAL RULES:
 
 8. Therapeutic context (detected: ${therapeuticArea}) informs weighting and interpretation, but real brand/context signals always take precedence over archetype patterns.
 
+IMPORTANCE CALIBRATION RULES — apply these strictly:
+- If a signal describes an ADOPTION CONSTRAINT, EXECUTION BOTTLENECK, or SUPPLY DEPENDENCY → strength = "High"
+- If a signal describes a PAYER RESTRICTION, ACCESS BARRIER, PRIOR AUTHORIZATION, or STEP THERAPY requirement → strength = "High"
+- If a signal describes a RESOURCE SHORTFALL (staffing, capacity, field force readiness below target) → strength = "High"
+- If a signal describes COMPETITIVE THREAT with direct impact on the forecast question → strength = "High"
+- If a signal describes HEALTH ECONOMICS or COST-EFFECTIVENESS evidence → strength = "Medium" (influences payer decisions but rarely triggers adoption alone)
+- If a signal provides SUPPORTING CONTEXT (advisory boards, formulary expansion) without directly constraining or enabling the outcome → strength = "Medium"
+- If a signal is PERIPHERAL (investor events, conference presentations, general industry news) → strength = "Low"
+- NEVER mark a signal as Low if it describes something that could block or materially delay the outcome
+
 For each signal, provide:
 - **text**: A specific analytical driver statement. For observed signals, cite the specific development.
 - **signal_family**: one of "brand_clinical_regulatory", "payer_access", "competitor", "patient_demand", "provider_behavioral", "system_operational"
 - **signal_class**: "observed" | "derived" | "uncertainty"
+- **signal_source**: "internal" | "external" | "missing"
 - **category**: one of "evidence", "access", "competition", "guideline", "timing", "adoption"
 - **direction**: "positive", "negative", or "neutral"
-- **strength**: "High", "Medium", or "Low"
+- **strength**: "High", "Medium", or "Low" — calibrated using the IMPORTANCE CALIBRATION RULES above
 - **reliability**: "Confirmed" (observed from verified source), "Probable" (reasonable inference), "Speculative" (uncertain)
 - **source_type**: e.g. "official_company", "official_brand_site", "clinicaltrials", "guideline", "payer_policy", "scientific_publication", "conference", "inferred", "press_release", "investor_relations"
 - **source_url**: URL if available (required for observed signals), null otherwise
@@ -134,7 +173,7 @@ For each signal, provide:
 - **translation_confidence**: "high" | "moderate" | "low"
 - **question_relevance_note**: One sentence explaining how directly this signal answers the specific question asked
 
-Generate 12-18 signals covering all 6 families. Observed brand developments first, then derived across all families, then uncertainties.
+Generate 8-15 causally relevant signals. Observed brand developments first, then derived signals, then uncertainties. Only include signals from families that directly influence the decision mechanism.
 
 For incoming_events, generate 5 events the forecaster should monitor:
 { "id": "ev-N", "title": "...", "type": "evidence|access|competition|guideline|adoption", "description": "...", "relevance": "..." }
@@ -187,9 +226,9 @@ Return ONLY valid JSON:
 
     let researchSection = "";
     if (hasResearch) {
-      researchSection = `\n\n--- BRAND DEVELOPMENT CHECK RESULTS ---\n${research.combinedContext}\n--- END BRAND DEVELOPMENT CHECK ---\n\nYou MUST convert the above verified brand developments into "observed" signals with source_url, observed_date, citation_excerpt, and brand_verified: true. These must appear first in your signal list. Then generate derived and uncertainty signals across ALL 6 families.`;
+      researchSection = `\n\n--- BRAND DEVELOPMENT CHECK RESULTS ---\n${research.combinedContext}\n--- END BRAND DEVELOPMENT CHECK ---\n\nIMPORTANT: Only convert brand developments into signals if they are CAUSALLY relevant to the decision mechanism in the question. Discard any news items that are merely in the same therapeutic area but do not directly affect the asked decision. For example, if the question asks about publication-driven adoption, discard general disease area news, unrelated product launches, or broad industry updates. Only include developments that influence the specific causal chain in the question.\n\nConvert relevant verified developments into "observed" signals with source_url, observed_date, citation_excerpt, and brand_verified: true. Then generate derived and uncertainty signals.`;
     } else {
-      researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found for "${body.subject}". Generate signals based on known market dynamics across all 6 signal families, but classify them as "derived" or "uncertainty" — not "observed".`;
+      researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found for "${body.subject}". Generate signals based on known market dynamics, but classify them as "derived" or "uncertainty" — not "observed". Every signal must be causally relevant to the decision mechanism in the question.`;
     }
 
     const keywordSection = sanitizedKeywords?.length
@@ -205,23 +244,34 @@ Return ONLY valid JSON:
 **Question Type**: ${body.questionType || "binary"}
 ${body.entities?.length ? `**Groups**: ${body.entities.join(" vs ")}` : ""}${keywordSection}${researchSection}
 
-IMPORTANT: You must generate signals from ALL 6 families:
-1. brand_clinical_regulatory — what clinical/regulatory developments affect adoption?
-2. payer_access — what coverage/reimbursement factors affect adoption?
-3. competitor — what competitive dynamics affect adoption?
-4. patient_demand — what patient factors drive or limit demand?
-5. provider_behavioral — what physician behavior patterns affect adoption?
-6. system_operational — what operational/logistical factors affect adoption?
+DECISION MECHANISM FILTER — APPLY BEFORE GENERATING ANY SIGNAL:
+The question asks: "${body.questionText}"
+
+Step 1: Identify the DECISION MECHANISM — what specific causal chain drives the outcome? Write it as: A → B → C → outcome.
+Step 2: Generate AT LEAST ONE signal for EACH STEP in the causal chain (e.g., if the chain is "publication → guideline update → prescribing behavior change → adoption", you MUST generate signals about publication evidence, guideline response, AND prescribing behavior).
+Step 3: For EVERY candidate signal, ask: "Does this signal directly influence a step in the causal chain?"
+Step 4: If NO → EXCLUDE the signal entirely. Do not include it even if it's in the same disease area.
+
+Signals must be CAUSAL, not merely TOPICAL. A signal about the same therapeutic area that does not affect the decision mechanism is noise.
+
+CAUSAL CHAIN COVERAGE: You must cover the FULL chain. If the question implies physician behavior change, you MUST include provider_behavioral signals about prescribing patterns, adoption intent, or behavior change drivers — these are HIGH importance because they directly measure the outcome.
+
+Generate signals from relevant families (you do not need all 6 if they are not causally relevant):
+1. brand_clinical_regulatory — clinical/regulatory developments that affect the decision mechanism
+2. payer_access — coverage/reimbursement factors that affect the decision mechanism
+3. competitor — competitive dynamics that affect the decision mechanism
+4. patient_demand — patient factors that affect the decision mechanism
+5. provider_behavioral — physician behavior patterns that affect the decision mechanism (CRITICAL for adoption questions)
+6. system_operational — operational/logistical factors that affect the decision mechanism
 
 CRITICAL REMINDER — QUESTION RELEVANCE TRANSLATION:
 Every signal must include applies_to_line_of_therapy, applies_to_stakeholder_group, applies_within_time_horizon, translation_confidence, and question_relevance_note.
 
-The question asks specifically: "${body.questionText}"
 - Evaluate each signal against THIS EXACT question.
-- A strong positive brand development (e.g. positive trial data) should NOT automatically get "High" strength if it doesn't directly drive the specific outcome asked about (e.g. first-line adoption vs general adoption).
+- A strong positive brand development (e.g. positive trial data) should NOT automatically get "High" strength if it doesn't directly drive the specific outcome asked about.
 - If a signal is an upstream positive but has uncertain conversion to the asked outcome, set translation_confidence: "low" or "moderate" and constrain strength accordingly.
 
-Convert verified brand developments into observed signals first, then add derived implications and uncertainties across all families.`;
+Convert relevant verified brand developments into observed signals first, then add derived implications and uncertainties.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",

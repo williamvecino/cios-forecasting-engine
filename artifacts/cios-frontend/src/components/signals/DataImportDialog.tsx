@@ -94,6 +94,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
         reliability: s.confidence === "Strong" ? "Confirmed" : s.confidence === "Weak" ? "Speculative" : "Probable",
         category: s.category || "general",
         source_url: s.source_description || file.name,
+        signal_source: (s.signal_source === "internal" || s.signal_source === "external" || s.signal_source === "missing") ? s.signal_source : undefined,
       }));
       if (signals.length === 0) {
         setError("No signals could be extracted from this file.");
@@ -140,6 +141,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
         reliability: s.confidence === "Strong" ? "Confirmed" : s.confidence === "Weak" ? "Speculative" : "Probable",
         category: s.category || "general",
         source_url: s.source_description || "Pasted text",
+        signal_source: (s.signal_source === "internal" || s.signal_source === "external" || s.signal_source === "missing") ? s.signal_source : undefined,
       }));
       if (signals.length === 0) {
         setError("No signals could be extracted from the text.");

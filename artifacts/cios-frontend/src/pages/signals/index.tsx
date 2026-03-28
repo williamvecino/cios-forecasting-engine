@@ -102,6 +102,8 @@ const PRIORITY_RANK: Record<PrioritySource, number> = {
   ai_uncertainty: 1,
 };
 
+type SignalSource = "internal" | "external" | "missing";
+
 interface Signal {
   id: string;
   text: string;
@@ -115,6 +117,7 @@ interface Signal {
   accepted: boolean;
   signal_class?: SignalClass;
   signal_family?: SignalFamily;
+  signal_source?: SignalSource;
   source_url?: string | null;
   source_type?: string;
   observed_date?: string | null;
@@ -626,6 +629,8 @@ export default function SignalsPage() {
             const applies_to_line_of_therapy = VALID_LINE_THERAPY.has(s.applies_to_line_of_therapy) ? s.applies_to_line_of_therapy as LineOfTherapyApplicability : undefined;
             const applies_within_time_horizon = VALID_TIME_HORIZON_APP.has(s.applies_within_time_horizon) ? s.applies_within_time_horizon as TimeHorizonApplicability : undefined;
             const idPrefix = searchKeywords?.length ? "find" : "ai";
+            const VALID_SIGNAL_SOURCES = new Set(["internal", "external", "missing"]);
+            const signal_source = VALID_SIGNAL_SOURCES.has(s.signal_source) ? s.signal_source as SignalSource : undefined;
             return {
               id: `${idPrefix}-${i + 1}`,
               text: s.text,
@@ -639,6 +644,7 @@ export default function SignalsPage() {
               accepted: false,
               signal_class,
               signal_family,
+              signal_source,
               source_url: s.source_url || null,
               source_type: s.source_type || undefined,
               observed_date: s.observed_date || null,
@@ -1075,6 +1081,7 @@ export default function SignalsPage() {
         priority_source: "manual_confirmed" as const,
         is_locked: true,
         source_url: row.source_url,
+        signal_source: row.signal_source,
       };
     });
 
@@ -1137,6 +1144,14 @@ export default function SignalsPage() {
   const pending = allSignals.filter((s) => !s.accepted);
   const accepted = allSignals.filter((s) => s.accepted);
   const summary = generateSummary(allSignals, questionType, entities);
+
+  const hasSourceClassification = allSignals.some((s) => s.signal_source);
+  const internalSignals = allSignals.filter((s) => s.signal_source === "internal");
+  const externalSignals = allSignals.filter((s) => s.signal_source === "external");
+  const missingSignals = allSignals.filter((s) => s.signal_source === "missing");
+  const unclassifiedSignals = allSignals.filter((s) => !s.signal_source);
+  const unclassifiedAccepted = unclassifiedSignals.filter((s) => s.accepted);
+  const unclassifiedPending = unclassifiedSignals.filter((s) => !s.accepted);
 
   const coverageByFamily = useMemo(() => {
     const counts: Record<SignalFamily, number> = {
@@ -1333,42 +1348,148 @@ export default function SignalsPage() {
             </div>
           )}
 
-          {!aiLoading && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-bold text-foreground">Primary Signals</h2>
-              {accepted.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
-                  No confirmed signals yet. Review the suggestions below or add your own.
+          {!aiLoading && hasSourceClassification && (
+            <>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  <h2 className="text-sm font-bold text-foreground">Primary Signals</h2>
+                  <span className="text-xs text-muted-foreground">Internal controllable drivers</span>
                 </div>
-              ) : (
+                {internalSignals.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                    No internal signals detected. Add your own or import data.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {internalSignals.map((sig) => (
+                      <MinimalSignalCard
+                        key={sig.id}
+                        signal={sig}
+                        editing={editingId === sig.id}
+                        onEdit={() => { if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); } }}
+                        onAccept={!sig.accepted ? () => acceptSignal(sig.id) : undefined}
+                        onDismiss={() => dismissSignal(sig.id)}
+                        onUpdate={(u) => updateSignal(sig.id, u)}
+                        outcomeLabel={outcome || "outcome"}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {externalSignals.length > 0 && (
                 <div className="space-y-3">
-                  {accepted.map((sig) => (
-                    <MinimalSignalCard
-                      key={sig.id}
-                      signal={sig}
-                      editing={editingId === sig.id}
-                      onEdit={() => { if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); } }}
-                      onDismiss={() => dismissSignal(sig.id)}
-                      onUpdate={(u) => updateSignal(sig.id, u)}
-                      outcomeLabel={outcome || "outcome"}
-                    />
-                  ))}
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <h2 className="text-sm font-bold text-foreground">External Signals</h2>
+                    <span className="text-xs text-muted-foreground">Environment changes outside your control</span>
+                  </div>
+                  <div className="space-y-3">
+                    {externalSignals.map((sig) => (
+                      <MinimalSignalCard
+                        key={sig.id}
+                        signal={sig}
+                        editing={editingId === sig.id}
+                        onEdit={() => { if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); } }}
+                        onAccept={!sig.accepted ? () => acceptSignal(sig.id) : undefined}
+                        onDismiss={() => dismissSignal(sig.id)}
+                        onUpdate={(u) => updateSignal(sig.id, u)}
+                        outcomeLabel={outcome || "outcome"}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
-            </div>
+
+              {missingSignals.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                    <h2 className="text-sm font-bold text-foreground">Missing Signals</h2>
+                    <span className="text-xs text-muted-foreground">Unknowns that determine risk</span>
+                  </div>
+                  <div className="space-y-3">
+                    {missingSignals.map((sig) => (
+                      <MinimalSignalCard
+                        key={sig.id}
+                        signal={sig}
+                        editing={editingId === sig.id}
+                        onEdit={() => { if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); } }}
+                        onAccept={!sig.accepted ? () => acceptSignal(sig.id) : undefined}
+                        onDismiss={() => dismissSignal(sig.id)}
+                        onUpdate={(u) => updateSignal(sig.id, u)}
+                        outcomeLabel={outcome || "outcome"}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {!aiLoading && pending.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-bold text-foreground">Suggested Signals From AI</h2>
+          {!aiLoading && !hasSourceClassification && (
+            <>
               <div className="space-y-3">
-                {pending.map((sig) => (
+                <h2 className="text-sm font-bold text-foreground">Primary Signals</h2>
+                {unclassifiedAccepted.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
+                    No confirmed signals yet. Review the suggestions below or add your own.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {unclassifiedAccepted.map((sig) => (
+                      <MinimalSignalCard
+                        key={sig.id}
+                        signal={sig}
+                        editing={editingId === sig.id}
+                        onEdit={() => { if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); } }}
+                        onDismiss={() => dismissSignal(sig.id)}
+                        onUpdate={(u) => updateSignal(sig.id, u)}
+                        outcomeLabel={outcome || "outcome"}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {unclassifiedPending.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-bold text-foreground">Suggested Signals From AI</h2>
+                  <div className="space-y-3">
+                    {unclassifiedPending.map((sig) => (
+                      <MinimalSignalCard
+                        key={sig.id}
+                        signal={sig}
+                        editing={editingId === sig.id}
+                        onEdit={() => { if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); } }}
+                        onAccept={() => acceptSignal(sig.id)}
+                        onDismiss={() => dismissSignal(sig.id)}
+                        onUpdate={(u) => updateSignal(sig.id, u)}
+                        outcomeLabel={outcome || "outcome"}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {!aiLoading && hasSourceClassification && unclassifiedSignals.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                <h2 className="text-sm font-bold text-foreground">Other Signals</h2>
+                <span className="text-xs text-muted-foreground">Manually added or previously imported</span>
+              </div>
+              <div className="space-y-3">
+                {unclassifiedSignals.map((sig) => (
                   <MinimalSignalCard
                     key={sig.id}
                     signal={sig}
                     editing={editingId === sig.id}
                     onEdit={() => { if (editingId === sig.id) { commitEdit(sig.id); } else { setEditingId(sig.id); } }}
-                    onAccept={() => acceptSignal(sig.id)}
+                    onAccept={!sig.accepted ? () => acceptSignal(sig.id) : undefined}
                     onDismiss={() => dismissSignal(sig.id)}
                     onUpdate={(u) => updateSignal(sig.id, u)}
                     outcomeLabel={outcome || "outcome"}

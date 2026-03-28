@@ -1,0 +1,101 @@
+What Worked Correctly in This Case
+
+The ingestion and signal extraction pipeline executed as intended.
+
+You can see that because the signals now align with the commercial launch readiness context:
+
+payer restrictions detected
+field force readiness detected
+supply dependency detected
+competitive dynamics detected
+
+Those are the correct drivers for this type of decision.
+
+The system is no longer defaulting to clinical-only signals.
+
+That is a meaningful step forward.
+
+What Still Needs Refinement
+
+Two things are visible in this screen.
+
+1) External signals are mixed with internal signals
+
+You currently have:
+
+Regulatory / industry news
+Operational readiness signals
+Internal execution constraints
+
+All in the same list.
+
+That reduces clarity for decision-making.
+
+They should be separated.
+
+The correct structure
+
+Primary Signals
+→ internal controllable drivers
+
+External Signals
+→ environment changes outside your control
+
+Missing Signals
+→ unknowns that determine risk
+
+In this case, the classification should look like this
+Primary Signals (Internal)
+
+Field force expansion only 40% complete
+Manufacturing dependent on single supplier
+Launch readiness constrained by staffing
+Supply vulnerability to disruption
+
+External Signals
+
+Medicaid prior authorization requirements emerging
+Competitor real-world adherence data expected
+Regulatory progress in therapeutic area
+
+Missing Signals
+
+Final payer coverage decisions
+Completion date for field force hiring
+Secondary supplier approval status
+Initial prescribing trend in first 60 days
+
+That separation will make the system immediately clearer for executives.
+
+2) Importance weighting is still conservative
+
+Several signals marked Low importance are actually High leverage.
+
+Specifically:
+
+Field force only 40% complete
+Single supplier dependency
+Payer restrictions
+
+These are not minor signals.
+
+They are primary adoption constraints.
+
+Correct importance calibration
+
+Field force readiness
+High
+
+Supply reliability
+High
+
+Payer access restrictions
+High
+
+Competitor evidence
+Medium
+
+Investor conference presentation
+Low
+
+This is a calibration issue, not a logic issue.

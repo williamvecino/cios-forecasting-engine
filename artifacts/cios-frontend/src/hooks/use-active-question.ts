@@ -30,6 +30,13 @@ export function useActiveQuestion() {
   }, []);
 
   const createQuestion = useCallback((input: CreateQuestionInput) => {
+    const prev = getStoredActiveQuestion();
+    if (prev) {
+      const oldCaseId = prev.caseId || prev.id;
+      clearCaseState(oldCaseId);
+      clearCaseState("unknown");
+    }
+
     const next: ActiveQuestion = {
       id: createQuestionId(),
       text: input.text.trim(),

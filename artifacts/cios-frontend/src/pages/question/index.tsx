@@ -268,6 +268,7 @@ export default function QuestionPage() {
 
       const STRENGTH_MAP: Record<string, string> = { High: "High", Medium: "Medium", Low: "Low" };
       const CONFIDENCE_MAP: Record<string, string> = { Strong: "Confirmed", Moderate: "Probable", Weak: "Speculative" };
+      const VALID_SIGNAL_SOURCES = new Set(["internal", "external", "missing"]);
       const importedSignals = (result.signals || []).map((s: any, i: number) => ({
         id: `import-${i + 1}`,
         text: s.text,
@@ -281,6 +282,7 @@ export default function QuestionPage() {
         accepted: false,
         signal_class: "observed",
         signal_family: "brand_clinical_regulatory",
+        signal_source: VALID_SIGNAL_SOURCES.has(s.signal_source) ? s.signal_source : undefined,
         source_url: null,
         source_type: s.source_description || "imported",
         observed_date: null,
@@ -303,6 +305,7 @@ export default function QuestionPage() {
         accepted: false,
         signal_class: "uncertainty",
         signal_family: "brand_clinical_regulatory",
+        signal_source: "missing" as const,
         source_url: null,
         source_type: "gap analysis",
         observed_date: null,

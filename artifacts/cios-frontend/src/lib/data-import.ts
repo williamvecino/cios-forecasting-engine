@@ -8,6 +8,7 @@ export interface ImportedRow {
   reliability?: "Confirmed" | "Probable" | "Speculative";
   category?: string;
   source_url?: string;
+  signal_source?: "internal" | "external" | "missing";
 }
 
 export interface ImportPreview {

@@ -315,13 +315,28 @@ CRITICAL RULES:
 - Synthesize related data points into coherent signals
 - Signals must be specific and actionable
 
+SIGNAL CLASSIFICATION — every signal must be classified into one of three groups:
+- "internal": Controllable drivers — things the organization can act on (staffing, readiness, execution, internal processes)
+- "external": Environment signals outside direct control (regulatory actions, competitor moves, market conditions, payer decisions, published evidence)
+- "missing": Critical unknowns — information gaps that create forecast risk (unresolved decisions, pending data, unknown outcomes)
+
 SIGNAL FIELDS:
 - text: Clear, coherent signal statement grounded in the materials
 - direction: "positive" (supports/accelerates the outcome), "negative" (slows/blocks), or "neutral" (informational context)
-- importance: "High" (could materially change the forecast), "Medium" (relevant context), "Low" (minor factor)
+- importance: "High", "Medium", or "Low" — calibrate using the IMPORTANCE RULES below
 - confidence: "Strong" (verified/published data), "Moderate" (credible but uncertain), "Weak" (speculative/anecdotal)
 - category: one of [${lib.categories.join(", ")}]
+- signal_source: "internal", "external", or "missing"
 - source_description: Specific reference to where in the materials this signal was found
+
+IMPORTANCE CALIBRATION RULES — apply these strictly:
+- If a signal describes an ADOPTION CONSTRAINT, EXECUTION BOTTLENECK, or SUPPLY DEPENDENCY → importance = "High"
+- If a signal describes a PAYER RESTRICTION, ACCESS BARRIER, or REGULATORY GATE → importance = "High"
+- If a signal describes a RESOURCE SHORTFALL (staffing, capacity, readiness below target) → importance = "High"
+- If a signal describes COMPETITIVE THREAT with direct impact on the forecast question → importance = "High"
+- If a signal provides CONTEXT without directly constraining or enabling the outcome → importance = "Medium"
+- If a signal is PERIPHERAL (investor events, general industry news, minor data points) → importance = "Low"
+- NEVER mark a signal as Low if it describes something that could block or materially delay the outcome
 
 Extract 3-15 signals. Favor quality over quantity. Every signal must be traceable to the input materials.
 
@@ -334,6 +349,7 @@ Respond in JSON:
       "importance": "High|Medium|Low",
       "confidence": "Strong|Moderate|Weak",
       "category": "one of the categories listed above",
+      "signal_source": "internal|external|missing",
       "source_description": "Where in the materials this was found"
     }
   ],
@@ -411,6 +427,21 @@ Your job:
 SIGNAL CATEGORIES FOR THIS ENVIRONMENT:
 ${lib.guidance}
 
+SIGNAL SOURCE CLASSIFICATION — every signal must be classified:
+- "internal": Controllable drivers the organization can act on (staffing, readiness, execution, field force, manufacturing, launch preparation)
+- "external": Environment signals outside direct control (regulatory actions, competitor moves, market conditions, payer decisions, published evidence)
+- "missing": Critical unknowns that create forecast risk (unresolved decisions, pending data, unknown outcomes)
+
+IMPORTANCE CALIBRATION — apply strictly:
+- ADOPTION CONSTRAINT, EXECUTION BOTTLENECK, or SUPPLY DEPENDENCY → "High"
+- PAYER RESTRICTION, ACCESS BARRIER, or REGULATORY GATE → "High"
+- RESOURCE SHORTFALL (staffing, capacity, readiness below target) → "High"
+- COMPETITIVE THREAT with direct impact → "High"
+- HEALTH ECONOMICS / COST-EFFECTIVENESS evidence → "Medium"
+- SUPPORTING CONTEXT without directly constraining or enabling the outcome → "Medium"
+- PERIPHERAL (investor events, general industry news) → "Low"
+- NEVER mark a signal as Low if it could block or materially delay the outcome
+
 CRITICAL RULES:
 - SIGNALS MUST COME FROM THE ENVIRONMENT, NOT FROM A TEMPLATE. Every signal must reference a specific fact, observation, or data point actually present in the materials.
 - Do NOT generate generic signals that could apply to any situation. If the materials don't contain evidence for a category, skip that category entirely.
@@ -440,6 +471,7 @@ Respond in JSON format:
       "importance": "High|Medium|Low",
       "confidence": "Strong|Moderate|Weak",
       "category": "one of [${lib.categories.join(", ")}]",
+      "signal_source": "internal|external|missing",
       "source_description": "Where in the materials this was found",
       "rationale": "Why this matters for the decision"
     }
