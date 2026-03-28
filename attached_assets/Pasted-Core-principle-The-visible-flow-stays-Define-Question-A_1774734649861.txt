@@ -1,0 +1,495 @@
+Core principle
+
+The visible flow stays:
+
+Define Question → Add Information → Judge → Decide → Respond → Simulate
+
+The agents live behind these steps, not as extra visible chaos.
+
+1) Define Question
+Agent: Decision Gating Agent
+
+Lives here first.
+
+Job
+read uploaded brief / RFP / PDF / deck
+identify the real business decision
+separate wrapper from decision
+classify document type
+extract primary and secondary decisions
+generate the right question set
+ignore procurement / admin / legal noise unless decision-relevant
+Output
+primary decision
+secondary decisions
+domain classification
+recommended MIOS questions
+recommended BAOS questions
+recommended CIOS question(s)
+missing information list
+Why it belongs here
+
+Because the whole system breaks if the wrong question is defined.
+
+Agent: Question Structuring Agent
+
+Also lives in Define Question.
+
+Job
+turn broad or messy user text into 1–3 clean decision questions
+convert giant strategic asks into bounded questions
+flag when a question is too broad, multi-part, or non-decision-like
+Output
+final active question
+optional supporting questions
+question archetype
+horizon
+target outcome
+Why it belongs here
+
+Because CIOS should not reason off vague text.
+
+2) Add Information
+
+This is the biggest agent zone.
+
+Agent: MIOS Agent
+
+Lives here as the evidence interpreter.
+
+Job
+take belief bridge inputs
+generate sub-belief bridges
+generate statements
+connect statements to evidence / verbatims
+classify strong / weak / contradictory endpoints
+identify evidence vulnerabilities
+export only decision-relevant signals
+Output
+evidence-derived signals
+claim-support signals
+vulnerability signals
+evidence strength map
+Why it belongs here
+
+Because this is where evidence becomes structured information.
+
+Agent: BAOS Agent
+
+Lives here beside MIOS.
+
+Job
+translate evidence and context into behavioral friction
+identify objections
+identify stakeholder resistance
+identify perception risk
+identify adherence / expectation / inertia issues
+export only forecast-relevant behavioral signals
+Output
+behavioral risk signals
+objection signals
+stakeholder-friction signals
+mitigation opportunities
+Why it belongs here
+
+Because behavior is part of the information state before judgment.
+
+Agent: External Signal Scout
+
+Lives here too.
+
+Job
+search external relevant information
+find competitor events
+payer changes
+guideline shifts
+KOL or market signals
+filter only what matters to the active case
+Output
+structured external signals
+source
+freshness
+confidence
+relevance
+Why it belongs here
+
+Because outside context is additional information, not judgment.
+
+Agent: Signal Normalizer / Deduplicator
+
+Behind Add Information.
+
+Job
+merge manual signals, MIOS signals, BAOS signals, imported workbook signals, external signals
+remove duplicates
+collapse overlapping signals
+detect double-counting
+normalize direction / strength / confidence
+Output
+clean signal register
+Why it belongs here
+
+Because otherwise the engine gets noisy or punitive twice for the same issue.
+
+Agent: Assumption Registry Agent
+
+Diagnostics, but functionally attached to Add Information.
+
+Job
+detect hidden assumptions in the current case
+register them explicitly
+flag which assumptions are unsupported
+separate facts from inferred conditions
+Output
+assumption list
+assumption confidence
+assumption sensitivity flags
+Why it belongs here
+
+Because assumptions affect judgment before the engine runs.
+
+3) Judge
+
+This is where the core engine lives.
+
+Agent: Core CIOS Judgment Engine
+
+Lives here. This is the judge.
+
+Job
+take structured signals and gates
+compute weighted judgment
+produce forecast / posture / confidence
+surface drivers and constraints
+run integrity checks
+Output
+probability / outcome band
+confidence
+top positive drivers
+top constraints
+recommended posture
+Why it belongs here
+
+This is the system’s central decision engine.
+
+Agent: Case Comparator / Prior Structuring Agent
+
+Lives here beside the judge.
+
+Job
+compare current case with prior internal and external cases
+find analogs
+structure priors
+explain similarity and divergence
+support the judgment with precedent
+Output
+comparable cases
+similarity dimensions
+analog lessons
+prior framing
+Why it belongs here
+
+Because analogs influence judgment, not raw intake.
+
+Agent: Explanation Agent / Ask CIOS
+
+Lives on Judge as the question box.
+
+Job
+
+Answer:
+
+why this forecast?
+why this driver?
+what does this term mean?
+what happens if this changes?
+how do I improve this?
+why this analog?
+Output
+traceable answer grounded in current case state
+Why it belongs here
+
+Because this is where the user interrogates the judgment.
+
+Agent: Constraint Decomposition Agent
+
+Lives on Judge but works on interpretation.
+
+Job
+break vague constraints into ranked concrete drivers
+translate “operational readiness,” “behavioral readiness,” etc.
+prevent abstraction-only outputs
+Output
+ranked drivers under each constraint
+impact labels
+Why it belongs here
+
+Because it makes the judgment usable.
+
+4) Decide
+Agent: Decision Translation Agent
+
+Lives here.
+
+Job
+convert the forecast into a specific choice structure
+recommend what to do now
+identify highest-leverage actions
+separate immediate vs later actions
+define what not to do
+Output
+recommended decision
+rationale
+priority actions
+success conditions
+kill criteria / falsifiers
+Why it belongs here
+
+Because judgment is not yet a decision.
+
+Agent: Prioritization Agent
+
+Also here.
+
+Job
+rank actions by expected impact
+separate strategic vs tactical moves
+rank barrier-resolution priorities
+Output
+action ranking
+leverage hierarchy
+Why it belongs here
+
+Because Decide should narrow action, not just summarize judgment.
+
+5) Respond
+Agent: Response Composer
+
+Lives here.
+
+Job
+translate decision into the output format needed
+RFP response
+strategic recommendation
+action plan
+executive summary
+pitch answer
+response memo
+Output
+formatted response
+client-facing rationale
+structured recommendation language
+Why it belongs here
+
+Because response is a translation layer, not a recalculation.
+
+Agent: Audience Adaptation Agent
+
+Optional, but useful here.
+
+Job
+adapt the response for:
+CMO
+brand team
+agency pitch team
+medical lead
+patient strategy team
+Output
+audience-specific framing
+Why it belongs here
+
+Because the same answer needs different language by audience.
+
+6) Simulate
+Agent: Simulation Agent
+
+Lives here.
+
+Job
+take the current judgment state
+simulate how stakeholders react over time
+create scenario trees
+model catalyst and barrier resolution paths
+estimate best/base/worst pathways
+Output
+scenario map
+likely reaction path
+timing shifts
+inflection points
+Why it belongs here
+
+Because simulation is downstream of judgment, not part of basic judgment.
+
+Agent: Stakeholder Reaction Agent
+
+Can be a sub-agent inside Simulate.
+
+Job
+simulate HCP, payer, patient, competitor, KOL reactions
+apply known behavioral rules
+show who moves first and who resists
+Output
+stakeholder-specific scenario responses
+Why it belongs here
+
+Because market behavior is a simulation layer.
+
+Diagnostics / Cross-step agents
+
+These are not visible main steps, but they should exist.
+
+Assumption Agent
+
+Already mentioned — sits across Add Information, Judge, Decide.
+
+Integrity / Consistency Agent
+Job
+detect contradictions between signals, confidence, narrative, and recommendation
+enforce consistency rules
+Lives
+
+Behind Judge and Decide.
+
+Provenance / Traceability Agent
+Job
+track where every signal came from
+workbook
+MIOS
+BAOS
+manual
+external
+Lives
+
+Across Add Information and Judge.
+
+Import Adapter Agent
+Job
+read Excel / MIOS-BAOS workbook / imported files
+normalize them into signals
+never let raw structure leak into the engine
+Lives
+
+Add Information.
+
+Are there any other agents you need?
+
+Yes. A few are likely necessary.
+
+1) Signal Quality Agent
+Needed
+
+Yes.
+
+Job
+score signal reliability
+freshness
+directness
+duplication
+bias risk
+Why
+
+External signals can pollute the engine if unfiltered.
+
+2) Conflict Resolver Agent
+Needed
+
+Yes.
+
+Job
+detect when MIOS, BAOS, external signals, or manual entries conflict
+decide whether to merge, separate, or flag
+Why
+
+You will absolutely get contradictions.
+
+3) Case Memory / Forecast Ledger Agent
+Needed
+
+Yes, later.
+
+Job
+store previous forecasts
+compare updates over time
+measure drift
+support calibration
+Why
+
+Without this, you do not learn.
+
+4) Calibration Agent
+Needed
+
+Yes, later.
+
+Job
+compare forecast vs actual
+detect systematic pessimism / optimism
+adjust weights or confidence behavior
+Why
+
+This is how the system improves.
+
+5) Human Override / Editorial Agent
+Needed
+
+Yes.
+
+Job
+allow expert correction without breaking structure
+promote human judgment over automation when needed
+Why
+
+Especially in pharma, a strong human correction layer is necessary.
+
+The clean final map
+Define Question
+Decision Gating Agent
+Question Structuring Agent
+Add Information
+MIOS Agent
+BAOS Agent
+External Signal Scout
+Signal Normalizer / Deduplicator
+Import Adapter Agent
+Assumption Registry Agent
+Judge
+Core CIOS Judgment Engine
+Case Comparator / Prior Structuring Agent
+Constraint Decomposition Agent
+Explanation / Ask CIOS Agent
+Integrity Agent
+Decide
+Decision Translation Agent
+Prioritization Agent
+Respond
+Response Composer
+Audience Adaptation Agent
+Simulate
+Simulation Agent
+Stakeholder Reaction Agent
+Cross-system / Diagnostics
+Provenance Agent
+Signal Quality Agent
+Conflict Resolver Agent
+Forecast Ledger Agent
+Calibration Agent
+Human Override Agent
+The most important rule
+
+Not all of these should become visible UI modules.
+
+Most should stay behind the scenes.
+
+Visible steps stay simple.
+
+Agents stay modular underneath.
+
+That is how you keep the system from becoming a mess.
+
+If you want, next I can turn this into a single canonical architecture chart with:
+
+visible step
+hidden agent
+input
+output
+priority order for build.

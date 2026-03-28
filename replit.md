@@ -9,6 +9,25 @@ I prefer clear and concise information. I appreciate high-level summaries before
 ## System Architecture
 The CIOS platform is built as a monorepo using pnpm workspaces. The frontend is developed with React, Vite, Tailwind CSS, Recharts, and React Query, featuring an "Aaru-like Decision Interface" with a question-driven design and a dark panel theme. The backend is an Express 5 application in TypeScript, exposing APIs under `/api`. Data persistence is managed by PostgreSQL via Drizzle ORM. API specifications adhere to OpenAPI 3.1, with `orval` used for client and validation library generation.
 
+**Agent Architecture Rules:**
+Every agent in the CIOS system must satisfy four invariants:
+1. **Bounded** — Fixed input schema, fixed output schema. No unbounded exploration or open-ended generation.
+2. **Deterministic** — Same input produces same output. Use temperature=0 and fixed seeds where applicable.
+3. **Single-purpose** — Each agent does one job. No agent performs another agent's function.
+4. **Optional to run** — The system must work without any individual agent. Agents enrich, they never gate core functionality.
+
+Outputs from all agents must be structured and auditable before being consumed by downstream systems.
+
+**Canonical Orchestration Flow:**
+Upload / Brief → Decision Gating Agent → MIOS / BAOS → External Signal Agent → Case Comparator Agent → Simulation Agent → CIOS Judgment → Respond Layer
+
+**Agent Registry (build order):**
+1. Decision Gating Agent — reads documents, identifies real business decisions, routes content to MIOS/BAOS/CIOS. **BUILT** (`POST /api/import-project/gate`)
+2. External Signal Agent — finds only external information relevant to the current case. Outputs structured external signals with source, type, relevance, freshness, confidence. **PLANNED**
+3. Case Comparator Agent — compares current case to prior cases, identifies analogs, structures priors and probability updates, explains divergence from known precedents. **PLANNED**
+4. Simulation Agent — simulates likely stakeholder reactions and scenario paths using known behavioral rules. Outputs scenario tree, adoption friction points, catalysts, timing implications. **PLANNED**
+5. Respond Layer — converts decision output into client-ready executive response. **BUILT** (existing Respond step)
+
 **Core System Design Principles:**
 - **Bayesian Forecast Engine:** Calculates posterior probabilities considering signal conflict and brand/final gap penalties. It includes a transparent forecast calculation path.
 - **AI-Powered Signal Detection & Review:** Utilizes AI for signal extraction with human oversight.
