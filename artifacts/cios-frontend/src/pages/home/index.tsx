@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { useListCases } from "@workspace/api-client-react";
 import TopNav from "@/components/top-nav";
@@ -9,6 +9,7 @@ import {
   Clock,
   Sparkles,
   Target,
+  X,
 } from "lucide-react";
 
 const GOOD_QUESTIONS = [
@@ -29,17 +30,7 @@ export default function HomePage() {
   const [, navigate] = useLocation();
   const { data: cases } = useListCases();
   const { activeQuestion, createQuestion } = useActiveQuestion();
-  const [input, setInput] = useState(activeQuestion?.text ?? "");
-  const [syncedId, setSyncedId] = useState<string | null>(activeQuestion?.caseId ?? null);
-
-  useEffect(() => {
-    if (!activeQuestion?.text) return;
-    const id = activeQuestion.caseId ?? activeQuestion.id;
-    if (id !== syncedId) {
-      setInput(activeQuestion.text);
-      setSyncedId(id);
-    }
-  }, [activeQuestion?.text, activeQuestion?.caseId, activeQuestion?.id, syncedId]);
+  const [input, setInput] = useState("");
 
   const allCases = (cases as any[]) || [];
   const recentCases = allCases.slice(0, 5);
@@ -101,7 +92,7 @@ export default function HomePage() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Example: Which regions will adopt first-line ARIKAYCE fastest in 12 months?"
                 rows={3}
-                className="w-full rounded-2xl border border-border bg-card px-5 py-4 text-foreground placeholder:text-muted-foreground/50 resize-none text-lg"
+                className="w-full rounded-2xl border border-border bg-card px-5 py-4 pr-12 text-foreground placeholder:text-muted-foreground/50 resize-none text-lg"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && input.trim()) {
                     e.preventDefault();
@@ -109,6 +100,16 @@ export default function HomePage() {
                   }
                 }}
               />
+              {input.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setInput("")}
+                  className="absolute top-3 right-3 rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/30 transition"
+                  title="Clear"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
             <button
               type="button"
