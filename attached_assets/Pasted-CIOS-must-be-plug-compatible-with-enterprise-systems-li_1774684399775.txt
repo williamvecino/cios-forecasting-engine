@@ -1,0 +1,285 @@
+CIOS must be plug-compatible with enterprise systems like Veeva and IQVIA, while remaining simple enough to sit on top of anything agencies and pharma already use.
+
+That is exactly the right direction. The key is to design interoperability as a default constraint, not an add-on.
+
+Below is the practical specification to guide development without changing the current system immediately.
+
+The Core Principle
+
+CIOS is not a system that replaces enterprise platforms.
+CIOS is a judgment layer that sits above them.
+
+It consumes their data.
+It produces decisions.
+
+What “Veeva and IQVIA Compatible” Actually Means
+
+Not branding.
+Not integration marketing language.
+Concrete technical behaviors.
+
+CIOS must be able to:
+
+Receive structured data from external systems
+Accept manual inputs from humans
+Produce outputs that those systems can consume
+Operate independently if those systems are absent
+
+That is portability.
+
+The Three Compatibility Requirements
+
+These define whether the system will work inside large pharma and agency ecosystems.
+
+1) Data Ingest Compatibility
+
+CIOS must accept data from any enterprise source without custom engineering each time.
+
+Required formats:
+
+CSV
+Excel
+JSON
+API feed
+
+Typical sources:
+
+Veeva CRM
+Veeva Vault
+IQVIA datasets
+Salesforce
+Market research exports
+Internal dashboards
+
+What This Looks Like Operationally
+
+User uploads:
+
+sales_data.csv
+
+CIOS automatically reads:
+
+Product
+Region
+Time period
+Volume
+Trend
+
+Then converts them into signals.
+
+No manual mapping every time.
+
+Instruction to Replit
+
+Build a universal data ingestion layer that accepts CSV, Excel, JSON, and API inputs. The system should automatically map common enterprise fields into internal signal structures without requiring manual configuration.
+
+2) Output Compatibility
+
+CIOS must produce outputs that can be used immediately inside enterprise workflows.
+
+Not dashboards.
+
+Deliverables.
+
+Required output formats:
+
+Excel
+PowerPoint
+PDF
+API response
+
+Typical use cases:
+
+Strategy deck
+Brand planning document
+Launch readiness review
+Executive briefing
+Field planning
+
+Example Output
+
+Forecast Summary
+
+Outcome
+Moderate launch risk
+
+Key Drivers
+
+Manufacturing readiness signals not yet visible
+Payer coverage still pending
+Competitor supply stabilized
+
+Confidence
+
+Moderate
+
+That output must be exportable in one click.
+
+Instruction to Replit
+
+All forecasts must be exportable as Excel, PowerPoint, PDF, and structured JSON outputs. These outputs should require no reformatting before use in agency or pharma workflows.
+
+3) Identity and Access Compatibility
+
+Large pharma environments require strict access control.
+
+CIOS must work with:
+
+Single Sign-On
+Role-based permissions
+Audit logs
+
+This is non-negotiable for enterprise adoption.
+
+Required capabilities:
+
+User authentication
+Permission levels
+Change tracking
+Decision history
+
+Example:
+
+User
+Medical Director
+
+Action
+Updated signal
+
+Timestamp
+Recorded
+
+Previous value
+Preserved
+
+That is enterprise readiness.
+
+Instruction to Replit
+
+Implement role-based access control, audit logging, and single sign-on compatibility to ensure the system can operate inside regulated enterprise environments.
+
+The Architectural Rule
+
+CIOS must behave like a component, not a platform.
+
+Think of it as:
+
+A brain that connects to systems.
+
+Not another system to manage.
+
+The Compatibility Model
+
+Input Layer
+
+Enterprise systems provide data
+
+↓
+
+Judgment Layer
+
+CIOS interprets signals
+
+↓
+
+Output Layer
+
+Enterprise systems receive decisions
+
+That is the entire model.
+
+The Interface Rule
+
+The system must remain simple even when integrated into complex environments.
+
+Required behavior:
+
+One question
+One forecast
+One decision
+
+Everything else is infrastructure.
+
+The Integration Targets to Design For
+
+These are the real environments where this system will live.
+
+Core Platforms
+
+Veeva Vault
+Veeva CRM
+IQVIA data services
+Salesforce
+Power BI
+Tableau
+
+Agency Environments
+
+Pitch workflows
+Brand planning
+Launch readiness
+Medical strategy
+Competitive intelligence
+
+Clinical / Commercial Environments
+
+Market access planning
+Field force strategy
+Guideline forecasting
+Product launch readiness
+
+If it works in those contexts, it will work anywhere.
+
+The Non-Negotiable Design Constraints
+
+These must guide every future feature.
+
+Constraint 1
+
+No proprietary data formats.
+
+Constraint 2
+
+All inputs must be portable.
+
+Constraint 3
+
+All outputs must be exportable.
+
+Constraint 4
+
+The system must function without integration.
+
+Constraint 5
+
+Integration must require minimal configuration.
+
+The One Sentence to Give Replit
+
+Use this as a standing instruction for development:
+
+Design CIOS as an interoperable judgment layer that can ingest data from enterprise systems like Veeva and IQVIA, operate independently when needed, and export decision-ready outputs in standard formats without requiring custom integration.
+
+Why This Matters Strategically
+
+This decision determines whether the system becomes:
+
+a tool
+
+or
+
+infrastructure
+
+Systems that integrate easily get adopted.
+
+Systems that require change get resisted.
+
+Bottom Line
+
+Do not build a new platform.
+
+Build:
+
+a simple decision engine
+that can plug into any system
+and work immediately
