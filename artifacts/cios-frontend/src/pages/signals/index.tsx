@@ -1068,20 +1068,12 @@ export default function SignalsPage() {
   }
 
   function handleWorkbookImport(importedSignals: any[]) {
-    const existingIds = new Set(signals.map((s: any) => s.workbook_meta?.signalId).filter(Boolean));
-    const newOrUpdated = importedSignals.filter((s: any) => {
-      const wbId = s.workbook_meta?.signalId;
-      return wbId && !existingIds.has(wbId);
-    });
-
-    setSignals(() => {
-      persistSignals(importedSignals);
-      if (importedSignals.length > 0) {
-        setTimeout(() => triggerGateRecalculation(importedSignals, `Imported ${importedSignals.length} workbook signals`), 0);
-      }
-      newOrUpdated.forEach((sig: any) => persistSignalToDb(sig));
-      return importedSignals;
-    });
+    persistSignals(importedSignals);
+    setSignals(importedSignals);
+    importedSignals.forEach((sig: any) => persistSignalToDb(sig));
+    if (importedSignals.length > 0) {
+      setTimeout(() => triggerGateRecalculation(importedSignals, `Replaced with ${importedSignals.length} workbook signals`), 0);
+    }
   }
 
   function handleImportedRows(rows: ImportedRow[]) {
@@ -1762,8 +1754,6 @@ export default function SignalsPage() {
       <WorkbookImportDialog
         open={showWorkbookImport}
         onClose={() => setShowWorkbookImport(false)}
-        activeQuestionText={questionText}
-        existingSignals={signals}
         onImportComplete={handleWorkbookImport}
       />
       {provenanceSignal?.workbook_meta && (
@@ -1810,8 +1800,12 @@ function MinimalSignalCard({
         >
           <FileSpreadsheet className="w-3 h-3" />
           <span className="font-semibold uppercase tracking-wider">MIOS/BAOS</span>
-          <span className="text-violet-400/50">·</span>
-          <span className="text-violet-400/70">{signal.workbook_meta.signalId}</span>
+          {signal.workbook_meta.programId && (
+            <>
+              <span className="text-violet-400/50">·</span>
+              <span className="text-violet-400/70">{signal.workbook_meta.programId}</span>
+            </>
+          )}
         </button>
       )}
       <div className="flex items-start justify-between gap-4">
