@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { casesTable, signalsTable, actorsTable, calibrationLogTable, AGENT_ARCHETYPES } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { runForecastEngine } from "../lib/forecast-engine.js";
 import { simulateAgents } from "../lib/agent-engine.js";
 import { getLrCorrections, getBucket, computeDecay } from "../lib/calibration-utils.js";
@@ -19,6 +19,51 @@ import {
   type AdoptionPhase,
   type ForecastHorizonMonths,
 } from "../lib/forecast-environment.js";
+
+const MAX_ACTIVE_SIGNALS = 25;
+
+const recalcCache = new Map<string, { hash: string; result: RecalcResult }>();
+
+function computeInputHash(
+  caseId: string,
+  priorProb: number,
+  signals: any[],
+  envFields: Record<string, any>,
+): string {
+  const sortedSignals = [...signals]
+    .sort((a, b) => (a.signalId ?? "").localeCompare(b.signalId ?? ""))
+    .map(s => ({
+      id: s.signalId,
+      lr: s.likelihoodRatio,
+      type: s.signalType ?? "",
+      direction: s.direction ?? "",
+    }));
+  const input = JSON.stringify({ caseId, priorProb, signals: sortedSignals, env: envFields });
+  return createHash("sha256").update(input).digest("hex").slice(0, 16);
+}
+
+function deduplicateSignals<T extends { signalId: string }>(signals: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const s of signals) {
+    if (!seen.has(s.signalId)) {
+      seen.add(s.signalId);
+      result.push(s);
+    } else {
+      console.log(`[recalc-perf] duplicate_removed signalId=${s.signalId}`);
+    }
+  }
+  return result;
+}
+
+function enforceSignalLimit<T extends { likelihoodRatio?: number | null }>(signals: T[]): T[] {
+  if (signals.length <= MAX_ACTIVE_SIGNALS) return signals;
+  const sorted = [...signals].sort((a, b) =>
+    Math.abs((b.likelihoodRatio ?? 1) - 1) - Math.abs((a.likelihoodRatio ?? 1) - 1)
+  );
+  console.log(`[recalc-perf] signal_limit_enforced kept=${MAX_ACTIVE_SIGNALS} archived=${signals.length - MAX_ACTIVE_SIGNALS}`);
+  return sorted.slice(0, MAX_ACTIVE_SIGNALS);
+}
 
 function resolveSpecialtyProfile(raw: string | null): SpecialtyActorProfile {
   const map: Record<string, SpecialtyActorProfile> = {
@@ -79,7 +124,9 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     geography: caseData.geography ?? null,
   };
   const eligibleSignals = filterEligibleSignals(allSignals, caseTargetContext);
-  const signals = applyEventFamilyGuardrail(eligibleSignals);
+  const guardedSignals = applyEventFamilyGuardrail(eligibleSignals);
+  const dedupedSignals = deduplicateSignals(guardedSignals);
+  const signals = enforceSignalLimit(dedupedSignals);
 
   const corrections = await getLrCorrections();
   const now = Date.now();
@@ -92,6 +139,23 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     const adjusted = (s.likelihoodRatio ?? 1) * correction * decayFactor;
     return { ...s, likelihoodRatio: Number(adjusted.toFixed(4)) };
   });
+
+  const envHashFields = {
+    specialty: caseData.primarySpecialtyProfile,
+    payer: caseData.payerEnvironment,
+    guideline: caseData.guidelineLeverage,
+    competitor: caseData.competitorProfile,
+    accessFriction: caseData.accessFrictionIndex,
+    adoptionPhase: caseData.adoptionPhase,
+    timeHorizon: caseData.timeHorizon,
+    therapeuticArea: caseData.therapeuticArea,
+  };
+  const inputHash = computeInputHash(caseId, caseData.priorProbability, signalsWithAdjustedLR, envHashFields);
+  const cached = recalcCache.get(caseId);
+  if (cached && cached.hash === inputHash) {
+    console.log(`[recalc-perf] cache_hit caseId=${caseId} hash=${inputHash}`);
+    return cached.result;
+  }
 
   let agentSimulationResult: Parameters<typeof runForecastEngine>[8] = undefined;
   if (signalsWithAdjustedLR.length > 0) {
@@ -158,18 +222,39 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
   }).where(eq(casesTable.caseId, caseId));
 
   const forecastId = `FCAST-${Date.now()}`;
+
+  const largestShift = signalsWithAdjustedLR.length > 0
+    ? Math.max(...signalsWithAdjustedLR.map(s => Math.abs((s.likelihoodRatio ?? 1) - 1)))
+    : 0;
+
+  const snapshotForLog = {
+    ...result,
+    _perfSummary: {
+      timestamp: calculatedAt.toISOString(),
+      driverCount: signalsWithAdjustedLR.length,
+      largestShift: Number(largestShift.toFixed(4)),
+      finalProbability,
+    },
+  };
+
   await db.insert(calibrationLogTable).values({
     id: randomUUID(),
     forecastId,
     caseId,
     predictedProbability: finalProbability,
-    snapshotJson: JSON.stringify(result),
+    snapshotJson: JSON.stringify(snapshotForLog),
   }).onConflictDoNothing();
 
-  return {
+  const recalcResult: RecalcResult = {
     score: finalProbability,
     calculatedAt: calculatedAt.toISOString(),
     signalCount: signalsWithAdjustedLR.length,
     forecastId,
   };
+
+  recalcCache.set(caseId, { hash: inputHash, result: recalcResult });
+
+  console.log(`[recalc-perf] computed caseId=${caseId} drivers=${signalsWithAdjustedLR.length} largest_shift=${largestShift.toFixed(4)} final_prob=${finalProbability.toFixed(4)}`);
+
+  return recalcResult;
 }

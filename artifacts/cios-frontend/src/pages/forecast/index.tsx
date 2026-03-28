@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
@@ -18,6 +18,15 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import {
+  computeDriverInputHash,
+  getDriverCache,
+  setDriverCache,
+  clearDriverCache,
+  deduplicateSignals,
+  enforceDriverLimit,
+  logForecastRun,
+} from "@/lib/forecast-performance";
 
 type Tab = "forecast" | "scenarios" | "drivers" | "library";
 type Strength = "Low" | "Medium" | "High";
@@ -141,7 +150,7 @@ export default function ForecastPage() {
   );
 }
 
-function DriverContributionBreakdown({ drivers, totalShift, upsideTotal, downsideTotal }: {
+const DriverContributionBreakdown = memo(function DriverContributionBreakdown({ drivers, totalShift, upsideTotal, downsideTotal }: {
   drivers: Driver[];
   totalShift: number;
   upsideTotal: number;
@@ -198,7 +207,7 @@ function DriverContributionBreakdown({ drivers, totalShift, upsideTotal, downsid
       )}
     </div>
   );
-}
+});
 
 function largestRemainderDistribute(weights: number[], total: number): number[] {
   const absTotal = Math.abs(total);
@@ -217,6 +226,12 @@ function largestRemainderDistribute(weights: number[], total: number): number[] 
 }
 
 function useDriversFromForecast(forecast: any, activeCaseId: string) {
+  const prevCaseRef = useRef<string>(activeCaseId);
+  if (prevCaseRef.current !== activeCaseId) {
+    clearDriverCache();
+    prevCaseRef.current = activeCaseId;
+  }
+
   return useMemo(() => {
     if (!forecast) return [];
     const f = forecast as any;
@@ -225,7 +240,7 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
     const signalDetails = f.signalDetails || [];
     const totalShift = Math.round(((f.currentProbability ?? 0) - (f.priorProbability ?? 0)) * 100);
 
-    const signals: Array<{
+    const rawSignals: Array<{
       id: string;
       name: string;
       logLr: number;
@@ -246,7 +261,7 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
         const detail = signalDetails.find((d: any) => d.signalId === sig.signalId);
         const lr = sig.likelihoodRatio ?? detail?.likelihoodRatio ?? 1;
         const logLr = lr > 0 && lr !== 1 ? Math.log(lr) : (sig._isUp ? 0.01 : -0.01);
-        signals.push({
+        rawSignals.push({
           id: sig.signalId,
           name: sig.description || detail?.description || detail?.signalDescription || sig.signalId,
           logLr,
@@ -260,7 +275,7 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
         const lr = sig.likelihoodRatio ?? sig.effectiveLR ?? 1;
         const isUp = sig.direction === "Positive" || lr > 1;
         const logLr = lr > 0 && lr !== 1 ? Math.log(lr) : (isUp ? 0.01 : -0.01);
-        signals.push({
+        rawSignals.push({
           id: sig.signalId,
           name: sig.description || sig.signalDescription || sig.signalId,
           logLr,
@@ -271,7 +286,16 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
       }
     }
 
-    if (signals.length === 0) return [];
+    if (rawSignals.length === 0) return [];
+
+    const { unique: dedupedSignals } = deduplicateSignals(rawSignals);
+    const signals = enforceDriverLimit(dedupedSignals);
+
+    const stateHash = computeDriverInputHash(signals, totalShift, activeCaseId);
+    const cache = getDriverCache();
+    if (cache.hash === stateHash && cache.result) {
+      return cache.result;
+    }
 
     const upSignals = signals.filter(s => s.logLr > 0);
     const downSignals = signals.filter(s => s.logLr < 0);
@@ -356,10 +380,17 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
       });
     }
 
-    return [...drivers].sort((a, b) => {
+    const sorted = [...drivers].sort((a, b) => {
       const diff = Math.abs(b.contributionPoints) - Math.abs(a.contributionPoints);
       return diff !== 0 ? diff : strengthWeight(b.strength) - strengthWeight(a.strength);
     });
+
+    setDriverCache(stateHash, sorted);
+
+    const largestShift = sorted.length > 0 ? Math.abs(sorted[0].contributionPoints) : 0;
+    logForecastRun(sorted.length, largestShift, f.currentProbability ?? 0);
+
+    return sorted;
   }, [forecast, activeCaseId]);
 }
 
@@ -1533,7 +1564,7 @@ function CaseLibraryTab() {
   );
 }
 
-function InfoCard({ title, value, body }: { title: string; value: string; body: string }) {
+const InfoCard = memo(function InfoCard({ title, value, body }: { title: string; value: string; body: string }) {
   return (
     <div className="col-span-12 rounded-3xl border border-white/10 bg-white/[0.02] p-5 md:col-span-4">
       <div className="text-sm font-medium text-slate-300">{title}</div>
@@ -1541,7 +1572,7 @@ function InfoCard({ title, value, body }: { title: string; value: string; body: 
       <p className="mt-2 text-sm leading-6 text-slate-400">{body}</p>
     </div>
   );
-}
+});
 
 function BottomLinks({ forecastData }: { forecastData?: any }) {
   const gl = forecastData?._guardrailLog;
