@@ -408,7 +408,7 @@ export default function QuestionDetail() {
                 <div className="pt-3 border-t border-border/20 flex items-start justify-between gap-4">
                   <p className="text-sm text-muted-foreground leading-relaxed">{interpretation}</p>
                   <span className="text-[10px] text-muted-foreground/40 whitespace-nowrap shrink-0">
-                    Engine v1 · Bayesian
+                    Engine v1 · Probability Model
                   </span>
                 </div>
               </div>
@@ -470,7 +470,7 @@ export default function QuestionDetail() {
                   )}
                   <div className="pt-2 border-t border-border/20">
                     <span className="text-[10px] text-muted-foreground/40">
-                      Ranked by likelihood ratio impact · {drivers.positive.length + drivers.negative.length} drivers shown
+                      Ranked by evidence impact · {drivers.positive.length + drivers.negative.length} drivers shown
                     </span>
                   </div>
                 </div>

@@ -69,7 +69,7 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
         </div>
       </div>
 
-      <div className="mt-3 text-center text-[10px] text-slate-600">Engine v1 · Bayesian + Gate Constraint</div>
+      <div className="mt-3 text-center text-[10px] text-slate-600">Engine v1 · Signal + Gate Constraint</div>
     </div>
   );
 });

@@ -407,10 +407,10 @@ export default function CasesList() {
                 </div>
               </div>
 
-              {/* Section: Bayesian Prior */}
+              {/* Section: Starting Probability */}
               <div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 pb-1 border-b border-border/50">
-                  Bayesian Prior &amp; Forecast Horizon
+                  Starting Probability &amp; Forecast Horizon
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -514,7 +514,7 @@ export default function CasesList() {
                     {c.currentProbability != null && (
                       <>
                         <ArrowRight className="w-4 h-4 opacity-40 shrink-0" />
-                        <div>Posterior: <span className="text-primary font-bold">{(c.currentProbability * 100).toFixed(1)}%</span></div>
+                        <div>Current: <span className="text-primary font-bold">{(c.currentProbability * 100).toFixed(1)}%</span></div>
                         {c.confidenceLevel && (
                           <Badge variant={(CONFIDENCE_COLOR[c.confidenceLevel] || "default") as "success" | "warning" | "default"}>
                             {c.confidenceLevel} confidence

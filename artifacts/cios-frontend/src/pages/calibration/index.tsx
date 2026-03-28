@@ -330,7 +330,7 @@ export default function Calibration() {
         {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-primary/5 border-primary/20">
-            <div className="text-sm text-muted-foreground">Mean Brier Score</div>
+            <div className="text-sm text-muted-foreground">Mean Accuracy Score</div>
             <div className={cn("text-3xl font-display font-bold mt-2", brierColor)}>
               {brier != null ? brier.toFixed(3) : "—"}
             </div>
@@ -417,7 +417,7 @@ export default function Calibration() {
                           <p>Predicted: <span className="font-medium">{d?.x}%</span></p>
                           <p>Actual: <span className="font-medium">{d?.y}%</span></p>
                           <p className="text-muted-foreground">Error: {d?.error}</p>
-                          <p className="text-muted-foreground">Brier: {d?.brier}</p>
+                          <p className="text-muted-foreground">Accuracy: {d?.brier}</p>
                         </div>
                       );
                     }}
@@ -538,7 +538,7 @@ export default function Calibration() {
                         <div className="bg-background border border-border rounded-lg p-2.5 text-xs shadow-lg min-w-40">
                           <p className="font-semibold mb-1">{d.name}</p>
                           <p>Mean error: <span className="font-mono">{(d.meanError * 100) > 0 ? "+" : ""}{(d.meanError * 100).toFixed(1)}pp</span></p>
-                          <p>Mean Brier: <span className="font-mono">{d.meanBrierScore.toFixed(4)}</span></p>
+                          <p>Mean Accuracy: <span className="font-mono">{d.meanBrierScore.toFixed(4)}</span></p>
                           <p>Sample size: {d.sampleSize}</p>
                           <p className={cn(
                             "font-medium mt-1",
@@ -641,7 +641,7 @@ export default function Calibration() {
                   <th className="px-5 py-3 font-semibold text-right">Predicted</th>
                   <th className="px-5 py-3 font-semibold text-right">Actual</th>
                   <th className="px-5 py-3 font-semibold text-right">Error</th>
-                  <th className="px-5 py-3 font-semibold text-right">Brier</th>
+                  <th className="px-5 py-3 font-semibold text-right">Accuracy</th>
                   <th className="px-5 py-3 font-semibold text-center">Status</th>
                 </tr>
               </thead>
@@ -1768,7 +1768,7 @@ export default function Calibration() {
             <AlertTriangle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
             <div className="text-xs text-muted-foreground space-y-1">
               <p className="font-semibold text-foreground">How the calibration loop works</p>
-              <p>Every forecast run is automatically logged with the predicted probability at that moment. When an actual adoption outcome is recorded (on the Forecast page or in the table above), the system computes the Brier score component <span className="font-mono">(predicted − actual)²</span> and forecast error <span className="font-mono">(actual − predicted)</span> for that entry.</p>
+              <p>Every forecast run is automatically logged with the predicted probability at that moment. When an actual adoption outcome is recorded (on the Forecast page or in the table above), the system computes the accuracy score and forecast error for that entry.</p>
               <p>Over time, the bias analysis reveals which signal types and actor stances are systematically associated with over- or under-forecasting. A positive mean error (blue) means the engine tends to underforecast when that signal type is active. A negative error (amber) means it overforecasts.</p>
             </div>
           </div>

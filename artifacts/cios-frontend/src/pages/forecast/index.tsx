@@ -829,7 +829,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     return (
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
         <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
-        <div className="text-sm text-slate-300">Computing Bayesian forecast...</div>
+        <div className="text-sm text-slate-300">Computing forecast...</div>
         <div className="text-xs text-slate-500">Weighing evidence and stakeholder dynamics</div>
       </div>
     );
@@ -1039,7 +1039,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                         Confidence: {confidence}
                       </div>
                       <p className="mt-3 text-sm leading-6 text-slate-300 text-center">{summary}</p>
-                      <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Bayesian</div>
+                      <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Probability Model</div>
                     </div>
                   </div>
 

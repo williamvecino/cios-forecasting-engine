@@ -180,8 +180,8 @@ export default function CIOSWorkbench() {
               </div>
             ) : (
               <div className="mt-5 space-y-4">
-                <Metric label="Prior Probability" value={toPercent(currentOutput.priorProbability)} />
-                <Metric label="Posterior Probability" value={toPercent(currentOutput.posteriorProbability)} />
+                <Metric label="Starting Probability" value={toPercent(currentOutput.priorProbability)} />
+                <Metric label="Updated Probability" value={toPercent(currentOutput.posteriorProbability)} />
                 <Metric label="Adjusted Probability" value={toPercent(currentOutput.adjustedProbability)} />
                 <Metric label="Signal Count" value={`${currentOutput.signalCount}`} />
                 <Metric label="Effective Signal Count" value={`${currentOutput.effectiveSignalCount}`} />

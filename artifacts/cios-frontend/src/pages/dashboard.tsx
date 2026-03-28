@@ -152,7 +152,7 @@ export default function Dashboard() {
                 ? (stats.meanBrierScore ?? 0).toFixed(3)
                 : "—"}
             </div>
-            <div className="text-xs text-muted-foreground mt-1">Calibration Score (Brier)</div>
+            <div className="text-xs text-muted-foreground mt-1">Forecast Accuracy Score</div>
             {stats?.calibratedForecasts && stats.calibratedForecasts > 0 ? (
               <div className="text-[10px] text-muted-foreground mt-2">Lower is better · 0 = perfect</div>
             ) : (
@@ -242,7 +242,7 @@ export default function Dashboard() {
                   <span className="text-xl font-bold text-foreground">{stats?.calibratedForecasts ?? 0}</span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm text-muted-foreground">Calibration score</span>
+                  <span className="text-sm text-muted-foreground">Forecast accuracy</span>
                   <span className="text-xl font-bold text-foreground">{stats?.meanBrierScore?.toFixed(3) ?? "—"}</span>
                 </div>
                 <div className="flex justify-between items-baseline">
