@@ -53,18 +53,23 @@ async function extractTextFromFile(
     mimeType === "application/pdf" ||
     fileName.toLowerCase().endsWith(".pdf")
   ) {
-    let parser: any = null;
+    let loadingTask: any = null;
     try {
-      const { PDFParse } = await import("pdf-parse");
-      parser = new PDFParse({ data: buffer });
-      await parser.load();
-      const textResult = await parser.getText();
-      const text = (textResult.text || "").slice(0, 15000);
-      try { await parser.destroy(); } catch (cleanupErr) { console.error("PDF parser cleanup error (non-fatal):", cleanupErr); }
-      return text;
+      const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer), isEvalSupported: false, useSystemFonts: true, disableAutoFetch: true });
+      const pdf = await loadingTask.promise;
+      const textParts: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items.map((item: any) => item.str || "").join(" ");
+        if (pageText.trim()) textParts.push(pageText.trim());
+      }
+      try { await loadingTask.destroy(); } catch (_) {}
+      return textParts.join("\n\n").slice(0, 15000);
     } catch (e) {
       console.error("PDF parse failed:", e);
-      try { if (parser) await parser.destroy(); } catch (_) {}
+      try { if (loadingTask) await loadingTask.destroy(); } catch (_) {}
       return buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").slice(0, 15000);
     }
   }
