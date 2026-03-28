@@ -37,6 +37,8 @@ import aiSimulateRouter from "./ai-simulate.js";
 import aiArchetypeRouter from "./ai-archetype.js";
 import aiAssumptionsRouter from "./ai-assumptions.js";
 import agentQuestionStructuringRouter from "./agent-question-structuring.js";
+import agentExternalSignalScoutRouter from "./agent-external-signal-scout.js";
+import agentSignalNormalizerRouter from "./agent-signal-normalizer.js";
 
 const router: IRouter = Router();
 
@@ -78,5 +80,7 @@ router.use(aiSimulateRouter);
 router.use(aiArchetypeRouter);
 router.use(aiAssumptionsRouter);
 router.use(agentQuestionStructuringRouter);
+router.use(agentExternalSignalScoutRouter);
+router.use(agentSignalNormalizerRouter);
 
 export default router;

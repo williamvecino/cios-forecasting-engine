@@ -32,23 +32,26 @@ Phase 1 — Intake and signal quality:
    Must output: document type, primary decision, secondary decisions, relevant content spans, irrelevant/admin content to ignore, recommended downstream routing to MIOS/BAOS/CIOS, missing information.
    Rules: distinguish wrapper from decision; ignore legal/procurement/admin boilerplate unless decision-relevant; deterministic for the same document.
 
-2. Question Structuring Agent — **PARTIAL** (existing AI interpret endpoint)
+2. Question Structuring Agent — **BUILT** (`POST /api/agents/question-structuring`)
    Lives in: Define Question
    Purpose: Convert broad or messy asks into 1–3 bounded decision questions.
    Must output: active question, optional supporting questions, question archetype, horizon, target outcome.
    Rules: reject or split overly broad questions; do not let one giant multi-part strategy question become the active case.
+   Frontend: Runs during question creation flow, shows structured analysis (archetype, boundedness, horizon, target) before case creation. Rejects non-decision inputs.
 
-3. External Signal Scout — **PLANNED**
+3. External Signal Scout — **BUILT** (`POST /api/agents/external-signal-scout`)
    Lives in: Add Information
    Purpose: Find relevant outside information for the active case and convert it into candidate signals.
    Must output for each candidate: signal label, source, source date/freshness, signal type, suggested direction, suggested strength, suggested confidence, relevance score, why it matters.
    Rules: do not forecast; do not inject directly into judgment; show as suggested signals first; user must accept, edit, or reject.
+   Frontend: Collapsible panel on Signals page (ExternalSignalScoutPanel). User clicks to scan, then accepts/rejects each candidate.
 
-4. Signal Normalizer / Deduplicator — **PLANNED**
+4. Signal Normalizer / Deduplicator — **BUILT** (`POST /api/agents/signal-normalizer`)
    Lives in: Add Information
    Purpose: Merge all signal sources into one clean register and prevent overlap/double counting.
    Must do: normalize direction/strength/confidence; deduplicate overlapping signals; prevent double counting; preserve source provenance; merge or flag conflicts.
    Rules: this becomes the only signal set used by the judge.
+   Frontend: Collapsible panel on Signals page (SignalNormalizerPanel). User clicks to analyze, then applies recommended duplicate removals and conflict flags.
 
 5. Assumption Registry Agent — **BUILT** (DB-backed assumption registry)
    Lives in: Add Information + Diagnostics

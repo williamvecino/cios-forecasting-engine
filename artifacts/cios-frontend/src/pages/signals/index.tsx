@@ -46,6 +46,8 @@ import {
 import DataImportDialog from "@/components/signals/DataImportDialog";
 import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog";
 import { SignalProvenanceDrawer } from "@/components/signals/SignalProvenanceDrawer";
+import ExternalSignalScoutPanel from "@/components/signals/ExternalSignalScoutPanel";
+import SignalNormalizerPanel from "@/components/signals/SignalNormalizerPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import { getAllPrebuiltSignals, getSignalsForBrand, getAnalogSignalsForBrand } from "@/lib/workbook/prebuiltSignals";
@@ -1390,6 +1392,78 @@ export default function SignalsPage() {
               {aiError}
             </div>
           )}
+
+          <ExternalSignalScoutPanel
+            activeQuestion={questionText}
+            subject={subject}
+            timeHorizon={activeQuestion?.timeHorizon}
+            existingSignalTexts={allSignals.map((s) => s.text)}
+            onAcceptSignal={(sig) => {
+              const newSignal: Signal = {
+                id: `scout-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                text: sig.text,
+                caveat: `Source: ${sig.sourceType}`,
+                direction: sig.direction,
+                strength: sig.strength,
+                reliability: sig.reliability,
+                impact: sig.strength === "High" ? "High" : sig.strength === "Low" ? "Low" : "Medium",
+                category: (["evidence", "access", "competition", "guideline", "timing", "adoption"].includes(sig.category) ? sig.category : "evidence") as Category,
+                source: "system",
+                accepted: false,
+                signal_class: "observed",
+                signal_family: "brand_clinical_regulatory",
+                signal_source: "external",
+                source_url: null,
+                source_type: sig.sourceType,
+                observed_date: sig.sourceDate || null,
+                citation_excerpt: null,
+                brand_verified: false,
+                priority_source: "ai_derived",
+                is_locked: false,
+              };
+              setSignals((prev) => {
+                const updated = [...prev, newSignal];
+                persistSignals(updated);
+                return updated;
+              });
+              persistSignalToDb(newSignal);
+            }}
+          />
+
+          <SignalNormalizerPanel
+            signals={allSignals.map((s) => ({
+              id: s.id,
+              text: s.text,
+              direction: s.direction,
+              strength: s.strength,
+              confidence: s.reliability,
+              source: s.source,
+              sourceType: s.source_type,
+              category: s.category,
+              signalSource: s.signal_source,
+            }))}
+            activeQuestion={questionText}
+            onRemoveDuplicate={(signalId) => {
+              setSignals((prev) => {
+                const updated = prev.filter((s) => s.id !== signalId);
+                persistSignals(updated);
+                return updated;
+              });
+            }}
+            onFlagConflict={(signalId, conflictsWith) => {
+              setSignals((prev) => {
+                const updated = prev.map((s) =>
+                  s.id === signalId
+                    ? { ...s, conflict_with: conflictsWith }
+                    : s.id === conflictsWith
+                    ? { ...s, conflict_with: signalId }
+                    : s
+                );
+                persistSignals(updated);
+                return updated;
+              });
+            }}
+          />
 
           {!aiLoading && hasSourceClassification && (
             <>

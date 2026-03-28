@@ -637,6 +637,87 @@ export default function QuestionPage() {
           </div>
         )}
 
+        {(pageState === "structuring" || pageState === "creating") && (
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {pageState === "structuring" ? "Structuring question..." : "Creating case..."}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {pageState === "structuring"
+                    ? "Analyzing boundedness, archetype, and target outcome"
+                    : "Interpreting and persisting the decision case"}
+                </div>
+              </div>
+            </div>
+            {structuringResult && (
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400/70">
+                  Question Structuring Agent
+                </div>
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                  <div className="text-sm font-medium text-foreground">
+                    {structuringResult.activeQuestion.questionText}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted/30 border border-border px-2 py-1 text-[11px] text-muted-foreground">
+                      <Target className="w-3 h-3" />
+                      {structuringResult.activeQuestion.archetype}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted/30 border border-border px-2 py-1 text-[11px] text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      {structuringResult.activeQuestion.horizon}
+                    </span>
+                    {structuringResult.activeQuestion.boundedness === "bounded" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 text-[11px] text-emerald-400">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Bounded
+                      </span>
+                    )}
+                    {structuringResult.activeQuestion.boundedness === "needs_splitting" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1 text-[11px] text-amber-400">
+                        <SplitSquareVertical className="w-3 h-3" />
+                        Split into sub-questions
+                      </span>
+                    )}
+                    {structuringResult.activeQuestion.boundedness === "too_broad" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-red-500/10 border border-red-500/20 px-2 py-1 text-[11px] text-red-400">
+                        <XCircle className="w-3 h-3" />
+                        Too broad
+                      </span>
+                    )}
+                  </div>
+                  {structuringResult.activeQuestion.targetOutcome && (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="text-foreground/60 font-medium">Target: </span>
+                      {structuringResult.activeQuestion.targetOutcome}
+                    </div>
+                  )}
+                </div>
+                {structuringResult.supportingQuestions.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                      Supporting Questions
+                    </div>
+                    {structuringResult.supportingQuestions.map((sq, i) => (
+                      <div key={i} className="rounded-lg border border-border bg-muted/10 p-3">
+                        <div className="text-xs text-foreground/80">{sq.questionText}</div>
+                        <div className="flex gap-2 mt-1.5">
+                          <span className="text-[10px] text-muted-foreground">{sq.archetype}</span>
+                          <span className="text-[10px] text-muted-foreground">·</span>
+                          <span className="text-[10px] text-muted-foreground">{sq.horizon}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeQuestion && pageState === "input" && !isEditMode ? (
           <div className="space-y-5">
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6">

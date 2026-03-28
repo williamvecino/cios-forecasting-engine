@@ -1,0 +1,458 @@
+We need an Agent Validation Harness for CIOS.
+
+Purpose:
+Verify that each bounded agent is working correctly, in sequence, without breaking the frozen core judgment engine.
+
+Use one fixed test case and run all agents against it.
+
+Test case to use
+
+Use the Roche anti-PDL1 RFP PDF as the primary document test case.
+
+Expected document reality:
+
+document type = RFP
+primary decision = patient/caregiver pre-launch and launch strategy for anti-PDL1
+secondary decisions include:
+differentiate anti-PDL1 from anti-PD1
+define UBC and NSCLC engagement approach
+propose market research inputs
+recommend engagement programs
+procurement/legal/admin text must not dominate the case output
+
+This test is successful only if the system interprets the document as a strategic agency RFP and not as a generic launch question.
+
+1. Global harness rules
+
+For every agent, test:
+
+deterministic behavior
+correct input contract
+correct output contract
+no unexpected side effects
+preserved provenance
+graceful failure if inputs are missing or invalid
+
+For every test, log:
+
+input
+output
+pass/fail
+warnings
+timing
+whether downstream agent could consume the output
+
+Build a single visible test report page or JSON output.
+
+2. Agent-by-agent test definitions
+A. Decision Gating Agent test
+Input
+
+Roche anti-PDL1 RFP PDF
+
+Expected output
+document_type = RFP
+primary_decision is strategy-related, not vendor-selection unless explicitly requested
+at least 3 secondary decisions extracted
+admin/procurement/contact sections identified as non-core
+relevant spans extracted from proposal requirements and evaluation criteria
+Fail if
+output is empty
+primary decision is generic like “launch strategy” with no patient/caregiver context
+vendor selection is inferred as the primary decision
+procurement text dominates the result
+Pass criteria
+
+The output reflects the actual strategic asks in the RFP and distinguishes wrapper from underlying business decision.
+
+B. Question Structuring Agent test
+Input
+
+Primary decision output from Decision Gating Agent
+
+Expected output
+
+1 to 3 clean decision questions such as:
+
+What patient/caregiver launch strategy is most likely to differentiate anti-PDL1 in UBC and NSCLC?
+What are the main barriers to patient engagement for anti-PDL1 in UBC vs NSCLC?
+What strategic approach best differentiates anti-PDL1 from anti-PD1 for patients and caregivers?
+Fail if
+one giant broad question is produced
+more than 3 active questions are created
+questions are vague, non-decision-like, or duplicate each other
+Pass criteria
+
+Questions are bounded, decision-focused, and clearly usable by CIOS.
+
+C. External Signal Scout test
+Input
+
+Active question, brand, indication, horizon
+
+Expected output
+
+A candidate signal list with for each signal:
+
+signal label
+source
+source date/freshness
+signal type
+suggested direction
+suggested strength
+suggested confidence
+relevance score
+why it matters
+Fail if
+raw search text is dumped directly into the UI
+irrelevant signals are returned
+no freshness/date is provided
+it forecasts instead of scouting
+Pass criteria
+
+Returns a small relevant set of structured external candidate signals only.
+
+D. Signal Normalizer / Deduplicator test
+Input
+
+Use 8 mixed signals:
+
+2 manual
+2 imported from workbook
+2 external
+2 intentionally duplicated in different wording
+Expected output
+duplicates merged or flagged
+normalized direction
+normalized strength
+normalized confidence
+single clean signal register
+provenance preserved for merged signals
+Fail if
+duplicate signals remain active without warning
+same barrier is counted twice
+provenance is lost
+conflicting signals are silently merged without a flag
+Pass criteria
+
+One clean signal set is produced, ready for judgment.
+
+E. Import Adapter Agent test
+Input
+
+mios_baos_for_cios.xlsx
+
+Expected output
+active program detected
+only rows from CIOS_Signal_Export imported
+required fields mapped correctly
+invalid rows skipped with warnings
+imported signals appear in Add Information
+Fail if
+raw MIOS sheets are read directly into judgment
+multiple active programs do not fail gracefully
+missing fields crash the import
+imported signals lose rank or rationale
+Pass criteria
+
+Workbook acts as a simple signal adapter and nothing more.
+
+F. Provenance / Traceability Agent test
+Input
+
+One manual signal, one workbook signal, one external signal
+
+Expected output
+
+Each signal stores:
+
+source layer
+source reference
+source type
+if imported: programId and signalId
+click/view provenance available
+Fail if
+any signal has no source
+merged signals lose origin
+provenance panel is blank
+Pass criteria
+
+Every signal can be traced.
+
+G. Case Comparator / Prior Structuring Agent test
+Input
+
+Current case state after normalization
+
+Expected output
+
+At least 1 to 3 analogs with:
+
+brand
+company
+context
+similarity
+difference
+implication
+confidence
+Fail if
+analogs appear as “Analog 1” only
+no brand/company
+generic or abstract comparators
+no implication is given
+Pass criteria
+
+Each analog is identifiable and useful.
+
+H. Explanation / Ask CIOS Agent test
+Input
+
+Use these exact questions:
+
+Why is the forecast 40%?
+What is holding this back?
+What happens if payer friction improves?
+What does this analog mean?
+How do I solve this issue?
+Expected output
+grounded in current case state
+references drivers / constraints / analogs / signals
+distinguishes explanation from hypothetical
+if hypothetical, labels it clearly
+if unknown, says insufficient information
+Fail if
+generic ungrounded answer
+contradicts current structured state
+invents missing data
+changes the forecast silently
+Pass criteria
+
+Answers are case-specific, traceable, and coherent.
+
+I. Constraint Decomposition Agent test
+Input
+
+Constraint labels:
+
+Operational readiness
+Behavioral readiness
+Access readiness
+Expected output
+
+Each one expands to ranked concrete drivers.
+
+Fail if
+abstract label is shown alone
+no ranked drivers
+no impact levels
+unmapped abstract constraint passes silently
+Pass criteria
+
+Every abstract constraint is decomposed or visibly flagged.
+
+J. Core CIOS Judgment Engine regression test
+Input
+
+Use frozen known case with normalized signals
+
+Expected output
+same probability every run
+same confidence every run
+same narrative every run
+same top drivers every run
+Fail if
+output varies
+confidence mismatches reasoning
+narrative contradicts structured state
+Pass criteria
+
+Judgment remains deterministic and coherent.
+
+K. Decision Translation Agent test
+Input
+
+Judgment result with forecast, drivers, constraints
+
+Expected output
+recommended action
+rationale
+success condition
+kill criteria / falsifier
+Fail if
+recommendation is generic
+no action hierarchy
+action does not match judgment state
+Pass criteria
+
+Decision is actionable and consistent with forecast.
+
+L. Prioritization Agent test
+Input
+
+Five possible actions with different leverage
+
+Expected output
+
+A ranked action list ordered by expected impact and urgency
+
+Fail if
+ranking is arbitrary
+no explanation for ranking
+low-leverage actions rank above obvious high-leverage actions without reason
+Pass criteria
+
+The ranking is intelligible and aligned with the case.
+
+M. Actor Segmentation Agent test
+Input
+
+Oncology case with launch/adoption question
+
+Expected output
+
+At least these actor types, if relevant:
+
+academic oncologists
+community oncologists
+payers
+patients/caregivers
+KOLs
+
+For each:
+
+role
+behavior
+primary constraint
+trigger
+influence weight
+likely timing
+Fail if
+actors are generic personas only
+no behavior rules
+no influence differentiation
+Pass criteria
+
+Actors are operational market entities, not marketing audiences.
+
+N. Simulation Agent test
+Input
+
+Judgment result + actor segments
+
+Expected output
+base case path
+upside path
+downside path
+trigger/catalyst list
+barrier resolution points
+timing changes
+Fail if
+simulation is generic summary only
+no actor-driven logic
+no distinction among scenarios
+Pass criteria
+
+Simulation reflects current judgment and actor logic.
+
+O. Forecast Ledger Agent test
+Input
+
+Run same case twice with one changed signal
+
+Expected output
+prior forecast stored
+updated forecast stored
+delta shown
+reason for change recorded
+Fail if
+overwrite occurs with no history
+no delta explanation
+no timestamp/version
+Pass criteria
+
+Forecast history is preserved and interpretable.
+
+P. Calibration Agent test
+Input
+
+Use 5 historical known-outcome cases
+
+Expected output
+forecast vs actual comparison
+over/underconfidence summary
+bias pattern if present
+Fail if
+no comparison possible
+no summary of accuracy trend
+no case-level audit
+Pass criteria
+
+System begins to learn from outcomes.
+
+3. End-to-end test
+
+Run the full chain:
+
+Roche anti-PDL1 RFP PDF
+→ Decision Gating
+→ Question Structuring
+→ External Signal Scout
+→ Signal Normalizer
+→ Judge
+→ Ask CIOS
+→ Decide
+→ Actor Segmentation
+→ Simulate
+
+End-to-end success criteria
+The document is interpreted as a strategic patient/caregiver anti-PDL1 RFP
+One coherent primary question is produced
+External signals are relevant and structured
+Signal set is normalized without duplication
+Judgment is deterministic and coherent
+Ask CIOS answers “why” and “what if” questions correctly
+Decision recommendation is actionable
+Simulation shows different scenario paths by actor behavior
+No step crashes if one upstream agent is missing data
+System remains usable even without MIOS/BAOS connected
+4. Required output format for the harness
+
+Produce a table or JSON with columns:
+
+Agent
+Test name
+Input received
+Output produced
+Pass/Fail
+Warning count
+Error count
+Deterministic
+Downstream compatible
+Notes
+
+Also produce an overall summary:
+
+agents passed
+agents failed
+integration blockers
+stability blockers
+recommended next fix
+5. Important rules
+Do not build all agents before testing.
+Each new agent must pass its own harness before the next one is built.
+The core judgment engine must be re-run after every new agent to confirm no regression.
+If any agent produces malformed output, downstream agents must fail gracefully.
+6. Minimum acceptable milestone
+
+We should consider the agent architecture viable only if these first 8 pass:
+
+Decision Gating Agent
+Question Structuring Agent
+External Signal Scout
+Signal Normalizer
+Import Adapter Agent
+Provenance Agent
+Case Comparator
+Ask CIOS Agent
+
+Only then proceed to actor segmentation and simulation.
