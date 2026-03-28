@@ -1,17 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface Assumption {
-  id: string;
-  text: string;
-  category: string;
-  source_step: string;
-  status: "active" | "challenged" | "invalidated";
-  confidence: "high" | "moderate" | "low";
-  linked_gates: string[];
-  version: number;
-  created_at: string;
-  updated_at: string;
-  invalidation_reason?: string;
+  assumptionId: string;
+  caseId: string;
+  assumptionStatement: string;
+  assumptionCategory: string;
+  assumptionStatus: "active" | "validated" | "invalidated" | "unknown";
+  confidenceLevel: "high" | "moderate" | "low";
+  sourceType: string;
+  impactLevel: "high" | "moderate" | "low";
+  owner: string;
+  linkedGates: string;
+  invalidationReason: string | null;
+  lastUpdated: string;
+  createdAt: string;
 }
 
 function getApiBase() {
@@ -21,42 +23,45 @@ function getApiBase() {
   return "/api";
 }
 
-function storageKey(caseId: string) {
-  return `cios.assumptions:${caseId}`;
-}
-
 export function useAssumptions(caseId: string | undefined) {
   const [assumptions, setAssumptions] = useState<Assumption[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastExtracted, setLastExtracted] = useState<string | null>(null);
+  const [recalculationTriggered, setRecalculationTriggered] = useState(false);
   const extractingRef = useRef(false);
 
-  useEffect(() => {
+  const fetchAssumptions = useCallback(async () => {
     if (!caseId) {
       setAssumptions([]);
       return;
     }
     try {
-      const stored = localStorage.getItem(storageKey(caseId));
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setAssumptions(parsed.assumptions || []);
-        setLastExtracted(parsed.lastExtracted || null);
-      } else {
-        setAssumptions([]);
-        setLastExtracted(null);
+      const res = await fetch(`${getApiBase()}/assumptions/${encodeURIComponent(caseId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAssumptions(data.assumptions || []);
+        if (data.assumptions?.length) {
+          const latest = data.assumptions.reduce((max: string, a: Assumption) =>
+            a.lastUpdated > max ? a.lastUpdated : max, "");
+          setLastExtracted(latest);
+        }
       }
     } catch {
       setAssumptions([]);
     }
   }, [caseId]);
 
+  useEffect(() => {
+    fetchAssumptions();
+  }, [fetchAssumptions]);
+
   const extractAssumptions = useCallback(async (silent = false) => {
     if (!caseId || extractingRef.current) return;
     extractingRef.current = true;
-    if (!silent) setLoading(true);
+    if (!silent) setExtracting(true);
     setError(null);
+    setRecalculationTriggered(false);
 
     try {
       let gates: any[] = [];
@@ -119,16 +124,15 @@ export function useAssumptions(caseId: string | undefined) {
 
       if (!subject || !questionText) {
         extractingRef.current = false;
-        if (!silent) setLoading(false);
+        if (!silent) setExtracting(false);
         return;
       }
-
-      const existing = assumptions.length > 0 ? assumptions : undefined;
 
       const res = await fetch(`${getApiBase()}/ai-assumptions/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          caseId,
           subject,
           questionText,
           outcome,
@@ -140,7 +144,6 @@ export function useAssumptions(caseId: string | undefined) {
           derived_decisions,
           adoption_segmentation,
           respond_result,
-          existing_assumptions: existing,
         }),
       });
 
@@ -150,30 +153,50 @@ export function useAssumptions(caseId: string | undefined) {
       }
 
       const data = await res.json();
-      const newAssumptions: Assumption[] = data.assumptions || [];
-      const now = new Date().toISOString();
-
-      setAssumptions(newAssumptions);
-      setLastExtracted(now);
-
-      localStorage.setItem(storageKey(caseId), JSON.stringify({
-        assumptions: newAssumptions,
-        lastExtracted: now,
-      }));
+      setAssumptions(data.assumptions || []);
+      setRecalculationTriggered(data.recalculation_triggered || false);
+      setLastExtracted(new Date().toISOString());
     } catch (err: any) {
       if (!silent) setError(err.message || "Failed to extract assumptions");
       console.error("[assumptions] extraction error:", err);
     } finally {
       extractingRef.current = false;
-      if (!silent) setLoading(false);
+      if (!silent) setExtracting(false);
     }
-  }, [caseId, assumptions]);
+  }, [caseId]);
+
+  const updateStatus = useCallback(async (assumptionId: string, status: string, reason?: string) => {
+    try {
+      setError(null);
+      const res = await fetch(`${getApiBase()}/assumptions/${encodeURIComponent(assumptionId)}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, invalidation_reason: reason }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        setError(errBody.error || `Failed to update status (${res.status})`);
+        return;
+      }
+
+      const data = await res.json();
+      setRecalculationTriggered(data.recalculation_triggered || false);
+      await fetchAssumptions();
+    } catch (err: any) {
+      setError(err.message || "Failed to update assumption status");
+      console.error("[assumptions] status update error:", err);
+    }
+  }, [fetchAssumptions]);
 
   return {
     assumptions,
-    loading,
+    loading: extracting,
     error,
     lastExtracted,
+    recalculationTriggered,
     extractAssumptions,
+    updateStatus,
+    refetch: fetchAssumptions,
   };
 }

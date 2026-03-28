@@ -26,7 +26,15 @@ export default function WorkflowLayout({
 }: Props) {
   const caseId = activeQuestion?.caseId || activeQuestion?.id;
   const [showAssumptions, setShowAssumptions] = useState(false);
-  const { assumptions, loading, error, lastExtracted, extractAssumptions } = useAssumptions(caseId);
+  const {
+    assumptions,
+    loading,
+    error,
+    lastExtracted,
+    recalculationTriggered,
+    extractAssumptions,
+    updateStatus,
+  } = useAssumptions(caseId);
   const autoTriggeredRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -39,22 +47,27 @@ export default function WorkflowLayout({
       ? `cios.decideResult:${caseId}`
       : `cios.respondResult:${caseId}`;
 
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     const checkAndTrigger = () => {
       const hasData = localStorage.getItem(stepDataKey);
       if (hasData) {
         autoTriggeredRef.current = triggerKey;
-        setTimeout(() => extractAssumptions(true), 2000);
+        timeoutId = setTimeout(() => extractAssumptions(true), 2000);
       }
     };
 
     checkAndTrigger();
 
     const interval = setInterval(checkAndTrigger, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [caseId, currentStep, extractAssumptions]);
 
   const showButton = activeQuestion && ASSUMPTION_VISIBLE_STEPS.includes(currentStep);
-  const challengedCount = assumptions.filter(a => a.status === "challenged").length;
+  const hasInvalidated = assumptions.some(a => a.assumptionStatus === "invalidated");
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -77,7 +90,7 @@ export default function WorkflowLayout({
               <div className="pl-2">
                 <AssumptionTriggerButton
                   count={assumptions.length}
-                  challengedCount={challengedCount}
+                  hasInvalidated={hasInvalidated}
                   onClick={() => setShowAssumptions(true)}
                 />
               </div>
@@ -94,7 +107,9 @@ export default function WorkflowLayout({
           loading={loading}
           error={error}
           lastExtracted={lastExtracted}
+          recalculationTriggered={recalculationTriggered}
           onExtract={extractAssumptions}
+          onUpdateStatus={updateStatus}
           onClose={() => setShowAssumptions(false)}
         />
       )}
