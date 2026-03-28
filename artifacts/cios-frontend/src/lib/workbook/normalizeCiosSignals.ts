@@ -32,8 +32,10 @@ export interface NormalizedSignal {
 const DIRECTION_MAP: Record<string, NormalizedDirection> = {
   "positive": "positive",
   "supports adoption": "positive",
+  "supports early adoption": "positive",
   "negative": "negative",
   "slows adoption": "negative",
+  "slows early adoption": "negative",
   "neutral": "neutral",
 };
 

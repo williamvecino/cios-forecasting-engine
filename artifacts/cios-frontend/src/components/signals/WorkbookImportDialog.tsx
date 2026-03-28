@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Download,
 } from "lucide-react";
 import {
   processWorkbook,
@@ -109,6 +110,26 @@ export function WorkbookImportDialog({
               <Upload className="w-10 h-10 text-slate-500 mx-auto mb-3" />
               <p className="text-sm text-slate-300 mb-1">Drop your MIOS/BAOS workbook here</p>
               <p className="text-xs text-slate-500">Reads CIOS_Signal_Export sheet, ActiveFlag = Yes only</p>
+              <div className="mt-3 flex items-center justify-center gap-4">
+                <a
+                  href={`${import.meta.env.BASE_URL}workbooks/MIOS_BAOS_Calibration_20_Signals.xlsx`}
+                  download
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  Calibration (20 signals)
+                </a>
+                <a
+                  href={`${import.meta.env.BASE_URL}workbooks/ARIKAYCE_Analog_10_Signals.xlsx`}
+                  download
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  ARIKAYCE Analog (10 signals)
+                </a>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
