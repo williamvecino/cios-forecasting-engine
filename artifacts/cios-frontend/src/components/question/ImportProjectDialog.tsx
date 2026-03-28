@@ -455,7 +455,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept={ACCEPTED_EXTENSIONS.join(",")}
+          accept="*/*"
           onChange={handleFileSelect}
         />
         {selectedFile && imagePreview ? (
