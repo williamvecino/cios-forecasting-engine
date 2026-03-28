@@ -288,11 +288,10 @@ router.post("/import-project/analyze", upload.single("file"), async (req, res) =
     let extractedText = "";
     let imageBase64: string | null = null;
     let imageMimeType: string | null = null;
-    let sourceName = "Uploaded content";
+    const questionContext = req.body?.question || "";
 
     if (req.file) {
       const file = req.file;
-      sourceName = file.originalname;
       const mime = file.mimetype || "application/octet-stream";
       const base64 = file.buffer.toString("base64");
 
@@ -304,7 +303,6 @@ router.post("/import-project/analyze", upload.single("file"), async (req, res) =
       }
     } else if (req.body?.text) {
       extractedText = req.body.text.trim().slice(0, 15000);
-      sourceName = "Pasted text";
     }
 
     if (!extractedText && !imageBase64) {
@@ -312,21 +310,28 @@ router.post("/import-project/analyze", upload.single("file"), async (req, res) =
       return;
     }
 
-    const systemPrompt = `You are a pharmaceutical market intelligence analyst. You receive unstructured project materials and extract structured signals from them.
+    const questionInstruction = questionContext
+      ? `\n\nACTIVE FORECAST QUESTION: "${questionContext}"\n\nEvery signal you extract MUST be framed in terms of how it impacts this specific question. Phrase each signal as a concrete observation that either supports, slows, or is neutral to the outcome described in the question. Drop any information that has no bearing on this question.`
+      : "";
 
-Extract KEY SIGNALS — concrete facts, data points, or observations from the materials.
+    const systemPrompt = `You are a pharmaceutical market intelligence analyst. You receive unstructured materials — reports, meeting notes, images, spreadsheets, charts, articles — and extract coherent, decision-relevant signals from them.${questionInstruction}
 
 RULES:
-- Signals must be factual, specific, and sourced from the materials
-- Each signal needs: text (what was found), direction (positive/negative/neutral), importance (High/Medium/Low), confidence (Strong/Moderate/Weak), category (evidence/access/competition/guideline/timing/adoption), and source_description
-- For image inputs: carefully read all visible text, data, charts, tables, and annotations
-- Extract as many distinct signals as possible (aim for 3-15)
+- Each signal must be a clear, self-contained statement of fact or observation — not a raw data excerpt
+- Synthesize related data points into coherent signals (e.g. combine "revenue $2.1B" and "grew 12% YoY" into one signal about revenue momentum)
+- Signals must be specific and actionable, not vague summaries
+- direction: "positive" means the signal supports/accelerates the outcome, "negative" means it slows/blocks, "neutral" means informational
+- importance: "High" = could materially change the forecast, "Medium" = relevant context, "Low" = minor factor
+- confidence: "Strong" = verified/published data, "Moderate" = credible but uncertain, "Weak" = speculative or anecdotal
+- category: one of evidence, access, competition, guideline, timing, adoption
+- For images: read all visible text, data, charts, tables, and annotations carefully
+- Extract 3-15 distinct signals; favor quality over quantity
 
-Respond in JSON format:
+Respond in JSON:
 {
   "signals": [
     {
-      "text": "Signal description",
+      "text": "Clear, coherent signal statement",
       "direction": "positive|negative|neutral",
       "importance": "High|Medium|Low",
       "confidence": "Strong|Moderate|Weak",
@@ -334,14 +339,14 @@ Respond in JSON format:
       "source_description": "Where in the materials this was found"
     }
   ],
-  "summary": "Brief summary of the content analyzed"
+  "summary": "2-3 sentence summary of the content analyzed"
 }`;
 
     const messages: any[] = [{ role: "system", content: systemPrompt }];
 
     if (imageBase64 && imageMimeType) {
       const userContent: any[] = [
-        { type: "text", text: "Analyze the following image and extract structured signals:" },
+        { type: "text", text: `Analyze the following image and extract decision-relevant signals${questionContext ? ` that impact the question: "${questionContext}"` : ""}:` },
         {
           type: "image_url",
           image_url: { url: `data:${imageMimeType};base64,${imageBase64}`, detail: "high" },
@@ -354,7 +359,7 @@ Respond in JSON format:
     } else {
       messages.push({
         role: "user",
-        content: `Analyze the following materials and extract structured signals:\n\n---\n${extractedText}\n---`,
+        content: `Analyze the following materials and extract decision-relevant signals${questionContext ? ` that impact the question: "${questionContext}"` : ""}:\n\n---\n${extractedText}\n---`,
       });
     }
 

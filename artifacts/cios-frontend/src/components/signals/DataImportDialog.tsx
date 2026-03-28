@@ -16,11 +16,12 @@ interface DataImportDialogProps {
   open: boolean;
   onClose: () => void;
   onImport: (rows: ImportedRow[]) => void;
+  activeQuestion?: string;
 }
 
 type ImportMode = "upload" | "paste";
 
-export default function DataImportDialog({ open, onClose, onImport }: DataImportDialogProps) {
+export default function DataImportDialog({ open, onClose, onImport, activeQuestion }: DataImportDialogProps) {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export default function DataImportDialog({ open, onClose, onImport }: DataImport
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (activeQuestion) formData.append("question", activeQuestion);
       const resp = await fetch(`${API}/api/import-project/analyze`, {
         method: "POST",
         body: formData,
@@ -109,7 +111,7 @@ export default function DataImportDialog({ open, onClose, onImport }: DataImport
       const resp = await fetch(`${API}/api/import-project/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: pasteText.trim() }),
+        body: JSON.stringify({ text: pasteText.trim(), question: activeQuestion || "" }),
       });
       if (!resp.ok) throw new Error("Analysis failed");
       const data = await resp.json();

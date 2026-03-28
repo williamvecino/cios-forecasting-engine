@@ -1,0 +1,66 @@
+Test Case — Narrative Input (Paste This as Text)
+
+We are preparing for the potential launch of a new subcutaneous formulation of Drug X for moderate-to-severe ulcerative colitis. The current IV formulation is already approved and widely used in academic centers, but the subcutaneous version is expected to shift treatment to community gastroenterology practices if adoption occurs as projected.
+
+Internal commercial planning assumes that the subcutaneous formulation could reach approximately 30% share of new starts within 18 months of launch, driven by convenience and reduced infusion center burden. However, several uncertainties remain that could materially affect adoption timing and scale.
+
+First, payer coverage is not yet fully defined. Early conversations with national plans suggest willingness to cover the subcutaneous formulation, but some regional plans have indicated they may require step therapy through the IV version initially, at least until longer-term safety and persistence data are available.
+
+Second, provider behavior may vary significantly between academic and community settings. Academic gastroenterologists appear comfortable switching stable patients to the subcutaneous formulation, particularly for those with travel or scheduling challenges. In contrast, community providers have expressed concern about patient self-administration and adherence, especially in older populations.
+
+Third, supply chain readiness is still evolving. Manufacturing capacity for the subcutaneous device is being scaled, but there have been recent reports of delays in device component sourcing from one supplier. Operations leadership has indicated that initial launch quantities will be sufficient for early demand, but sustained supply beyond the first two quarters will depend on successful qualification of an additional supplier.
+
+Fourth, competitive dynamics may influence adoption. A competing oral therapy with a different mechanism of action is expected to receive regulatory review within the next 9–12 months. If approved with favorable safety data, that therapy could provide an alternative option for patients who prefer to avoid injections altogether.
+
+Finally, clinical confidence in the new formulation is generally positive based on Phase III data showing non-inferiority to the IV version on clinical remission endpoints. However, long-term real-world persistence and safety data are not yet available, and several key opinion leaders have indicated they will wait to see 6–12 months of post-launch experience before broadly recommending routine switching.
+
+Given these dynamics, leadership is trying to understand whether adoption will reach the expected threshold within the first 18 months after launch, or whether operational, payer, and behavioral barriers could slow uptake despite strong clinical efficacy.
+
+What the System Should Extract (Expected Behavior)
+
+You are not entering this manually — this is what the ingestion logic should produce automatically.
+
+Proposed Decision Question
+
+Will the subcutaneous formulation of Drug X reach 30% share of new ulcerative colitis treatment starts within 18 months of launch?
+
+Key Signals the System Should Detect
+
+Clinical evidence supports comparable efficacy to IV formulation
+Providers in academic centers comfortable switching patients
+Payer coverage partially supportive but variable across regions
+Community providers concerned about self-administration adherence
+Manufacturing supply dependent on additional supplier qualification
+Competing oral therapy may enter market within 12 months
+Long-term real-world safety and persistence data not yet available
+
+Missing Signals the System Should Suggest
+
+Final payer coverage policies at launch
+Manufacturing capacity beyond initial launch window
+Adherence and persistence rates in early adopters
+Regulatory outcome for competing oral therapy
+Guideline or society positioning after launch
+
+Likely Directional Judgment (Later Step)
+
+Adoption feasible but at risk of slower-than-planned uptake due to payer variability and supply chain uncertainty.
+
+Why This Is a Good Test Case
+
+It exercises multiple signal families simultaneously:
+
+Clinical
+Payer
+Provider behavior
+Operational
+Competitive
+
+It also contains:
+
+Explicit signals
+Implied signals
+Uncertainty signals
+Future event triggers
+
+That combination is exactly what the ingestion feature must handle

@@ -1598,6 +1598,7 @@ export default function SignalsPage() {
         open={showImportDialog}
         onClose={() => setShowImportDialog(false)}
         onImport={handleImportedRows}
+        activeQuestion={questionText}
       />
     </WorkflowLayout>
   );
