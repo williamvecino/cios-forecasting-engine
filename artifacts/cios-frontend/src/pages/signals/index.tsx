@@ -483,6 +483,52 @@ export default function SignalsPage() {
   const [brandCheckDone, setBrandCheckDone] = useState(false);
   const [verifiedFound, setVerifiedFound] = useState(false);
   const aiRequestIdRef = useRef(0);
+  const prevCaseKeyRef = useRef(caseKey);
+
+  useEffect(() => {
+    if (prevCaseKeyRef.current === caseKey) return;
+    prevCaseKeyRef.current = caseKey;
+
+    const persisted = (() => {
+      try {
+        const raw = localStorage.getItem(`cios.signals:${caseKey}`);
+        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; }
+      } catch {}
+      return null;
+    })();
+    setSignals(persisted || fallbackSuggestions);
+    setIncomingEvents(fallbackEvents);
+    setAiLoading(false);
+    setAiError(null);
+    setMarketSummary(null);
+    setTranslationSummary(null);
+    setRecalcResult(null);
+    setLastImpact(null);
+    setBrandCheckDone(false);
+    setVerifiedFound(false);
+    setBrandOutlook(() => {
+      try {
+        const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
+        if (raw) { const p = JSON.parse(raw); if (typeof p?.brand_outlook_probability === "number") return p.brand_outlook_probability; }
+      } catch {}
+      return 0.5;
+    });
+    setEventGates(() => {
+      try {
+        const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
+        if (raw) { const p = JSON.parse(raw); if (p?.event_gates) return p.event_gates; }
+      } catch {}
+      return null;
+    });
+    setBaseGates(() => {
+      try {
+        const raw = localStorage.getItem(`cios.baseGates:${caseKey}`);
+        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p)) return p; }
+      } catch {}
+      return null;
+    });
+    aiRequestIdRef.current++;
+  }, [caseKey, fallbackSuggestions, fallbackEvents]);
 
   const VALID_CATEGORIES = new Set(["evidence", "access", "competition", "guideline", "timing", "adoption"]);
   const VALID_DIRECTIONS = new Set(["positive", "negative", "neutral"]);

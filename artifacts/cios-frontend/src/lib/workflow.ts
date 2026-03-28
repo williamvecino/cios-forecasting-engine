@@ -78,3 +78,22 @@ export function storeActiveQuestion(question: ActiveQuestion): void {
 export function clearStoredActiveQuestion(): void {
   localStorage.removeItem(ACTIVE_QUESTION_STORAGE_KEY);
 }
+
+const CASE_SCOPED_KEYS = [
+  "cios.signals",
+  "cios.aiRequested",
+  "cios.eventDecomposition",
+  "cios.translationSummary",
+  "cios.baseGates",
+  "cios.signalReadiness",
+  "cios.judgmentResult",
+  "cios.decideResult",
+];
+
+export function clearCaseState(caseId: string): void {
+  for (const prefix of CASE_SCOPED_KEYS) {
+    try { localStorage.removeItem(`${prefix}:${caseId}`); } catch {}
+  }
+  try { localStorage.removeItem("cios.therapeuticArea"); } catch {}
+  try { localStorage.removeItem("cios.questionDraft"); } catch {}
+}

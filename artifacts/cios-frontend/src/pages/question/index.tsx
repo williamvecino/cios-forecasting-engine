@@ -9,6 +9,7 @@ import {
   buildInterpretedQuestion,
 } from "@/lib/question-definition";
 import type { DecisionQuestion } from "@/lib/question-definition";
+import { clearCaseState } from "@/lib/workflow";
 import {
   AlertTriangle,
   Loader2,
@@ -187,6 +188,8 @@ export default function QuestionPage() {
         return;
       }
 
+      clearCaseState(newCaseId);
+
       const payload = {
         text: interpretation.restatedQuestion || rawInput.trim(),
         rawInput: rawInput.trim(),
@@ -287,16 +290,7 @@ export default function QuestionPage() {
 
       const allSignals = [...importedSignals, ...missingAsSignals];
 
-      try {
-        localStorage.removeItem(`cios.signals:${newCaseId}`);
-        localStorage.removeItem(`cios.aiRequested:${newCaseId}`);
-        localStorage.removeItem(`cios.eventDecomposition:${newCaseId}`);
-        localStorage.removeItem(`cios.translationSummary:${newCaseId}`);
-        localStorage.removeItem(`cios.baseGates:${newCaseId}`);
-        localStorage.removeItem(`cios.signalReadiness:${newCaseId}`);
-        localStorage.removeItem(`cios.judgmentResult:${newCaseId}`);
-        localStorage.removeItem(`cios.decideResult:${newCaseId}`);
-      } catch {}
+      clearCaseState(newCaseId);
 
       if (allSignals.length > 0) {
         try {

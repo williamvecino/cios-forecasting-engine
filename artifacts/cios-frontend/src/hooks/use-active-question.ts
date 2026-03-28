@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActiveQuestion } from "../lib/workflow";
 import {
   clearStoredActiveQuestion,
+  clearCaseState,
   createQuestionId,
   getStoredActiveQuestion,
   storeActiveQuestion,
@@ -65,6 +66,11 @@ export function useActiveQuestion() {
   }, []);
 
   const clearQuestion = useCallback(() => {
+    const prev = getStoredActiveQuestion();
+    if (prev?.caseId) {
+      clearCaseState(prev.caseId);
+    }
+    clearCaseState("unknown");
     clearStoredActiveQuestion();
     setActiveQuestion(null);
   }, []);

@@ -181,6 +181,7 @@ export default function DecisionPanels() {
     if (requestedRef.current === contextKey) return;
     requestedRef.current = contextKey;
 
+    setData(null);
     setLoading(true);
     setError(null);
 
