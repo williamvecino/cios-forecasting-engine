@@ -387,7 +387,7 @@ export default function QuestionPage() {
               </div>
               <div>
                 <div className="text-sm font-semibold text-foreground">Import Project</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">Upload files or paste text to extract signals</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">Upload files, images, or paste text</div>
               </div>
             </div>
           </button>

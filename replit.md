@@ -49,7 +49,7 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Executive Judgment Layer:** A post-forecast judgment engine (`judgment-engine.ts`) classifies case type, retrieves analog cases, and generates a structured Executive Judgment block.
 - **Workflow Language:** Uses executive decision terminology (e.g., "Judge," "Decide").
 - **Legacy Case Redirect:** All `/case/:caseId/*` routes redirect to the current 4-step workflow UI, translating legacy DB schema to `ActiveQuestion` format.
-- **Import Project:** Allows users to upload documents or paste text to automatically extract decision questions, key signals, and missing signals, creating a new case.
+- **Import Project:** Allows users to upload documents, images (JPG/PNG/WebP), or paste text (including Ctrl+V clipboard paste of images) to automatically extract decision questions, key signals, and missing signals, creating a new case. Images are analyzed via GPT-4o vision.
 - **Enterprise Data Import:** Universal data ingestion on the Step 2 "Add Information" page for CSV, Excel, and JSON files, with auto-detection of column mappings.
 - **Forecast Export:** One-click export from the Step 4 "Decide" page in PDF, Excel, and structured JSON formats, including comprehensive forecast details and executive judgment.
 

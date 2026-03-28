@@ -109,6 +109,13 @@ async function extractTextFromFile(
   return buffer.toString("utf-8").slice(0, 15000);
 }
 
+function isImageFile(mimeType: string, fileName: string): boolean {
+  const imageMimes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
+  const imageExts = [".jpg", ".jpeg", ".png", ".webp"];
+  const ext = "." + fileName.split(".").pop()?.toLowerCase();
+  return imageMimes.includes(mimeType) || imageExts.includes(ext);
+}
+
 router.post("/import-project", async (req, res) => {
   try {
     const body = req.body as ImportProjectRequest;
@@ -117,6 +124,8 @@ router.post("/import-project", async (req, res) => {
     const MAX_TEXT_SIZE = 100000;
 
     let extractedText = "";
+    let imageBase64: string | null = null;
+    let imageMimeType: string | null = null;
 
     if (body.text && body.text.trim().length > 0) {
       if (body.text.length > MAX_TEXT_SIZE) {
@@ -129,14 +138,29 @@ router.post("/import-project", async (req, res) => {
         res.status(400).json({ error: "File is too large. Maximum file size is 10 MB." });
         return;
       }
-      extractedText = await extractTextFromFile(
-        body.fileBase64,
-        body.mimeType || "application/octet-stream",
-        body.fileName,
-      );
+
+      const mime = body.mimeType || "application/octet-stream";
+      if (isImageFile(mime, body.fileName)) {
+        imageBase64 = body.fileBase64;
+        imageMimeType = mime.startsWith("image/") ? mime : "image/jpeg";
+      } else {
+        extractedText = await extractTextFromFile(
+          body.fileBase64,
+          mime,
+          body.fileName,
+        );
+      }
     }
 
-    if (!extractedText || extractedText.length < 20) {
+    if (!extractedText && !imageBase64) {
+      res.status(400).json({
+        error:
+          "Could not extract enough content from the provided input. Please try pasting the content directly or uploading a different file.",
+      });
+      return;
+    }
+
+    if (extractedText && extractedText.length < 20 && !imageBase64) {
       res.status(400).json({
         error:
           "Could not extract enough text from the provided input. Please try pasting the content directly or uploading a different file.",
@@ -144,7 +168,7 @@ router.post("/import-project", async (req, res) => {
       return;
     }
 
-    const systemPrompt = `You are a pharmaceutical market intelligence analyst. You receive unstructured project materials — emails, RFPs, market summaries, meeting notes, reports, spreadsheets — and you must extract a structured forecasting case from them.
+    const systemPrompt = `You are a pharmaceutical market intelligence analyst. You receive unstructured project materials — emails, RFPs, market summaries, meeting notes, reports, spreadsheets, screenshots, charts, or images — and you must extract a structured forecasting case from them.
 
 Your job:
 1. Identify the core DECISION QUESTION the materials are about
@@ -158,6 +182,7 @@ RULES:
 - Each signal needs: text (what was found), direction (positive/negative/neutral — does it support or slow the outcome), importance (High/Medium/Low), confidence (Strong/Moderate/Weak), category (evidence/access/competition/guideline/timing/adoption), and a brief source description
 - Missing signals should be specific investigable items, not vague suggestions
 - If the materials don't clearly indicate a decision question, infer the most likely one based on the content
+- For image inputs: carefully read all visible text, data, charts, tables, and annotations in the image
 
 Respond in JSON format:
 {
@@ -196,14 +221,38 @@ Respond in JSON format:
   "summary": "A 2-3 sentence summary of what the materials contain"
 }`;
 
-    const userPrompt = `Analyze the following project materials and extract a structured forecasting case:\n\n---\n${extractedText}\n---`;
+    const messages: any[] = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    if (imageBase64 && imageMimeType) {
+      const userContent: any[] = [
+        { type: "text", text: "Analyze the following project image and extract a structured forecasting case:" },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${imageMimeType};base64,${imageBase64}`,
+            detail: "high",
+          },
+        },
+      ];
+      if (extractedText) {
+        userContent.push({
+          type: "text",
+          text: `\n\nAdditional text context:\n---\n${extractedText}\n---`,
+        });
+      }
+      messages.push({ role: "user", content: userContent });
+    } else {
+      messages.push({
+        role: "user",
+        content: `Analyze the following project materials and extract a structured forecasting case:\n\n---\n${extractedText}\n---`,
+      });
+    }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
+      messages,
       response_format: { type: "json_object" },
       temperature: 0.3,
       max_tokens: 4000,

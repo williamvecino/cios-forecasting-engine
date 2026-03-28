@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Upload,
   FileText,
+  Image as ImageIcon,
   X,
   Loader2,
   Check,
@@ -22,6 +23,10 @@ const ACCEPTED_TYPES: Record<string, string> = {
   "application/vnd.ms-excel": "Excel",
   "text/csv": "CSV",
   "text/plain": "Text",
+  "image/jpeg": "Image",
+  "image/jpg": "Image",
+  "image/png": "Image",
+  "image/webp": "Image",
 };
 
 const ACCEPTED_EXTENSIONS = [
@@ -33,6 +38,10 @@ const ACCEPTED_EXTENSIONS = [
   ".csv",
   ".txt",
   ".md",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
 ];
 
 interface ExtractedSignal {
@@ -87,16 +96,48 @@ const confidenceColor = (c: string) => {
   return "text-red-400 bg-red-500/10 border-red-500/20";
 };
 
+function isImageType(file: File): boolean {
+  return file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
+}
+
 export default function ImportProjectDialog({ onImportComplete, onClose }: Props) {
   const [phase, setPhase] = useState<ImportPhase>("upload");
   const [pasteText, setPasteText] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+  const selectFile = useCallback((file: File) => {
+    setSelectedFile(file);
+    setPasteText("");
+    setError(null);
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return isImageType(file) ? URL.createObjectURL(file) : null;
+    });
+  }, []);
+
+  const clearFile = useCallback(() => {
+    setSelectedFile(null);
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
+
+  const imagePreviewRef = useRef(imagePreview);
+  imagePreviewRef.current = imagePreview;
+  useEffect(() => {
+    return () => {
+      if (imagePreviewRef.current) URL.revokeObjectURL(imagePreviewRef.current);
+    };
+  }, []);
 
   const isValidFile = (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
@@ -116,24 +157,60 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
       setDragOver(false);
       const file = e.dataTransfer.files[0];
       if (file && isValidFile(file)) {
-        setSelectedFile(file);
-        setError(null);
+        selectFile(file);
       } else {
         setError(
-          "Unsupported file type. Please upload PDF, Word, PowerPoint, Excel, CSV, or text files.",
+          "Unsupported file type. Please upload PDF, Word, PowerPoint, Excel, CSV, images, or text files.",
         );
       }
     },
-    [],
+    [selectFile],
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && isValidFile(file)) {
-      setSelectedFile(file);
-      setError(null);
+      selectFile(file);
     }
   };
+
+  useEffect(() => {
+    if (phase !== "upload") return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            const named = new File([file], `pasted-image.${file.type.split("/")[1] || "png"}`, { type: file.type });
+            if (isValidFile(named)) {
+              selectFile(named);
+            }
+          }
+          return;
+        }
+      }
+
+      const text = e.clipboardData?.getData("text/plain");
+      if (text && text.trim().length > 0) {
+        const target = e.target as HTMLElement;
+        if (target.tagName === "TEXTAREA") return;
+        e.preventDefault();
+        setPasteText((prev) => prev ? prev + "\n" + text : text);
+        clearFile();
+      }
+    };
+
+    const el = containerRef.current;
+    if (el) {
+      el.addEventListener("paste", handlePaste);
+      return () => el.removeEventListener("paste", handlePaste);
+    }
+  }, [phase, selectFile, clearFile]);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -325,7 +402,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
             onClick={() => {
               setPhase("upload");
               setResult(null);
-              setSelectedFile(null);
+              clearFile();
               setPasteText("");
             }}
             className="rounded-xl border border-border px-5 py-3 font-semibold text-foreground hover:bg-muted/20 inline-flex items-center gap-2"
@@ -338,14 +415,14 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
+    <div ref={containerRef} tabIndex={-1} className="rounded-2xl border border-border bg-card p-6 space-y-5 outline-none">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">
             Import Project
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Upload project materials or paste text. We will extract the decision
+            Upload files, drag in images, or paste text. We will extract the decision
             question and signals automatically.
           </p>
         </div>
@@ -381,7 +458,36 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
           accept={ACCEPTED_EXTENSIONS.join(",")}
           onChange={handleFileSelect}
         />
-        {selectedFile ? (
+        {selectedFile && imagePreview ? (
+          <div className="flex flex-col items-center gap-3">
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="max-h-32 max-w-full rounded-lg border border-border object-contain"
+            />
+            <div className="flex items-center gap-3">
+              <ImageIcon className="w-5 h-5 text-emerald-400" />
+              <div className="text-left">
+                <div className="text-sm font-medium text-foreground">
+                  {selectedFile.name}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {(selectedFile.size / 1024).toFixed(0)} KB — Image
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearFile();
+                }}
+                className="ml-2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : selectedFile ? (
           <div className="flex items-center justify-center gap-3">
             <FileText className="w-6 h-6 text-emerald-400" />
             <div className="text-left">
@@ -397,7 +503,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedFile(null);
+                clearFile();
               }}
               className="ml-2 text-muted-foreground hover:text-foreground"
             >
@@ -408,10 +514,13 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
           <>
             <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
             <div className="text-sm text-foreground font-medium">
-              Drop a file here or click to browse
+              Drop a file or image here, or click to browse
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              PDF, Word, PowerPoint, Excel, CSV, or text files
+              PDF, Word, Excel, CSV, JPG, PNG, or text files
+            </div>
+            <div className="text-[11px] text-muted-foreground/60 mt-2">
+              You can also paste text or images with Ctrl+V
             </div>
           </>
         )}
@@ -432,7 +541,7 @@ export default function ImportProjectDialog({ onImportComplete, onClose }: Props
         value={pasteText}
         onChange={(e) => {
           setPasteText(e.target.value);
-          if (e.target.value.trim()) setSelectedFile(null);
+          if (e.target.value.trim()) clearFile();
         }}
         placeholder="Paste an email, RFP, meeting notes, market summary, or any project materials..."
         rows={5}
