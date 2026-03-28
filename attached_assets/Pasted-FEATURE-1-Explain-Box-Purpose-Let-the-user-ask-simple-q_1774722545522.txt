@@ -1,0 +1,342 @@
+FEATURE 1 — Explain Box
+
+Purpose: Let the user ask simple questions about any output and get a traceable answer grounded in the current case.
+
+Think:
+
+“What does this mean?”
+“Why did the system say this?”
+“What would change this?”
+
+Where to place it
+
+Top-right of the Judge page.
+
+Persistent.
+
+Always visible.
+
+Label:
+
+Explain
+or
+Ask the System
+
+User interaction
+
+User types:
+
+What does operational readiness mean?
+
+System responds:
+
+Operational readiness refers to execution conditions required to deliver the therapy smoothly.
+
+Primary drivers currently affecting readiness:
+
+Prior authorization predictability
+Workflow integration
+Staff training completion
+
+Improving any of these would likely increase the adoption outlook.
+
+Behavior rules
+
+The Explain Box must:
+
+Use current case state
+Pull from audit trail
+Reference drivers and analogues
+Never invent new logic
+Never change the forecast
+Minimal implementation steps
+Step 1 — Add UI component
+
+Create:
+
+ExplainBox.tsx
+
+Place on:
+
+Judge page header
+
+Step 2 — Add input and response panel
+
+Required fields:
+
+ExplainQuery {
+
+  question: string
+
+  caseId: string
+
+}
+Step 3 — Route query to explanation service
+
+Create:
+
+explain-service.ts
+
+Logic:
+
+function explain(question, caseState) {
+
+  if (question contains "what does") {
+     return definitionLookup(term)
+  }
+
+  if (question contains "why") {
+     return reasoningFromAuditTrail(caseState)
+  }
+
+  if (question contains "what would change") {
+     return constraintDriverResponse(caseState)
+  }
+
+}
+Step 4 — Connect to existing data
+
+Explain responses must pull from:
+
+constraint drivers
+forecast reasoning
+analogues
+audit trail
+
+Not from external AI calls.
+
+Display format
+
+Show:
+
+Definition
+Current relevance
+Drivers
+What would change outcome
+
+Example response
+
+Term:
+
+Operational readiness
+
+Meaning:
+
+Ability of sites to deliver the therapy smoothly.
+
+Current limiting drivers:
+
+Prior authorization variability
+Workflow integration complexity
+
+What would change the outlook:
+
+Standardized authorization criteria would likely increase adoption probability.
+
+Enforcement rule
+
+If the system cannot answer confidently:
+
+Return:
+
+Insufficient information to explain this term.
+
+Do not guess.
+
+That is graceful failure.
+
+FEATURE 2 — Clickable Analogues
+
+Purpose: Show real precedent cases used to inform judgment.
+
+This is a decision-support tool.
+
+Not a definition tool.
+
+Where analogues appear
+
+Anywhere an analogue is referenced:
+
+Analog 1
+Comparable Case
+Reference Case
+
+These labels must be clickable.
+
+What happens when clicked
+
+A small modal window opens.
+
+Shows the structured precedent case.
+
+Mandatory analogue fields
+
+Every analogue must include:
+
+Brand
+Company
+Indication
+Similarity
+Outcome
+Lesson
+Confidence
+
+If any is missing:
+
+Do not display the analogue.
+
+Minimal schema
+AnalogCase {
+
+  brand: string
+
+  company: string
+
+  indication: string
+
+  similarity: string
+
+  outcome: string
+
+  lesson: string
+
+  confidence: "High" | "Moderate" | "Low"
+
+}
+UI behavior
+
+User clicks:
+
+Entresto — Novartis
+
+Window opens.
+
+Analogue window layout
+
+Comparable Case
+
+Brand
+Entresto
+
+Company
+Novartis
+
+Indication
+Heart failure
+
+Similarity
+Both therapies required payer alignment and clinician education before widespread adoption.
+
+Outcome
+Adoption accelerated after guideline reinforcement and coverage stabilization.
+
+Lesson
+Strong evidence alone does not drive early uptake.
+
+Confidence
+Moderate
+
+Minimal implementation steps
+Step 1 — Make analogue labels clickable
+
+Modify:
+
+AnalogLabel.tsx
+
+Add:
+
+onClick -> openAnalogModal(analogId)
+Step 2 — Create modal window
+
+Create:
+
+AnalogModal.tsx
+
+Step 3 — Load analogue data
+
+Create:
+
+analog-service.ts
+
+Logic:
+
+function getAnalog(analogId) {
+
+  return analogDatabase[analogId]
+
+}
+Step 4 — Validate analogue fields
+
+Add validation:
+
+if (!brand || !company || !outcome || !lesson) {
+   doNotRenderAnalog()
+}
+Display rules
+
+Analogue window must show:
+
+Real case
+Real organization
+Real outcome
+
+Never generic placeholders.
+
+Optional enhancement (recommended)
+
+Allow multiple analogues:
+
+Primary analogue
+Secondary analogue
+Contrasting analogue
+
+This mirrors executive reasoning.
+
+Where these features live in the architecture
+
+Explain Box:
+
+Interpretation layer
+
+Analogues:
+
+Reference layer
+
+Neither touches:
+
+scoring logic
+signal logic
+probability engine
+integrity tests
+Implementation order
+
+Build in this sequence:
+
+Clickable Analogues
+Explain Box
+
+Reason:
+
+Analogues are simpler and already structured.
+
+Explain Box requires context tracing.
+
+Definition of done
+
+Explain Box works when:
+
+User asks:
+
+What does this mean?
+
+System answers using case data.
+
+Clickable Analogues work when:
+
+User clicks:
+
+Entresto — Novartis
+
+System shows:
+
+Real precedent case with outcome and lesson.

@@ -11,6 +11,7 @@ import { EventGatesPanel } from "@/components/forecast/EventGatesPanel";
 import { ForecastMeaningPanel } from "@/components/forecast/ForecastMeaningPanel";
 import { DecisionLabSummary } from "@/components/forecast/DecisionLabSummary";
 import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
+import { ExplainBox } from "@/components/forecast/ExplainBox";
 import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import {
@@ -937,6 +938,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
               return (
                 <>
+                  <ExplainBox judgment={judgmentResult} />
                   <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} />
 
                   <ForecastComparisonCircles

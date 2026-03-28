@@ -23,6 +23,11 @@ interface AnalogMatch {
   specialty: string | null;
   productType: string | null;
   evidenceType: string | null;
+  assetName: string | null;
+  diseaseState: string | null;
+  finalObservedOutcome: string | null;
+  keyBarrier: string | null;
+  keyEnabler: string | null;
   similarityScore: number;
   confidenceBand: "High" | "Moderate" | "Low";
   matchedDimensions: string[];
@@ -68,6 +73,21 @@ interface AnalogPatternSummary {
   analogCaseId: string | null;
   analogProbability: number | null;
   similarityScore: number;
+}
+
+export interface AnalogCaseDetail {
+  caseId: string;
+  brand: string;
+  indication: string;
+  similarity: string;
+  outcome: string;
+  lesson: string;
+  confidence: "High" | "Moderate" | "Low";
+  keyBarrier: string | null;
+  keyEnabler: string | null;
+  similarityScore: number;
+  matchedDimensions: string[];
+  keyDifferences: string[];
 }
 
 interface MonitorItem {
@@ -158,6 +178,7 @@ export interface ExecutiveJudgmentResult {
   reasoning: string;
   keyDrivers: string[];
   primaryConstraints: PrimaryConstraint[];
+  analogCases: AnalogCaseDetail[];
   analogPattern: AnalogPatternSummary | null;
   reversalTriggers: ReversalTrigger[];
   convergenceNote: string | null;
@@ -628,6 +649,31 @@ function buildNextBestQuestion(
   return "Which upcoming data readout or market event is most likely to change this outlook?";
 }
 
+function buildAnalogCases(analogContext: AnalogContext | null): AnalogCaseDetail[] {
+  if (!analogContext || analogContext.topMatches.length === 0) return [];
+
+  return analogContext.topMatches
+    .filter(m => m.adoptionLesson && (m.assetName || m.therapyArea))
+    .map(m => ({
+      caseId: m.caseId,
+      brand: m.assetName || m.therapyArea || "Unknown",
+      indication: m.diseaseState || m.specialty || m.therapyArea || "Not specified",
+      similarity: m.matchedDimensions.length > 0
+        ? m.matchedDimensions.join("; ")
+        : `${m.similarityScore}% match across clinical and market dimensions`,
+      outcome: m.finalObservedOutcome || (m.finalProbability !== null
+        ? `Historical adoption reached ${Math.round(m.finalProbability * 100)}%`
+        : "Outcome recorded"),
+      lesson: m.adoptionLesson,
+      confidence: m.confidenceBand,
+      keyBarrier: m.keyBarrier || null,
+      keyEnabler: m.keyEnabler || null,
+      similarityScore: m.similarityScore,
+      matchedDimensions: m.matchedDimensions,
+      keyDifferences: m.keyDifferences,
+    }));
+}
+
 function buildAnalogPattern(analogContext: AnalogContext | null): AnalogPatternSummary | null {
   if (!analogContext || analogContext.topMatches.length === 0) return null;
 
@@ -755,6 +801,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
   const { posture, rule: postureRule } = buildDecisionPosture(adjustedFinalPct, adjustedConfidence, caseType, correctedGates);
   const reasoning = buildReasoningWithDrivers(caseType, correctedGates, drivers, brandOutlookPct, adjustedFinalPct, analogContext, constraintDecompositions);
   const keyDrivers = extractKeyDrivers(drivers);
+  const analogCases = buildAnalogCases(analogContext);
   const analogPattern = buildAnalogPattern(analogContext);
   const reversalTriggers = buildReversalTriggers(correctedGates, drivers, adjustedFinalPct);
   const convergenceNote = buildConvergenceNote(adjustedFinalPct, analogContext);
@@ -799,6 +846,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     reasoning,
     keyDrivers,
     primaryConstraints,
+    analogCases,
     analogPattern,
     reversalTriggers,
     convergenceNote,

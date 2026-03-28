@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import {
   Scale,
   AlertTriangle,
@@ -12,8 +12,11 @@ import {
   MessageSquareWarning,
   Lightbulb,
   TrendingUp,
+  BookOpen,
+  ExternalLink,
 } from "lucide-react";
-import type { ExecutiveJudgmentResult, PrimaryConstraint } from "@/lib/judgment-engine";
+import type { ExecutiveJudgmentResult, AnalogCaseDetail } from "@/lib/judgment-engine";
+import { AnalogModal } from "./AnalogModal";
 
 interface ExecutiveJudgmentProps {
   judgment: ExecutiveJudgmentResult;
@@ -83,6 +86,8 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
   judgment,
   isLoading,
 }: ExecutiveJudgmentProps) {
+  const [selectedAnalog, setSelectedAnalog] = useState<AnalogCaseDetail | null>(null);
+
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#0C1E42] to-[#0A1736] p-8 animate-pulse">
@@ -103,6 +108,10 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
   const VerdictIcon = config.icon;
 
   return (
+    <>
+    {selectedAnalog && (
+      <AnalogModal analog={selectedAnalog} onClose={() => setSelectedAnalog(null)} />
+    )}
     <div className={`rounded-3xl border ${config.border} bg-gradient-to-b from-[#0C1E42] to-[#0A1736] p-6 space-y-5 ring-1 ${config.ring}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -233,6 +242,40 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
         </div>
       )}
 
+      {judgment.analogCases.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Historical Precedent</h3>
+          </div>
+          <div className="space-y-1.5 pl-5">
+            {judgment.analogCases.map((ac, i) => (
+              <button
+                key={ac.caseId}
+                onClick={() => setSelectedAnalog(ac)}
+                className="w-full text-left flex items-center gap-3 rounded-lg bg-white/[0.02] border border-white/5 hover:border-cyan-500/30 hover:bg-cyan-500/5 px-3 py-2.5 transition-colors group cursor-pointer"
+              >
+                <span className="text-[10px] text-cyan-400 font-mono shrink-0">{i + 1}.</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-white font-medium group-hover:text-cyan-200 transition-colors">{ac.brand}</span>
+                    <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                      ac.confidence === "High" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/20" :
+                      ac.confidence === "Moderate" ? "bg-amber-500/15 text-amber-300 border-amber-500/20" :
+                      "bg-rose-500/15 text-rose-300 border-rose-500/20"
+                    }`}>
+                      {ac.confidence}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5 truncate">{ac.indication} — {ac.lesson}</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 shrink-0 transition-colors" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {judgment.monitorList.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -261,6 +304,7 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
         <p className="text-sm text-slate-200 leading-relaxed pl-5 italic">{judgment.nextBestQuestion}</p>
       </div>
     </div>
+    </>
   );
 });
 
