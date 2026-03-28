@@ -180,14 +180,14 @@ const SIGNAL_LIBRARIES: Record<DecisionContext, { categories: string[]; guidance
 - INFRASTRUCTURE: Supply chain readiness, specialty pharmacy networks, hub/support services, sampling`,
   },
   technology_implementation: {
-    categories: ["infrastructure", "adoption", "process", "risk", "timing", "evidence"],
-    guidance: `Focus on signals that affect technology rollout and integration:
-- INFRASTRUCTURE: System compatibility, integration requirements, data migration, security/compliance
-- ADOPTION: User readiness, change management, training plans, stakeholder buy-in, pilot results
-- PROCESS: Workflow redesign, legacy system retirement, parallel operations, validation requirements
-- RISK: Vendor stability, contractual obligations, data integrity, downtime impact, rollback capability
-- TIMING: Implementation milestones, dependency chains, go-live windows, phased vs big-bang approach
-- EVIDENCE: Proof of concept results, benchmark data, peer institution experience, ROI projections`,
+    categories: ["infrastructure", "adoption", "governance", "risk", "timing", "evidence"],
+    guidance: `Focus on signals that affect technology deployment, integration, and organizational readiness:
+- INFRASTRUCTURE: System compatibility, integration architecture, API readiness, data migration scope, security clearance status, environment provisioning, network/firewall requirements, cloud vs on-prem considerations
+- ADOPTION: User readiness, change management progress, training completion, stakeholder buy-in, pilot results, workflow disruption risk, end-user resistance, champion identification
+- GOVERNANCE: Budget approval status, procurement/vendor selection, IT governance review, compliance requirements, data privacy/security audit, executive sponsorship, contract terms, SLA requirements
+- RISK: Vendor stability, single points of failure, data integrity concerns, downtime impact, rollback capability, dependency on external teams, scope creep, parallel operations burden
+- TIMING: Implementation milestones, dependency chains, go-live windows, phased vs big-bang approach, resource availability, competing organizational priorities, blackout periods
+- EVIDENCE: Proof of concept results, benchmark data, peer institution experience, ROI projections, vendor reference checks, comparable deployment outcomes`,
   },
 };
 
@@ -197,24 +197,46 @@ async function classifyEnvironment(
   imageBase64?: string | null,
   imageMimeType?: string | null,
 ): Promise<EnvironmentClassification> {
-  const classifyPrompt = `You are a decision environment classifier. Given materials and optionally a forecast question, determine which decision context best describes the situation.
+  const classifyPrompt = `You are a decision environment classifier. Read the materials and question carefully, then determine which ONE decision context best describes the PRIMARY decision at stake.
 
-DECISION CONTEXTS (choose exactly one):
-1. clinical_adoption — Decisions about whether clinicians will adopt a therapy, device, or protocol. Involves trial data, provider behavior, treatment guidelines, patient outcomes.
-2. operational_deployment — Decisions about operational readiness: supply chain, manufacturing, distribution, staffing, facility readiness.
-3. regulatory_approval — Decisions about regulatory outcomes: FDA/EMA submissions, advisory committees, approval likelihood, label claims.
-4. commercial_launch — Decisions about market entry: pricing, payer access, market share targets, sales force deployment, competitive positioning.
-5. technology_implementation — Decisions about deploying technology: system integrations, digital tools, data platforms, workflow automation.
+DECISION CONTEXTS — read the discriminating markers carefully:
 
-RULES:
-- Choose the DOMINANT context based on the primary decision at stake
-- If materials span multiple domains, choose the one most central to the decision question
-- Base your classification on what the materials are actually about, not on template assumptions
+1. technology_implementation
+   WHEN TO CHOOSE: The decision is about deploying, integrating, or rolling out a technology system, software platform, digital tool, data infrastructure, AI/ML system, CRM, EHR, analytics dashboard, or IT capability.
+   KEY MARKERS: system integration, vendor selection, data migration, user adoption of software, IT governance, security clearance, API connectivity, platform rollout, digital transformation, workflow automation, budget approval for tech, go-live readiness, change management for systems, training on new tools.
+   NOT THIS IF: The technology is a medical device being prescribed to patients (that's clinical_adoption) or a product being sold commercially (that's commercial_launch).
+
+2. operational_deployment
+   WHEN TO CHOOSE: The decision is about operational readiness — supply chain, manufacturing scale-up, distribution logistics, staffing, facility build-out, or process implementation.
+   KEY MARKERS: manufacturing capacity, supplier qualification, distribution networks, cold chain logistics, staffing plans, facility readiness, device component sourcing, inventory management, quality systems, operational SOPs, go/no-go for production.
+   NOT THIS IF: The operational concern is secondary to a market entry decision (that's commercial_launch) or a technology rollout (that's technology_implementation).
+
+3. clinical_adoption
+   WHEN TO CHOOSE: The decision is about whether healthcare providers will adopt a therapy, drug, biologic, medical device, diagnostic, or clinical protocol for patient care.
+   KEY MARKERS: clinical trial data, efficacy endpoints, safety profiles, provider prescribing behavior, treatment guidelines, formulary inclusion, KOL recommendations, patient outcomes, switching from existing therapies, real-world evidence.
+   NOT THIS IF: The focus is on pricing/market share (commercial_launch), regulatory filing (regulatory_approval), or deploying an IT system (technology_implementation).
+
+4. commercial_launch
+   WHEN TO CHOOSE: The decision is about market entry strategy — pricing, payer negotiations, market share targets, sales force deployment, competitive positioning, revenue forecasting.
+   KEY MARKERS: launch timing, payer access, formulary negotiations, market share projections, sales force readiness, competitive landscape, pricing strategy, patient affordability programs, channel strategy, commercial KPIs.
+   NOT THIS IF: The focus is purely on clinical uptake by providers (clinical_adoption) or manufacturing readiness (operational_deployment).
+
+5. regulatory_approval
+   WHEN TO CHOOSE: The decision is about regulatory filing, review, or approval outcomes — FDA, EMA, or other regulatory body decisions.
+   KEY MARKERS: NDA/BLA/MAA filing, PDUFA dates, advisory committee meetings, complete response letters, label negotiations, post-marketing requirements, breakthrough/priority designations, regulatory interactions.
+   NOT THIS IF: Regulatory status is mentioned as background context for a launch (commercial_launch) or adoption (clinical_adoption) decision.
+
+CLASSIFICATION RULES:
+- Read the ACTUAL content. Do not default to clinical or pharma assumptions.
+- If the materials discuss deploying software, platforms, dashboards, CRM, EHR, data systems, or IT infrastructure → choose technology_implementation.
+- If the materials discuss supply chain, manufacturing, distribution, or staffing readiness → choose operational_deployment.
+- The question text (if provided) is the strongest signal for context. "Will the team deploy X system" → technology. "Will providers adopt X therapy" → clinical.
+- When materials span multiple domains, choose the context of the PRIMARY decision, not the supporting details.
 
 Respond in JSON:
 {
-  "context": "one of: clinical_adoption, operational_deployment, regulatory_approval, commercial_launch, technology_implementation",
-  "rationale": "One sentence explaining why this context was chosen based on the specific content"
+  "context": "one of: technology_implementation, operational_deployment, clinical_adoption, commercial_launch, regulatory_approval",
+  "rationale": "One sentence explaining why this context was chosen, referencing specific content from the materials"
 }`;
 
   const messages: any[] = [{ role: "system", content: classifyPrompt }];
