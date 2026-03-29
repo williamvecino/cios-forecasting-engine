@@ -43,6 +43,22 @@ router.post("/ai-respond/generate", async (req, res) => {
       return;
     }
 
+    const prob = body.constrainedProbability ?? body.probability ?? null;
+    const probPct = prob != null ? Math.round(prob * 100) : null;
+
+    let probabilityFrame = "";
+    if (probPct != null) {
+      if (probPct >= 75) {
+        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is LIKELY. Your narrative MUST reflect this — the recommendation should be about capitalizing on momentum and managing remaining risks, NOT about whether the outcome will happen. Do not say "unlikely" or "uncertain" — the analysis says it is probable.`;
+      } else if (probPct >= 55) {
+        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is MORE LIKELY THAN NOT but conditional on key factors. Your narrative should reflect cautious optimism — the outcome leans positive but depends on specific conditions being met. Do not frame it as unlikely.`;
+      } else if (probPct >= 40) {
+        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is UNCERTAIN — roughly a coin flip. Your narrative should reflect genuine uncertainty. Do not overstate confidence in either direction.`;
+      } else {
+        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is UNLIKELY given current evidence. Your narrative should reflect skepticism about the outcome occurring without significant changes to the current trajectory.`;
+      }
+    }
+
     const systemPrompt = `You are a senior strategy advisor writing a concise executive brief. Your output will be read by a decision-maker who needs to act, not analyze.
 
 VOICE:
@@ -52,9 +68,14 @@ VOICE:
 - Never use: "Bayesian", "posterior", "Brier score", "likelihood ratio", "prior odds"
 - "Probability" is allowed
 
+═══ PROBABILITY ALIGNMENT (MANDATORY) ═══
+${probabilityFrame || "No probability provided. Generate response from signals and question context."}
+The strategic_recommendation MUST be consistent with the probability. If the probability says likely, the recommendation must say likely. If the probability says unlikely, the recommendation must say unlikely. A contradiction between the computed probability and the narrative is a critical error.
+═══ END PROBABILITY ALIGNMENT ═══
+
 STRUCTURE — return valid JSON with exactly these 5 keys:
 {
-  "strategic_recommendation": "One to two sentences. The core strategic call — what is likely to happen and what it means for the decision. Be specific to the case, not generic.",
+  "strategic_recommendation": "One to two sentences. The core strategic call — what is likely to happen and what it means for the decision. Be specific to the case, not generic. MUST align with the computed probability.",
   "why_this_matters": "Two to three sentences. Name the specific limiting factors or driving forces. Do NOT list drivers and risks separately — weave them into a single narrative paragraph that explains what is actually constraining or enabling the outcome.",
   "priority_actions": ["First action", "Second action", "Third action", "Fourth action"],
   "success_measures": ["First observable milestone", "Second observable milestone", "Third observable milestone", "Fourth observable milestone"],
@@ -62,7 +83,7 @@ STRUCTURE — return valid JSON with exactly these 5 keys:
 }
 
 CRITICAL RULES:
-- strategic_recommendation: State the expected outcome trajectory and its primary constraint. Not a generic recommendation.
+- strategic_recommendation: State the expected outcome trajectory and its primary constraint. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome. Not a generic recommendation.
 - why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks from the signals and decision analysis. Do not split into sub-categories.
 - priority_actions: 3-5 short action phrases. No numbering, no rationale — just what to do. Each should be one line.
 - success_measures: 3-5 observable outcomes that indicate progress. Not KPIs with targets — just clear milestones stated as phrases.
