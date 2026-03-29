@@ -26,6 +26,7 @@ interface CandidateSignal {
   suggestedConfidence: "Confirmed" | "Probable" | "Speculative";
   relevanceScore: number;
   whyItMatters: string;
+  recencyTag?: "current" | "recent" | "older_but_relevant";
 }
 
 interface ExternalSignalScoutResult {
@@ -295,6 +296,16 @@ export default function ExternalSignalScoutPanel({
                           <span className="rounded-md bg-muted/20 border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {candidate.sourceDate}
                           </span>
+                          {candidate.recencyTag === "older_but_relevant" && (
+                            <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400">
+                              Older — still relevant
+                            </span>
+                          )}
+                          {candidate.recencyTag === "current" && (
+                            <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                              Current
+                            </span>
+                          )}
                           <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
                             {Math.round(candidate.relevanceScore * 100)}% relevant
                           </span>

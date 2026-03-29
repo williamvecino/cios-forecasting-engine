@@ -24,12 +24,50 @@ interface CandidateSignal {
   suggestedConfidence: "Confirmed" | "Probable" | "Speculative";
   relevanceScore: number;
   whyItMatters: string;
+  recencyTag: "current" | "recent" | "older_but_relevant" | "outdated";
 }
 
 interface ExternalSignalScoutOutput {
   candidates: CandidateSignal[];
   searchContext: string;
   inputHash: string;
+}
+
+function computeRecencyTag(sourceDate: string): "current" | "recent" | "older_but_relevant" | null {
+  const now = Date.now();
+  const sixMonthsAgo = now - 180 * 24 * 60 * 60 * 1000;
+  const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
+
+  const quarterMatch = sourceDate.match(/Q([1-4])\s*(\d{4})/i);
+  const halfMatch = sourceDate.match(/H([12])\s*(\d{4})/i);
+  const monthYearMatch = sourceDate.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s*(\d{4})/i);
+  const yearOnlyMatch = sourceDate.match(/\b(20\d{2})\b/);
+
+  let estimatedDate: number | null = null;
+
+  if (monthYearMatch) {
+    const d = new Date(`${monthYearMatch[1]} 15, ${monthYearMatch[2]}`);
+    if (!isNaN(d.getTime())) estimatedDate = d.getTime();
+  } else if (quarterMatch) {
+    const qMonth = (parseInt(quarterMatch[1]) - 1) * 3;
+    const d = new Date(parseInt(quarterMatch[2]), qMonth + 1, 15);
+    if (!isNaN(d.getTime())) estimatedDate = d.getTime();
+  } else if (halfMatch) {
+    const hMonth = halfMatch[1] === "1" ? 3 : 9;
+    const d = new Date(parseInt(halfMatch[2]), hMonth, 15);
+    if (!isNaN(d.getTime())) estimatedDate = d.getTime();
+  } else if (yearOnlyMatch) {
+    const d = new Date(parseInt(yearOnlyMatch[1]), 6, 1);
+    if (!isNaN(d.getTime())) estimatedDate = d.getTime();
+  }
+
+  if (estimatedDate === null) return null;
+
+  if (estimatedDate > now + 365 * 24 * 60 * 60 * 1000) return null;
+
+  if (estimatedDate >= sixMonthsAgo) return "current";
+  if (estimatedDate >= twelveMonthsAgo) return "recent";
+  return "older_but_relevant";
 }
 
 function hashInput(input: string): string {
@@ -64,9 +102,13 @@ router.post("/agents/external-signal-scout", async (req, res) => {
       ? `\n\nThe user already has these signals (do NOT duplicate them):\n${existingSignals.map((s, i) => `${i + 1}. ${s}`).join("\n")}`
       : "";
 
+    const todayStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
     const systemPrompt = `You are an external signal scout for a pharmaceutical intelligence system.
 
 Your single job: identify 5-10 relevant EXTERNAL signals that could affect the outcome of a decision question about ${brand || "a specific drug"}.
+
+Today's date: ${todayStr}
 
 Decision question: "${activeQuestion}"
 ${brand ? `Brand: ${brand}` : ""}
@@ -100,17 +142,36 @@ SCOPE — what you SHOULD find:
 - External clinical events (competitor trial readouts, conference presentations) in ${indication || "this disease area"}
 - System-level changes affecting ${therapeuticArea || "THIS therapeutic area"} specifically
 
+═══ TEMPORAL RELEVANCE (MANDATORY) ═══
+Today is ${todayStr}. You must evaluate every signal for temporal relevance.
+
+RECENCY WINDOWS:
+- "current": Events from the last 6 months (since ~${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", { month: "long", year: "numeric" })}). PREFERRED. These are the most actionable.
+- "recent": Events from 6-12 months ago. ACCEPTABLE. Still relevant for decision-making.
+- "older_but_relevant": Events older than 12 months BUT structurally important (foundational trials, landmark guidelines, FDA approvals that set the current landscape). ALLOWED ONLY with justification in whyItMatters.
+- "outdated": Events older than 12 months that are not structurally important. NEVER INCLUDE THESE.
+
+TEMPORAL RULES:
+1. AT LEAST 70% of signals must be "current" or "recent" (within the last 12 months from today).
+2. Signals older than 12 months are only acceptable if they represent a FOUNDATIONAL event still shaping today's landscape (e.g., an FDA approval that created the current market structure, a guideline that remains the standard of care).
+3. For older signals, you MUST explain in whyItMatters why the signal is still relevant despite its age.
+4. Press releases, conference presentations, and market events older than 12 months should almost never be included — they are likely superseded.
+5. sourceDate must reflect realistic dates. Do not invent future dates beyond the forecast horizon (${timeHorizon} from today).
+6. When in doubt about recency, prefer a more recent signal over an older one.
+═══ END TEMPORAL RELEVANCE ═══
+
 Rules:
 1. Only suggest signals that are plausibly real and relevant to this specific decision about ${brand || "the active brand"}.
 2. Every signal must be relevant to ${brand || "the active brand"} within ${therapeuticArea || "its therapeutic area"}. Do NOT surface signals from unrelated therapeutic areas or unrelated brands.
 3. Each signal must have a specific source (e.g., "FDA advisory committee", "CMS proposed rule", "ASCO 2025 abstract", "competitor 10-K filing").
-4. Each signal must have a plausible date or timeframe.
+4. Each signal must have a plausible date or timeframe relative to today (${todayStr}).
 5. Do NOT forecast. Signals describe what has happened or is expected to happen, not what the outcome will be.
 6. Do NOT duplicate any existing signals the user already has.
 7. Prioritize signals by relevance to ${brand || "the active brand"}. Cut anything that would not matter to this specific brand team.
 8. Signal types: regulatory, competitive, clinical, market, payer, guideline, pipeline, safety, economic.
 9. Be specific — "FDA approved competitor drug X for NSCLC" not "regulatory changes."
 10. Think: "Would ${brand || "this brand"}'s team put this signal on their competitive landscape slide?" If not, leave it out.
+11. Signals must be dated realistically. Press releases and market events should be from the last 12 months unless structurally foundational.
 
 Respond with valid JSON only. No markdown, no explanation.
 
@@ -126,7 +187,8 @@ Output schema:
       "suggestedStrength": "High|Medium|Low",
       "suggestedConfidence": "Confirmed|Probable|Speculative",
       "relevanceScore": 0.0-1.0,
-      "whyItMatters": "string - 1-sentence explanation of relevance to the decision"
+      "whyItMatters": "string - 1-sentence explanation of relevance to the decision. For older signals, MUST explain why still relevant.",
+      "recencyTag": "current|recent|older_but_relevant"
     }
   ],
   "searchContext": "string - brief description of what domain/topic was searched"
@@ -159,18 +221,34 @@ Output schema:
     const validStrengths = ["High", "Medium", "Low"];
     const validConfidences = ["Confirmed", "Probable", "Speculative"];
 
+    const validRecencyTags = ["current", "recent", "older_but_relevant"];
+
     const candidates: CandidateSignal[] = Array.isArray(parsed.candidates)
-      ? parsed.candidates.map((c: any) => ({
-          signalLabel: c.signalLabel || "",
-          source: c.source || "Unknown",
-          sourceDate: c.sourceDate || "Unknown",
-          signalType: validTypes.includes(c.signalType) ? c.signalType : "market",
-          suggestedDirection: validDirections.includes(c.suggestedDirection) ? c.suggestedDirection : "neutral",
-          suggestedStrength: validStrengths.includes(c.suggestedStrength) ? c.suggestedStrength : "Medium",
-          suggestedConfidence: validConfidences.includes(c.suggestedConfidence) ? c.suggestedConfidence : "Probable",
-          relevanceScore: typeof c.relevanceScore === "number" ? Math.min(1, Math.max(0, c.relevanceScore)) : 0.5,
-          whyItMatters: c.whyItMatters || "",
-        }))
+      ? parsed.candidates
+        .filter((c: any) => c.recencyTag !== "outdated")
+        .map((c: any) => {
+          const llmTag = validRecencyTags.includes(c.recencyTag) ? c.recencyTag : "recent";
+          const computedTag = computeRecencyTag(c.sourceDate || "");
+          const finalTag = computedTag || llmTag;
+
+          let score = typeof c.relevanceScore === "number" ? Math.min(1, Math.max(0, c.relevanceScore)) : 0.5;
+          if (finalTag === "older_but_relevant") {
+            score = Math.min(score, 0.65);
+          }
+
+          return {
+            signalLabel: c.signalLabel || "",
+            source: c.source || "Unknown",
+            sourceDate: c.sourceDate || "Unknown",
+            signalType: validTypes.includes(c.signalType) ? c.signalType : "market",
+            suggestedDirection: validDirections.includes(c.suggestedDirection) ? c.suggestedDirection : "neutral",
+            suggestedStrength: validStrengths.includes(c.suggestedStrength) ? c.suggestedStrength : "Medium",
+            suggestedConfidence: validConfidences.includes(c.suggestedConfidence) ? c.suggestedConfidence : "Probable",
+            relevanceScore: score,
+            whyItMatters: c.whyItMatters || "",
+            recencyTag: finalTag,
+          };
+        })
         .filter((c: CandidateSignal) => c.signalLabel)
         .sort((a: CandidateSignal, b: CandidateSignal) => b.relevanceScore - a.relevanceScore)
       : [];
