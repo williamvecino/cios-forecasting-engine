@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import multer from "multer";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -267,39 +268,50 @@ router.post("/ai-simulate/reaction", upload.single("file"), async (req, res) => 
 
     const constraintContext = buildConstraintContext(body);
 
+    const caseTypeProfile = getProfileForQuestion(body.questionText);
+    const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
+    const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
+
     const archetypeContext = body.archetype ? `
 ASSIGNED ARCHETYPE: ${body.archetype}
-Use this archetype's known behavioral pattern to predict the reaction:
+Use this archetype's known behavioral pattern to predict the reaction:${isRegulatory ? `
+- Regulatory Evaluator: focuses on benefit-risk evidence quality and completeness
+- Safety Specialist: prioritizes risk signal resolution and post-marketing plan adequacy
+- Advisory Expert: weighs clinical significance and unmet need against safety uncertainty
+- Patient Representative: advocates based on disease burden and access to treatment
+- Regulatory Strategist: evaluates submission completeness and review pathway alignment` : `
 - Evidence-Driven Innovator: moves on strong clinical data, low guideline dependence
 - Operational Pragmatist: interested but blocked by workflow/staffing/infrastructure burden
 - Guideline Follower: waits for NCCN/society/institutional endorsement before acting
 - Financial Gatekeeper: delays until coverage is stable, access friction is low
-- Skeptical Conservative: resists until post-launch real-world evidence accumulates
-The archetype determines HOW this segment decides, not just WHETHER they adopt.` : "";
+- Skeptical Conservative: resists until post-launch real-world evidence accumulates`}
+The archetype determines HOW this ${isRegulatory ? "stakeholder evaluates" : "segment decides"}, not just ${isRegulatory ? "their recommendation" : "WHETHER they adopt"}.` : "";
 
-    const systemPrompt = `You are a behavioral reaction scoring engine. You predict how a specific market segment will respond to material features under current constraints.
+    const outcomeField = isRegulatory ? "decision_likelihood" : "adoption_likelihood";
+    const outcomeLabel = isRegulatory ? "favorable decision" : "adoption";
 
-You are given a FEATURE MAP extracted from the material — not the material itself. Score the reaction based on what the features contain and what they lack, combined with this segment's archetype-driven decision style.
-${archetypeContext}
+    const systemPrompt = `You are a behavioral reaction scoring engine. You predict how a specific ${isRegulatory ? "regulatory stakeholder" : "market segment"} will respond to material features under current constraints.
+${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. Frame all predictions in terms of regulatory decision-making, not commercial adoption.\n" : ""}
+You are given a FEATURE MAP extracted from the material — not the material itself. Score the reaction based on what the features contain and what they lack, combined with this ${isRegulatory ? "stakeholder's" : "segment's"} archetype-driven decision style.
+${archetypeContext}${vocabConstraints}
 RULES:
 - Never use: "Bayesian", "posterior", "Brier", "likelihood ratio", "prior odds"
 - "Probability" is allowed
 - Ground every prediction in the constraints and features provided — never invent new barriers or triggers
-- Different archetypes weight features differently: an Evidence-Driven Innovator cares most about efficacy_strength and comparative_evidence; a Financial Gatekeeper cares most about access_support and heor_cost_effectiveness; a Guideline Follower cares most about guideline_relevance
 - State clearly what the material changes and what it does not change
 - Identify the primary remaining barrier after accounting for material impact
-- Identify the strongest trigger that would increase movement for this segment
+- Identify the strongest trigger that would increase movement for this ${isRegulatory ? "stakeholder" : "segment"}
 
 OUTPUT FORMAT (return valid JSON):
 {
-  "adoption_likelihood": <number 0-100>,
+  "${outcomeField}": <number 0-100>,
   "confidence": "High" | "Moderate" | "Low",
-  "primary_reaction": "How this segment will likely respond — grounded in the feature map and constraints",
-  "what_this_changes": "What the material improves or strengthens for this segment",
+  "primary_reaction": "How this ${isRegulatory ? "stakeholder" : "segment"} will likely respond — grounded in the feature map and constraints",
+  "what_this_changes": "What the material improves or strengthens for this ${isRegulatory ? "stakeholder" : "segment"}",
   "what_this_does_not_change": "What remains unchanged or unaddressed by this material",
   "primary_remaining_barrier": "The single most limiting constraint after this material is considered",
-  "strongest_trigger_for_movement": "The specific event or change that would most increase adoption for this segment",
-  "material_effectiveness": "How well the material addresses what this segment needs to move"
+  "strongest_trigger_for_movement": "The specific event or change that would most increase ${outcomeLabel} for this ${isRegulatory ? "stakeholder" : "segment"}",
+  "material_effectiveness": "How well the material addresses what this ${isRegulatory ? "stakeholder" : "segment"} needs to ${isRegulatory ? "support a favorable decision" : "move"}"
 }`;
 
     const userPrompt = `Score the adoption reaction for:
@@ -340,7 +352,8 @@ Score how the ${body.segment} segment will react given these features and curren
 
     const parsed = JSON.parse(content);
 
-    let rawLikelihood = typeof parsed.adoption_likelihood === "number" ? Math.min(100, Math.max(0, Math.round(parsed.adoption_likelihood))) : 50;
+    const likelihoodValue = parsed.adoption_likelihood ?? parsed.decision_likelihood;
+    let rawLikelihood = typeof likelihoodValue === "number" ? Math.min(100, Math.max(0, Math.round(likelihoodValue))) : 50;
 
     if (body.constrainedProbability != null) {
       const cap = Math.round(body.constrainedProbability * 100) + 15;

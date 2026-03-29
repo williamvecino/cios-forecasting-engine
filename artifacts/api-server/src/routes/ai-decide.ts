@@ -4,6 +4,7 @@ import { researchBrand } from "../lib/web-research";
 import { deriveDecisions, type ForecastGate, type DerivedDecisions, type DecisionItem } from "../lib/decision-derivation";
 import { validateDecisionIntegrity, type IntegrityReport } from "../lib/decision-integrity-validator";
 import { assignArchetypesForSegmentation } from "../lib/archetype-assignment";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildSegmentationConstraintPrompt, buildRiskFramingPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -80,64 +81,89 @@ For competitive_risk, readiness_timeline, and growth_feasibility, ground assessm
 `;
     }
 
-    const systemPrompt = `You are a pharmaceutical commercial strategy analyst. Generate contextual detail for a structured decision analysis.
+    const caseTypeProfile = getProfileForQuestion(body.questionText, body.questionType);
+    const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
+    const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
+    const segConstraints = buildSegmentationConstraintPrompt(caseTypeProfile);
+    const riskConstraints = buildRiskFramingPrompt(caseTypeProfile);
+
+    const impactLabel = isRegulatory ? "impact_on_approval" : "impact_on_adoption";
+    const segmentationBlock = isRegulatory ? `
+  "stakeholder_segmentation": {
+    "primary_decision_makers": { "actors": ["FDA Review Division"], "reason": "Why" },
+    "key_influencers": { "actors": ["Advisory Committee Members"], "reason": "Why" },
+    "supporting_actors": { "actors": ["Sponsor Regulatory Team"], "reason": "Why" },
+    "contextual_actors": { "actors": ["Patient Advocacy Groups"], "reason": "Why" }
+  }` : `
+  "adoption_segmentation": {
+    "early_adopters": { "segments": ["real segment type 1"], "reason": "Why" },
+    "persuadables": { "segments": ["segment"], "reason": "Why" },
+    "late_movers": { "segments": ["segment"], "reason": "Why" },
+    "resistant": { "segments": ["segment"], "reason": "Why" }
+  }`;
+
+    const competitiveBlock = isRegulatory ? `
+  "regulatory_precedent_risk": {
+    "class_precedent": "Prior approval/rejection patterns for this mechanism or class",
+    "safety_spillover_risk": "Low|Moderate|High",
+    "comparative_review_tolerance": "How FDA may weigh benefit-risk relative to alternatives",
+    "precedent_implications": "What similar past decisions suggest"
+  }` : `
+  "competitive_risk": {
+    "incumbent_defense": "What existing alternatives will do",
+    "fast_follower_risk": "Low|Moderate|High",
+    "evidence_response": "How competitors may counter",
+    "access_response": "Competitive payer actions"
+  }`;
+
+    const feasibilityBlock = isRegulatory ? "" : `,
+  "growth_feasibility": {
+    "segment_size": "Small|Medium|Large",
+    "access_expansion": "Coverage growth potential",
+    "operational_scalability": "Low|Moderate|High",
+    "revenue_translation": "Low|Moderate|High"
+  }`;
+
+    const systemPrompt = `You are a pharmaceutical ${isRegulatory ? "regulatory strategy" : "commercial strategy"} analyst. Generate contextual detail for a structured decision analysis.
 
 CRITICAL: Each case is unique. Evaluate this specific product on its own merits.
-
+${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. All language, actors, and framing must be regulatory — NOT commercial/adoption.\n" : ""}
 ${hasResearch ? "REAL-TIME WEB RESEARCH is included below. Ground your analysis in these findings." : "No recent web research was found. Rely on your training knowledge."}
 
 ${hasGates ? `IMPORTANT: A decision framework has been derived from the forecast gates. You must ADD DETAIL to this framework, not replace it. Do not invent barriers or actions that are not in the framework.` : "No forecast gates available. Generate a standalone analysis."}
-
+${vocabConstraints}${segConstraints}${riskConstraints}
 Return ONLY valid JSON with this structure:
 
 {
   "barrier_decomposition": {
     "<use the exact gate_id string from the barriers list, e.g. 'g2' not the label>": [
       {
-        "driver": "Specific operational driver name (e.g. 'Prior authorization process', 'Site workflow integration')",
+        "driver": "Specific ${isRegulatory ? "regulatory" : "operational"} driver name",
         "current_state": "Concise description of the current condition (1 sentence)",
-        "impact_on_adoption": "How this specifically affects adoption (1 sentence)",
+        "${impactLabel}": "How this specifically affects ${isRegulatory ? "approval" : "adoption"} (1 sentence)",
         "what_would_improve_it": "Concrete action or change needed (1 sentence)",
         "expected_effect": "What improvement would do to outlook (1 sentence)"
       }
     ]
-  },
-  "adoption_segmentation": {
-    "early_adopters": { "segments": ["real segment type 1"], "reason": "Why" },
-    "persuadables": { "segments": ["segment"], "reason": "Why" },
-    "late_movers": { "segments": ["segment"], "reason": "Why" },
-    "resistant": { "segments": ["segment"], "reason": "Why" }
-  },
+  },${segmentationBlock},
   "readiness_timeline": {
     "near_term_readiness": "Low|Moderate|High",
     "trigger_events": ["event 1", "event 2"],
     "dependencies": ["dependency 1"],
     "timing_risks": ["risk 1"]
-  },
-  "competitive_risk": {
-    "incumbent_defense": "What existing alternatives will do",
-    "fast_follower_risk": "Low|Moderate|High",
-    "evidence_response": "How competitors may counter",
-    "access_response": "Competitive payer actions"
-  },
-  "growth_feasibility": {
-    "segment_size": "Small|Medium|Large",
-    "access_expansion": "Coverage growth potential",
-    "operational_scalability": "Low|Moderate|High",
-    "revenue_translation": "Low|Moderate|High"
-  }
+  },${competitiveBlock}${feasibilityBlock}
 }
 
 BARRIER DECOMPOSITION RULES:
-- For each non-strong gate (by gate_id), provide 2-5 specific operational drivers.
+- For each non-strong gate (by gate_id), provide 2-5 specific ${isRegulatory ? "regulatory" : "operational"} drivers.
 - NEVER use the gate label itself as a driver name. Break it into the underlying conditions.
-- Each driver must be a concrete, observable condition (e.g. "Prior authorization process", "Site workflow integration", "Specialist referral pathway").
+- Each driver must be a concrete, observable condition.
 - "current_state" must describe the actual real-world situation, not restate the gate.
-- "impact_on_adoption" must explain HOW this specific driver slows or blocks adoption.
+- "${impactLabel}" must explain HOW this specific driver ${isRegulatory ? "affects the approval decision" : "slows or blocks adoption"}.
 - "what_would_improve_it" must be a concrete, actionable intervention.
-- "expected_effect" must describe the specific change in adoption outlook if the improvement is made.
+- "expected_effect" must describe the specific change in ${isRegulatory ? "approval" : "adoption"} outlook if the improvement is made.
 
-Name real segment types specific to this product (e.g. "Pulmonologists at academic centers", "Community oncologists").`;
+${isRegulatory ? "Name regulatory actors specific to this case (e.g. 'FDA Neurology Division', 'Peripheral and CNS Drugs Advisory Committee')." : "Name real segment types specific to this product (e.g. 'Pulmonologists at academic centers', 'Community oncologists')."}`;
 
     let researchSection = "";
     if (hasResearch) {
@@ -202,11 +228,16 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         }
       }
 
-      const requiredFields = ["driver", "current_state", "impact_on_adoption", "what_would_improve_it", "expected_effect"];
+      const requiredFieldSets = [
+        ["driver", "current_state", "impact_on_adoption", "what_would_improve_it", "expected_effect"],
+        ["driver", "current_state", "impact_on_approval", "what_would_improve_it", "expected_effect"],
+      ];
       for (const [gateId, drivers] of Object.entries(decomp)) {
         if (!Array.isArray(drivers)) { delete decomp[gateId]; continue; }
         decomp[gateId] = (drivers as any[]).filter((d: any) =>
-          d && typeof d === "object" && requiredFields.every(f => typeof d[f] === "string" && d[f].length > 0)
+          d && typeof d === "object" && requiredFieldSets.some(fields =>
+            fields.every(f => typeof d[f] === "string" && d[f].length > 0)
+          )
         );
         if (decomp[gateId].length === 0) delete decomp[gateId];
       }
@@ -226,7 +257,7 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
 
       let archetypeAssignments = null;
       try {
-        const seg = aiContext.adoption_segmentation;
+        const seg = aiContext.adoption_segmentation || aiContext.stakeholder_segmentation;
         if (seg) {
           const gateInfos = gates.map(g => ({ gate_label: g.gate_label, status: g.status, reasoning: g.reasoning }));
           archetypeAssignments = assignArchetypesForSegmentation(seg, gateInfos);
@@ -240,7 +271,7 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         derived_decisions: derived,
         integrity: integrity,
         barrier_decomposition: decomp,
-        adoption_segmentation: aiContext.adoption_segmentation || null,
+        adoption_segmentation: aiContext.adoption_segmentation || aiContext.stakeholder_segmentation || null,
         archetype_assignments: archetypeAssignments,
         readiness_timeline: aiContext.readiness_timeline || null,
         competitive_risk: aiContext.competitive_risk || null,
@@ -255,7 +286,7 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
     } else {
       let archetypeAssignments = null;
       try {
-        const seg = aiContext.adoption_segmentation;
+        const seg = aiContext.adoption_segmentation || aiContext.stakeholder_segmentation;
         if (seg) {
           archetypeAssignments = assignArchetypesForSegmentation(seg, []);
         }
@@ -268,7 +299,7 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         derived_decisions: null,
         integrity: null,
         barrier_decomposition: null,
-        adoption_segmentation: aiContext.adoption_segmentation || null,
+        adoption_segmentation: aiContext.adoption_segmentation || aiContext.stakeholder_segmentation || null,
         archetype_assignments: archetypeAssignments,
         readiness_timeline: aiContext.readiness_timeline || null,
         competitive_risk: aiContext.competitive_risk || null,

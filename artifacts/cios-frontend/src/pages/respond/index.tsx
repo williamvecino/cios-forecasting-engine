@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+import { detectCaseType } from "@/lib/case-type-utils";
 import {
   Loader2,
   AlertTriangle,
@@ -35,6 +36,8 @@ export default function RespondPage() {
   const [copied, setCopied] = useState(false);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
+  const questionText = activeQuestion?.question || activeQuestion?.rawInput || activeQuestion?.text || "";
+  const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
 
   useEffect(() => {
     if (!caseId) return;
@@ -153,7 +156,7 @@ export default function RespondPage() {
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-foreground">Respond</h1>
+              <h1 className="text-xl font-bold text-foreground">{caseTypeInfo.stepNames.respond}</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Executive brief derived from your decision analysis.
               </p>

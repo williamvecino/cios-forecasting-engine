@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
 import { StakeholderReactionPanel } from "@/components/simulate/StakeholderReactionPanel";
+import { detectCaseType, REGULATORY_SEGMENTS, COMMERCIAL_SEGMENTS } from "@/lib/case-type-utils";
 
 interface ArchetypeInfo {
   segment_name: string;
@@ -44,12 +45,7 @@ interface SimulationResult {
   material_features: MaterialFeature[];
 }
 
-const SEGMENTS = [
-  { key: "Early Adopters", color: "emerald" },
-  { key: "Persuadables", color: "blue" },
-  { key: "Late Movers", color: "amber" },
-  { key: "Resistant", color: "rose" },
-];
+const DEFAULT_SEGMENTS = COMMERCIAL_SEGMENTS;
 
 const FEATURE_LABELS: Record<string, string> = {
   efficacy_strength: "Efficacy Strength",
@@ -107,6 +103,9 @@ export default function SimulatePage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
+  const questionText = activeQuestion?.question || activeQuestion?.questionText || "";
+  const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
+  const SEGMENTS = caseTypeInfo.isRegulatory ? REGULATORY_SEGMENTS : DEFAULT_SEGMENTS;
   const hasInput = selectedSegment && (materialText.trim() || file);
 
   useEffect(() => {
@@ -260,7 +259,7 @@ export default function SimulatePage() {
         <div className="max-w-3xl mx-auto space-y-6">
           <div>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 6</p>
-            <h1 className="text-xl font-bold text-foreground">Simulate Adoption Reaction</h1>
+            <h1 className="text-xl font-bold text-foreground">{caseTypeInfo.stepNames.simulate}</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Test how a defined segment responds to specific materials under current constraints.
             </p>

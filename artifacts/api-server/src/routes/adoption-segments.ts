@@ -4,6 +4,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runDependencyAnalysis } from "../lib/signal-dependency-engine.js";
 import { runForecast } from "../lib/forecast-engine.js";
+import { isRegulatoryCase } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -134,6 +135,79 @@ const SEGMENT_DEFINITIONS: SegmentDefinition[] = [
     },
     baseAdoptionModifier: 0.45,
     description: "Entrenched with current therapy. Require compelling head-to-head differentiation to switch.",
+  },
+];
+
+const REGULATORY_SEGMENT_DEFINITIONS: SegmentDefinition[] = [
+  {
+    name: "FDA Review Division",
+    type: "fda_review_division",
+    signalWeights: {
+      signalTypes: ["Clinical evidence", "Phase III clinical", "Safety signal", "Regulatory", "Mechanism of action"],
+      directionBias: "neutral",
+      accessSensitivity: 0.05,
+      workflowSensitivity: 0.05,
+      evidenceThreshold: 0.9,
+      competitiveSensitivity: 0.1,
+    },
+    baseAdoptionModifier: 1.0,
+    description: "Primary regulatory review team evaluating benefit-risk balance, clinical evidence package, and label scope.",
+  },
+  {
+    name: "Advisory Committee Members",
+    type: "advisory_committee",
+    signalWeights: {
+      signalTypes: ["Clinical evidence", "Safety signal", "Expert opinion", "Phase III clinical", "Real-world evidence"],
+      directionBias: "neutral",
+      accessSensitivity: 0.05,
+      workflowSensitivity: 0.05,
+      evidenceThreshold: 0.85,
+      competitiveSensitivity: 0.15,
+    },
+    baseAdoptionModifier: 0.9,
+    description: "External expert panel providing recommendations on approvability, risk management, and label conditions.",
+  },
+  {
+    name: "Sponsor Regulatory & Clinical Team",
+    type: "regulatory_clinical_team",
+    signalWeights: {
+      signalTypes: ["Regulatory", "Clinical evidence", "Safety signal", "Phase III clinical"],
+      directionBias: "positive",
+      accessSensitivity: 0.1,
+      workflowSensitivity: 0.1,
+      evidenceThreshold: 0.7,
+      competitiveSensitivity: 0.15,
+    },
+    baseAdoptionModifier: 1.1,
+    description: "Company regulatory affairs and clinical development team managing submission, responses, and risk mitigation.",
+  },
+  {
+    name: "Safety Reviewers",
+    type: "safety_reviewers",
+    signalWeights: {
+      signalTypes: ["Safety signal", "Clinical evidence", "Real-world evidence", "Regulatory"],
+      directionBias: "negative",
+      accessSensitivity: 0.05,
+      workflowSensitivity: 0.05,
+      evidenceThreshold: 0.95,
+      competitiveSensitivity: 0.05,
+    },
+    baseAdoptionModifier: 0.7,
+    description: "FDA pharmacovigilance and safety evaluation specialists assessing risk signals, REMS requirements, and post-marketing obligations.",
+  },
+  {
+    name: "Patient Advocacy Groups",
+    type: "patient_advocacy",
+    signalWeights: {
+      signalTypes: ["Real-world evidence", "Clinical evidence", "Expert opinion"],
+      directionBias: "positive",
+      accessSensitivity: 0.3,
+      workflowSensitivity: 0.1,
+      evidenceThreshold: 0.4,
+      competitiveSensitivity: 0.1,
+    },
+    baseAdoptionModifier: 0.8,
+    description: "Patient organizations influencing advisory sentiment, public testimony, and benefit-risk framing. Active pre-approval in regulatory cases.",
   },
 ];
 
@@ -362,9 +436,13 @@ router.post("/cases/:caseId/adoption-segments/generate", async (req, res) => {
 
   await db.delete(adoptionSegmentsTable).where(eq(adoptionSegmentsTable.caseId, caseId));
 
+  const question = caseData.question || "";
+  const useRegulatory = isRegulatoryCase(question);
+  const segmentDefs = useRegulatory ? REGULATORY_SEGMENT_DEFINITIONS : SEGMENT_DEFINITIONS;
+
   const generatedSegments: any[] = [];
 
-  for (const segDef of SEGMENT_DEFINITIONS) {
+  for (const segDef of segmentDefs) {
     const result = computeSegmentAdoption(baseProbability, signals, segDef, depAnalysis);
     const priority = assignPriorityTier(result.adoptionLikelihood, result.barriers, result.movementBlockers);
 

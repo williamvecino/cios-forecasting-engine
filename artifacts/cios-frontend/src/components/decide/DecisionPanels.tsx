@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+import { detectCaseType } from "@/lib/case-type-utils";
 import {
   Users,
   ShieldAlert,
@@ -207,6 +208,7 @@ export default function DecisionPanels() {
   const questionText = activeQuestion?.rawInput || activeQuestion?.text || activeQuestion?.question || "";
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const contextKey = `${subject}|${questionText}|${caseId}`;
+  const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
 
   useEffect(() => {
     if (!subject || !questionText) return;
@@ -535,7 +537,7 @@ export default function DecisionPanels() {
                 )}
               </div>
 
-              {data.growth_feasibility && (
+              {data.growth_feasibility && !caseTypeInfo.isRegulatory && (
                 <GrowthFeasibilityPanel data={data.growth_feasibility} />
               )}
 

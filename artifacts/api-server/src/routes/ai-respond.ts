@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -59,15 +60,26 @@ router.post("/ai-respond/generate", async (req, res) => {
       }
     }
 
-    const systemPrompt = `You are a senior strategy advisor writing a concise executive brief. Your output will be read by a decision-maker who needs to act, not analyze.
+    const caseTypeProfile = getProfileForQuestion(body.questionText);
+    const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
+    const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
 
+    const actionExample = isRegulatory
+      ? `"Finalize ARIA risk mitigation strategy because benefit-risk balance is the primary advisory concern."`
+      : `"Secure payer commitment because reimbursement uncertainty is the biggest barrier to adoption."`;
+    const successExample = isRegulatory
+      ? `"Favorable advisory committee vote — confirms benefit-risk acceptance."`
+      : `"First formulary listing — confirms payer acceptance."`;
+
+    const systemPrompt = `You are a senior ${isRegulatory ? "regulatory" : "strategy"} advisor writing a concise executive brief. Your output will be read by a decision-maker who needs to act, not analyze.
+${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. All language, actions, and success measures must be regulatory — NOT commercial, adoption, or launch-oriented.\n" : ""}
 VOICE:
 - Write like a trusted advisor speaking directly to the executive
 - Short, declarative sentences. No filler. No hedging.
 - State what is happening, what matters, what to do. Nothing else.
 - Never use: "Bayesian", "posterior", "Brier score", "likelihood ratio", "prior odds"
 - "Probability" is allowed
-
+${vocabConstraints}
 ═══ PROBABILITY ALIGNMENT (MANDATORY) ═══
 ${probabilityFrame || "No probability provided. Generate response from signals and question context."}
 The strategic_recommendation MUST be consistent with the probability. If the probability says likely, the recommendation must say likely. If the probability says unlikely, the recommendation must say unlikely. A contradiction between the computed probability and the narrative is a critical error.
@@ -84,10 +96,10 @@ STRUCTURE — return valid JSON with exactly these 5 keys:
 
 CRITICAL RULES:
 - TRANSPARENCY IS MANDATORY. Every statement must explain WHY. Never state a conclusion without saying what evidence or reasoning led to it. The reader should never have to guess where a number or recommendation came from.
-- strategic_recommendation: State the expected outcome trajectory AND its primary constraint. Explain WHY the probability is at this level — name the specific signals or conditions. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome.
+- strategic_recommendation: State the expected ${isRegulatory ? "approval" : "outcome"} trajectory AND its primary constraint. Explain WHY the probability is at this level — name the specific signals or conditions. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome.
 - why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks AND explain in plain terms why each one matters for the decision. Connect each factor to what it means practically.
-- priority_actions: 3-5 actions. Each action MUST include a brief "because" clause explaining why it is prioritized. Example: "Secure payer commitment because reimbursement uncertainty is the biggest barrier to adoption."
-- success_measures: 3-5 observable milestones. Each must briefly state why it indicates progress. Example: "First formulary listing — confirms payer acceptance."
+- priority_actions: 3-5 actions. Each action MUST include a brief "because" clause explaining why it is prioritized. Example: ${actionExample}${isRegulatory ? " Actions must be pre-approval and regulatory in scope — no post-approval commercialization tasks like physician education or market rollout." : ""}
+- success_measures: 3-5 observable milestones. Each must briefly state why it indicates progress. Example: ${successExample}${isRegulatory ? " Success measures must be regulatory milestones only — no launch readiness, rollout, or market-share markers." : ""}
 - execution_focus: ONE to TWO sentences. Where resources go first AND why that area matters most, framed as what to prioritize over what.`;
 
     const decisionContext = buildDecisionContext(body);

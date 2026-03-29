@@ -308,8 +308,14 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
       return cache.result;
     }
 
-    const upSignals = signals.filter(s => s.logLr > 0);
+    const polarityViolationIds = new Set(
+      signals.filter(s => s.direction === "Negative" && s.logLr >= 0).map(s => s.id)
+    );
+    const upSignals = signals.filter(s => s.logLr > 0 && !polarityViolationIds.has(s.id));
     const downSignals = signals.filter(s => s.logLr < 0);
+    for (const pv of signals.filter(s => polarityViolationIds.has(s.id))) {
+      downSignals.push({ ...pv, logLr: -0.01, lr: 0.99 });
+    }
 
     const totalPosLogLr = upSignals.reduce((s, sig) => s + sig.logLr, 0);
     const totalNegLogLr = downSignals.reduce((s, sig) => s + Math.abs(sig.logLr), 0);
@@ -1054,7 +1060,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                         </div>
                         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
                           <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Confidence</div>
-                          <div className="text-base font-bold">{judgmentResult.confidence}</div>
+                          <div className="text-base font-bold">{confidence}</div>
                         </div>
                         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
                           <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Upward Drivers</div>

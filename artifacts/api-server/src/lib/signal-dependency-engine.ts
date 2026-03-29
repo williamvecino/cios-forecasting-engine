@@ -131,6 +131,24 @@ export function computeTextSimilarity(a: string, b: string): number {
   return intersection / Math.max(wordsA.size, wordsB.size);
 }
 
+const TRIAL_ID_PATTERN = /\b(NCT\d{6,10})\b/i;
+const NAMED_TRIAL_PATTERN = /\b(TRAILBLAZER[- ]?\d|CLARITY[- ]?AD|EMERGE[- ]?\d|GRADUATE[- ]?\d|KEYNOTE[- ]?\d{2,4}|CHECKMATE[- ]?\d{2,4}|HIMALAYA[- ]?\d|TOPAZ[- ]?\d|APOLLO[- ]?\d|DESTINY[- ]?\w+\d|MAGELLAN[- ]?\d|COMBI-[A-Z]+|BREAK-[A-Z]+|coBRIM|COLUMBUS[- ]?\d|IMpower\d{2,4}|IMbrave\d{2,4}|MONALEESA[- ]?\d|PALOMA[- ]?\d|MONARCH[- ]?\d|SOLO[- ]?\d|PRIMA[- ]?\d|PAOLA[- ]?\d|ARIEL[- ]?\d|NOVA[- ]?\d|TITAN[- ]?\d|SPARTAN[- ]?\d|VISION[- ]?\d|PROFOUND[- ]?\d|TRITON[- ]?\d|TALAPRO[- ]?\d|ENZAMET|PROSPER|ARAMIS|EMBARK|ARASENS|PEACE[- ]?\d)/i;
+
+export function extractTrialIdentifier(text: string): string | null {
+  const nctMatch = text.match(TRIAL_ID_PATTERN);
+  if (nctMatch) return nctMatch[1].toUpperCase();
+  const namedMatch = text.match(NAMED_TRIAL_PATTERN);
+  if (namedMatch) return namedMatch[1].toUpperCase();
+  return null;
+}
+
+function shareTrialIdentifier(descA: string, descB: string): boolean {
+  const trialA = extractTrialIdentifier(descA);
+  const trialB = extractTrialIdentifier(descB);
+  if (!trialA || !trialB) return false;
+  return trialA === trialB;
+}
+
 const TRANSLATION_QUALIFYING_CLUSTERS: Set<SourceCluster> = new Set([
   "Field Feedback",
   "Access / Policy",
@@ -175,6 +193,14 @@ function inferLineageRelationship(
 
   const descA = signal.signalDescription ?? "";
   const descB = candidate.signalDescription ?? "";
+
+  if (shareTrialIdentifier(descA, descB)) {
+    const clsA = inferSourceCluster(signal);
+    const clsB = inferSourceCluster(candidate);
+    const etype = classifyEchoOrTranslation(clsA, clsB, descB);
+    return { isRelated: true, role: "Direct derivative", confidence: "High", echoOrTranslation: etype };
+  }
+
   const similarity = computeTextSimilarity(descA, descB);
 
   if (similarity > 0.7) {
