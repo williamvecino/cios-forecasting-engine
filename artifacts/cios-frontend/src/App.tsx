@@ -102,6 +102,7 @@ function Router() {
       <Route path="/case/:caseId/analogs">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
       <Route path="/case/:caseId/portfolio">{() => <CaseWorkflowRedirect targetStep="decide" />}</Route>
       <Route path="/case/:caseId/respond">{() => <CaseWorkflowRedirect targetStep="respond" />}</Route>
+      <Route path="/case/:caseId/simulate">{() => <CaseWorkflowRedirect targetStep="simulate" />}</Route>
       <Route path="/case/:caseId/:rest*">{() => <CaseWorkflowRedirect targetStep="question" />}</Route>
 
       <Route path="/case-library" component={CaseLibrary} />
