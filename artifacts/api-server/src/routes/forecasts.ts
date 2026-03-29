@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { casesTable, signalsTable, actorsTable, calibrationLogTable, AGENT_ARCHETYPES } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { casesTable, signalsTable, actorsTable, calibrationLogTable, forecastLedgerTable, AGENT_ARCHETYPES } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { runDependencyAnalysis, computeNaiveVsCompressed } from "../lib/signal-dependency-engine.js";
 import { runForecastEngine } from "../lib/forecast-engine.js";
 import { simulateAgents } from "../lib/agent-engine.js";
 import { getLrCorrections, getBucket, computeDecay } from "../lib/calibration-utils.js";
@@ -305,6 +306,97 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     predictedProbability: environmentAdjustedProbability,
     snapshotJson: JSON.stringify(finalResult),
   }).onConflictDoNothing();
+
+  try {
+    const currentCaseId = req.params.caseId;
+    const prevVersionRows = await db.select({
+      updateVersion: forecastLedgerTable.updateVersion,
+      predictionId: forecastLedgerTable.predictionId,
+    })
+      .from(forecastLedgerTable)
+      .where(eq(forecastLedgerTable.caseId, currentCaseId))
+      .orderBy(desc(forecastLedgerTable.updateVersion))
+      .limit(1);
+    const nextVersion = (prevVersionRows[0]?.updateVersion ?? 0) + 1;
+    const previousPredictionId = prevVersionRows[0]?.predictionId ?? null;
+
+    const predictionId = `PRED-${Date.now()}`;
+    const pctBucket = Math.floor(environmentAdjustedProbability * 100 / 10) * 10;
+    const calibrationBucket = `${pctBucket}–${pctBucket + 10}%`;
+
+    let depSnapshot: Record<string, any> = {};
+    try {
+      if (eligibleSignals.length > 0) {
+        const priorProb = caseData.priorProbability ?? 0.3;
+        const analysis = runDependencyAnalysis(eligibleSignals);
+        const comparison = computeNaiveVsCompressed(eligibleSignals, analysis, priorProb);
+
+        depSnapshot = {
+          evidenceDiversityScore: analysis.metrics.evidenceDiversityScore,
+          posteriorFragilityScore: analysis.metrics.posteriorFragilityScore,
+          concentrationPenalty: analysis.metrics.concentrationPenalty,
+          independentEvidenceFamilyCount: analysis.independentSignals.length,
+          rawSignalCount: eligibleSignals.length,
+          compressedSignalCount: analysis.compressedSignals.length,
+          confidenceCeilingApplied: analysis.confidenceCeiling.maxAllowedProbability < 1 ? analysis.confidenceCeiling.maxAllowedProbability : null,
+          confidenceCeilingReason: analysis.confidenceCeiling.maxAllowedProbability < 1 ? (analysis.confidenceCeiling.reason ?? null) : null,
+          keyDriversSummary: JSON.stringify(
+            eligibleSignals.filter(s => (s.likelihoodRatio ?? 1) > 1)
+              .sort((a, b) => (b.likelihoodRatio ?? 1) - (a.likelihoodRatio ?? 1))
+              .slice(0, 5)
+              .map(s => ({ desc: s.signalDescription?.slice(0, 120) ?? "", lr: s.likelihoodRatio ?? 1 }))
+          ),
+          counterSignalsSummary: JSON.stringify(
+            eligibleSignals.filter(s => (s.likelihoodRatio ?? 1) < 1)
+              .sort((a, b) => (a.likelihoodRatio ?? 1) - (b.likelihoodRatio ?? 1))
+              .slice(0, 5)
+              .map(s => ({ desc: s.signalDescription?.slice(0, 120) ?? "", lr: s.likelihoodRatio ?? 1 }))
+          ),
+          topLineageClusters: JSON.stringify(
+            analysis.clusters.map(cl => ({
+              rootDesc: cl.rootSignal.signal.signalDescription?.slice(0, 120) ?? "",
+              cluster: cl.rootSignal.sourceCluster,
+              count: cl.clusterSignalCount,
+              compressed: cl.compressedSignalCount,
+              echoes: cl.echoCount,
+              translations: cl.translationCount,
+            }))
+          ),
+          snapshotJson: JSON.stringify({
+            metrics: analysis.metrics,
+            confidenceCeiling: analysis.confidenceCeiling,
+            warnings: analysis.warnings,
+            comparison,
+            clusterCount: analysis.clusters.length,
+            independentCount: analysis.independentSignals.length,
+          }),
+        };
+      }
+    } catch (depErr) {
+      console.error("Failed to compute dependency snapshot for ledger:", depErr);
+    }
+
+    await db.insert(forecastLedgerTable).values({
+      id: randomUUID(),
+      predictionId,
+      caseId: currentCaseId,
+      strategicQuestion: caseData.strategicQuestion ?? "Unspecified question",
+      decisionDomain: caseData.therapeuticArea ?? null,
+      forecastProbability: environmentAdjustedProbability,
+      forecastDate: new Date(),
+      timeHorizon: caseData.timeHorizon || "12 months",
+      priorProbability: caseData.priorProbability,
+      confidenceLevel: result.confidenceLevel,
+      updateVersion: nextVersion,
+      previousPredictionId,
+      updateRationale: nextVersion === 1 ? "Initial forecast" : "Forecast updated",
+      resolutionStatus: "open",
+      calibrationBucket,
+      ...depSnapshot,
+    }).onConflictDoNothing();
+  } catch (ledgerErr) {
+    console.error("Failed to auto-save to forecast ledger:", ledgerErr);
+  }
 
   const responsePayload = {
     ...finalResult,

@@ -16,6 +16,7 @@ interface LedgerEntry {
   caseId: string;
   strategicQuestion: string;
   decisionDomain: string | null;
+  comparisonGroups: string | null;
   forecastProbability: number;
   forecastDate: string;
   timeHorizon: string;

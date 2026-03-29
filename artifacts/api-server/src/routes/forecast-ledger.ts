@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { db, forecastLedgerTable, casesTable } from "@workspace/db";
+import { db, forecastLedgerTable, casesTable, signalsTable } from "@workspace/db";
 import { eq, desc, and, isNotNull, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { runDependencyAnalysis, computeNaiveVsCompressed } from "../lib/signal-dependency-engine.js";
 
 const router = Router();
 
@@ -66,10 +67,11 @@ router.get("/cases/:caseId/forecast-ledger/latest", async (req, res) => {
 
 router.post("/cases/:caseId/record-forecast", async (req, res) => {
   const { caseId } = req.params;
-  const { timeHorizon, expectedResolutionDate, rationale } = req.body as {
+  const { timeHorizon, expectedResolutionDate, rationale, comparisonGroups } = req.body as {
     timeHorizon?: string;
     expectedResolutionDate?: string;
     rationale?: string;
+    comparisonGroups?: string[];
   };
 
   const caseRows = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
@@ -92,18 +94,110 @@ router.post("/cases/:caseId/record-forecast", async (req, res) => {
   const forecastProbability = caseData.currentProbability;
   const bucket = computeCalibrationBucket(forecastProbability);
 
+  let depMetrics: {
+    evidenceDiversityScore: number | null;
+    posteriorFragilityScore: number | null;
+    concentrationPenalty: number | null;
+    confidenceCeilingApplied: number | null;
+    confidenceCeilingReason: string | null;
+    independentEvidenceFamilyCount: number | null;
+    rawSignalCount: number | null;
+    compressedSignalCount: number | null;
+    keyDriversSummary: string | null;
+    counterSignalsSummary: string | null;
+    topLineageClusters: string | null;
+    environmentAdjustments: string | null;
+    snapshotJson: string | null;
+  } = {
+    evidenceDiversityScore: null,
+    posteriorFragilityScore: null,
+    concentrationPenalty: null,
+    confidenceCeilingApplied: null,
+    confidenceCeilingReason: null,
+    independentEvidenceFamilyCount: null,
+    rawSignalCount: null,
+    compressedSignalCount: null,
+    keyDriversSummary: null,
+    counterSignalsSummary: null,
+    topLineageClusters: null,
+    environmentAdjustments: null,
+    snapshotJson: null,
+  };
+
+  try {
+    const signals = await db.select().from(signalsTable).where(
+      and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
+    );
+
+    if (signals.length > 0) {
+      const priorProb = caseData.priorProbability ?? 0.3;
+      const analysis = runDependencyAnalysis(signals);
+      const comparison = computeNaiveVsCompressed(signals, analysis, priorProb);
+
+      depMetrics.evidenceDiversityScore = analysis.metrics.evidenceDiversityScore;
+      depMetrics.posteriorFragilityScore = analysis.metrics.posteriorFragilityScore;
+      depMetrics.concentrationPenalty = analysis.metrics.concentrationPenalty;
+      depMetrics.independentEvidenceFamilyCount = analysis.independentSignals.length;
+      depMetrics.rawSignalCount = signals.length;
+      depMetrics.compressedSignalCount = analysis.compressedSignals.length;
+
+      if (analysis.confidenceCeiling.maxAllowedProbability < 1) {
+        depMetrics.confidenceCeilingApplied = analysis.confidenceCeiling.maxAllowedProbability;
+        depMetrics.confidenceCeilingReason = analysis.confidenceCeiling.reason ?? null;
+      }
+
+      const positiveSignals = signals
+        .filter(s => (s.likelihoodRatio ?? 1) > 1)
+        .sort((a, b) => (b.likelihoodRatio ?? 1) - (a.likelihoodRatio ?? 1))
+        .slice(0, 5)
+        .map(s => ({ desc: s.signalDescription?.slice(0, 120) ?? "", lr: s.likelihoodRatio ?? 1 }));
+
+      const negativeSignals = signals
+        .filter(s => (s.likelihoodRatio ?? 1) < 1)
+        .sort((a, b) => (a.likelihoodRatio ?? 1) - (b.likelihoodRatio ?? 1))
+        .slice(0, 5)
+        .map(s => ({ desc: s.signalDescription?.slice(0, 120) ?? "", lr: s.likelihoodRatio ?? 1 }));
+
+      depMetrics.keyDriversSummary = JSON.stringify(positiveSignals);
+      depMetrics.counterSignalsSummary = JSON.stringify(negativeSignals);
+
+      const clusterSummary = analysis.clusters.map(cl => ({
+        rootDesc: cl.rootSignal.signal.signalDescription?.slice(0, 120) ?? "",
+        cluster: cl.rootSignal.sourceCluster,
+        count: cl.clusterSignalCount,
+        compressed: cl.compressedSignalCount,
+        echoes: cl.echoCount,
+        translations: cl.translationCount,
+      }));
+      depMetrics.topLineageClusters = JSON.stringify(clusterSummary);
+
+      depMetrics.snapshotJson = JSON.stringify({
+        metrics: analysis.metrics,
+        confidenceCeiling: analysis.confidenceCeiling,
+        warnings: analysis.warnings,
+        comparison,
+        clusterCount: analysis.clusters.length,
+        independentCount: analysis.independentSignals.length,
+      });
+    }
+  } catch (err) {
+    console.error("Failed to capture dependency metrics for ledger entry:", err);
+  }
+
   const [entry] = await db.insert(forecastLedgerTable).values({
     id: randomUUID(),
     predictionId,
     caseId,
     strategicQuestion: caseData.strategicQuestion ?? "Unspecified question",
     decisionDomain: caseData.therapeuticArea ?? null,
+    comparisonGroups: comparisonGroups?.length ? JSON.stringify(comparisonGroups) : null,
     forecastProbability,
     forecastDate: new Date(),
     timeHorizon: timeHorizon || caseData.timeHorizon || "12 months",
     expectedResolutionDate: expectedResolutionDate ? new Date(expectedResolutionDate) : null,
     priorProbability: caseData.priorProbability,
     confidenceLevel: caseData.confidenceLevel,
+    ...depMetrics,
     updateVersion: nextVersion,
     previousPredictionId,
     updateRationale: rationale || (nextVersion === 1 ? "Initial forecast" : null),

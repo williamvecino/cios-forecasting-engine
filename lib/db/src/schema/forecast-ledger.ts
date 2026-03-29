@@ -6,6 +6,7 @@ export const forecastLedgerTable = pgTable("forecast_ledger", {
   caseId: text("case_id").notNull(),
   strategicQuestion: text("strategic_question").notNull(),
   decisionDomain: text("decision_domain"),
+  comparisonGroups: text("comparison_groups"),
   forecastProbability: real("forecast_probability").notNull(),
   forecastDate: timestamp("forecast_date").notNull().defaultNow(),
   timeHorizon: text("time_horizon").notNull(),
