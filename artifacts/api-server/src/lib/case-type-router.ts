@@ -428,6 +428,11 @@ export function isRegulatoryCase(question: string, caseType?: string): boolean {
     "breakthrough therapy", "accelerated approval",
     "priority review", "fast track",
     "regulatory decision", "regulatory outcome",
+    "regulators", "regulator ",
+    "european regulat", "health authority", "health authorities",
+    "mhra", "pmda", "tga", "anvisa", "nmpa",
+    "marketing authoriz", "market authoris",
+    "chmp", "chmp opinion",
   ];
   const negativePatterns = [
     "adoption", "market share", "prescriber", "formulary",
