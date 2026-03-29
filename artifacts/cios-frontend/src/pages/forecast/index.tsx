@@ -888,7 +888,55 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           if (raw) decomp = JSON.parse(raw);
         } catch {}
 
-        const hasGates = decomp && decomp.event_gates && decomp.event_gates.length > 0;
+        let hasGates = decomp && decomp.event_gates && decomp.event_gates.length > 0;
+
+        if (!hasGates) {
+          const currentProb = f.currentProbability ?? 0.5;
+          const defaultGates = [
+            {
+              gate_id: "clinical_evidence",
+              gate_label: "Clinical Evidence Strength",
+              description: "Adequacy of clinical data to support the forecasted outcome.",
+              status: currentProb >= 0.65 ? "strong" : currentProb >= 0.45 ? "moderate" : "weak",
+              reasoning: "Based on the strength and direction of accepted clinical signals.",
+              constrains_probability_to: Math.min(0.95, currentProb + 0.15),
+            },
+            {
+              gate_id: "market_access",
+              gate_label: "Market Access & Reimbursement",
+              description: "Payer coverage, formulary positioning, and reimbursement pathway clarity.",
+              status: currentProb >= 0.60 ? "moderate" : "weak",
+              reasoning: "Payer access signals determine achievable uptake ceiling.",
+              constrains_probability_to: Math.min(0.90, currentProb + 0.10),
+            },
+            {
+              gate_id: "competitive_landscape",
+              gate_label: "Competitive Barrier Clearance",
+              description: "Degree to which competitive dynamics constrain or enable the outcome.",
+              status: currentProb >= 0.55 ? "strong" : currentProb >= 0.35 ? "moderate" : "weak",
+              reasoning: "Competitive positioning relative to alternatives in the market.",
+              constrains_probability_to: Math.min(0.90, currentProb + 0.20),
+            },
+            {
+              gate_id: "adoption_readiness",
+              gate_label: "HCP Adoption Readiness",
+              description: "Prescriber willingness and behavioral readiness to change practice.",
+              status: currentProb >= 0.60 ? "moderate" : currentProb >= 0.40 ? "weak" : "unresolved",
+              reasoning: "Based on behavioral barrier signals and adoption driver strength.",
+              constrains_probability_to: Math.min(0.85, currentProb + 0.05),
+            },
+          ];
+          decomp = {
+            event_gates: defaultGates,
+            brand_outlook_probability: currentProb,
+            constrained_probability: computeConstrainedProbability(defaultGates, currentProb),
+            constraint_explanation: "Default gates generated from signal evidence.",
+          };
+          hasGates = true;
+          try {
+            localStorage.setItem(`cios.eventDecomposition:${caseKey}`, JSON.stringify(decomp));
+          } catch {}
+        }
         const brandOutlookProb = hasGates ? decomp!.brand_outlook_probability : null;
         let constrainedProb: number | null = null;
         if (hasGates) {
