@@ -29,3 +29,4 @@ export * from "./case-feedback";
 export * from "./readiness-timeline";
 export * from "./competitive-risk";
 export * from "./growth-feasibility";
+export * from "./simulation-scenarios";

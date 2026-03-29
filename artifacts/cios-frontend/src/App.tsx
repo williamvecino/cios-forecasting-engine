@@ -26,6 +26,7 @@ import ForecastPage from "@/pages/forecast/index";
 import DecidePage from "@/pages/decide/index";
 import RespondPage from "@/pages/respond/index";
 import SimulatePage from "@/pages/simulate/index";
+import SimulationEnginePage from "@/pages/simulate/simulation-engine";
 import ComparisonGroupsPage from "@/pages/comparison-groups/index";
 import ForecastLedgerPage from "@/pages/forecast-ledger/index";
 import ReferenceCasesPage from "@/pages/reference-cases/index";
@@ -85,6 +86,7 @@ function Router() {
       <Route path="/decide" component={DecidePage} />
       <Route path="/respond" component={RespondPage} />
       <Route path="/simulate" component={SimulatePage} />
+      <Route path="/simulation-engine" component={SimulationEnginePage} />
 
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/cases" component={CasesList} />
