@@ -37,6 +37,9 @@ interface ExternalSignalScoutResult {
 interface Props {
   activeQuestion: string;
   subject?: string;
+  programId?: string;
+  therapeuticArea?: string;
+  indication?: string;
   timeHorizon?: string;
   existingSignalTexts: string[];
   onAcceptSignal: (signal: {
@@ -83,6 +86,9 @@ const TYPE_TO_CATEGORY: Record<string, string> = {
 export default function ExternalSignalScoutPanel({
   activeQuestion,
   subject,
+  programId,
+  therapeuticArea,
+  indication,
   timeHorizon,
   existingSignalTexts,
   onAcceptSignal,
@@ -108,6 +114,10 @@ export default function ExternalSignalScoutPanel({
         body: JSON.stringify({
           activeQuestion,
           subject,
+          brand: subject,
+          programId,
+          therapeuticArea,
+          indication,
           timeHorizon,
           existingSignals: existingSignalTexts,
         }),

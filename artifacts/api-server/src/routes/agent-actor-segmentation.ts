@@ -55,6 +55,13 @@ router.post("/agents/actor-segmentation", async (req: Request, res: Response) =>
 
 PURPOSE: Given a decision question about a specific drug/brand, identify ONLY the 3-6 stakeholders who directly influence whether ${input.brand || "this product"} gets adopted. Think like a pharma launch strategist — who actually moves the needle on this drug's adoption?
 
+═══ SCOPE CONSTRAINT (MANDATORY) ═══
+You operate ONLY within the scope of ${input.brand || "the active brand"}.
+You must NOT generate, retrieve, or infer stakeholders, signals, or context from brands, drugs, or programs outside the active brand.
+Any reference to Entresto, Repatha, Ofev, Keytruda, Humira, or ANY non-active-brand name is a SCOPE VIOLATION and must be rejected.
+The ONLY brand you may reference is ${input.brand || "the active brand"}. All other brand names are out of scope.
+═══ END SCOPE CONSTRAINT ═══
+
 SCOPE BOUNDARY — what you must NOT do:
 - Do NOT simulate how actors react to scenarios. That is the Stakeholder Reaction agent's job.
 - Do NOT estimate probabilities or forecast outcomes. That is the forecast engine's job.

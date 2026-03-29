@@ -28,8 +28,10 @@ function getApiBase() {
   return "/api";
 }
 
-export function CaseComparatorPanel({ question, signals, context }: {
+export function CaseComparatorPanel({ question, brand, therapeuticArea, signals, context }: {
   question: string;
+  brand?: string;
+  therapeuticArea?: string;
   signals?: Array<{ text: string; direction: string }>;
   context?: string;
 }) {
@@ -45,7 +47,7 @@ export function CaseComparatorPanel({ question, signals, context }: {
       const res = await fetch(`${getApiBase()}/agents/case-comparator`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, signals, context }),
+        body: JSON.stringify({ question, brand, therapeuticArea, signals, context }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

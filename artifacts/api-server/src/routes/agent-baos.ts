@@ -52,6 +52,13 @@ router.post("/agents/baos", async (req, res) => {
 
 Your single job: given clinical evidence from MIOS about ${input.brand}, identify the cognitive barriers and behavioral objections that healthcare providers (HCPs) will have.
 
+═══ SCOPE CONSTRAINT (MANDATORY) ═══
+You operate ONLY within the scope of ${input.brand}.
+You must NOT generate, retrieve, or infer barriers from brands, drugs, or programs outside ${input.brand}.
+Any reference to Entresto, Repatha, Ofev, Keytruda, Humira, or ANY non-active-brand name is a SCOPE VIOLATION and must be rejected — unless ${input.brand} IS that brand.
+The ONLY brand you may analyze barriers for is ${input.brand}. All other brand names are out of scope.
+═══ END SCOPE CONSTRAINT ═══
+
 WORKFLOW:
 1. Review each piece of MIOS evidence about ${input.brand}
 2. For each, identify what cognitive bias or behavioral barrier would affect HCP adoption

@@ -1321,6 +1321,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
       <CaseComparatorPanel
         question={activeQuestion?.text || ""}
+        brand={activeQuestion?.subject}
+        therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
         signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
         context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
       />

@@ -77,6 +77,8 @@ All agents follow canonical invariants: bounded (fixed I/O schema), deterministi
 
 **Brand-Anchoring Audit (Complete):** All decision-facing agents (Actor Segmentation, Case Comparator, Prioritization, Stakeholder Reaction, External Signal Scout) accept `brand` and `therapeuticArea` fields and enforce domain-specific reasoning. Agents produce only stakeholders, analogs, actions, reactions, and signals relevant to the specific drug and therapeutic area — no generic consulting output.
 
+**ProgramID Scope Constraint (Enforced):** All 7 agents (MIOS, BAOS, External Signal Scout, Actor Segmentation, Case Comparator, Prioritization, Stakeholder Reaction) include a mandatory SCOPE CONSTRAINT block in their system prompts. Agents operate ONLY on signals for the active ProgramID. Any reference to non-active brands (Entresto, Repatha, Ofev, Keytruda, Humira, etc.) is rejected as a scope violation unless the active brand IS that brand. External Signal Scout additionally accepts `programId` field. Frontend panels pass `brand` (from `activeQuestion.subject`) and `therapeuticArea` (from `localStorage("cios.therapeuticArea")`) to all agent API calls. MIOS/BAOS require `brand` (400 if missing — by design). `therapeuticArea` is distinct from `subject` (brand name) and sourced from the AI classification pipeline.
+
 **Validation Harness:** 13 core tests (A-M) + 40 cross-domain tests (4 cases × 10 agents) in `agent-validation-harness.ts`. 43 locked unit tests.
 **Cross-Domain Test Cases:** Oncology (anti-PDL1 RFP), Cardiology (beta-blocker combo), MedTech (AI liquid biopsy), Rare Disease (gene therapy), Digital Health (PDT for T2D).
 

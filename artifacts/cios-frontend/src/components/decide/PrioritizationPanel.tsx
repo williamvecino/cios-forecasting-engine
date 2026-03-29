@@ -41,8 +41,10 @@ const CATEGORY_CONFIG: Record<string, { icon: typeof Zap; color: string; label: 
   hedge: { icon: Shield, color: "text-red-400", label: "Hedge" },
 };
 
-export function PrioritizationPanel({ question, probability, signals, actors, context }: {
+export function PrioritizationPanel({ question, brand, therapeuticArea, probability, signals, actors, context }: {
   question: string;
+  brand?: string;
+  therapeuticArea?: string;
   probability?: number;
   signals?: Array<{ text: string; direction: string; strength: string }>;
   actors?: Array<{ name: string; influenceWeight: number }>;
@@ -60,7 +62,7 @@ export function PrioritizationPanel({ question, probability, signals, actors, co
       const res = await fetch(`${getApiBase()}/agents/prioritization`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, probability, signals, actors, context }),
+        body: JSON.stringify({ question, brand, therapeuticArea, probability, signals, actors, context }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

@@ -40,6 +40,13 @@ router.post("/agents/mios", async (req, res) => {
 
 Your single job: find brand-specific clinical evidence for ${input.brand} that is relevant to the forecasting question.
 
+═══ SCOPE CONSTRAINT (MANDATORY) ═══
+You operate ONLY within the scope of ${input.brand}.
+You must NOT generate, retrieve, or infer signals from brands, drugs, or programs outside ${input.brand}.
+Any reference to Entresto, Repatha, Ofev, Keytruda, Humira, or ANY non-active-brand name is a SCOPE VIOLATION and must be rejected — unless ${input.brand} IS that brand.
+The ONLY brand you may produce evidence for is ${input.brand}. All other brand names are out of scope.
+═══ END SCOPE CONSTRAINT ═══
+
 WORKFLOW:
 1. Identify the BELIEF SHIFTS needed for ${input.brand} adoption — what must physicians come to believe for this product to succeed?
 2. Search for clinical evidence that supports or undermines each belief shift. Think like a PubMed search: find specific trial results, FDA regulatory actions, safety data, real-world evidence.

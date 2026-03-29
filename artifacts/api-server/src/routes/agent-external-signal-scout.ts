@@ -7,6 +7,7 @@ interface ExternalSignalScoutInput {
   activeQuestion: string;
   subject?: string;
   brand?: string;
+  programId?: string;
   therapeuticArea?: string;
   indication?: string;
   timeHorizon?: string;
@@ -53,6 +54,7 @@ router.post("/agents/external-signal-scout", async (req, res) => {
     const activeQuestion = body.activeQuestion.trim();
     const subject = body.subject || body.brand || "";
     const brand = body.brand || body.subject || "";
+    const programId = body.programId || "";
     const therapeuticArea = body.therapeuticArea || "";
     const indication = body.indication || "";
     const timeHorizon = body.timeHorizon || "12 months";
@@ -68,38 +70,47 @@ Your single job: identify 5-10 relevant EXTERNAL signals that could affect the o
 
 Decision question: "${activeQuestion}"
 ${brand ? `Brand: ${brand}` : ""}
-${subject && subject !== brand ? `Subject: ${subject}` : ""}
+${programId ? `ProgramID: ${programId}` : ""}
 ${therapeuticArea ? `Therapeutic Area: ${therapeuticArea}` : ""}
 ${indication ? `Indication: ${indication}` : ""}
 Time horizon: ${timeHorizon}
 ${existingContext}
 
+═══ SCOPE CONSTRAINT (MANDATORY) ═══
+You operate ONLY within the scope of the active ProgramID${programId ? ` (${programId})` : ""} for ${brand || "the active brand"}.
+You must NOT generate, retrieve, or infer signals from brands, drugs, or programs outside the active ProgramID.
+Any reference to Entresto, Repatha, Ofev, Keytruda, Humira, or ANY non-active-brand name is a SCOPE VIOLATION and must be rejected.
+The ONLY brand you may reference is ${brand || "the active brand"}. All other brand names are out of scope.
+If you cannot produce signals within scope, return an empty candidates array — do NOT fill with out-of-scope content.
+═══ END SCOPE CONSTRAINT ═══
+
 SCOPE BOUNDARY — what you must NOT do:
-- Do NOT generate brand-specific clinical evidence (trial results, efficacy data, safety profiles, FDA approvals for the subject brand). That is MIOS's job.
-- Do NOT generate adoption barriers or behavioral objections for the subject brand. That is BAOS's job.
+- Do NOT generate brand-specific clinical evidence (trial results, efficacy data, safety profiles, FDA approvals for ${brand || "the subject brand"}). That is MIOS's job.
+- Do NOT generate adoption barriers or behavioral objections for ${brand || "the subject brand"}. That is BAOS's job.
 - Do NOT estimate probabilities or forecast outcomes. That is the forecast engine's job.
 - Do NOT identify market actors or stakeholders. That is the Actor Segmentation agent's job.
 - Do NOT resolve signal conflicts. That is the Conflict Resolver's job.
+- Do NOT reference or generate signals about any drug/brand other than ${brand || "the active brand"} and its direct competitors within ${therapeuticArea || "the same therapeutic area"}.
 
 SCOPE — what you SHOULD find:
-- Competitor actions, launches, or pipeline events that affect this decision IN THIS THERAPEUTIC AREA
-- Regulatory environment changes (guideline updates, policy shifts, CMS rules) relevant to this drug category
-- Payer landscape changes (formulary decisions, prior auth policy changes) specific to this therapeutic area
-- Market dynamics (pricing trends, generic entry timelines, market access shifts) for this drug class
-- External clinical events (competitor trial readouts, conference presentations) in this disease area
-- System-level changes affecting THIS therapeutic area specifically
+- Competitor actions, launches, or pipeline events that affect ${brand || "this drug"}'s position IN ${therapeuticArea || "THIS THERAPEUTIC AREA"}
+- Regulatory environment changes (guideline updates, policy shifts, CMS rules) relevant to ${brand || "this drug"}'s drug category
+- Payer landscape changes (formulary decisions, prior auth policy changes) specific to ${therapeuticArea || "this therapeutic area"}
+- Market dynamics (pricing trends, generic entry timelines, market access shifts) for ${brand || "this drug"}'s drug class
+- External clinical events (competitor trial readouts, conference presentations) in ${indication || "this disease area"}
+- System-level changes affecting ${therapeuticArea || "THIS therapeutic area"} specifically
 
 Rules:
-1. Only suggest signals that are plausibly real and relevant to this specific decision.
-2. Every signal must be relevant to the SAME therapeutic area and disease context as the question. Do NOT surface signals from unrelated therapeutic areas — a cardiology signal is noise for an oncology question.
+1. Only suggest signals that are plausibly real and relevant to this specific decision about ${brand || "the active brand"}.
+2. Every signal must be relevant to ${brand || "the active brand"} within ${therapeuticArea || "its therapeutic area"}. Do NOT surface signals from unrelated therapeutic areas or unrelated brands.
 3. Each signal must have a specific source (e.g., "FDA advisory committee", "CMS proposed rule", "ASCO 2025 abstract", "competitor 10-K filing").
 4. Each signal must have a plausible date or timeframe.
 5. Do NOT forecast. Signals describe what has happened or is expected to happen, not what the outcome will be.
 6. Do NOT duplicate any existing signals the user already has.
-7. Prioritize signals by relevance to the decision. Cut anything that would not matter to the brand team.
+7. Prioritize signals by relevance to ${brand || "the active brand"}. Cut anything that would not matter to this specific brand team.
 8. Signal types: regulatory, competitive, clinical, market, payer, guideline, pipeline, safety, economic.
 9. Be specific — "FDA approved competitor drug X for NSCLC" not "regulatory changes."
-10. Think: "Would a pharma strategist put this signal on the competitive landscape slide for this drug?" If not, leave it out.
+10. Think: "Would ${brand || "this brand"}'s team put this signal on their competitive landscape slide?" If not, leave it out.
 
 Respond with valid JSON only. No markdown, no explanation.
 

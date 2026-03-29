@@ -541,6 +541,8 @@ export default function DecisionPanels() {
 
               <PrioritizationPanel
                 question={activeQuestion?.text || ""}
+                brand={activeQuestion?.subject}
+                therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
                 probability={fc?.brand_outlook ? Math.round(fc.brand_outlook * 100) : undefined}
                 context={`Decision page context. Gate count: ${fc?.gate_count || 0}. Weak gates: ${fc?.weak_gate_count || 0}.`}
               />

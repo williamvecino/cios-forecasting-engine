@@ -453,6 +453,7 @@ export default function SignalsPage() {
   const subject = activeQuestion?.subject;
   const outcome = activeQuestion?.outcome;
   const timeHorizon = activeQuestion?.timeHorizon;
+  const storedTherapeuticArea = typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined;
   const isComparative = questionType === "comparative" && entities.length >= 2;
 
   const questionCtx: QuestionContext = useMemo(() => ({
@@ -1448,6 +1449,8 @@ export default function SignalsPage() {
           <ExternalSignalScoutPanel
             activeQuestion={questionText}
             subject={subject}
+            programId={subject ? `SCOUT-${subject.toUpperCase().replace(/\s+/g, "_")}` : undefined}
+            therapeuticArea={storedTherapeuticArea}
             timeHorizon={activeQuestion?.timeHorizon}
             existingSignalTexts={allSignals.map((s) => s.text)}
             onAcceptSignal={(sig) => {

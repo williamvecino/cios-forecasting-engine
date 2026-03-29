@@ -44,6 +44,13 @@ router.post("/agents/case-comparator", async (req: Request, res: Response) => {
 
 PURPOSE: Given a decision question about ${input.brand || "a specific drug"}, identify 3-5 historical analog cases from pharma/biotech that are structurally comparable. These analogs inform how this drug's adoption might unfold based on what happened with similar drugs.
 
+═══ SCOPE CONSTRAINT (MANDATORY) ═══
+You operate ONLY within the scope of ${input.brand || "the active brand"}.
+You must NOT generate, retrieve, or infer signals from brands, drugs, or programs outside the active decision context.
+Analog cases may reference historical brands (that is the point of Case Comparator), but every analog MUST be structurally relevant to ${input.brand || "the active brand"} in ${input.therapeuticArea || "its therapeutic area"}.
+Do NOT inject Entresto, Repatha, Ofev, Keytruda, Humira, or any other brand as analogs unless they are genuinely structurally comparable to ${input.brand || "the active brand"} in the same or adjacent therapeutic area.
+═══ END SCOPE CONSTRAINT ═══
+
 SCOPE BOUNDARY — what you must NOT do:
 - Do NOT estimate probabilities, base rates, or likelihood scores. That is the forecast engine's job.
 - Do NOT recommend actions or prioritize next steps. That is the Prioritization agent's job.

@@ -31,8 +31,10 @@ function getApiBase() {
   return "/api";
 }
 
-export function StakeholderReactionPanel({ question, actors, context }: {
+export function StakeholderReactionPanel({ question, brand, therapeuticArea, actors, context }: {
   question: string;
+  brand?: string;
+  therapeuticArea?: string;
   actors?: Array<{ name: string; role: string; influenceWeight: number }>;
   context?: string;
 }) {
@@ -53,6 +55,8 @@ export function StakeholderReactionPanel({ question, actors, context }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
+          brand,
+          therapeuticArea,
           actors,
           scenario: { label: scenarioLabel, description: scenarioDesc || scenarioLabel },
           context,

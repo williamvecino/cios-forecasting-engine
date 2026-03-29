@@ -523,12 +523,16 @@ export default function SimulatePage() {
 
         <ActorSegmentationPanel
           question={activeQuestion?.text || ""}
+          brand={activeQuestion?.subject}
+          therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
           signals={[]}
           context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
         />
 
         <StakeholderReactionPanel
           question={activeQuestion?.text || ""}
+          brand={activeQuestion?.subject}
+          therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
           context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
         />
       </QuestionGate>

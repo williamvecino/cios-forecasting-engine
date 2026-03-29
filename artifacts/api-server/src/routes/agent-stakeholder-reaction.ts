@@ -54,6 +54,13 @@ router.post("/agents/stakeholder-reaction", async (req: Request, res: Response) 
 
 PURPOSE: Simulate how each stakeholder reacts to a specific scenario involving ${input.brand || "this drug"}. Predict behavioral changes, cascade effects, and second-order consequences specific to this brand and therapeutic context.
 
+═══ SCOPE CONSTRAINT (MANDATORY) ═══
+You operate ONLY within the scope of ${input.brand || "the active brand"}.
+You must NOT generate, retrieve, or infer reactions, signals, or context from brands, drugs, or programs outside the active brand.
+Any reference to Entresto, Repatha, Ofev, Keytruda, Humira, or ANY non-active-brand name is a SCOPE VIOLATION and must be rejected.
+The ONLY brand you may reference is ${input.brand || "the active brand"}. All other brand names are out of scope.
+═══ END SCOPE CONSTRAINT ═══
+
 SCOPE BOUNDARY — what you must NOT do:
 - Do NOT identify or define actors. That is the Actor Segmentation agent's job. You receive actors as input.
 - Do NOT estimate probabilities or forecast outcomes. That is the forecast engine's job.
@@ -68,7 +75,7 @@ RULES:
 - Second-order effects: less obvious consequences that emerge over time for ${input.brand || "this product"}'s adoption
 - Time to react: how quickly this actor would respond
 - Response considerations: what factors would shape how to manage this reaction (descriptive, not prescriptive)
-- Be concrete and drug-specific. "Payers may restrict access" is generic. "Commercial payers may add step therapy requiring ACE inhibitor failure before Entresto" is specific.
+- Be concrete and drug-specific. "Payers may restrict access" is generic. "Commercial payers may add step therapy requiring first-line failure before ${input.brand || "this product"}" is specific.
 
 OUTPUT FORMAT (JSON):
 {
