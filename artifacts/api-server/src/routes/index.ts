@@ -55,6 +55,7 @@ import barrierDiagnosisRouter from "./barrier-diagnosis.js";
 import caseFeedbackRouter from "./case-feedback.js";
 import caseTypeRouter from "./case-type.js";
 import readinessTimelineRouter from "./readiness-timeline.js";
+import competitiveRiskRouter from "./competitive-risk.js";
 
 const router: IRouter = Router();
 
@@ -114,5 +115,6 @@ router.use(barrierDiagnosisRouter);
 router.use(caseFeedbackRouter);
 router.use(caseTypeRouter);
 router.use(readinessTimelineRouter);
+router.use(competitiveRiskRouter);
 
 export default router;
