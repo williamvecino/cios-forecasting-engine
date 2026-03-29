@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, FlaskConical, Brain, CheckCircle2, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Loader2, FlaskConical, Brain, CheckCircle2, XCircle, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Check, X, RotateCcw } from "lucide-react";
 
 interface MiosEvidence {
   beliefShift: string;
@@ -68,6 +68,8 @@ function getApiBase() {
   return "/api";
 }
 
+type SignalDecision = "pending" | "accepted" | "rejected";
+
 export default function MiosBaosPanel({
   brand,
   question,
@@ -88,12 +90,19 @@ export default function MiosBaosPanel({
   const [error, setError] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<"mios" | "baos" | null>(null);
 
+  const [miosDecisions, setMiosDecisions] = useState<SignalDecision[]>([]);
+  const [baosDecisions, setBaosDecisions] = useState<SignalDecision[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+
   async function runMiosBaos() {
     setLoading(true);
     setError(null);
     setPhase("mios");
     setMiosResult(null);
     setBaosResult(null);
+    setMiosDecisions([]);
+    setBaosDecisions([]);
+    setSubmitted(false);
 
     try {
       const miosRes = await fetch(`${getApiBase()}/agents/mios`, {
@@ -104,6 +113,7 @@ export default function MiosBaosPanel({
       if (!miosRes.ok) throw new Error(`MIOS failed: HTTP ${miosRes.status}`);
       const mios: MiosResult = await miosRes.json();
       setMiosResult(mios);
+      setMiosDecisions(mios.evidenceSignals.map(() => "pending" as SignalDecision));
 
       setPhase("baos");
       const baosRes = await fetch(`${getApiBase()}/agents/baos`, {
@@ -120,7 +130,9 @@ export default function MiosBaosPanel({
       if (!baosRes.ok) throw new Error(`BAOS failed: HTTP ${baosRes.status}`);
       const baos: BaosResult = await baosRes.json();
       setBaosResult(baos);
+      setBaosDecisions(baos.barrierSignals.map(() => "pending" as SignalDecision));
       setPhase("done");
+      setExpandedSection("mios");
     } catch (e: any) {
       setError(e.message);
       setPhase("idle");
@@ -129,12 +141,42 @@ export default function MiosBaosPanel({
     }
   }
 
-  function acceptAll() {
+  function setMiosDecision(index: number, decision: SignalDecision) {
+    setMiosDecisions(prev => {
+      const next = [...prev];
+      next[index] = decision;
+      return next;
+    });
+  }
+
+  function setBaosDecision(index: number, decision: SignalDecision) {
+    setBaosDecisions(prev => {
+      const next = [...prev];
+      next[index] = decision;
+      return next;
+    });
+  }
+
+  function acceptAllMios() {
+    setMiosDecisions(prev => prev.map(() => "accepted"));
+  }
+
+  function acceptAllBaos() {
+    setBaosDecisions(prev => prev.map(() => "accepted"));
+  }
+
+  function acceptAllSignals() {
+    setMiosDecisions(prev => prev.map(() => "accepted"));
+    setBaosDecisions(prev => prev.map(() => "accepted"));
+  }
+
+  function submitSelected() {
     const signals: AcceptedSignal[] = [];
     const brandUpper = brand.toUpperCase().replace(/\s+/g, "_");
 
     if (miosResult) {
       miosResult.evidenceSignals.forEach((e, i) => {
+        if (miosDecisions[i] !== "accepted") return;
         const str = e.strength as "High" | "Medium" | "Low";
         signals.push({
           id: `mios_${brandUpper.toLowerCase()}_${i}`,
@@ -164,6 +206,7 @@ export default function MiosBaosPanel({
 
     if (baosResult) {
       baosResult.barrierSignals.forEach((b, i) => {
+        if (baosDecisions[i] !== "accepted") return;
         const str = b.strength as "High" | "Medium" | "Low";
         signals.push({
           id: `baos_${brandUpper.toLowerCase()}_${i}`,
@@ -191,10 +234,19 @@ export default function MiosBaosPanel({
       });
     }
 
+    setSubmitted(true);
     onAcceptSignals(signals);
   }
 
-  const totalSignals = (miosResult?.evidenceSignals.length || 0) + (baosResult?.barrierSignals.length || 0);
+  const acceptedMiosCount = miosDecisions.filter(d => d === "accepted").length;
+  const rejectedMiosCount = miosDecisions.filter(d => d === "rejected").length;
+  const pendingMiosCount = miosDecisions.filter(d => d === "pending").length;
+  const acceptedBaosCount = baosDecisions.filter(d => d === "accepted").length;
+  const rejectedBaosCount = baosDecisions.filter(d => d === "rejected").length;
+  const pendingBaosCount = baosDecisions.filter(d => d === "pending").length;
+  const totalAccepted = acceptedMiosCount + acceptedBaosCount;
+  const totalPending = pendingMiosCount + pendingBaosCount;
+  const hasPending = totalPending > 0;
 
   return (
     <div className="rounded-xl border border-violet-500/30 bg-violet-500/5">
@@ -234,26 +286,47 @@ export default function MiosBaosPanel({
         </div>
       )}
 
-      {phase === "done" && miosResult && baosResult && (
+      {phase === "done" && miosResult && baosResult && !submitted && (
         <div className="p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-xs font-medium text-cyan-300">{miosResult.evidenceSignals.length} MIOS</span>
+                <span className="text-xs font-medium text-cyan-300">
+                  {miosResult.evidenceSignals.length} MIOS
+                  {acceptedMiosCount > 0 && <span className="text-emerald-400 ml-1">({acceptedMiosCount} accepted)</span>}
+                  {rejectedMiosCount > 0 && <span className="text-rose-400 ml-1">({rejectedMiosCount} rejected)</span>}
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Brain className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-medium text-amber-300">{baosResult.barrierSignals.length} BAOS</span>
+                <span className="text-xs font-medium text-amber-300">
+                  {baosResult.barrierSignals.length} BAOS
+                  {acceptedBaosCount > 0 && <span className="text-emerald-400 ml-1">({acceptedBaosCount} accepted)</span>}
+                  {rejectedBaosCount > 0 && <span className="text-rose-400 ml-1">({rejectedBaosCount} rejected)</span>}
+                </span>
               </div>
             </div>
-            <button
-              onClick={acceptAll}
-              className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer"
-            >
-              <CheckCircle2 className="w-3 h-3" />
-              Accept All ({totalSignals})
-            </button>
+            <div className="flex items-center gap-2">
+              {hasPending && (
+                <button
+                  onClick={acceptAllSignals}
+                  className="flex items-center gap-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-500/20 transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Accept All
+                </button>
+              )}
+              {totalAccepted > 0 && (
+                <button
+                  onClick={submitSelected}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Add {totalAccepted} Signal{totalAccepted !== 1 ? "s" : ""}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5">
@@ -267,7 +340,20 @@ export default function MiosBaosPanel({
                   MIOS — Clinical Evidence ({miosResult.evidenceSignals.length})
                 </span>
               </div>
-              {expandedSection === "mios" ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-cyan-400" />}
+              <div className="flex items-center gap-2">
+                {pendingMiosCount > 0 && pendingMiosCount < miosResult.evidenceSignals.length && (
+                  <span className="text-[10px] text-muted-foreground">{pendingMiosCount} pending</span>
+                )}
+                {acceptedMiosCount > 0 && (
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); acceptAllMios(); }}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-300 transition"
+                  >
+                    Accept all
+                  </button>
+                )}
+                {expandedSection === "mios" ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-cyan-400" />}
+              </div>
             </button>
             {expandedSection === "mios" && (
               <div className="px-4 pb-4 space-y-2">
@@ -279,24 +365,75 @@ export default function MiosBaosPanel({
                     ))}
                   </div>
                 )}
-                {miosResult.evidenceSignals.map((e, i) => (
-                  <div key={i} className="rounded-lg bg-slate-800/50 border border-border p-3 space-y-1.5">
-                    <div className="flex items-start gap-2">
-                      {e.direction === "positive" ? (
-                        <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      ) : (
-                        <ArrowDownRight className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                {miosResult.evidenceSignals.map((e, i) => {
+                  const decision = miosDecisions[i];
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-lg border p-3 space-y-2 transition-all ${
+                        decision === "accepted"
+                          ? "bg-emerald-500/5 border-emerald-500/30"
+                          : decision === "rejected"
+                          ? "bg-rose-500/5 border-rose-500/20 opacity-60"
+                          : "bg-slate-800/50 border-border"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {e.direction === "positive" ? (
+                          <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        ) : (
+                          <ArrowDownRight className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                        )}
+                        <span className="text-xs text-foreground/90 leading-relaxed flex-1">{e.evidenceText}</span>
+                      </div>
+                      <div className="text-[10px] text-cyan-400/70">{e.trialOrSource}</div>
+                      {e.whyItMatters && (
+                        <div className="text-[10px] text-foreground/60 italic">{e.whyItMatters}</div>
                       )}
-                      <span className="text-xs text-foreground/90 leading-relaxed">{e.evidenceText}</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2">
+                          <span className="text-[10px] text-muted-foreground">{e.strength}</span>
+                          <span className="text-[10px] text-muted-foreground">·</span>
+                          <span className="text-[10px] text-muted-foreground">{e.confidence}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {decision === "accepted" && (
+                            <button
+                              onClick={() => setMiosDecision(i, "pending")}
+                              className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition cursor-pointer"
+                            >
+                              <Check className="w-3 h-3" /> Accepted
+                            </button>
+                          )}
+                          {decision === "rejected" && (
+                            <button
+                              onClick={() => setMiosDecision(i, "pending")}
+                              className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition cursor-pointer"
+                            >
+                              <X className="w-3 h-3" /> Rejected
+                            </button>
+                          )}
+                          {decision === "pending" && (
+                            <>
+                              <button
+                                onClick={() => setMiosDecision(i, "accepted")}
+                                className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-emerald-400/70 hover:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20 transition cursor-pointer"
+                              >
+                                <Check className="w-3 h-3" /> Accept
+                              </button>
+                              <button
+                                onClick={() => setMiosDecision(i, "rejected")}
+                                className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-rose-400/70 hover:text-rose-400 bg-rose-500/5 hover:bg-rose-500/15 border border-rose-500/20 transition cursor-pointer"
+                              >
+                                <X className="w-3 h-3" /> Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[10px] text-cyan-400/70">{e.trialOrSource}</div>
-                    <div className="flex gap-2">
-                      <span className="text-[10px] text-muted-foreground">{e.strength}</span>
-                      <span className="text-[10px] text-muted-foreground">·</span>
-                      <span className="text-[10px] text-muted-foreground">{e.confidence}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {miosResult.searchSummary && (
                   <div className="text-xs text-muted-foreground/70 italic mt-2">{miosResult.searchSummary}</div>
                 )}
@@ -315,36 +452,142 @@ export default function MiosBaosPanel({
                   BAOS — Cognitive Barriers ({baosResult.barrierSignals.length})
                 </span>
               </div>
-              {expandedSection === "baos" ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
+              <div className="flex items-center gap-2">
+                {pendingBaosCount > 0 && pendingBaosCount < baosResult.barrierSignals.length && (
+                  <span className="text-[10px] text-muted-foreground">{pendingBaosCount} pending</span>
+                )}
+                {acceptedBaosCount > 0 && (
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); acceptAllBaos(); }}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 transition"
+                  >
+                    Accept all
+                  </button>
+                )}
+                {expandedSection === "baos" ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
+              </div>
             </button>
             {expandedSection === "baos" && (
               <div className="px-4 pb-4 space-y-2">
-                {baosResult.barrierSignals.map((b, i) => (
-                  <div key={i} className="rounded-lg bg-slate-800/50 border border-border p-3 space-y-1.5">
-                    <div className="flex items-start gap-2">
-                      {b.direction === "positive" ? (
-                        <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      ) : (
-                        <ArrowDownRight className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                {baosResult.barrierSignals.map((b, i) => {
+                  const decision = baosDecisions[i];
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-lg border p-3 space-y-2 transition-all ${
+                        decision === "accepted"
+                          ? "bg-emerald-500/5 border-emerald-500/30"
+                          : decision === "rejected"
+                          ? "bg-rose-500/5 border-rose-500/20 opacity-60"
+                          : "bg-slate-800/50 border-border"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {b.direction === "positive" ? (
+                          <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        ) : (
+                          <ArrowDownRight className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                        )}
+                        <span className="text-xs text-foreground/90 leading-relaxed flex-1">{b.barrierText}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded">{b.cognitiveLens}</span>
+                        <span className="text-[10px] text-muted-foreground">{b.affectedSegment}</span>
+                      </div>
+                      {b.whyItMatters && (
+                        <div className="text-[10px] text-foreground/60 italic">{b.whyItMatters}</div>
                       )}
-                      <span className="text-xs text-foreground/90 leading-relaxed">{b.barrierText}</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2">
+                          <span className="text-[10px] text-muted-foreground">{b.strength}</span>
+                          <span className="text-[10px] text-muted-foreground">·</span>
+                          <span className="text-[10px] text-muted-foreground">{b.confidence}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {decision === "accepted" && (
+                            <button
+                              onClick={() => setBaosDecision(i, "pending")}
+                              className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition cursor-pointer"
+                            >
+                              <Check className="w-3 h-3" /> Accepted
+                            </button>
+                          )}
+                          {decision === "rejected" && (
+                            <button
+                              onClick={() => setBaosDecision(i, "pending")}
+                              className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition cursor-pointer"
+                            >
+                              <X className="w-3 h-3" /> Rejected
+                            </button>
+                          )}
+                          {decision === "pending" && (
+                            <>
+                              <button
+                                onClick={() => setBaosDecision(i, "accepted")}
+                                className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-emerald-400/70 hover:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20 transition cursor-pointer"
+                              >
+                                <Check className="w-3 h-3" /> Accept
+                              </button>
+                              <button
+                                onClick={() => setBaosDecision(i, "rejected")}
+                                className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-rose-400/70 hover:text-rose-400 bg-rose-500/5 hover:bg-rose-500/15 border border-rose-500/20 transition cursor-pointer"
+                              >
+                                <X className="w-3 h-3" /> Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded">{b.cognitiveLens}</span>
-                      <span className="text-[10px] text-muted-foreground">{b.affectedSegment}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-[10px] text-muted-foreground">{b.strength}</span>
-                      <span className="text-[10px] text-muted-foreground">·</span>
-                      <span className="text-[10px] text-muted-foreground">{b.confidence}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {baosResult.barrierSummary && (
                   <div className="text-xs text-muted-foreground/70 italic mt-2">{baosResult.barrierSummary}</div>
                 )}
               </div>
             )}
+          </div>
+
+          {totalAccepted > 0 && (
+            <div className="flex items-center justify-end pt-2">
+              <button
+                onClick={submitSelected}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-4 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/25 transition cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Add {totalAccepted} Signal{totalAccepted !== 1 ? "s" : ""} to Forecast
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {submitted && (
+        <div className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-medium text-emerald-400">{totalAccepted} signal{totalAccepted !== 1 ? "s" : ""} added</span>
+              {(rejectedMiosCount + rejectedBaosCount) > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  ({rejectedMiosCount + rejectedBaosCount} rejected)
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setSubmitted(false);
+                setPhase("idle");
+                setMiosResult(null);
+                setBaosResult(null);
+                setMiosDecisions([]);
+                setBaosDecisions([]);
+              }}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Run Again
+            </button>
           </div>
         </div>
       )}
