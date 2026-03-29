@@ -1,11 +1,6 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useListCalibration, useGetCalibrationStats } from "@workspace/api-client-react";
-import { AppLayout } from "@/components/layout";
-import { Card, Badge, Button } from "@/components/ui-components";
-import WorkflowIndicator from "@/components/workflow-indicator";
-import DataFlowBox from "@/components/data-flow-box";
-import { moduleMeta } from "@/lib/module-meta";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   ScatterChart,
   Scatter,
@@ -17,1763 +12,808 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Cell,
   Label,
+  Cell,
 } from "recharts";
-import { BarChart2, Target, TrendingDown, TrendingUp, Minus, CheckCircle2, Clock, AlertTriangle, FlaskConical, ShieldCheck, ShieldAlert, Activity, FileSearch, ChevronRight, LayoutGrid, AlertCircle, ListOrdered, BookOpen, FilePlus2, Zap, CheckCircle, XCircle } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/cn";
+import {
+  Activity,
+  Target,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  BarChart2,
+  ShieldAlert,
+  BookOpen,
+  Filter,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  Layers,
+  GitBranch,
+  Minus,
+  Info,
+} from "lucide-react";
 
-interface ErrorPattern {
-  name: string;
-  coreType?: string;
-  category: "signal_type" | "actor";
-  sampleSize: number;
-  meanError: number;
-  meanBrierScore: number;
-  bias: "over" | "under" | "balanced" | "none";
+const API = import.meta.env.VITE_API_URL ?? "";
+
+interface DashboardData {
+  coreMetrics: {
+    totalForecasts: number;
+    resolvedForecasts: number;
+    openForecasts: number;
+    meanBrierScore: number | null;
+    medianBrierScore: number | null;
+    overconfidenceRate: number | null;
+    underconfidenceRate: number | null;
+    meanAbsoluteError: number | null;
+    forecastRevisionCount: number;
+    revisionImprovementRate: number | null;
+  };
+  calibrationBuckets: {
+    bucket: string;
+    count: number;
+    meanPredicted: number;
+    meanActual: number;
+    gap: number;
+    meanBrier: number;
+  }[];
+  biasPatterns: {
+    pattern: string;
+    count: number;
+    description: string;
+    entries: string[];
+  }[];
+  domainBreakdowns: {
+    domain: string;
+    totalForecasts: number;
+    resolvedCount: number;
+    openCount: number;
+    meanBrier: number | null;
+    meanError: number | null;
+  }[];
+  revisionAnalysis: {
+    caseId: string;
+    strategicQuestion: string;
+    versionCount: number;
+    firstForecast: number;
+    finalForecast: number;
+    outcome: number | null;
+    resolutionStatus: string;
+    movedCloser: boolean | null;
+    confidenceChange: string | null;
+    versions: {
+      version: number;
+      probability: number;
+      date: string;
+      rationale: string | null;
+    }[];
+  }[];
+  referenceCaseLinkage: {
+    totalReferenceCases: number;
+    mostMatchedPatterns: { tag: string; count: number }[];
+    missCorrelations: { pattern: string; total: number; missCount: number }[];
+    recurringLessons: string[];
+    informationalOnly: boolean;
+  };
+  resolvedEntries: {
+    predictionId: string;
+    caseId: string;
+    strategicQuestion: string;
+    forecastProbability: number;
+    actualOutcome: number | null;
+    brierScore: number | null;
+    predictionError: number | null;
+    calibrationBucket: string;
+    decisionDomain: string | null;
+    evidenceDiversityScore: number | null;
+    posteriorFragilityScore: number | null;
+    concentrationPenalty: number | null;
+    confidenceCeilingApplied: number | null;
+    forecastDate: string;
+    resolutionStatus: string;
+    updateVersion: number;
+  }[];
+  availableFilters: {
+    domains: string[];
+    statuses: string[];
+    biasPatternTypes: string[];
+  };
 }
 
-interface ErrorPatternsResponse {
-  signalPatterns: ErrorPattern[];
-  actorPatterns: ErrorPattern[];
-  calibratedCount: number;
+function pct(v: number | null | undefined): string {
+  if (v == null) return "\u2014";
+  return `${(v * 100).toFixed(1)}%`;
 }
 
-const BIAS_COLORS: Record<string, string> = {
-  over: "hsl(38 92% 50%)",
-  under: "hsl(217 91% 60%)",
-  balanced: "hsl(142 71% 45%)",
-  none: "hsl(0 0% 80%)",
-};
-
-function BiasIcon({ bias }: { bias: "over" | "under" | "balanced" }) {
-  if (bias === "over") return <TrendingDown className="w-3.5 h-3.5 text-amber-500" />;
-  if (bias === "under") return <TrendingUp className="w-3.5 h-3.5 text-blue-500" />;
-  return <Minus className="w-3.5 h-3.5 text-green-500" />;
+function brierLabel(v: number | null): string {
+  if (v == null) return "\u2014";
+  return v.toFixed(4);
 }
 
-function biasBadgeVariant(bias: "over" | "under" | "balanced") {
-  if (bias === "over") return "warning";
-  if (bias === "under") return "primary";
-  return "success";
+function brierColor(v: number | null): string {
+  if (v == null) return "text-slate-400";
+  if (v < 0.1) return "text-emerald-400";
+  if (v < 0.2) return "text-amber-400";
+  return "text-red-400";
 }
 
-function biasLabel(bias: "over" | "under" | "balanced") {
-  if (bias === "over") return "Overforecasting";
-  if (bias === "under") return "Underforecasting";
-  return "Balanced";
+function patternLabel(id: string): string {
+  const labels: Record<string, string> = {
+    high_concentration_miss: "Concentration + Miss",
+    low_diversity_miss: "Low Diversity + Miss",
+    high_fragility_miss: "High Fragility + Miss",
+    false_confidence: "False Confidence",
+    false_low_confidence: "False Low Confidence",
+    ceiling_constrained_success: "Ceiling-Constrained Success",
+    overconfidence_general: "Overconfidence",
+    underconfidence_general: "Underconfidence",
+  };
+  return labels[id] ?? id;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { bg: string; text: string; label: string }> = {
+    open: { bg: "bg-slate-500/20", text: "text-slate-300", label: "Open" },
+    resolved_true: { bg: "bg-emerald-500/20", text: "text-emerald-400", label: "Resolved True" },
+    resolved_false: { bg: "bg-red-500/20", text: "text-red-400", label: "Resolved False" },
+    partially_resolved: { bg: "bg-amber-500/20", text: "text-amber-400", label: "Partial" },
+    not_resolvable: { bg: "bg-slate-500/20", text: "text-slate-400", label: "Not Resolvable" },
+  };
+  const c = config[status] ?? config.open;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${c.bg} ${c.text}`}>{c.label}</span>;
 }
 
 export default function Calibration() {
-  const queryClient = useQueryClient();
-  const { data: logs, isLoading: loadingLogs, refetch: refetchLogs } = useListCalibration();
-  const { data: stats, refetch: refetchStats } = useGetCalibrationStats();
+  const [filters, setFilters] = useState<{
+    domain: string;
+    status: string;
+    confidenceMin: string;
+    confidenceMax: string;
+    dateFrom: string;
+    dateTo: string;
+  }>({ domain: "", status: "", confidenceMin: "", confidenceMax: "", dateFrom: "", dateTo: "" });
+  const [showFilters, setShowFilters] = useState(false);
+  const [expandedRevision, setExpandedRevision] = useState<string | null>(null);
+  const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState<string>("");
-  const [submitting, setSubmitting] = useState(false);
-  const [activePatternTab, setActivePatternTab] = useState<"signal_type" | "actor">("signal_type");
+  const queryParams = useMemo(() => {
+    const p = new URLSearchParams();
+    if (filters.domain) p.set("domain", filters.domain);
+    if (filters.status) p.set("status", filters.status);
+    if (filters.confidenceMin) p.set("confidenceMin", filters.confidenceMin);
+    if (filters.confidenceMax) p.set("confidenceMax", filters.confidenceMax);
+    if (filters.dateFrom) p.set("dateFrom", filters.dateFrom);
+    if (filters.dateTo) p.set("dateTo", filters.dateTo);
+    return p.toString();
+  }, [filters]);
 
-  const { data: errorData } = useQuery<ErrorPatternsResponse>({
-    queryKey: ["/api/calibration/error-patterns"],
-    queryFn: () => fetch("/api/calibration/error-patterns").then((r) => r.json()),
-    staleTime: 30_000,
+  const { data, isLoading, refetch } = useQuery<DashboardData>({
+    queryKey: ["/api/forecast-ledger/dashboard", queryParams],
+    queryFn: () =>
+      fetch(`${API}/api/forecast-ledger/dashboard${queryParams ? `?${queryParams}` : ""}`).then(r => r.json()),
+    staleTime: 15_000,
   });
 
-  const { data: diagnostics, refetch: refetchDiagnostics } = useQuery<any>({
-    queryKey: ["/api/calibration/diagnostics"],
-    queryFn: () => fetch("/api/calibration/diagnostics").then((r) => r.json()),
-    staleTime: 30_000,
-  });
+  const cm = data?.coreMetrics;
 
-  const { data: validationReport, refetch: refetchValidation } = useQuery<any>({
-    queryKey: ["/api/calibration/validation-report"],
-    queryFn: () => fetch("/api/calibration/validation-report").then((r) => r.json()),
-    staleTime: 30_000,
-  });
-
-  const { data: coverageMap } = useQuery<any>({
-    queryKey: ["/api/calibration/coverage-map"],
-    queryFn: () => fetch("/api/calibration/coverage-map").then((r) => r.json()),
-    staleTime: 30_000,
-  });
-
-  const { data: expansionTargets } = useQuery<any>({
-    queryKey: ["/api/calibration/expansion-targets"],
-    queryFn: () => fetch("/api/calibration/expansion-targets").then((r) => r.json()),
-    staleTime: 30_000,
-  });
-
-  const { data: acquisitionPlan } = useQuery<any>({
-    queryKey: ["/api/calibration/acquisition-plan"],
-    queryFn: () => fetch("/api/calibration/acquisition-plan").then((r) => r.json()),
-    staleTime: 30_000,
-  });
-
-  const { data: taxonomy, refetch: refetchTaxonomy } = useQuery<any>({
-    queryKey: ["/api/calibration/question-type-taxonomy"],
-    queryFn: () => fetch("/api/calibration/question-type-taxonomy").then((r) => r.json()),
-    staleTime: 30_000,
-  });
-
-  const [showDiagnostics, setShowDiagnostics] = useState(true);
-  const [showValidation, setShowValidation] = useState(false);
-  const [showCoverageMap, setShowCoverageMap] = useState(false);
-  const [showExpansionTargets, setShowExpansionTargets] = useState(false);
-  const [showAcquisitionPlan, setShowAcquisitionPlan] = useState(false);
-  const [showTaxonomy, setShowTaxonomy] = useState(false);
-  const [showIngestion, setShowIngestion] = useState(false);
-  const [showSimulation, setShowSimulation] = useState(false);
-
-  const CANONICAL_BUCKETS = ["0.40-0.60", "0.60-0.75", "0.75-0.90", "0.90+"];
-  const CANONICAL_QUESTION_TYPES = [
-    { type: "adoption_probability", label: "Adoption Probability" },
-    { type: "threshold_achievement", label: "Threshold Achievement" },
-    { type: "competitive_comparison", label: "Competitive Comparison" },
-    { type: "market_share", label: "Market Share" },
-    { type: "time_to_adoption", label: "Time to Adoption" },
-    { type: "specialty_penetration", label: "Specialty Penetration" },
-    { type: "other", label: "Other / Unclassified" },
-  ];
-
-  const [ingestionForm, setIngestionForm] = useState({
-    predictedProbability: "",
-    observedOutcome: "",
-    therapeuticArea: "",
-    questionType: "adoption_probability",
-    caseMode: "live" as "live" | "demo",
-    diseaseState: "",
-    specialty: "",
-    notes: "",
-    predictionDate: "",
-  });
-  const [ingestionSubmitting, setIngestionSubmitting] = useState(false);
-  const [ingestionResult, setIngestionResult] = useState<null | { ok: boolean; message: string; detail?: string }>(null);
-
-  const [simForm, setSimForm] = useState({
-    therapyArea: "",
-    bucket: "0.40-0.60",
-    questionType: "adoption_probability",
-    additionalCases: "3",
-    assumedMeanError: "",
-  });
-  const [simResult, setSimResult] = useState<any>(null);
-  const [simRunning, setSimRunning] = useState(false);
-
-  const handleIngestionSubmit = async () => {
-    const pp = parseFloat(ingestionForm.predictedProbability);
-    const oo = parseFloat(ingestionForm.observedOutcome);
-    if (isNaN(pp) || pp < 0 || pp > 1) {
-      setIngestionResult({ ok: false, message: "Predicted probability must be 0.00–1.00" });
-      return;
-    }
-    if (isNaN(oo) || oo < 0 || oo > 1) {
-      setIngestionResult({ ok: false, message: "Observed outcome must be 0.00–1.00" });
-      return;
-    }
-    if (!ingestionForm.therapeuticArea.trim()) {
-      setIngestionResult({ ok: false, message: "Therapy area is required" });
-      return;
-    }
-    setIngestionSubmitting(true);
-    setIngestionResult(null);
-    try {
-      const resp = await fetch("/api/calibration/resolved-cases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          predictedProbability: pp,
-          observedOutcome: oo,
-          therapeuticArea: ingestionForm.therapeuticArea.trim(),
-          questionType: ingestionForm.questionType,
-          caseMode: ingestionForm.caseMode,
-          diseaseState: ingestionForm.diseaseState.trim() || null,
-          specialty: ingestionForm.specialty.trim() || null,
-          notes: ingestionForm.notes.trim() || null,
-          predictionDate: ingestionForm.predictionDate || null,
-        }),
-      });
-      const data = await resp.json();
-      if (resp.ok) {
-        setIngestionResult({
-          ok: true,
-          message: `Resolved case ingested — forecastError ${(data.forecastError * 100).toFixed(2)}pp, bucket ${data.bucket ?? "out-of-range"}`,
-          detail: `ID: ${data.forecastId}`,
-        });
-        setIngestionForm((f) => ({ ...f, predictedProbability: "", observedOutcome: "", notes: "", predictionDate: "" }));
-        queryClient.invalidateQueries({ queryKey: ["/api/calibration/acquisition-plan"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/calibration/expansion-targets"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/calibration/question-type-taxonomy"] });
-        refetchLogs();
-        refetchStats();
-        refetchTaxonomy();
-      } else {
-        setIngestionResult({ ok: false, message: data.error ?? "Ingestion failed" });
-      }
-    } catch (e: any) {
-      setIngestionResult({ ok: false, message: e.message ?? "Network error" });
-    } finally {
-      setIngestionSubmitting(false);
-    }
-  };
-
-  const handleSimRun = async () => {
-    const additional = parseInt(simForm.additionalCases, 10);
-    if (!simForm.therapyArea.trim()) {
-      setSimResult({ error: "Therapy area is required" });
-      return;
-    }
-    if (isNaN(additional) || additional < 1 || additional > 50) {
-      setSimResult({ error: "Additional cases must be 1–50" });
-      return;
-    }
-    setSimRunning(true);
-    setSimResult(null);
-    try {
-      const resp = await fetch("/api/calibration/impact-simulation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          therapyArea: simForm.therapyArea.trim(),
-          bucket: simForm.bucket,
-          questionType: simForm.questionType,
-          additionalCases: additional,
-          assumedMeanError: simForm.assumedMeanError !== "" ? parseFloat(simForm.assumedMeanError) : null,
-        }),
-      });
-      const data = await resp.json();
-      setSimResult(data);
-    } catch (e: any) {
-      setSimResult({ error: e.message ?? "Network error" });
-    } finally {
-      setSimRunning(false);
-    }
-  };
-
-  const errorPatterns = activePatternTab === "signal_type"
-    ? (errorData?.signalPatterns ?? [])
-    : (errorData?.actorPatterns ?? []);
-
-  // Reliability diagram scatter data
-  const calibratedPoints = (logs ?? [])
-    .filter((l) => l.observedOutcome !== null && l.observedOutcome !== undefined)
-    .map((l) => ({
-      x: Number((l.predictedProbability * 100).toFixed(1)),
-      y: Number((l.observedOutcome! * 100).toFixed(1)),
-      caseId: l.caseId,
-      brier: l.brierComponent?.toFixed(4) ?? "—",
-      error: l.forecastError != null ? `${(l.forecastError * 100) > 0 ? "+" : ""}${(l.forecastError * 100).toFixed(1)}pp` : "—",
+  const calibrationScatterData = useMemo(() => {
+    if (!data?.resolvedEntries) return [];
+    return data.resolvedEntries.map(e => ({
+      x: Number((e.forecastProbability * 100).toFixed(1)),
+      y: Number(((e.actualOutcome ?? 0) * 100).toFixed(1)),
+      id: e.predictionId,
+      question: e.strategicQuestion?.slice(0, 60),
+      brier: e.brierScore?.toFixed(4) ?? "\u2014",
     }));
+  }, [data]);
 
-  // Perfect calibration reference line data (y = x)
-  const diagPoints = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+  const calibrationCurveData = useMemo(() => {
+    if (!data?.calibrationBuckets) return [];
+    return data.calibrationBuckets.map(b => {
+      const midPredicted = b.meanPredicted * 100;
+      const midActual = b.meanActual * 100;
+      return {
+        bucket: b.bucket,
+        predicted: Number(midPredicted.toFixed(1)),
+        actual: Number(midActual.toFixed(1)),
+        gap: Number((b.gap * 100).toFixed(1)),
+        count: b.count,
+        brier: b.meanBrier,
+      };
+    });
+  }, [data]);
 
-  const handleSubmitOutcome = async (forecastId: string) => {
-    const val = parseFloat(editValue);
-    if (isNaN(val) || val < 0 || val > 100) return;
-    setSubmitting(true);
-    try {
-      await fetch(`/api/calibration/${forecastId}/outcome`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ observedOutcome: val / 100 }),
-      });
-      setEditingId(null);
-      setEditValue("");
-      await refetchLogs();
-      await refetchStats();
-      queryClient.invalidateQueries({ queryKey: ["/api/calibration/error-patterns"] });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const brier = stats?.meanBrierScore;
-  const brierColor = brier == null
-    ? "text-muted-foreground"
-    : brier < 0.10 ? "text-green-600"
-    : brier < 0.20 ? "text-amber-500"
-    : "text-red-500";
-
-  const meanErr = stats?.meanForecastError;
-  const errLabel = meanErr == null
-    ? "No outcome data yet"
-    : meanErr > 0.05 ? "Systematically underforecasting"
-    : meanErr < -0.05 ? "Systematically overforecasting"
-    : "No systematic bias detected";
-
-  const coveragePct = stats?.totalForecasts
-    ? Math.round(((stats.calibratedForecasts ?? 0) / stats.totalForecasts) * 100)
-    : null;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#050e1f] text-white flex items-center justify-center">
+        <div className="flex items-center gap-3 text-slate-400">
+          <RefreshCw className="w-5 h-5 animate-spin" />
+          <span>Loading performance data...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
+    <div className="min-h-screen bg-[#050e1f] text-white">
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
         <header>
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant="primary">CALIBRATION</Badge>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-indigo-500/20 text-indigo-300 tracking-wider uppercase">Performance Monitor</span>
           </div>
-          <h1 className="text-3xl font-bold">Engine Calibration</h1>
-          <p className="text-muted-foreground mt-1">
-            Measure forecast accuracy, track signal-type bias, and close the prediction–outcome feedback loop.
+          <h1 className="text-3xl font-bold">Calibration & Performance Dashboard</h1>
+          <p className="text-slate-400 mt-1 max-w-3xl">
+            System-level performance monitoring. Tracks forecast accuracy, calibration quality, structural bias patterns, and revision effectiveness using Forecast Ledger data. Reference cases are used for interpretation only and do not alter forecast calculations.
           </p>
         </header>
 
-        <WorkflowIndicator current={moduleMeta.calibration.workflowStep} />
-        <DataFlowBox
-          purpose={moduleMeta.calibration.purpose}
-          input={moduleMeta.calibration.input}
-          output={moduleMeta.calibration.output}
-        />
-
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-primary/5 border-primary/20">
-            <div className="text-sm text-muted-foreground">Mean Accuracy Score</div>
-            <div className={cn("text-3xl font-display font-bold mt-2", brierColor)}>
-              {brier != null ? brier.toFixed(3) : "—"}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">0 = perfect · 0.25 = random</div>
-          </Card>
-          <Card>
-            <div className="text-sm text-muted-foreground">Mean Forecast Error</div>
-            <div className="text-3xl font-display font-bold mt-2">
-              {meanErr != null
-                ? `${meanErr > 0 ? "+" : ""}${(meanErr * 100).toFixed(1)}pp`
-                : "—"}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">{errLabel}</div>
-          </Card>
-          <Card>
-            <div className="text-sm text-muted-foreground">Calibrated Records</div>
-            <div className="text-3xl font-display font-bold mt-2">
-              {stats?.calibratedForecasts ?? 0}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {stats ? `of ${stats.totalForecasts} total forecasts` : ""}
-            </div>
-          </Card>
-          <Card>
-            <div className="text-sm text-muted-foreground">Calibration Coverage</div>
-            <div className="text-3xl font-display font-bold mt-2">
-              {coveragePct != null ? `${coveragePct}%` : "—"}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">Forecasts with observed outcome</div>
-          </Card>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-sm text-slate-300 hover:bg-white/[0.05] transition-colors"
+          >
+            <Filter className="w-4 h-4" />
+            Filters
+            <ChevronDown className={`w-3 h-3 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+          </button>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-sm text-slate-300 hover:bg-white/[0.05] transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <Link href="/forecast-ledger" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-sm text-slate-300 hover:bg-white/[0.05] transition-colors">
+            Forecast Ledger
+          </Link>
+          <Link href="/reference-cases" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] text-sm text-slate-300 hover:bg-white/[0.05] transition-colors">
+            Reference Cases
+          </Link>
         </div>
 
-        {/* Reliability diagram + Error patterns */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Reliability Diagram */}
-          <Card>
-            <div className="flex items-center gap-2 mb-1">
-              <Target className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Reliability Diagram</span>
-              <span className="text-xs text-muted-foreground">Predicted vs. actual outcome</span>
-            </div>
-            <p className="text-xs text-muted-foreground mb-4">
-              Points on the diagonal indicate perfect calibration. Above = underforecast; below = overforecast.
-            </p>
-
-            {calibratedPoints.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-52 text-muted-foreground/40 gap-2">
-                <Target className="w-10 h-10" />
-                <p className="text-sm font-medium">No calibrated forecasts yet</p>
-                <p className="text-xs text-center max-w-48">
-                  Record actual outcomes on the Forecast page or in the table below to populate this chart.
-                </p>
+        {showFilters && (
+          <div className="rounded-xl border border-white/10 bg-[#0A1736] p-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Date From</label>
+                <input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                />
               </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Date To</label>
+                <input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Decision Domain</label>
+                <select
+                  value={filters.domain}
+                  onChange={e => setFilters(f => ({ ...f, domain: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                >
+                  <option value="">All domains</option>
+                  {data?.availableFilters.domains.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Resolution Status</label>
+                <select
+                  value={filters.status}
+                  onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                >
+                  <option value="">All statuses</option>
+                  {data?.availableFilters.statuses.map(s => (
+                    <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Min Probability</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="1"
+                  placeholder="0.0"
+                  value={filters.confidenceMin}
+                  onChange={e => setFilters(f => ({ ...f, confidenceMin: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Max Probability</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="1"
+                  placeholder="1.0"
+                  value={filters.confidenceMax}
+                  onChange={e => setFilters(f => ({ ...f, confidenceMax: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                />
+              </div>
+            </div>
+            {(filters.domain || filters.status || filters.confidenceMin || filters.confidenceMax || filters.dateFrom || filters.dateTo) && (
+              <button
+                onClick={() => setFilters({ domain: "", status: "", confidenceMin: "", confidenceMax: "", dateFrom: "", dateTo: "" })}
+                className="mt-3 text-xs text-indigo-400 hover:text-indigo-300"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <MetricCard label="Total Forecasts" value={cm?.totalForecasts ?? 0} icon={<Layers className="w-4 h-4 text-indigo-400" />} />
+          <MetricCard label="Resolved" value={cm?.resolvedForecasts ?? 0} icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />} subtext={cm?.totalForecasts ? `${((cm.resolvedForecasts / cm.totalForecasts) * 100).toFixed(0)}% resolved` : undefined} />
+          <MetricCard label="Open" value={cm?.openForecasts ?? 0} icon={<Clock className="w-4 h-4 text-amber-400" />} />
+          <MetricCard
+            label="Mean Accuracy Score"
+            value={brierLabel(cm?.meanBrierScore ?? null)}
+            icon={<Target className="w-4 h-4 text-emerald-400" />}
+            valueColor={brierColor(cm?.meanBrierScore ?? null)}
+            subtext="0 = perfect"
+          />
+          <MetricCard
+            label="Median Accuracy Score"
+            value={brierLabel(cm?.medianBrierScore ?? null)}
+            icon={<Activity className="w-4 h-4 text-blue-400" />}
+            valueColor={brierColor(cm?.medianBrierScore ?? null)}
+          />
+          <MetricCard
+            label="Mean Absolute Error"
+            value={cm?.meanAbsoluteError != null ? `${(cm.meanAbsoluteError * 100).toFixed(1)}pp` : "\u2014"}
+            icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard
+            label="Overconfidence Rate"
+            value={pct(cm?.overconfidenceRate)}
+            icon={<TrendingDown className="w-4 h-4 text-red-400" />}
+            subtext="Predicted > actual by 5+pp"
+          />
+          <MetricCard
+            label="Underconfidence Rate"
+            value={pct(cm?.underconfidenceRate)}
+            icon={<TrendingUp className="w-4 h-4 text-blue-400" />}
+            subtext="Actual > predicted by 5+pp"
+          />
+          <MetricCard
+            label="Forecast Revisions"
+            value={cm?.forecastRevisionCount ?? 0}
+            icon={<GitBranch className="w-4 h-4 text-purple-400" />}
+          />
+          <MetricCard
+            label="Revision Improvement"
+            value={cm?.revisionImprovementRate != null ? pct(cm.revisionImprovementRate) : "\u2014"}
+            icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
+            subtext="Revisions that moved closer to outcome"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="rounded-xl border border-white/10 bg-[#0A1736] p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <Target className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-sm font-semibold text-white">Reliability Diagram</h3>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">
+              Predicted vs. actual outcome for resolved forecasts. Points on the diagonal indicate perfect calibration.
+            </p>
+            {calibrationScatterData.length === 0 ? (
+              <EmptyState icon={<Target className="w-8 h-8" />} message="No resolved forecasts yet" detail="Resolve forecasts to populate this chart." />
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    type="number"
-                    dataKey="x"
-                    domain={[0, 100]}
-                    tickFormatter={(v) => `${v}%`}
-                    tick={{ fontSize: 11 }}
-                  >
-                    <Label value="Predicted (%)" position="insideBottom" offset={-18} fontSize={11} fill="hsl(var(--muted-foreground))" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis type="number" dataKey="x" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: "#94a3b8" }}>
+                    <Label value="Predicted (%)" position="insideBottom" offset={-18} fontSize={11} fill="#64748b" />
                   </XAxis>
-                  <YAxis
-                    type="number"
-                    dataKey="y"
-                    domain={[0, 100]}
-                    tickFormatter={(v) => `${v}%`}
-                    tick={{ fontSize: 11 }}
-                  >
-                    <Label value="Actual (%)" angle={-90} position="insideLeft" offset={18} fontSize={11} fill="hsl(var(--muted-foreground))" />
+                  <YAxis type="number" dataKey="y" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: "#94a3b8" }}>
+                    <Label value="Actual (%)" angle={-90} position="insideLeft" offset={18} fontSize={11} fill="#64748b" />
                   </YAxis>
                   <Tooltip
-                    cursor={{ strokeDasharray: "3 3" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]?.payload;
                       return (
-                        <div className="bg-background border border-border rounded-lg p-2.5 text-xs shadow-lg">
-                          <p className="font-mono font-semibold mb-1">{d?.caseId}</p>
-                          <p>Predicted: <span className="font-medium">{d?.x}%</span></p>
-                          <p>Actual: <span className="font-medium">{d?.y}%</span></p>
-                          <p className="text-muted-foreground">Error: {d?.error}</p>
-                          <p className="text-muted-foreground">Accuracy: {d?.brier}</p>
+                        <div className="bg-[#0A1736] border border-white/10 rounded-lg p-2.5 text-xs shadow-lg">
+                          <p className="font-mono font-semibold mb-1 text-white">{d?.id}</p>
+                          <p className="text-slate-300">Predicted: <span className="text-white font-medium">{d?.x}%</span></p>
+                          <p className="text-slate-300">Actual: <span className="text-white font-medium">{d?.y}%</span></p>
+                          <p className="text-slate-400">Accuracy: {d?.brier}</p>
                         </div>
                       );
                     }}
                   />
-                  {/* Diagonal reference — perfect calibration */}
                   <ReferenceLine
                     segment={[{ x: 0, y: 0 }, { x: 100, y: 100 }]}
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="rgba(255,255,255,0.2)"
                     strokeDasharray="6 4"
                     strokeWidth={1.5}
-                    strokeOpacity={0.5}
                   />
-                  <Scatter
-                    data={calibratedPoints}
-                    fill="hsl(var(--primary))"
-                    fillOpacity={0.8}
-                    r={5}
-                  />
+                  <Scatter data={calibrationScatterData} fill="#818cf8" fillOpacity={0.8} r={6} />
                 </ScatterChart>
               </ResponsiveContainer>
             )}
-          </Card>
+          </div>
 
-          {/* Error by Signal Type / Actor */}
-          <Card>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-primary" />
-                <span className="text-sm font-semibold">Forecast Bias Analysis</span>
-              </div>
-              <div className="flex items-center gap-1 text-xs">
-                <button
-                  onClick={() => setActivePatternTab("signal_type")}
-                  className={cn(
-                    "px-2 py-0.5 rounded font-medium transition-colors",
-                    activePatternTab === "signal_type"
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  By Signal Type
-                </button>
-                <button
-                  onClick={() => setActivePatternTab("actor")}
-                  className={cn(
-                    "px-2 py-0.5 rounded font-medium transition-colors",
-                    activePatternTab === "actor"
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  By Actor
-                </button>
-              </div>
+          <div className="rounded-xl border border-white/10 bg-[#0A1736] p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <BarChart2 className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-sm font-semibold text-white">Calibration by Probability Bucket</h3>
             </div>
-            <p className="text-xs text-muted-foreground mb-4">
-              Mean forecast error (pp) in calibrated cases where this {activePatternTab === "signal_type" ? "signal type was active" : "actor had a meaningful stance"}.
-              Amber = overforecast · Blue = underforecast · Green = balanced.
+            <p className="text-xs text-slate-400 mb-4">
+              Predicted vs. realized frequency by bucket. Gap shows whether forecasts in that range behave as expected.
             </p>
-
-            {errorPatterns.length === 0 && activePatternTab === "actor" ? (
-              <div className="flex flex-col items-center justify-center h-52 text-muted-foreground/40 gap-2">
-                <BarChart2 className="w-10 h-10" />
-                <p className="text-sm font-medium">No bias data yet</p>
-                <p className="text-xs text-center max-w-48">
-                  Calibrated outcomes will reveal which actors are systematically mis-estimated.
-                </p>
-              </div>
+            {calibrationCurveData.length === 0 ? (
+              <EmptyState icon={<BarChart2 className="w-8 h-8" />} message="No calibration data yet" detail="Resolve forecasts to see bucket analysis." />
             ) : (
-              <ResponsiveContainer width="100%" height={activePatternTab === "signal_type" ? 440 : 220}>
-                <BarChart
-                  data={errorPatterns}
-                  layout="vertical"
-                  margin={{ top: 0, right: 24, bottom: 0, left: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    tickFormatter={(v) => `${(v * 100).toFixed(0)}pp`}
-                    tick={{ fontSize: 10 }}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={160}
-                    tick={({ x, y, payload }: any) => {
-                      const entry = errorPatterns.find((p) => p.name === payload.value);
-                      const label = payload.value.length > 20 ? payload.value.slice(0, 18) + "…" : payload.value;
-                      const isEmpty = entry?.sampleSize === 0;
-                      return (
-                        <g transform={`translate(${x},${y})`}>
-                          <text x={-4} y={0} dy={isEmpty ? -4 : 0} textAnchor="end" fontSize={9} fill={isEmpty ? "hsl(var(--muted-foreground))" : "currentColor"}>
-                            {label}
-                          </text>
-                          {isEmpty && (
-                            <text x={-4} y={0} dy={8} textAnchor="end" fontSize={7} fill="hsl(var(--muted-foreground))" fontStyle="italic">
-                              n = 0
-                            </text>
-                          )}
-                        </g>
-                      );
-                    }}
-                  />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0]?.payload as ErrorPattern;
-                      if (d.sampleSize === 0) {
+              <>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={calibrationCurveData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                    <YAxis tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: "#94a3b8" }} domain={[0, 100]} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0]?.payload;
                         return (
-                          <div className="bg-background border border-border rounded-lg p-2.5 text-xs shadow-lg min-w-40">
-                            <p className="font-semibold mb-1">{d.name}</p>
-                            <p className="text-muted-foreground italic">No calibrated records yet</p>
-                            <p className="text-muted-foreground">n = 0</p>
+                          <div className="bg-[#0A1736] border border-white/10 rounded-lg p-2.5 text-xs shadow-lg">
+                            <p className="font-semibold text-white mb-1">{d?.bucket}</p>
+                            <p className="text-slate-300">Mean Predicted: <span className="text-white">{d?.predicted}%</span></p>
+                            <p className="text-slate-300">Mean Actual: <span className="text-white">{d?.actual}%</span></p>
+                            <p className="text-slate-300">Gap: <span className={d?.gap > 0 ? "text-amber-400" : "text-blue-400"}>{d?.gap > 0 ? "+" : ""}{d?.gap}pp</span></p>
+                            <p className="text-slate-400">n = {d?.count}</p>
                           </div>
                         );
-                      }
-                      return (
-                        <div className="bg-background border border-border rounded-lg p-2.5 text-xs shadow-lg min-w-40">
-                          <p className="font-semibold mb-1">{d.name}</p>
-                          <p>Mean error: <span className="font-mono">{(d.meanError * 100) > 0 ? "+" : ""}{(d.meanError * 100).toFixed(1)}pp</span></p>
-                          <p>Mean Accuracy: <span className="font-mono">{d.meanBrierScore.toFixed(4)}</span></p>
-                          <p>Sample size: {d.sampleSize}</p>
-                          <p className={cn(
-                            "font-medium mt-1",
-                            d.bias === "over" ? "text-amber-500" : d.bias === "under" ? "text-blue-500" : "text-green-500"
-                          )}>
-                            {biasLabel(d.bias as "over" | "under" | "balanced")}
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" strokeWidth={1} strokeOpacity={0.6} />
-                  <Bar dataKey="meanError" name="Mean Forecast Error" radius={[0, 3, 3, 0]}>
-                    {errorPatterns.map((entry, idx) => (
-                      <Cell key={idx} fill={BIAS_COLORS[entry.bias] ?? BIAS_COLORS.none} fillOpacity={entry.sampleSize === 0 ? 0.25 : 1} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                      }}
+                    />
+                    <Bar dataKey="predicted" name="Predicted" fill="#818cf8" fillOpacity={0.4} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="actual" name="Actual" fill="#34d399" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="flex items-center justify-center gap-6 mt-2 text-xs text-slate-400">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-400/40" /> Predicted</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-400/70" /> Actual</span>
+                </div>
+              </>
             )}
-          </Card>
+          </div>
         </div>
 
-        {/* Bias cards — all taxonomy signal types */}
-        {activePatternTab === "signal_type" && errorPatterns.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {errorPatterns.map((p) => (
-              <Card key={p.name} className={cn(
-                "border",
-                p.sampleSize === 0 ? "border-border/40 bg-muted/5 opacity-60" :
-                p.bias === "over" ? "border-amber-200/50 bg-amber-50/20" :
-                p.bias === "under" ? "border-blue-200/50 bg-blue-50/20" :
-                "border-green-200/50 bg-green-50/20"
-              )}>
-                <div className="flex items-start gap-2">
-                  {p.sampleSize > 0 ? (
-                    <BiasIcon bias={p.bias as "over" | "under" | "balanced"} />
-                  ) : (
-                    <Clock className="w-3.5 h-3.5 text-muted-foreground/50 mt-0.5 shrink-0" />
-                  )}
-                  <div>
-                    <p className="text-xs font-semibold leading-snug">{p.name}</p>
-                    {p.sampleSize > 0 ? (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {biasLabel(p.bias as "over" | "under" | "balanced")} by {Math.abs(p.meanError * 100).toFixed(1)}pp
-                        across {p.sampleSize} forecast{p.sampleSize !== 1 ? "s" : ""}.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/60 mt-0.5 italic">
-                        No calibrated records yet
-                      </p>
-                    )}
-                  </div>
+        <div className="rounded-xl border border-white/10 bg-[#0A1736] p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-semibold text-white">Bias & Failure Pattern Analysis</h3>
+          </div>
+          <p className="text-xs text-slate-400 mb-4">
+            Structural patterns correlated with forecast errors. Tracks concentration, diversity, fragility, and confidence issues.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {data?.biasPatterns.map(p => (
+              <div
+                key={p.pattern}
+                className={`rounded-lg border p-3 ${p.count > 0 ? "border-amber-500/30 bg-amber-500/5" : "border-white/5 bg-white/[0.01]"}`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-slate-300">{patternLabel(p.pattern)}</span>
+                  <span className={`text-lg font-bold ${p.count > 0 ? "text-amber-400" : "text-slate-600"}`}>{p.count}</span>
                 </div>
-              </Card>
-            ))}
-          </div>
-        )}
-        {activePatternTab === "actor" && (errorData?.calibratedCount ?? 0) > 0 && (errorData?.actorPatterns ?? []).length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {(errorData?.actorPatterns ?? []).slice(0, 3).map((p) => (
-              <Card key={p.name} className={cn(
-                "border",
-                p.bias === "over" ? "border-amber-200/50 bg-amber-50/20" :
-                p.bias === "under" ? "border-blue-200/50 bg-blue-50/20" :
-                "border-green-200/50 bg-green-50/20"
-              )}>
-                <div className="flex items-start gap-2">
-                  <BiasIcon bias={p.bias as "over" | "under" | "balanced"} />
-                  <div>
-                    <p className="text-xs font-semibold leading-snug">{p.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {biasLabel(p.bias as "over" | "under" | "balanced")} by {Math.abs(p.meanError * 100).toFixed(1)}pp
-                      across {p.sampleSize} forecast{p.sampleSize !== 1 ? "s" : ""}.
-                    </p>
+                <p className="text-[10px] text-slate-500 leading-tight">{p.description}</p>
+                {p.count > 0 && p.entries.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {p.entries.slice(0, 3).map(id => (
+                      <span key={id} className="text-[9px] font-mono text-amber-400/60 bg-amber-500/10 px-1.5 py-0.5 rounded">{id.slice(0, 18)}</span>
+                    ))}
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {/* Prediction Log */}
-        <Card noPadding>
-          <div className="p-4 border-b border-border bg-muted/10 flex items-center justify-between">
-            <div className="flex items-center gap-2 font-semibold">
-              <Target className="w-4 h-4 text-primary" />
-              Prediction Log
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {logs?.length ?? 0} entries · {stats?.calibratedForecasts ?? 0} calibrated
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-muted-foreground uppercase bg-muted/20 border-b border-border">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Date</th>
-                  <th className="px-5 py-3 font-semibold">Case</th>
-                  <th className="px-5 py-3 font-semibold text-right">Predicted</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actual</th>
-                  <th className="px-5 py-3 font-semibold text-right">Error</th>
-                  <th className="px-5 py-3 font-semibold text-right">Accuracy</th>
-                  <th className="px-5 py-3 font-semibold text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {loadingLogs ? (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">
-                      Loading log…
-                    </td>
-                  </tr>
-                ) : logs?.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">
-                      No forecast entries yet. Run a forecast to begin logging.
-                    </td>
-                  </tr>
-                ) : (
-                  [...(logs ?? [])].reverse().map((log) => {
-                    const isCalibrated = log.observedOutcome !== null && log.observedOutcome !== undefined;
-                    const isEditing = editingId === log.forecastId;
-                    const errPp = log.forecastError != null
-                      ? `${(log.forecastError * 100) > 0 ? "+" : ""}${(log.forecastError * 100).toFixed(1)}pp`
-                      : null;
-
-                    return (
-                      <tr key={log.id} className={cn("hover:bg-muted/10 transition-colors", isCalibrated && "bg-green-50/10")}>
-                        <td className="px-5 py-3 whitespace-nowrap text-muted-foreground text-xs">
-                          {log.predictionDate ? format(new Date(log.predictionDate), "MMM dd, yyyy HH:mm") : "—"}
-                        </td>
-                        <td className="px-5 py-3 font-mono text-xs font-medium">{log.caseId}</td>
-                        <td className="px-5 py-3 text-right font-mono text-sm">
-                          {(log.predictedProbability * 100).toFixed(1)}%
-                        </td>
-                        <td className="px-5 py-3 text-right font-mono text-sm">
-                          {isCalibrated ? `${(log.observedOutcome! * 100).toFixed(0)}%` : "—"}
-                        </td>
-                        <td className={cn(
-                          "px-5 py-3 text-right font-mono text-xs",
-                          log.forecastError != null
-                            ? log.forecastError > 0.05 ? "text-blue-500"
-                            : log.forecastError < -0.05 ? "text-amber-500"
-                            : "text-green-600"
-                            : "text-muted-foreground"
-                        )}>
-                          {errPp ?? "—"}
-                        </td>
-                        <td className="px-5 py-3 text-right font-mono text-xs text-muted-foreground">
-                          {log.brierComponent != null ? log.brierComponent.toFixed(4) : "—"}
-                        </td>
-                        <td className="px-5 py-3">
-                          {isCalibrated ? (
-                            <div className="flex justify-center">
-                              <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                Calibrated
-                              </span>
-                            </div>
-                          ) : isEditing ? (
-                            <div className="flex items-center gap-1.5 justify-center">
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={1}
-                                placeholder="%"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") handleSubmitOutcome(log.forecastId);
-                                  if (e.key === "Escape") { setEditingId(null); setEditValue(""); }
-                                }}
-                                autoFocus
-                                className="w-16 text-center text-xs border border-border rounded px-1.5 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                className="h-6 text-xs px-2"
-                                onClick={() => handleSubmitOutcome(log.forecastId)}
-                                disabled={submitting || !editValue}
-                              >
-                                {submitting ? "…" : "Save"}
-                              </Button>
-                              <button
-                                onClick={() => { setEditingId(null); setEditValue(""); }}
-                                className="text-xs text-muted-foreground hover:text-foreground"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex justify-center">
-                              <button
-                                onClick={() => { setEditingId(log.forecastId); setEditValue(""); }}
-                                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                              >
-                                <Clock className="w-3 h-3" />
-                                Record outcome
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
                 )}
-              </tbody>
-            </table>
+              </div>
+            ))}
           </div>
-        </Card>
+        </div>
 
-        {/* Bucket Diagnostics Panel */}
-        <Card>
-          <button
-            onClick={() => setShowDiagnostics((v) => !v)}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <FlaskConical className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Bucket Calibration Diagnostics</span>
-              <span className="text-xs text-muted-foreground">Full inspection of correction state per probability range</span>
+        {data?.domainBreakdowns && data.domainBreakdowns.length > 0 && (
+          <div className="rounded-xl border border-white/10 bg-[#0A1736] p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <Layers className="w-4 h-4 text-blue-400" />
+              <h3 className="text-sm font-semibold text-white">Performance by Domain</h3>
             </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showDiagnostics && "rotate-90")} />
-          </button>
-
-          {showDiagnostics && diagnostics && (
-            <div className="mt-4 pt-4 border-t border-border space-y-4">
-              {/* Aggregate */}
-              {diagnostics.aggregate && (
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="p-3 rounded-xl border border-border bg-background text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Calibrated Cases</p>
-                    <p className="text-2xl font-display font-bold">{diagnostics.aggregate.calibratedCaseCount}</p>
-                  </div>
-                  <div className="p-3 rounded-xl border border-border bg-background text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Mean Raw Error</p>
-                    <p className={cn("text-2xl font-display font-bold", diagnostics.aggregate.meanRawError > 0 ? "text-blue-500" : "text-amber-500")}>
-                      {diagnostics.aggregate.meanRawError !== null ? `${(diagnostics.aggregate.meanRawError * 100).toFixed(1)}pp` : "—"}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl border border-border bg-background text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Mean Calibrated Error</p>
-                    <p className={cn("text-2xl font-display font-bold", diagnostics.aggregate.meanCalibratedError > 0 ? "text-blue-500" : "text-amber-500")}>
-                      {diagnostics.aggregate.meanCalibratedError !== null ? `${(diagnostics.aggregate.meanCalibratedError * 100).toFixed(1)}pp` : "—"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Bucket table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2 px-3 text-muted-foreground font-semibold">Bucket</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">n</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Mean Signed Error</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Mean Abs Error</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Correction Applied</th>
-                      <th className="text-left py-2 px-3 text-muted-foreground font-semibold">Status</th>
-                      <th className="text-left py-2 px-3 text-muted-foreground font-semibold">Warnings</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-semibold">Last Updated</th>
+            <p className="text-xs text-slate-400 mb-4">
+              Accuracy breakdown by decision domain. Identifies where the system is reliable and where it is weak.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left text-xs text-slate-400 font-medium pb-2 pr-4">Domain</th>
+                    <th className="text-right text-xs text-slate-400 font-medium pb-2 px-3">Total</th>
+                    <th className="text-right text-xs text-slate-400 font-medium pb-2 px-3">Resolved</th>
+                    <th className="text-right text-xs text-slate-400 font-medium pb-2 px-3">Open</th>
+                    <th className="text-right text-xs text-slate-400 font-medium pb-2 px-3">Mean Accuracy</th>
+                    <th className="text-right text-xs text-slate-400 font-medium pb-2 pl-3">Mean Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.domainBreakdowns.map(d => (
+                    <tr key={d.domain} className="border-b border-white/5 hover:bg-white/[0.02]">
+                      <td className="py-2.5 pr-4 text-slate-200 font-medium">{d.domain}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-300">{d.totalForecasts}</td>
+                      <td className="py-2.5 px-3 text-right text-emerald-400">{d.resolvedCount}</td>
+                      <td className="py-2.5 px-3 text-right text-amber-400">{d.openCount}</td>
+                      <td className={`py-2.5 px-3 text-right font-mono ${brierColor(d.meanBrier)}`}>
+                        {brierLabel(d.meanBrier)}
+                      </td>
+                      <td className="py-2.5 pl-3 text-right text-slate-300 font-mono">
+                        {d.meanError != null ? `${(d.meanError * 100).toFixed(1)}pp` : "\u2014"}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(diagnostics.bucketDiagnostics ?? []).map((bk: any) => (
-                      <tr key={bk.bucket} className="border-b border-border/50 hover:bg-muted/10">
-                        <td className="py-2.5 px-3 font-mono font-semibold">{bk.bucket}</td>
-                        <td className="py-2.5 px-3 text-right">{bk.sampleSize}</td>
-                        <td className={cn("py-2.5 px-3 text-right font-mono", bk.meanSignedError === null ? "text-muted-foreground" : bk.meanSignedError < 0 ? "text-amber-500" : "text-blue-500")}>
-                          {bk.meanSignedError !== null ? `${(bk.meanSignedError * 100).toFixed(1)}pp` : "—"}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono">
-                          {bk.meanAbsoluteError !== null ? `${(bk.meanAbsoluteError * 100).toFixed(1)}pp` : "—"}
-                        </td>
-                        <td className={cn("py-2.5 px-3 text-right font-mono font-semibold", bk.correctionAppliedPp === null ? "text-muted-foreground" : bk.correctionAppliedPp < 0 ? "text-amber-500" : "text-blue-500")}>
-                          {bk.correctionAppliedPp !== null ? `${(bk.correctionAppliedPp * 100).toFixed(1)}pp` : "—"}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {bk.warnings.pendingThreshold ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-muted border-border text-muted-foreground">Pending (n&lt;{bk.warnings.pendingThreshold ? 3 : 5})</span>
-                          ) : bk.isActive ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-success/10 border-success/30 text-success font-semibold">
-                              <ShieldCheck className="w-2.5 h-2.5" /> Active
-                            </span>
-                          ) : bk.belowThreshold ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-primary/10 border-primary/30 text-primary">Below threshold</span>
-                          ) : (
-                            <span className="text-muted-foreground text-[10px]">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 space-x-1">
-                          {bk.warnings.lowSample && (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-amber-400/10 border-amber-400/30 text-amber-600">Low sample</span>
-                          )}
-                          {bk.warnings.directionFlip && (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border bg-destructive/10 border-destructive/30 text-destructive">
-                              Dir. flip ×{bk.warnings.flipCount}
-                            </span>
-                          )}
-                          {!bk.warnings.lowSample && !bk.warnings.directionFlip && (
-                            <span className="text-muted-foreground text-[10px]">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">
-                          {bk.lastUpdated ? new Date(bk.lastUpdated).toLocaleDateString() : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Guardrail config note */}
-              {diagnostics.guardrailConfig && (
-                <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-                  <span>Min sample: <strong className="text-foreground">{diagnostics.guardrailConfig.minBucketSample}</strong></span>
-                  <span>Error threshold: <strong className="text-foreground">{(diagnostics.guardrailConfig.errorThreshold * 100).toFixed(0)}pp</strong></span>
-                  <span>Max correction: <strong className="text-foreground">±{(diagnostics.guardrailConfig.maxCorrectionPp * 100).toFixed(0)}pp</strong></span>
-                  <span>Recency decay λ: <strong className="text-foreground">{diagnostics.guardrailConfig.recencyDecayLambda}</strong></span>
-                  <span>LR corrections active: <strong className="text-foreground">{diagnostics.lrCorrectionsActive}</strong></span>
-                </div>
-              )}
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </Card>
+          </div>
+        )}
 
-        {/* Validation Report */}
-        <Card>
-          <button
-            onClick={() => {
-              if (!showValidation) refetchValidation();
-              setShowValidation((v) => !v);
-            }}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <FileSearch className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Validation Report</span>
-              <span className="text-xs text-muted-foreground">Raw vs calibrated vs actual — per bucket and therapy area</span>
-            </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showValidation && "rotate-90")} />
-          </button>
-
-          {showValidation && validationReport && (
-            <div className="mt-4 pt-4 border-t border-border space-y-5">
-              {/* Coverage check */}
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { label: "Moderate cases", n: validationReport.coverageCheck?.moderateCases, req: 2 },
-                  { label: "High-conf cases", n: validationReport.coverageCheck?.highConfCases, req: 2 },
-                  { label: "Psychiatry cases", n: validationReport.coverageCheck?.psychiatryCases, req: 1 },
-                  { label: "Cardiology cases", n: validationReport.coverageCheck?.cardiologyCases, req: 1 },
-                ].map((item) => (
-                  <div key={item.label} className={cn(
-                    "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border",
-                    item.n >= item.req ? "border-success/30 bg-success/5 text-success" : "border-amber-400/30 bg-amber-400/5 text-amber-600"
-                  )}>
-                    {item.n >= item.req ? <ShieldCheck className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
-                    <span className="font-semibold">{item.n}</span> {item.label} (req ≥{item.req})
-                  </div>
-                ))}
-                <div className={cn(
-                  "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-semibold",
-                  validationReport.overall?.verdict === "improving" ? "border-success/40 bg-success/10 text-success" :
-                  validationReport.overall?.verdict === "degrading" ? "border-destructive/40 bg-destructive/10 text-destructive" :
-                  "border-border bg-muted/10 text-muted-foreground"
-                )}>
-                  <Activity className="w-3 h-3" />
-                  {validationReport.overall?.verdict === "improving" ? "Calibration improving" :
-                   validationReport.overall?.verdict === "degrading" ? "Calibration degrading" :
-                   "Insufficient data"}
-                </div>
-              </div>
-
-              {/* Segmented verdict banner */}
-              {validationReport.overall?.segmentedVerdict && (
-                <div className={cn(
-                  "flex items-start gap-2 px-3 py-2.5 rounded-xl border text-xs",
-                  validationReport.overall.mixedBehaviorDetected
-                    ? "border-amber-400/40 bg-amber-400/8 text-amber-700"
-                    : validationReport.overall.segmentedVerdict === "broadly_improving"
-                    ? "border-success/30 bg-success/5 text-success"
-                    : "border-destructive/30 bg-destructive/5 text-destructive"
-                )}>
-                  {validationReport.overall.mixedBehaviorDetected
-                    ? <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    : <Activity className="w-3.5 h-3.5 shrink-0 mt-0.5" />}
-                  <div>
-                    <span className="font-semibold capitalize">
-                      {validationReport.overall.segmentedVerdict === "broadly_improving" ? "Broadly improving" :
-                       validationReport.overall.segmentedVerdict === "broadly_degrading" ? "Broadly degrading" :
-                       "Mixed behaviour across segments"}
-                    </span>
-                    {validationReport.overall.mixedBehaviorDetected && (
-                      <span className="ml-1.5 text-[10px] opacity-80">
-                        — calibration is helping some therapy areas but not others. Check breakout below.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Bucket summary */}
-              <div>
-                <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Bucket-Level Summary</p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Bucket</th>
-                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">n</th>
-                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Mean Raw Error</th>
-                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Mean Calib Error</th>
-                      <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Improvement Rate</th>
-                      <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Verdict</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(validationReport.bucketSummary ?? []).map((bk: any) => (
-                      <tr key={bk.bucket} className="border-b border-border/50">
-                        <td className="py-2 px-2 font-mono font-semibold">{bk.bucket}</td>
-                        <td className="py-2 px-2 text-right text-muted-foreground">{bk.n ?? 0}</td>
-                        <td className={cn("py-2 px-2 text-right font-mono", !bk.meanRawError ? "text-muted-foreground" : bk.meanRawError < 0 ? "text-amber-500" : "text-blue-500")}>
-                          {bk.meanRawError !== undefined ? `${(bk.meanRawError * 100).toFixed(1)}pp` : "—"}
-                        </td>
-                        <td className={cn("py-2 px-2 text-right font-mono", !bk.meanCalibratedError ? "text-muted-foreground" : bk.meanCalibratedError < 0 ? "text-amber-500" : "text-blue-500")}>
-                          {bk.meanCalibratedError !== undefined ? `${(bk.meanCalibratedError * 100).toFixed(1)}pp` : "—"}
-                        </td>
-                        <td className="py-2 px-2 text-right">
-                          {bk.improvementRate !== undefined ? `${(bk.improvementRate * 100).toFixed(0)}%` : "—"}
-                        </td>
-                        <td className="py-2 px-2">
-                          {bk.n > 0 ? (
-                            <span className={cn(
-                              "text-[10px] px-1.5 py-0.5 rounded border font-semibold",
-                              bk.verdict === "improving" ? "bg-success/10 border-success/30 text-success" :
-                              bk.verdict === "degrading" ? "bg-destructive/10 border-destructive/30 text-destructive" :
-                              "bg-muted border-border text-muted-foreground"
-                            )}>
-                              {bk.verdict ?? "n/a"}
-                            </span>
-                          ) : <span className="text-muted-foreground">—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Therapy area breakout */}
-              {(validationReport.therapyAreaBreakout ?? []).length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Therapy Area Breakout</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {validationReport.therapyAreaBreakout.map((ta: any) => (
-                      <div key={ta.therapyArea} className={cn(
-                        "p-3 rounded-xl border text-xs",
-                        ta.verdict === "improving" ? "border-success/20 bg-success/5" : "border-amber-400/20 bg-amber-400/5"
-                      )}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold">{ta.therapyArea}</span>
-                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-semibold",
-                            ta.verdict === "improving" ? "bg-success/10 border-success/30 text-success" : "bg-amber-400/10 border-amber-400/30 text-amber-600"
-                          )}>{ta.verdict}</span>
-                        </div>
-                        <div className="flex gap-3 text-muted-foreground">
-                          <span>n={ta.n}</span>
-                          <span>Raw: <span className={cn("font-mono", ta.meanRawError < 0 ? "text-amber-500" : "text-blue-500")}>{(ta.meanRawError * 100).toFixed(1)}pp</span></span>
-                          <span>Calib: <span className={cn("font-mono", ta.meanCalibratedError < 0 ? "text-amber-500" : "text-blue-500")}>{(ta.meanCalibratedError * 100).toFixed(1)}pp</span></span>
+        <div className="rounded-xl border border-white/10 bg-[#0A1736] p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <GitBranch className="w-4 h-4 text-purple-400" />
+            <h3 className="text-sm font-semibold text-white">Forecast Revision Analysis</h3>
+          </div>
+          <p className="text-xs text-slate-400 mb-4">
+            Tracks whether updates improved calibration. For each multi-version forecast, shows whether revisions moved closer to reality.
+          </p>
+          {(!data?.revisionAnalysis || data.revisionAnalysis.length === 0) ? (
+            <EmptyState icon={<GitBranch className="w-8 h-8" />} message="No multi-version forecasts" detail="Forecast revisions will appear here when cases are updated multiple times." />
+          ) : (
+            <div className="space-y-2">
+              {data.revisionAnalysis.map(r => (
+                <div key={r.caseId} className="rounded-lg border border-white/5 bg-white/[0.01]">
+                  <button
+                    onClick={() => setExpandedRevision(expandedRevision === r.caseId ? null : r.caseId)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-white/[0.02] transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform flex-shrink-0 ${expandedRevision === r.caseId ? "rotate-90" : ""}`} />
+                      <div className="min-w-0">
+                        <div className="text-sm text-slate-200 truncate">{r.strategicQuestion?.slice(0, 80) || r.caseId}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {r.versionCount} versions
+                          {r.firstForecast !== r.finalForecast && (
+                            <> &middot; {(r.firstForecast * 100).toFixed(0)}% &rarr; {(r.finalForecast * 100).toFixed(0)}%</>
+                          )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Question type breakout */}
-              {(validationReport.questionTypeBreakout ?? []).length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Question Type Breakout</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {validationReport.questionTypeBreakout.map((qt: any) => (
-                      <div key={qt.questionType} className={cn(
-                        "p-3 rounded-xl border text-xs",
-                        qt.verdict === "improving" ? "border-success/20 bg-success/5" : "border-amber-400/20 bg-amber-400/5"
-                      )}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold font-mono">{qt.questionType.replace(/_/g, " ")}</span>
-                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-semibold",
-                            qt.verdict === "improving" ? "bg-success/10 border-success/30 text-success" : "bg-amber-400/10 border-amber-400/30 text-amber-600"
-                          )}>{qt.verdict}</span>
-                        </div>
-                        <div className="flex gap-3 text-muted-foreground">
-                          <span>n={qt.n}</span>
-                          <span>Raw: <span className={cn("font-mono", qt.meanRawError < 0 ? "text-amber-500" : "text-blue-500")}>{(qt.meanRawError * 100).toFixed(1)}pp</span></span>
-                          <span>Calib: <span className={cn("font-mono", qt.meanCalibratedError < 0 ? "text-amber-500" : "text-blue-500")}>{(qt.meanCalibratedError * 100).toFixed(1)}pp</span></span>
-                        </div>
-                        <p className="text-muted-foreground mt-1">Improvement rate: {(qt.improvementRate * 100).toFixed(0)}% · +{qt.improvementPp.toFixed(1)}pp MAE reduction</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Per-case detail */}
-              <div>
-                <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Case-Level Detail</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Case</th>
-                        <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Therapy Area</th>
-                        <th className="text-left py-1.5 px-2 text-muted-foreground font-semibold">Bucket</th>
-                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Raw %</th>
-                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Calib %</th>
-                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Actual %</th>
-                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Raw Err</th>
-                        <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Calib Err</th>
-                        <th className="text-center py-1.5 px-2 text-muted-foreground font-semibold">Result</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(validationReport.cases ?? []).map((c: any, i: number) => (
-                        <tr key={i} className="border-b border-border/50">
-                          <td className="py-2 px-2 font-mono text-[10px]">{c.caseId}</td>
-                          <td className="py-2 px-2 text-muted-foreground">{c.therapyArea ?? "—"}</td>
-                          <td className="py-2 px-2 font-mono">{c.bucket ?? "—"}</td>
-                          <td className="py-2 px-2 text-right font-mono">{(c.rawProbability * 100).toFixed(1)}%</td>
-                          <td className="py-2 px-2 text-right font-mono">{(c.calibratedProbability * 100).toFixed(1)}%</td>
-                          <td className="py-2 px-2 text-right font-mono font-semibold">{(c.actual * 100).toFixed(1)}%</td>
-                          <td className={cn("py-2 px-2 text-right font-mono", c.rawError < 0 ? "text-amber-500" : "text-blue-500")}>
-                            {c.rawError > 0 ? "+" : ""}{(c.rawError * 100).toFixed(1)}pp
-                          </td>
-                          <td className={cn("py-2 px-2 text-right font-mono", c.calibratedError < 0 ? "text-amber-500" : "text-blue-500")}>
-                            {c.calibratedError > 0 ? "+" : ""}{(c.calibratedError * 100).toFixed(1)}pp
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            {c.improved ? (
-                              <span className="text-success text-[10px] font-semibold">↑ Better</span>
-                            ) : (
-                              <span className="text-destructive text-[10px]">↓ Worse</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Coverage Map */}
-        <Card>
-          <button
-            onClick={() => setShowCoverageMap((v) => !v)}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <LayoutGrid className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Calibration Coverage Map</span>
-              <span className="text-xs text-muted-foreground">Maturity grid — bucket × therapy area × question type</span>
-            </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showCoverageMap && "rotate-90")} />
-          </button>
-
-          {showCoverageMap && coverageMap && (
-            <div className="mt-4 pt-4 border-t border-border space-y-5">
-              {/* Legend */}
-              <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-                <span className="font-semibold text-foreground uppercase tracking-wider">Maturity:</span>
-                {[
-                  { label: "None", cls: "bg-muted/20 text-muted-foreground border-border" },
-                  { label: "Low", cls: "bg-amber-400/10 text-amber-600 border-amber-400/30" },
-                  { label: "Medium", cls: "bg-blue-500/10 text-blue-500 border-blue-500/30" },
-                  { label: "High", cls: "bg-success/10 text-success border-success/30" },
-                ].map((m) => (
-                  <span key={m.label} className={cn("px-1.5 py-0.5 rounded border font-semibold", m.cls)}>{m.label}</span>
-                ))}
-                <span className="ml-2 font-semibold text-foreground uppercase tracking-wider">Flags:</span>
-                <span className="px-1.5 py-0.5 rounded border bg-success/10 text-success border-success/30 font-semibold">✓ active</span>
-                <span className="px-1.5 py-0.5 rounded border bg-amber-400/10 text-amber-600 border-amber-400/30">⚠ low-n</span>
-              </div>
-
-              {(() => {
-                const BUCKETS = ["0.40-0.60", "0.60-0.75", "0.75-0.90", "0.90+"];
-                const maturityCls = (m: string) => {
-                  if (m === "high") return "bg-success/10 text-success border-success/30";
-                  if (m === "medium") return "bg-blue-500/10 text-blue-500 border-blue-500/30";
-                  if (m === "low") return "bg-amber-400/10 text-amber-600 border-amber-400/30";
-                  return "bg-muted/10 text-muted-foreground border-border";
-                };
-                const CoverageCell = ({ cell }: { cell: any }) => {
-                  if (!cell || cell.n === 0) return <td className="py-2 px-2 text-center text-muted-foreground/30 text-[10px]">—</td>;
-                  return (
-                    <td className="py-2 px-2 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-semibold", maturityCls(cell.maturity))}>
-                          {cell.maturity}
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                      {r.movedCloser != null && (
+                        <span className={`text-xs font-medium ${r.movedCloser ? "text-emerald-400" : "text-red-400"}`}>
+                          {r.movedCloser ? "Improved" : "Degraded"}
                         </span>
-                        <span className="text-[9px] text-muted-foreground">n={cell.n}</span>
-                        <div className="flex gap-1 flex-wrap justify-center">
-                          {cell.correctionActive && <span className="text-[8px] text-success font-semibold">✓ active</span>}
-                          {cell.lowSampleWarning && <span className="text-[8px] text-amber-600">⚠ low-n</span>}
-                          {cell.bucketThresholdMet && !cell.correctionActive && <span className="text-[8px] text-muted-foreground">threshold met</span>}
+                      )}
+                      <StatusBadge status={r.resolutionStatus} />
+                    </div>
+                  </button>
+                  {expandedRevision === r.caseId && (
+                    <div className="px-3 pb-3 border-t border-white/5 pt-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <div className="text-xs">
+                          <span className="text-slate-500">First Forecast</span>
+                          <div className="text-slate-200 font-mono">{(r.firstForecast * 100).toFixed(1)}%</div>
+                        </div>
+                        <div className="text-xs">
+                          <span className="text-slate-500">Final Forecast</span>
+                          <div className="text-slate-200 font-mono">{(r.finalForecast * 100).toFixed(1)}%</div>
+                        </div>
+                        <div className="text-xs">
+                          <span className="text-slate-500">Outcome</span>
+                          <div className="text-slate-200 font-mono">{r.outcome != null ? `${(r.outcome * 100).toFixed(1)}%` : "\u2014"}</div>
+                        </div>
+                        <div className="text-xs">
+                          <span className="text-slate-500">Confidence Change</span>
+                          <div className={`font-medium ${
+                            r.confidenceChange === "more_justified" ? "text-emerald-400" :
+                            r.confidenceChange === "less_justified" ? "text-red-400" : "text-slate-400"
+                          }`}>
+                            {r.confidenceChange === "more_justified" ? "More justified" :
+                             r.confidenceChange === "less_justified" ? "Less justified" :
+                             r.confidenceChange === "unchanged" ? "Unchanged" : "\u2014"}
+                          </div>
                         </div>
                       </div>
-                    </td>
-                  );
-                };
-
-                const TableSection = ({ title, rows, dimKey }: { title: string; rows: any[]; dimKey: string }) => (
-                  <div>
-                    <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{title}</p>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b border-border">
-                            <th className="text-left py-1.5 px-3 text-muted-foreground font-semibold min-w-40">Segment</th>
-                            <th className="text-right py-1.5 px-2 text-muted-foreground font-semibold">Total n</th>
-                            {BUCKETS.map((b) => (
-                              <th key={b} className="text-center py-1.5 px-2 text-muted-foreground font-semibold min-w-24">{b}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((row: any) => (
-                            <tr key={row[dimKey]} className="border-b border-border/50 hover:bg-muted/10">
-                              <td className="py-2 px-3 font-semibold">{row[dimKey] === "__global" ? "Global" : row[dimKey]}</td>
-                              <td className="py-2 px-2 text-right text-muted-foreground">{row.totalResolved}</td>
-                              {BUCKETS.map((b) => <CoverageCell key={b} cell={row.buckets?.[b]} />)}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-
-                const globalRow = coverageMap.globalRow ? [{ ...coverageMap.globalRow, __global: "__global" }] : [];
-
-                return (
-                  <>
-                    <TableSection title="Global" rows={globalRow} dimKey="__global" />
-                    {(coverageMap.byTherapyArea ?? []).length > 0 && (
-                      <TableSection title="By Therapy Area" rows={coverageMap.byTherapyArea} dimKey="therapyArea" />
-                    )}
-                    {(coverageMap.byQuestionType ?? []).length > 0 && (
-                      <TableSection title="By Question Type" rows={coverageMap.byQuestionType.map((r: any) => ({ ...r, questionType: r.questionType.replace(/_/g, " ") }))} dimKey="questionType" />
-                    )}
-                  </>
-                );
-              })()}
-
-              <p className="text-[10px] text-muted-foreground">
-                Total forecasts tracked: <strong className="text-foreground">{coverageMap.totalForecasts}</strong> · Resolved cases: <strong className="text-foreground">{coverageMap.totalResolvedCases}</strong>
-              </p>
-            </div>
-          )}
-        </Card>
-
-        {/* Expansion Targets */}
-        <Card>
-          <button
-            onClick={() => setShowExpansionTargets((v) => !v)}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-destructive" />
-              <span className="text-sm font-semibold">Expansion Targets</span>
-              <span className="text-xs text-muted-foreground">Highest-priority case-library gaps by therapy area, bucket, question type</span>
-              {expansionTargets?.summary?.criticalGaps > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-destructive/10 text-destructive border-destructive/30 uppercase tracking-wider">
-                  {expansionTargets.summary.criticalGaps} critical gap{expansionTargets.summary.criticalGaps !== 1 ? "s" : ""}
-                </span>
-              )}
-            </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showExpansionTargets && "rotate-90")} />
-          </button>
-
-          {showExpansionTargets && expansionTargets && (
-            <div className="mt-4 pt-4 border-t border-border space-y-5">
-              {/* Summary row */}
-              <div className="flex flex-wrap gap-4 text-xs">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Total Forecasts</span>
-                  <span className="font-mono font-bold">{expansionTargets.summary.totalForecasts}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Resolved</span>
-                  <span className="font-mono font-bold text-success">{expansionTargets.summary.totalResolved}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Unresolved</span>
-                  <span className="font-mono font-bold text-amber-600">{expansionTargets.summary.totalUnresolved}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">Resolution Rate</span>
-                  <span className="font-mono font-bold">{Math.round(expansionTargets.summary.resolutionRate * 100)}%</span>
-                </div>
-              </div>
-
-              {/* Gap score bar helper */}
-              {(() => {
-                const GapBar = ({ score, n, resolved }: { score: number; n: number; resolved: number }) => {
-                  const pct = Math.round(score * 100);
-                  const barCls = pct >= 80 ? "bg-destructive" : pct >= 50 ? "bg-amber-500" : "bg-blue-500";
-                  return (
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <div className="flex-1 h-1.5 rounded-full bg-muted/30 overflow-hidden max-w-24">
-                        <div className={cn("h-full rounded-full", barCls)} style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-[10px] font-mono text-muted-foreground shrink-0">{pct}% gap</span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{resolved}/{n} resolved</span>
-                    </div>
-                  );
-                };
-
-                const GapTable = ({ title, rows, dimKey }: { title: string; rows: any[]; dimKey: string }) => {
-                  if (!rows || rows.length === 0) return null;
-                  return (
-                    <div>
-                      <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{title}</p>
                       <div className="space-y-1.5">
-                        {rows.map((row: any, i: number) => (
-                          <div key={i} className={cn(
-                            "flex items-center gap-3 p-2.5 rounded-lg border text-xs",
-                            row.resolvedCases === 0
-                              ? "border-destructive/30 bg-destructive/5"
-                              : "border-border bg-background"
-                          )}>
-                            <div className="min-w-0 w-40 shrink-0">
-                              <span className="font-semibold leading-snug capitalize line-clamp-1">
-                                {(row[dimKey] as string)?.replace(/_/g, " ") ?? "—"}
-                              </span>
-                              {row.resolvedCases === 0 && (
-                                <span className="text-[10px] text-destructive font-semibold">no resolved cases</span>
-                              )}
-                            </div>
-                            <GapBar score={row.gapScore} n={row.totalForecasts} resolved={row.resolvedCases} />
+                        {r.versions.map(v => (
+                          <div key={v.version} className="flex items-center gap-3 text-xs">
+                            <span className="text-slate-500 font-mono w-6">v{v.version}</span>
+                            <span className="text-slate-300 font-mono w-12">{(v.probability * 100).toFixed(1)}%</span>
+                            <span className="text-slate-500 w-24">{v.date ? new Date(v.date).toLocaleDateString() : ""}</span>
+                            <span className="text-slate-400 truncate">{v.rationale ?? ""}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                  );
-                };
-
-                return (
-                  <>
-                    <GapTable title="By Therapy Area" rows={expansionTargets.byTherapyArea} dimKey="therapyArea" />
-                    <GapTable title="By Probability Bucket" rows={expansionTargets.byBucket} dimKey="bucket" />
-                    <GapTable title="By Question Type" rows={expansionTargets.byQuestionType} dimKey="questionType" />
-                  </>
-                );
-              })()}
-            </div>
-          )}
-        </Card>
-
-        {/* Case Acquisition Planner */}
-        <Card>
-          <button
-            onClick={() => setShowAcquisitionPlan((v) => !v)}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <ListOrdered className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Case Acquisition Planner</span>
-              <span className="text-xs text-muted-foreground">Ranked gaps converted to actionable acquisition priorities</span>
-              {acquisitionPlan?.summary?.criticalCount > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-destructive/10 text-destructive border-destructive/30 uppercase tracking-wider">
-                  {acquisitionPlan.summary.criticalCount} critical
-                </span>
-              )}
-            </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showAcquisitionPlan && "rotate-90")} />
-          </button>
-
-          {showAcquisitionPlan && acquisitionPlan && (
-            <div className="mt-4 pt-4 border-t border-border space-y-4">
-              <div className="flex flex-wrap gap-4 text-xs">
-                {[
-                  { label: "Total Entries", value: acquisitionPlan.summary.totalEntries, cls: "" },
-                  { label: "Critical", value: acquisitionPlan.summary.criticalCount, cls: "text-destructive" },
-                  { label: "High", value: acquisitionPlan.summary.highCount, cls: "text-amber-600" },
-                  { label: "Resolved", value: acquisitionPlan.summary.totalResolved, cls: "text-success" },
-                ].map((s) => (
-                  <div key={s.label} className="flex flex-col gap-0.5">
-                    <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">{s.label}</span>
-                    <span className={cn("font-mono font-bold", s.cls)}>{s.value}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                {(acquisitionPlan.plan ?? []).map((entry: any) => {
-                  const priorityCls = entry.priority === "critical"
-                    ? "border-destructive/30 bg-destructive/5"
-                    : entry.priority === "high"
-                      ? "border-amber-500/30 bg-amber-500/5"
-                      : entry.priority === "medium"
-                        ? "border-primary/30 bg-primary/5"
-                        : "border-border bg-background";
-                  const priorityBadgeCls = entry.priority === "critical"
-                    ? "bg-destructive/20 text-destructive"
-                    : entry.priority === "high"
-                      ? "bg-amber-500/20 text-amber-700"
-                      : entry.priority === "medium"
-                        ? "bg-primary/20 text-primary"
-                        : "bg-muted text-muted-foreground";
-                  const dimLabel = entry.dimension === "therapy_area" ? "Therapy Area" : entry.dimension === "bucket" ? "Bucket" : "Question Type";
-                  return (
-                    <div key={`${entry.dimension}-${entry.key}`} className={cn("p-3 rounded-lg border text-xs", priorityCls)}>
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[10px] font-bold font-mono text-muted-foreground shrink-0">#{entry.rank}</span>
-                          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0", priorityBadgeCls)}>
-                            {entry.priority}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground shrink-0 uppercase tracking-wider">{dimLabel}</span>
-                          <span className="font-semibold truncate">{entry.label}</span>
-                        </div>
-                        <span className="font-mono text-[10px] text-muted-foreground shrink-0">score {entry.acquisitionScore.toFixed(2)}</span>
-                      </div>
-                      <p className="text-muted-foreground leading-snug mb-2">{entry.whyItMatters}</p>
-                      <div className="flex items-center gap-4 text-[10px]">
-                        <span><span className="text-muted-foreground">Resolved:</span> <strong>{entry.resolvedCases}</strong> / {entry.totalForecasts}</span>
-                        {entry.casesNeededForThreshold > 0 && (
-                          <span className="text-amber-600 font-semibold">+{entry.casesNeededForThreshold} to threshold</span>
-                        )}
-                        {entry.casesNeededForMediumConfidence > 0 && (
-                          <span className="text-primary font-semibold">+{entry.casesNeededForMediumConfidence} to medium confidence</span>
-                        )}
-                      </div>
-                      <p className="mt-1.5 text-[10px] text-muted-foreground italic">{entry.expectedImpact}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Question-Type Taxonomy */}
-        <Card>
-          <button
-            onClick={() => setShowTaxonomy((v) => !v)}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Question-Type Taxonomy</span>
-              <span className="text-xs text-muted-foreground">All 7 canonical types with resolution counts and concentration flags</span>
-              {taxonomy?.summary?.hasOverconcentration && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-700 border-amber-500/30 uppercase tracking-wider">
-                  overconcentration
-                </span>
-              )}
-            </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showTaxonomy && "rotate-90")} />
-          </button>
-
-          {showTaxonomy && taxonomy && (
-            <div className="mt-4 pt-4 border-t border-border space-y-4">
-              <div className="flex flex-wrap gap-4 text-xs">
-                {[
-                  { label: "Total Resolved", value: taxonomy.summary.totalResolved },
-                  { label: "Types w/ Resolved", value: `${taxonomy.summary.typesWithResolvedCases} / 7` },
-                  { label: "At Threshold", value: taxonomy.summary.typesAtThreshold },
-                  { label: "Medium Confidence", value: taxonomy.summary.typesAtMediumConfidence },
-                ].map((s) => (
-                  <div key={s.label} className="flex flex-col gap-0.5">
-                    <span className="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold">{s.label}</span>
-                    <span className="font-mono font-bold">{s.value}</span>
-                  </div>
-                ))}
-              </div>
-
-              {taxonomy.summary.hasOverconcentration && (
-                <div className="flex items-start gap-2 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                  <span className="text-amber-700">
-                    Overconcentration detected: one or more question types hold &gt;{Math.round((taxonomy.overconcentrationThreshold ?? 0.6) * 100)}% of resolved cases. Diversify ingestion to improve cross-type calibration.
-                  </span>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                {(taxonomy.types ?? []).map((t: any) => {
-                  const pct = Math.round((t.resolvedShare ?? 0) * 100);
-                  const barWidth = Math.round((t.resolvedCases / Math.max(taxonomy.summary.totalResolved, 1)) * 100);
-                  const rowCls = t.isOverconcentrated
-                    ? "border-amber-500/30 bg-amber-500/5"
-                    : t.resolvedCases === 0
-                      ? "border-destructive/20 bg-destructive/5"
-                      : "border-border bg-background";
-                  return (
-                    <div key={t.type} className={cn("p-3 rounded-lg border text-xs", rowCls)}>
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{t.label}</span>
-                            {t.isOverconcentrated && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 uppercase tracking-wider">⚠ overconcentrated</span>
-                            )}
-                            {t.meetsMediumConfidence && !t.isOverconcentrated && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/10 text-green-700 uppercase tracking-wider">✓ calibrated</span>
-                            )}
-                          </div>
-                          <p className="text-muted-foreground mt-0.5 leading-snug">{t.description}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="font-mono font-bold">{t.resolvedCases} <span className="text-muted-foreground font-normal">resolved</span></div>
-                          <div className="text-muted-foreground">{pct}% of total</div>
-                        </div>
-                      </div>
-                      <div className="mt-2 h-1.5 rounded-full bg-muted/30 overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full", t.isOverconcentrated ? "bg-amber-500" : t.resolvedCases === 0 ? "bg-destructive/40" : "bg-primary")}
-                          style={{ width: `${barWidth}%` }}
-                        />
-                      </div>
-                      <p className="mt-1.5 text-[10px] text-muted-foreground">{t.statusNote}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Resolved-Case Ingestion */}
-        <Card>
-          <button
-            onClick={() => setShowIngestion((v) => !v)}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <FilePlus2 className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Resolved-Case Ingestion</span>
-              <span className="text-xs text-muted-foreground">Add historical resolved cases directly to expand calibration coverage</span>
-            </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showIngestion && "rotate-90")} />
-          </button>
-
-          {showIngestion && (
-            <div className="mt-4 pt-4 border-t border-border space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Enter a resolved case that did not go through the forecast engine. The case will be classified into the calibration log and corrections will recompute immediately.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Predicted Probability (0–1) *</label>
-                  <input
-                    type="number" min="0" max="1" step="0.01"
-                    placeholder="e.g. 0.62"
-                    value={ingestionForm.predictedProbability}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, predictedProbability: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Observed Outcome (0–1) *</label>
-                  <input
-                    type="number" min="0" max="1" step="0.01"
-                    placeholder="e.g. 0.55"
-                    value={ingestionForm.observedOutcome}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, observedOutcome: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Therapy Area *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Cardiology"
-                    value={ingestionForm.therapeuticArea}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, therapeuticArea: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Question Type *</label>
-                  <select
-                    value={ingestionForm.questionType}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, questionType: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {CANONICAL_QUESTION_TYPES.map((qt) => (
-                      <option key={qt.type} value={qt.type}>{qt.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Case Mode</label>
-                  <select
-                    value={ingestionForm.caseMode}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, caseMode: e.target.value as "live" | "demo" }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="live">Live</option>
-                    <option value="demo">Demo</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Prediction Date (optional)</label>
-                  <input
-                    type="date"
-                    value={ingestionForm.predictionDate}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, predictionDate: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Disease State (optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Heart Failure"
-                    value={ingestionForm.diseaseState}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, diseaseState: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Specialty (optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Cardiology"
-                    value={ingestionForm.specialty}
-                    onChange={(e) => setIngestionForm((f) => ({ ...f, specialty: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes (optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. ATLAS trial 12-month follow-up"
-                  value={ingestionForm.notes}
-                  onChange={(e) => setIngestionForm((f) => ({ ...f, notes: e.target.value }))}
-                  className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              {ingestionResult && (
-                <div className={cn(
-                  "flex items-start gap-2 p-2.5 rounded-lg border text-xs",
-                  ingestionResult.ok ? "border-green-500/30 bg-green-500/5 text-green-700" : "border-destructive/30 bg-destructive/5 text-destructive"
-                )}>
-                  {ingestionResult.ok
-                    ? <CheckCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    : <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  }
-                  <div>
-                    <p className="font-semibold">{ingestionResult.message}</p>
-                    {ingestionResult.detail && <p className="font-mono text-[10px] mt-0.5 opacity-70">{ingestionResult.detail}</p>}
-                  </div>
-                </div>
-              )}
-
-              <Button
-                onClick={handleIngestionSubmit}
-                disabled={ingestionSubmitting}
-                className="w-full sm:w-auto"
-              >
-                {ingestionSubmitting ? "Ingesting…" : "Ingest Resolved Case"}
-              </Button>
-            </div>
-          )}
-        </Card>
-
-        {/* Learning Impact Simulation */}
-        <Card>
-          <button
-            onClick={() => setShowSimulation((v) => !v)}
-            className="w-full flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">Learning Impact Simulation</span>
-              <span className="text-xs text-muted-foreground">Project coverage and confidence improvement from adding N resolved cases</span>
-            </div>
-            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showSimulation && "rotate-90")} />
-          </button>
-
-          {showSimulation && (
-            <div className="mt-4 pt-4 border-t border-border space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Specify a region and hypothetical case count to see what calibration state would result — no data is written.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Therapy Area *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Cardiology"
-                    value={simForm.therapyArea}
-                    onChange={(e) => setSimForm((f) => ({ ...f, therapyArea: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Probability Bucket *</label>
-                  <select
-                    value={simForm.bucket}
-                    onChange={(e) => setSimForm((f) => ({ ...f, bucket: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {CANONICAL_BUCKETS.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Question Type *</label>
-                  <select
-                    value={simForm.questionType}
-                    onChange={(e) => setSimForm((f) => ({ ...f, questionType: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {CANONICAL_QUESTION_TYPES.map((qt) => <option key={qt.type} value={qt.type}>{qt.label}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Additional Cases (1–50) *</label>
-                  <input
-                    type="number" min="1" max="50" step="1"
-                    value={simForm.additionalCases}
-                    onChange={(e) => setSimForm((f) => ({ ...f, additionalCases: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Assumed Mean Error (optional)</label>
-                  <input
-                    type="number" min="-1" max="1" step="0.01"
-                    placeholder="e.g. -0.12 (defaults to −0.10)"
-                    value={simForm.assumedMeanError}
-                    onChange={(e) => setSimForm((f) => ({ ...f, assumedMeanError: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                  />
-                </div>
-              </div>
-
-              <Button onClick={handleSimRun} disabled={simRunning} className="w-full sm:w-auto">
-                {simRunning ? "Simulating…" : "Run Simulation"}
-              </Button>
-
-              {simResult && !simResult.error && (
-                <div className="space-y-3 pt-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-lg border border-border bg-muted/10">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Current State</p>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Local n</span><span className="font-mono font-bold">{simResult.currentState.localN}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Global n</span><span className="font-mono">{simResult.currentState.globalN}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Fallback</span><span className="font-mono capitalize">{simResult.currentState.fallbackLevel.replace(/_/g, " ")}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Confidence</span><span className="font-mono capitalize">{simResult.currentState.confidenceLevel}</span></div>
-                        {simResult.currentState.currentMeanError !== null && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Mean error</span><span className="font-mono">{(simResult.currentState.currentMeanError * 100).toFixed(2)}pp</span></div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-2">Projected (+{simResult.input.additionalCases} cases)</p>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Local n</span><span className="font-mono font-bold text-primary">{simResult.projectedState.localN}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Global n</span><span className="font-mono">{simResult.projectedState.globalN}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Fallback</span><span className="font-mono capitalize">{simResult.projectedState.fallbackLevel.replace(/_/g, " ")}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Confidence</span><span className="font-mono capitalize">{simResult.projectedState.confidenceLevel}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Mean error</span><span className="font-mono">{(simResult.projectedState.assumedMeanError * 100).toFixed(2)}pp</span></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { label: "Correction Threshold", ok: simResult.correctionThresholdReached },
-                      { label: "Medium Confidence", ok: simResult.mediumConfidenceReached },
-                      { label: "High Confidence", ok: simResult.highConfidenceReached },
-                    ].map((item) => (
-                      <div key={item.label} className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium",
-                        item.ok ? "border-green-500/30 bg-green-500/5 text-green-700" : "border-border bg-muted/10 text-muted-foreground"
-                      )}>
-                        {item.ok
-                          ? <CheckCircle className="w-3.5 h-3.5" />
-                          : <XCircle className="w-3.5 h-3.5 opacity-40" />
-                        }
-                        {item.label}
-                      </div>
-                    ))}
-                  </div>
-
-                  {simResult.casesNeededForThreshold > 0 && (
-                    <p className="text-xs text-amber-600 font-semibold">+{simResult.casesNeededForThreshold} more case(s) still needed for correction threshold after this addition.</p>
                   )}
-                  {simResult.casesNeededForMediumConfidence > 0 && (
-                    <p className="text-xs text-primary font-semibold">+{simResult.casesNeededForMediumConfidence} more case(s) still needed for medium confidence after this addition.</p>
-                  )}
-
-                  <p className="text-xs text-muted-foreground italic border-t border-border pt-2">{simResult.interpretation}</p>
                 </div>
-              )}
-
-              {simResult?.error && (
-                <div className="flex items-start gap-2 p-2.5 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
-                  <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  {simResult.error}
-                </div>
-              )}
+              ))}
             </div>
           )}
-        </Card>
+        </div>
 
-        {/* How calibration works */}
-        <Card className="bg-muted/5 border-dashed">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p className="font-semibold text-foreground">How the calibration loop works</p>
-              <p>Every forecast run is automatically logged with the predicted probability at that moment. When an actual adoption outcome is recorded (on the Forecast page or in the table above), the system computes the accuracy score and forecast error for that entry.</p>
-              <p>Over time, the bias analysis reveals which signal types and actor stances are systematically associated with over- or under-forecasting. A positive mean error (blue) means the engine tends to underforecast when that signal type is active. A negative error (amber) means it overforecasts.</p>
+        <div className="rounded-xl border border-white/10 bg-[#0A1736] p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <BookOpen className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-sm font-semibold text-white">Reference Case Linkage</h3>
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <Info className="w-3 h-3 mr-1" />
+              Informational Only
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mb-4">
+            Patterns and lessons from the Reference Case Library. These do not alter forecast calculations. They provide calibration context and structural interpretation.
+          </p>
+
+          {data?.referenceCaseLinkage && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <h4 className="text-xs font-medium text-slate-300 mb-2">Most Common Structural Tags ({data.referenceCaseLinkage.totalReferenceCases} cases)</h4>
+                <div className="space-y-1.5">
+                  {data.referenceCaseLinkage.mostMatchedPatterns.map(p => (
+                    <div key={p.tag} className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">{p.tag}</span>
+                      <span className="text-slate-300 font-mono">{p.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-medium text-slate-300 mb-2">Bias Patterns Correlated with Misses</h4>
+                <div className="space-y-1.5">
+                  {data.referenceCaseLinkage.missCorrelations.map(m => (
+                    <div key={m.pattern} className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">{m.pattern}</span>
+                      <span className="text-slate-300">
+                        <span className={m.missCount > 0 ? "text-amber-400" : "text-emerald-400"}>{m.missCount}</span>
+                        <span className="text-slate-600"> / {m.total}</span>
+                      </span>
+                    </div>
+                  ))}
+                  {data.referenceCaseLinkage.missCorrelations.length === 0 && (
+                    <p className="text-xs text-slate-500 italic">No bias patterns recorded</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-medium text-slate-300 mb-2">Recurring Calibration Lessons</h4>
+                <div className="space-y-2">
+                  {data.referenceCaseLinkage.recurringLessons.slice(0, 4).map((lesson, i) => (
+                    <p key={i} className="text-[11px] text-slate-400 leading-relaxed border-l-2 border-cyan-500/30 pl-2">
+                      {lesson.slice(0, 140)}...
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {data?.resolvedEntries && data.resolvedEntries.length > 0 && (
+          <div className="rounded-xl border border-white/10 bg-[#0A1736] p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-sm font-semibold text-white">Resolved Forecast Detail</h3>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">
+              Individual resolved forecasts with dependency metrics. Click to expand.
+            </p>
+            <div className="space-y-1.5">
+              {data.resolvedEntries.map(e => (
+                <div key={e.predictionId} className="rounded-lg border border-white/5 bg-white/[0.01]">
+                  <button
+                    onClick={() => setExpandedEntry(expandedEntry === e.predictionId ? null : e.predictionId)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-white/[0.02] transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform flex-shrink-0 ${expandedEntry === e.predictionId ? "rotate-90" : ""}`} />
+                      <div className="min-w-0">
+                        <div className="text-sm text-slate-200 truncate">{e.strategicQuestion?.slice(0, 70)}</div>
+                        <div className="text-xs text-slate-500 mt-0.5 font-mono">{e.predictionId}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 flex-shrink-0 ml-3">
+                      <div className="text-right">
+                        <div className="text-xs text-slate-400">Predicted</div>
+                        <div className="text-sm text-slate-200 font-mono">{(e.forecastProbability * 100).toFixed(1)}%</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-400">Actual</div>
+                        <div className="text-sm text-slate-200 font-mono">{e.actualOutcome != null ? `${(e.actualOutcome * 100).toFixed(1)}%` : "\u2014"}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-400">Accuracy</div>
+                        <div className={`text-sm font-mono ${brierColor(e.brierScore)}`}>{brierLabel(e.brierScore)}</div>
+                      </div>
+                      <StatusBadge status={e.resolutionStatus} />
+                    </div>
+                  </button>
+                  {expandedEntry === e.predictionId && (
+                    <div className="px-3 pb-3 border-t border-white/5 pt-3">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <MiniMetric label="Domain" value={e.decisionDomain ?? "Unspecified"} />
+                        <MiniMetric label="Prediction Error" value={e.predictionError != null ? `${(e.predictionError * 100).toFixed(1)}pp` : "\u2014"} />
+                        <MiniMetric label="Evidence Diversity" value={e.evidenceDiversityScore != null ? e.evidenceDiversityScore.toFixed(2) : "\u2014"} />
+                        <MiniMetric label="Fragility" value={e.posteriorFragilityScore != null ? e.posteriorFragilityScore.toFixed(2) : "\u2014"} />
+                        <MiniMetric label="Concentration Penalty" value={e.concentrationPenalty != null ? e.concentrationPenalty.toFixed(3) : "\u2014"} />
+                        <MiniMetric label="Confidence Ceiling" value={e.confidenceCeilingApplied != null ? `${(e.confidenceCeilingApplied * 100).toFixed(0)}%` : "None"} />
+                        <MiniMetric label="Calibration Bucket" value={e.calibrationBucket} />
+                        <MiniMetric label="Version" value={`v${e.updateVersion}`} />
+                        <MiniMetric label="Forecast Date" value={e.forecastDate ? new Date(e.forecastDate).toLocaleDateString() : "\u2014"} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-        </Card>
+        )}
+
       </div>
-    </AppLayout>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, icon, subtext, valueColor }: {
+  label: string;
+  value: string | number;
+  icon?: React.ReactNode;
+  subtext?: string;
+  valueColor?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#0A1736] p-4">
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <span className="text-xs text-slate-400">{label}</span>
+      </div>
+      <div className={`text-2xl font-bold ${valueColor ?? "text-white"}`}>{value}</div>
+      {subtext && <div className="text-[10px] text-slate-500 mt-1">{subtext}</div>}
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="text-xs">
+      <span className="text-slate-500">{label}</span>
+      <div className="text-slate-200 font-mono mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+function EmptyState({ icon, message, detail }: { icon: React.ReactNode; message: string; detail: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-48 text-slate-500/40 gap-2">
+      {icon}
+      <p className="text-sm font-medium text-slate-400">{message}</p>
+      <p className="text-xs text-center max-w-52 text-slate-500">{detail}</p>
+    </div>
   );
 }

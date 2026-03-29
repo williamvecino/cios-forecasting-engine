@@ -1,0 +1,165 @@
+Good. The Reference Case Library is accepted as complete and remains informational only.
+
+## Decision
+
+Proceed to the next canonical build step: **Calibration / Performance Dashboard**.
+
+## Purpose
+
+Turn the Forecast Ledger and Reference Case Library into an operating feedback layer that shows whether CIOS is:
+
+* well calibrated
+* systematically biased
+* improving over time
+* fragile in specific decision contexts
+* overstating confidence under certain structural conditions
+
+This dashboard is not just a reporting screen. It is the system’s performance-monitoring layer.
+
+## What the dashboard must answer
+
+At minimum, it should show:
+
+* Are forecasts getting more accurate over time?
+* Is the system overconfident or underconfident?
+* Which decision domains perform best or worst?
+* Which structural patterns produce the largest forecast errors?
+* How often do concentration / fragility problems correlate with misses?
+* Are updates improving forecasts or making them worse?
+
+## Build requirements
+
+### 1) Core performance metrics
+
+Show at minimum:
+
+* total forecasts
+* resolved forecasts
+* open forecasts
+* mean Brier score
+* median Brier score
+* calibration by probability bucket
+* overconfidence rate
+* underconfidence rate
+* mean absolute forecast error if applicable
+* forecast revision count
+* revision improvement rate
+
+### 2) Calibration views
+
+Add a calibration section showing:
+
+* forecast buckets (0–10%, 11–20%, etc.)
+* actual realized frequency by bucket
+* gap between predicted and realized outcomes
+* visual calibration curve if easy
+* bucket sample size
+
+Goal:
+Let us see whether 70% forecasts behave like 70% forecasts in reality.
+
+### 3) Bias / failure pattern analysis
+
+Use ledger + reference cases to surface recurring error patterns.
+
+At minimum track:
+
+* high concentration penalty + miss
+* low evidence diversity + miss
+* high fragility + miss
+* false confidence patterns
+* workflow-friction misses
+* access-underestimation misses
+* KOL enthusiasm inflation
+* competitive disruption misses
+
+This can begin as counts / summary cards before deeper analytics.
+
+### 4) Domain and archetype breakdowns
+
+Allow performance breakdown by:
+
+* decision domain
+* structural tags
+* bias pattern
+* outcome type
+* comparison-group category if available
+
+I want to know where the system is reliable and where it is weak.
+
+### 5) Forecast revision analysis
+
+Track whether updates improved calibration.
+
+For each multi-version case, show:
+
+* version count
+* first forecast
+* final forecast
+* outcome
+* whether revisions moved closer to reality
+* whether confidence became more or less justified
+
+This is important. A forecasting system should improve as new information arrives.
+
+### 6) Reference-case linkage
+
+Use the Reference Case Library only as an interpretation aid.
+
+Dashboard can show:
+
+* which reference patterns are most often matched
+* which matched patterns correlate with misses
+* which structural lessons recur most often
+
+But:
+Reference cases must remain informational only and must not auto-adjust posterior probabilities.
+
+### 7) UI requirements
+
+Build a usable dashboard page with:
+
+* top summary metrics
+* calibration section
+* bias / error pattern section
+* revision analysis section
+* filter controls
+* drilldown into contributing forecasts
+
+Functional clarity first. Polish later.
+
+### 8) Minimum filters
+
+Support filtering by:
+
+* date range
+* decision domain
+* resolution status
+* structural tag
+* bias pattern
+* confidence range
+
+## Important architectural rule
+
+This dashboard is the first place where CIOS should visibly learn from its own history.
+
+It must use:
+
+* Forecast Ledger data
+* dependency-control metrics
+* resolution outcomes
+* reference-case tags
+
+But it must not modify the live posterior engine directly.
+
+## Deliverables
+
+Return with:
+
+1. Dashboard schema / data aggregation approach
+2. Core metrics implemented
+3. Calibration bucket analysis working
+4. Bias / failure pattern summaries working
+5. Revision analysis working
+6. Filters working
+7. Proof that reference-case linkage is informational only
