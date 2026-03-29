@@ -345,12 +345,15 @@ export default function MiosBaosPanel({
                   <span className="text-[10px] text-muted-foreground">{pendingMiosCount} pending</span>
                 )}
                 {pendingMiosCount > 0 && (
-                  <button
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(ev) => { ev.stopPropagation(); acceptAllMios(); }}
-                    className="text-[10px] text-cyan-400 hover:text-cyan-300 transition"
+                    onKeyDown={(ev) => { if (ev.key === "Enter") { ev.stopPropagation(); acceptAllMios(); } }}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-300 transition cursor-pointer"
                   >
                     Accept all
-                  </button>
+                  </span>
                 )}
                 {expandedSections.mios ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-cyan-400" />}
               </div>
@@ -392,9 +395,17 @@ export default function MiosBaosPanel({
                       )}
                       <div className="flex items-center justify-between">
                         <div className="flex gap-2">
-                          <span className="text-[10px] text-muted-foreground">{e.strength}</span>
+                          <span className="text-[10px] text-muted-foreground" title={
+                            e.strength === "High" ? "Strong evidence — large effect size or definitive trial results"
+                            : e.strength === "Medium" ? "Moderate evidence — meaningful but not conclusive"
+                            : "Weak evidence — suggestive but not definitive"
+                          }>{e.strength}</span>
                           <span className="text-[10px] text-muted-foreground">·</span>
-                          <span className="text-[10px] text-muted-foreground">{e.confidence}</span>
+                          <span className="text-[10px] text-muted-foreground" title={
+                            e.confidence === "Confirmed" ? "Verified — from published trials, FDA filings, or official sources"
+                            : e.confidence === "Probable" ? "Likely accurate — from credible but not fully verified sources"
+                            : "Speculative — from early reports, conference abstracts, or analyst commentary"
+                          }>{e.confidence}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           {decision === "accepted" && (
@@ -457,12 +468,15 @@ export default function MiosBaosPanel({
                   <span className="text-[10px] text-muted-foreground">{pendingBaosCount} pending</span>
                 )}
                 {pendingBaosCount > 0 && (
-                  <button
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(ev) => { ev.stopPropagation(); acceptAllBaos(); }}
-                    className="text-[10px] text-amber-400 hover:text-amber-300 transition"
+                    onKeyDown={(ev) => { if (ev.key === "Enter") { ev.stopPropagation(); acceptAllBaos(); } }}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 transition cursor-pointer"
                   >
                     Accept all
-                  </button>
+                  </span>
                 )}
                 {expandedSections.baos ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
               </div>
@@ -491,17 +505,25 @@ export default function MiosBaosPanel({
                         <span className="text-xs text-foreground/90 leading-relaxed flex-1">{b.barrierText}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded">{b.cognitiveLens}</span>
-                        <span className="text-[10px] text-muted-foreground">{b.affectedSegment}</span>
+                        <span className="text-[10px] font-medium text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded" title="The cognitive bias or mental model that creates this barrier to adoption">{b.cognitiveLens}</span>
+                        <span className="text-[10px] text-muted-foreground" title="The specific group of prescribers or stakeholders affected by this barrier">{b.affectedSegment}</span>
                       </div>
                       {b.whyItMatters && (
                         <div className="text-[10px] text-foreground/60 italic">{b.whyItMatters}</div>
                       )}
                       <div className="flex items-center justify-between">
                         <div className="flex gap-2">
-                          <span className="text-[10px] text-muted-foreground">{b.strength}</span>
+                          <span className="text-[10px] text-muted-foreground" title={
+                            b.strength === "High" ? "Strong barrier — likely to significantly slow or prevent adoption"
+                            : b.strength === "Medium" ? "Moderate barrier — can be overcome with targeted effort"
+                            : "Mild barrier — unlikely to significantly impede adoption"
+                          }>{b.strength}</span>
                           <span className="text-[10px] text-muted-foreground">·</span>
-                          <span className="text-[10px] text-muted-foreground">{b.confidence}</span>
+                          <span className="text-[10px] text-muted-foreground" title={
+                            b.confidence === "Confirmed" ? "Well-documented barrier — observed in clinical practice"
+                            : b.confidence === "Probable" ? "Likely barrier based on related evidence"
+                            : "Hypothesized barrier — inferred from limited data"
+                          }>{b.confidence}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           {decision === "accepted" && (

@@ -306,7 +306,13 @@ export default function ExternalSignalScoutPanel({
                               Current
                             </span>
                           )}
-                          <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
+                          <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400" title={
+                            candidate.relevanceScore >= 0.8
+                              ? "Highly relevant — directly addresses the question being analyzed"
+                              : candidate.relevanceScore >= 0.5
+                              ? "Moderately relevant — related to the question but may not be a direct match"
+                              : "Lower relevance — tangentially related or from an adjacent area"
+                          }>
                             {Math.round(candidate.relevanceScore * 100)}% relevant
                           </span>
                         </div>

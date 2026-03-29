@@ -90,8 +90,8 @@ OUTPUT FORMAT (JSON):
       "direction": "positive" | "negative",
       "strength": "High" | "Medium" | "Low",
       "confidence": "Confirmed" | "Probable" | "Speculative",
-      "whyItMatters": "why this barrier matters for adoption",
-      "affectedSegment": "which HCP segment is most affected"
+      "whyItMatters": "Plain-language explanation of WHY this barrier matters for adoption — describe the practical consequence. Example: 'Oncologists who rely on established NCCN guidelines will resist switching because the new data has not yet been incorporated into treatment algorithms — without guideline inclusion, they see switching as unwarranted risk.'",
+      "affectedSegment": "which HCP segment is most affected and why they are particularly vulnerable to this bias"
     }
   ],
   "barrierSummary": "brief summary of the cognitive barrier landscape"

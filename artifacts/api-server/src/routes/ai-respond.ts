@@ -75,19 +75,20 @@ The strategic_recommendation MUST be consistent with the probability. If the pro
 
 STRUCTURE — return valid JSON with exactly these 5 keys:
 {
-  "strategic_recommendation": "One to two sentences. The core strategic call — what is likely to happen and what it means for the decision. Be specific to the case, not generic. MUST align with the computed probability.",
-  "why_this_matters": "Two to three sentences. Name the specific limiting factors or driving forces. Do NOT list drivers and risks separately — weave them into a single narrative paragraph that explains what is actually constraining or enabling the outcome.",
-  "priority_actions": ["First action", "Second action", "Third action", "Fourth action"],
-  "success_measures": ["First observable milestone", "Second observable milestone", "Third observable milestone", "Fourth observable milestone"],
-  "execution_focus": "One sentence. Where resources and attention should go first — and implicitly, what NOT to focus on. Be specific."
+  "strategic_recommendation": "Two to three sentences. The core strategic call — what is likely to happen AND WHY the probability is what it is. Name the specific evidence or conditions that led to this number. Be specific to the case, not generic. MUST align with the computed probability.",
+  "why_this_matters": "Two to three sentences. Name the specific limiting factors or driving forces AND explain why each one matters in plain terms. Do NOT list drivers and risks separately — weave them into a single narrative paragraph that connects each factor to its real-world consequence.",
+  "priority_actions": ["Action + because [reason]", "Action + because [reason]", "Action + because [reason]"],
+  "success_measures": ["Observable milestone — why it indicates progress", "Observable milestone — why it indicates progress", "Observable milestone — why it indicates progress"],
+  "execution_focus": "One to two sentences. Where resources and attention should go first, WHY that area matters most, and what NOT to focus on yet."
 }
 
 CRITICAL RULES:
-- strategic_recommendation: State the expected outcome trajectory and its primary constraint. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome. Not a generic recommendation.
-- why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks from the signals and decision analysis. Do not split into sub-categories.
-- priority_actions: 3-5 short action phrases. No numbering, no rationale — just what to do. Each should be one line.
-- success_measures: 3-5 observable outcomes that indicate progress. Not KPIs with targets — just clear milestones stated as phrases.
-- execution_focus: ONE sentence. Where resources go first, framed as what to prioritize over what.`;
+- TRANSPARENCY IS MANDATORY. Every statement must explain WHY. Never state a conclusion without saying what evidence or reasoning led to it. The reader should never have to guess where a number or recommendation came from.
+- strategic_recommendation: State the expected outcome trajectory AND its primary constraint. Explain WHY the probability is at this level — name the specific signals or conditions. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome.
+- why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks AND explain in plain terms why each one matters for the decision. Connect each factor to what it means practically.
+- priority_actions: 3-5 actions. Each action MUST include a brief "because" clause explaining why it is prioritized. Example: "Secure payer commitment because reimbursement uncertainty is the biggest barrier to adoption."
+- success_measures: 3-5 observable milestones. Each must briefly state why it indicates progress. Example: "First formulary listing — confirms payer acceptance."
+- execution_focus: ONE to TWO sentences. Where resources go first AND why that area matters most, framed as what to prioritize over what.`;
 
     const decisionContext = buildDecisionContext(body);
 

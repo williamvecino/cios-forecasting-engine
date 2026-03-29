@@ -36,15 +36,17 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
           <ProbabilityGauge value={brandOutlookProb} label="Brand Strength" size={180} />
           <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
-            Overall strength of therapy and market momentum
+            How strong the therapy looks based on all signals — clinical evidence, competitive position, and market readiness combined
           </div>
-          <div className="text-[10px] text-slate-500 italic">Potential / overall readiness</div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>Prior: {(priorProbability * 100).toFixed(0)}%</span>
+            <span title="Where the probability started before any evidence was added">Prior: {(priorProbability * 100).toFixed(0)}%</span>
             <ArrowRight className="w-3 h-3" />
-            <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
+            <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"} title={delta >= 0 ? "Positive signals pushed the probability up by this amount" : "Negative signals pulled the probability down by this amount"}>
               {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
             </span>
+          </div>
+          <div className="text-[10px] text-slate-600 leading-snug max-w-[220px]">
+            Started at {(priorProbability * 100).toFixed(0)}%, then {Math.abs(Math.round(delta * 100))} points were {delta >= 0 ? "added" : "removed"} based on the evidence you accepted
           </div>
         </div>
 
@@ -57,14 +59,22 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
           <ProbabilityGauge value={finalForecastProb} label="Gate-Constrained" size={180} />
           <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
-            Probability of achieving the defined outcome
+            {finalForecastProb < brandOutlookProb
+              ? "The final number after real-world barriers (regulatory, access, competition) are applied — these can limit what the brand can actually achieve"
+              : "The probability of achieving the defined outcome after all factors are considered"}
           </div>
-          <div className="text-[10px] text-slate-500 italic">Constrained event outcome</div>
           <div className={cn(
             "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
             confidenceBadgeClass[confidence]
           )}>
             Confidence: {confidence}
+          </div>
+          <div className="text-[10px] text-slate-600 leading-snug max-w-[220px]">
+            {confidence === "High"
+              ? "Strong, consistent evidence supports this number"
+              : confidence === "Moderate"
+              ? "Some signals are mixed or incomplete — more evidence would sharpen the forecast"
+              : "Limited or conflicting evidence — treat this number as directional, not precise"}
           </div>
         </div>
       </div>
@@ -111,10 +121,12 @@ function ExecutionGapIndicator({ brandPct, finalPct }: { brandPct: number; final
             {isNegative ? "▲" : "▼"}
           </span>
         </div>
-        <div className="text-[10px] text-slate-500 leading-snug max-w-[120px]">
+        <div className="text-[10px] text-slate-500 leading-snug max-w-[140px]">
           {isNegative
-            ? "Outcome exceeds brand baseline"
-            : "Constraints reduce achievable outcome"
+            ? "The final forecast is higher than the brand outlook — favorable conditions are boosting the expected outcome"
+            : absGap >= 15
+            ? `Real-world barriers are reducing the achievable outcome by ${absGap} points — look at the event gates below to see what is causing this`
+            : "Minor gap between potential and constrained outcome — barriers are having a small effect"
           }
         </div>
       </div>

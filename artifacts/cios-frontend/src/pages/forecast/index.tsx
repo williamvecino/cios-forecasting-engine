@@ -1639,7 +1639,7 @@ function DriverImpactContent({ activeQuestion }: { activeQuestion: any }) {
                   {driver.strength}
                 </span>
               </div>
-              <div className="col-span-4 md:col-span-2 text-sm font-semibold text-white">
+              <div className="col-span-4 md:col-span-2 text-sm font-semibold text-white" title={`This signal ${driver.probabilityImpact > 0 ? "adds" : "removes"} ${Math.abs(driver.probabilityImpact)} percentage points ${driver.probabilityImpact > 0 ? "to" : "from"} the forecast because of its strength (${driver.strength}) and direction (${driver.direction})`}>
                 {driver.probabilityImpact > 0 ? "+" : ""}{driver.probabilityImpact} pts
               </div>
               <div className="col-span-12 md:col-span-2 text-sm leading-6 text-slate-300">
@@ -1657,7 +1657,7 @@ function DriverImpactContent({ activeQuestion }: { activeQuestion: any }) {
             <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Most Sensitive Driver</div>
             <div className="mt-2 text-2xl font-semibold text-white">{topDriver?.name ?? "—"}</div>
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              This is currently the single largest modeled lever for changing forecast direction. It should be visible everywhere scenario movement is displayed.
+              This driver has the biggest effect on where the forecast lands. If this factor changes — positively or negatively — the probability will move more than from any other single signal.
             </p>
           </div>
         </div>

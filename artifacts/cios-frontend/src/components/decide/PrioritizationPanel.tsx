@@ -118,15 +118,25 @@ export function PrioritizationPanel({ question, brand, therapeuticArea, probabil
                 <div className={`text-2xl font-bold ${readinessColor(result.decisionReadiness.score)}`}>
                   {result.decisionReadiness.score}<span className="text-sm font-normal text-muted-foreground">/100</span>
                 </div>
+                <div className="text-[10px] text-slate-600 mt-1 leading-snug max-w-[160px]">
+                  {result.decisionReadiness.score >= 70
+                    ? "Enough evidence and clarity to decide now"
+                    : result.decisionReadiness.score >= 40
+                    ? "Some gaps remain — deciding now carries moderate risk"
+                    : "Significant gaps — deciding now would be premature"}
+                </div>
               </div>
             </div>
             <div className="flex-1">
               <p className="text-xs text-foreground/80 leading-relaxed">{result.decisionReadiness.recommendation}</p>
               {result.decisionReadiness.gaps.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {result.decisionReadiness.gaps.map((g, i) => (
-                    <span key={i} className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">{g}</span>
-                  ))}
+                <div className="mt-1.5">
+                  <div className="text-[10px] text-muted-foreground/60 mb-1">These gaps are keeping the readiness score below 100:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {result.decisionReadiness.gaps.map((g, i) => (
+                      <span key={i} className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">{g}</span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -153,7 +163,13 @@ export function PrioritizationPanel({ question, brand, therapeuticArea, probabil
                             <Icon className="w-2.5 h-2.5 inline mr-0.5" />
                             {cfg.label}
                           </span>
-                          <span className={`text-[10px] font-medium ${leverageColor(action.leverage)}`}>
+                          <span className={`text-[10px] font-medium ${leverageColor(action.leverage)}`} title={
+                            action.leverage === "high"
+                              ? "This action has the most potential to move the outcome — it addresses a primary driver"
+                              : action.leverage === "moderate"
+                              ? "Useful but addresses a secondary factor — will help but not transform the outcome"
+                              : "Low potential to change the outcome on its own"
+                          }>
                             Leverage: {action.leverage}
                           </span>
                         </div>

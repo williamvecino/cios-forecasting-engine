@@ -100,10 +100,17 @@ export default function SignalQualityPanel({ question, signals }: {
 
           {result && (
             <div className="space-y-3">
+              <div className="text-[10px] text-muted-foreground/70 leading-snug">
+                {result.overallQuality.averageScore >= 70
+                  ? "Overall signal quality is good — most evidence is reliable, recent, and directly relevant to the question."
+                  : result.overallQuality.averageScore >= 40
+                  ? "Signal quality is mixed — some evidence may be outdated, indirect, or from weaker sources. Consider verifying flagged signals before relying on the forecast."
+                  : "Signal quality is low — much of the evidence may be unreliable or not directly relevant. The forecast should be treated with caution until stronger signals are added."}
+              </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span>Verify: <span className="text-amber-400 font-medium">{result.overallQuality.signalsToVerify}</span></span>
-                <span>Downgrade: <span className="text-orange-400 font-medium">{result.overallQuality.signalsToDowngrade}</span></span>
-                <span>Remove: <span className="text-red-400 font-medium">{result.overallQuality.signalsToRemove}</span></span>
+                <span title="These signals need confirmation from a second source">Verify: <span className="text-amber-400 font-medium">{result.overallQuality.signalsToVerify}</span></span>
+                <span title="These signals are weaker than initially rated and should carry less weight">Downgrade: <span className="text-orange-400 font-medium">{result.overallQuality.signalsToDowngrade}</span></span>
+                <span title="These signals are unreliable or irrelevant and should not influence the forecast">Remove: <span className="text-red-400 font-medium">{result.overallQuality.signalsToRemove}</span></span>
               </div>
 
               {result.overallQuality.signalGaps.length > 0 && (
@@ -122,19 +129,28 @@ export default function SignalQualityPanel({ question, signals }: {
 
               <div className="space-y-1.5">
                 {result.assessments.map((a) => (
-                  <div key={a.signalId} className="flex items-center gap-3 rounded-lg border border-border bg-muted/10 px-3 py-2">
-                    <div className={`text-xs font-bold w-8 text-center ${scoreColor(a.qualityScore)}`}>{a.qualityScore}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-foreground truncate">{a.signalText}</div>
-                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
-                        <span>{a.reliability}</span>
-                        <span>·</span>
-                        <span>{a.freshness}</span>
-                        <span>·</span>
-                        <span>{a.directness}</span>
+                  <div key={a.signalId} className="rounded-lg border border-border bg-muted/10 px-3 py-2 space-y-1">
+                    <div className="flex items-center gap-3">
+                      <div className={`text-xs font-bold w-8 text-center shrink-0 ${scoreColor(a.qualityScore)}`} title={
+                        a.qualityScore >= 70 ? "Good quality — reliable and relevant" :
+                        a.qualityScore >= 40 ? "Fair quality — usable but has some weaknesses" :
+                        "Low quality — may not be reliable enough to influence the forecast"
+                      }>{a.qualityScore}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-foreground truncate">{a.signalText}</div>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                          <span title="How trustworthy is the source">{a.reliability}</span>
+                          <span>·</span>
+                          <span title="How recent is this information">{a.freshness}</span>
+                          <span>·</span>
+                          <span title="How directly relevant to the question">{a.directness}</span>
+                        </div>
                       </div>
+                      <span className={`text-[10px] font-medium shrink-0 ${recColor(a.recommendation)}`}>{a.recommendation}</span>
                     </div>
-                    <span className={`text-[10px] font-medium ${recColor(a.recommendation)}`}>{a.recommendation}</span>
+                    {a.rationale && (
+                      <div className="text-[10px] text-muted-foreground/70 pl-11 leading-snug">{a.rationale}</div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -95,8 +95,8 @@ OUTPUT FORMAT (JSON):
       "direction": "positive" | "negative",
       "strength": "High" | "Medium" | "Low",
       "confidence": "Confirmed" | "Probable" | "Speculative",
-      "whyItMatters": "why this evidence matters for adoption",
-      "relevanceToQuestion": "how this connects to the specific question"
+      "whyItMatters": "Plain-language explanation of WHY this evidence matters for adoption — be specific about what it means practically for prescribers. Example: 'This trial showed 40% fewer hospitalizations, which means payers are more likely to grant formulary access because they can justify the cost savings.'",
+      "relevanceToQuestion": "how this connects to the specific question — name the link explicitly"
     }
   ],
   "searchSummary": "brief summary of evidence landscape"

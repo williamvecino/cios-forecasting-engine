@@ -147,6 +147,15 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
           <div className="flex items-baseline gap-3 flex-wrap">
             <span className={`text-lg font-bold ${config.color}`}>{judgment.mostLikelyOutcome}</span>
           </div>
+          <div className="text-[10px] text-slate-600 mt-1 leading-snug">
+            {judgment.probability >= 60
+              ? `At ${judgment.probability}%, the evidence points toward this outcome happening — most signals support it`
+              : judgment.probability >= 40
+              ? `At ${judgment.probability}%, the outcome is uncertain — evidence is mixed and could go either way`
+              : judgment.probability >= 10
+              ? `At ${judgment.probability}%, the evidence suggests this outcome is unlikely without significant changes`
+              : "Insufficient evidence to form a reliable view — more data is needed"}
+          </div>
         </div>
       </div>
 
@@ -190,15 +199,24 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
                   <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Primary drivers</div>
                   <div className="space-y-1.5">
                     {constraint.drivers.map((dr, di) => (
-                      <div key={di} className="flex items-center gap-3">
-                        <span className={`text-xs font-semibold w-20 text-right ${
+                      <div key={di} className="flex items-start gap-3">
+                        <span className={`text-xs font-semibold w-20 text-right shrink-0 mt-0.5 ${
                           dr.rank === "High" ? "text-red-400" :
                           dr.rank === "Moderate" ? "text-amber-400" :
                           "text-slate-500"
                         }`}>
                           {dr.rank} impact
                         </span>
-                        <span className="text-sm text-slate-200">{dr.name}</span>
+                        <div className="flex-1">
+                          <span className="text-sm text-slate-200">{dr.name}</span>
+                          <div className="text-[10px] text-slate-600 mt-0.5">
+                            {dr.rank === "High"
+                              ? "This factor has a large effect on whether the outcome happens — resolving it would meaningfully improve the probability"
+                              : dr.rank === "Moderate"
+                              ? "Contributes to the constraint but is not the primary blocker"
+                              : "Minor factor — unlikely to change the outcome on its own"}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

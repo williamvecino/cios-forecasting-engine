@@ -138,15 +138,28 @@ export function StakeholderReactionPanel({ question, brand, therapeuticArea, act
                   result.systemImpact.netEffect === "destabilizes" ? "text-orange-400" :
                   "text-slate-400"
                 }`}>{result.systemImpact.netEffect}</div>
+                <div className="text-[10px] text-slate-600 mt-0.5 leading-snug">
+                  {result.systemImpact.netEffect === "accelerates"
+                    ? "Most stakeholders are likely to support or speed up adoption"
+                    : result.systemImpact.netEffect === "decelerates"
+                    ? "Stakeholder resistance will likely slow adoption"
+                    : result.systemImpact.netEffect === "destabilizes"
+                    ? "Reactions create unpredictable dynamics — outcome could go either way"
+                    : "Stakeholder reactions are unlikely to significantly change the trajectory"}
+                </div>
               </div>
               <div>
-                <div className="text-[10px] text-muted-foreground">Confidence</div>
+                <div className="text-[10px] text-muted-foreground">Confidence in Prediction</div>
                 <div className="text-sm text-foreground/80">{result.systemImpact.confidenceInPrediction}</div>
+                <div className="text-[10px] text-slate-600 mt-0.5 leading-snug">
+                  How certain we are about these predicted reactions — based on historical patterns and available evidence
+                </div>
               </div>
             </div>
             <div>
               <div className="text-[10px] text-muted-foreground">Key Uncertainty</div>
               <p className="text-xs text-foreground/70">{result.systemImpact.keyUncertainty}</p>
+              <div className="text-[10px] text-slate-600 mt-0.5 italic">This is the single biggest unknown that could change how stakeholders actually respond</div>
             </div>
           </div>
 
@@ -165,7 +178,13 @@ export function StakeholderReactionPanel({ question, brand, therapeuticArea, act
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-medium rounded border px-1.5 py-0.5 ${intensityBadge(r.reactionIntensity)}`}>{r.reactionIntensity}</span>
+                    <span className={`text-[10px] font-medium rounded border px-1.5 py-0.5 ${intensityBadge(r.reactionIntensity)}`} title={
+                      r.reactionIntensity === "strong"
+                        ? "This stakeholder will react forcefully — expect significant action or resistance"
+                        : r.reactionIntensity === "moderate"
+                        ? "Noticeable reaction but manageable — may require engagement"
+                        : "Minimal reaction expected — unlikely to actively help or hinder"
+                    }>{r.reactionIntensity}</span>
                     <span className="text-[10px] text-muted-foreground">{r.timeToReact}</span>
                     {expandedActor === r.actorName ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                   </div>

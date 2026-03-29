@@ -33,6 +33,7 @@ The CIOS platform is a monorepo built with pnpm workspaces. The frontend uses Re
 - **Engine Guardrails:** Critical pre- and post-processing steps for data integrity.
 - **Signal Persistence & Driver Impact Distribution:** Accepted signals are saved, and probability shifts are proportionally distributed.
 - **Forecast Meaning Panel & Decision Lab Summary:** Provides plain-language interpretations and identifies constraints.
+- **Transparency Overhaul:** Every number, score, and recommendation across the platform includes plain-language "why" explanations. Implementation pattern: tooltips on numeric values, sub-text on cards, "because" clauses in AI outputs. Covers: ForecastComparisonCircles (prior/delta/gap), EventGatesPanel (gate constraints with moderate-aware summary), ExecutiveJudgment (driver impacts), SignalQualityPanel (score interpretation), ExternalSignalScoutPanel (relevance tooltips), MiosBaosPanel (strength/confidence/cognitiveLens tooltips), PrioritizationPanel (readiness score + leverage), StakeholderReactionPanel (reaction intensity + system impact), AI Respond prompt (all 5 output fields mandate "WHY" reasoning).
 - **Gate-Driven Scenario Planning:** Enables deterministic counterfactual forecasts by modifying gate states.
 - **Executive Judgment Layer (Integrity-Enforced):** A post-forecast judgment engine producing a single canonical `ExecutiveJudgmentResult` object with integrity checks and an audit trail.
 - **Barrier Decomposition:** Decomposes non-strong gates into 2-5 specific operational drivers.
