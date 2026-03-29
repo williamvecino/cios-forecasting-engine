@@ -1,0 +1,192 @@
+Continue canonical build sequence.
+
+## Immediate priority
+
+Complete and stabilize the **Growth Feasibility Panel** as the current build step.
+
+Do not branch into new panels, UI expansion, or orchestration work until this layer is verified.
+
+## Purpose
+
+Translate the current forecast stack into a practical answer to:
+**Where is realistic growth most achievable first, under current constraints and likely near-term conditions?**
+
+This panel must synthesize:
+
+* forecast outputs
+* adoption segments
+* barrier diagnosis
+* readiness timeline
+* competitive risk
+* dependency-controlled signals
+
+It must remain grounded in realistic growth, not abstract opportunity scoring.
+
+## Required verification for Growth Feasibility
+
+Before calling this layer complete, demonstrate all of the following:
+
+### 1) Segment differentiation
+
+The panel must clearly distinguish among:
+
+* high-feasibility early growth segments
+* attractive but blocked segments
+* low-feasibility near-term segments
+* monitor-only segments
+
+If all segments look similar, the logic is not sufficiently discriminating.
+
+### 2) Unlock vs constraint logic
+
+Each overall and segment-level feasibility output must explicitly show:
+
+* top unlocks
+* top constraints
+
+Not generic drivers. The point is to show what would actually increase growth feasibility and what is currently suppressing it.
+
+### 3) Near-term vs medium-term separation
+
+The panel must distinguish:
+
+* estimated near-term growth potential
+* estimated medium-term growth potential
+
+Do not collapse these into one blended opportunity score.
+
+### 4) Forecast realism check
+
+High adoption probability must not automatically produce high growth feasibility.
+
+The system must show cases where:
+
+* adoption is plausible but scaling is constrained
+* one segment is ready but broad growth is not
+* growth depends on one or two key unlocks
+
+### 5) Segment-grounded rationale
+
+Each segment output must explain:
+
+* why growth is feasible or not feasible now
+* what is constraining scale
+* what would move the segment upward
+
+### 6) UI functional requirements
+
+Need a usable panel with:
+
+* overall growth feasibility summary
+* ranked segment feasibility list
+* near-term vs medium-term indicators
+* unlocks vs constraints
+* drilldown rationale
+
+Functional first, polished later.
+
+## Deliverables for Growth Feasibility completion
+
+Return with:
+
+1. Growth Feasibility schema
+2. Feasibility taxonomy
+3. Overall feasibility output working
+4. Segment-level feasibility output working
+5. Unlock-vs-constraint logic working
+6. Near-term vs medium-term separation working
+7. Usable panel UI
+8. Verification that feasibility is derived from forecast + segment + barrier + readiness + competitive risk logic
+
+## Next canonical step after Growth Feasibility
+
+Once Growth Feasibility is complete and verified, proceed immediately to:
+
+# Actors / Segments Simulation
+
+## Purpose
+
+This is the final major decision-engine layer.
+
+It must let the system test:
+
+* what happens if competitor pressure increases or decreases
+* what happens if access improves
+* what happens if workflow resistance persists
+* what happens if KOL diffusion accelerates
+* what happens if a key barrier is partially resolved
+* what happens if readiness milestones slip or accelerate
+
+This is not a reporting panel. It is the scenario-testing layer.
+
+## Initial build requirements for Actors / Segments Simulation
+
+### 1) Define simulation schema
+
+Create a structured simulation object that can support at minimum:
+
+* `SimulationID`
+* `CaseID`
+* `ScenarioName`
+* `ScenarioType`
+* `ModifiedVariables`
+* `AffectedSegments`
+* `BaselinePosterior`
+* `SimulatedPosterior`
+* `BaselineFeasibility`
+* `SimulatedFeasibility`
+* `PrimaryShiftDrivers`
+* `PrimaryShiftConstraints`
+* `ConfidenceLevel`
+* `RationaleSummary`
+
+### 2) Initial simulation scenario types
+
+Support a practical first-pass set such as:
+
+* Access Improvement
+* Access Delay / Restriction
+* Workflow Friction Reduction
+* Workflow Friction Persistence
+* Guideline Acceleration
+* Guideline Delay
+* KOL Diffusion Increase
+* Competitive Pressure Increase
+* Competitive Pressure Decrease
+* Barrier Partial Resolution
+* Segment Activation / Inertia
+
+### 3) Output requirements
+
+For each simulation show:
+
+* baseline vs simulated posterior
+* baseline vs simulated growth feasibility
+* segment shifts
+* top reasons for movement
+* top reasons for non-movement
+
+### 4) Guardrail
+
+Simulation must remain tied to the existing engine.
+Do not build disconnected “what-if” sliders with no relation to forecast, barrier, readiness, competitive risk, and feasibility logic.
+
+## Deliverables for Simulation phase
+
+When Growth Feasibility is done, start Simulation and return with:
+
+1. simulation schema
+2. scenario taxonomy
+3. baseline vs simulated outputs working
+4. segment-shift logic working
+5. usable simulation UI
+6. clear note on how simulation reuses the existing forecast stack
+
+## Canonical reminder
+
+Do not jump to RFP Intake yet.
+The sequence remains:
+
+1. Finish and verify Growth Feasibility
+2. Build Actors / Segments Simulation
+3. Then move to RFP Intake and Insight Agent

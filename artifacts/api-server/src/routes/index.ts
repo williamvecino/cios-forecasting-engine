@@ -56,6 +56,7 @@ import caseFeedbackRouter from "./case-feedback.js";
 import caseTypeRouter from "./case-type.js";
 import readinessTimelineRouter from "./readiness-timeline.js";
 import competitiveRiskRouter from "./competitive-risk.js";
+import growthFeasibilityRouter from "./growth-feasibility.js";
 
 const router: IRouter = Router();
 
@@ -116,5 +117,6 @@ router.use(caseFeedbackRouter);
 router.use(caseTypeRouter);
 router.use(readinessTimelineRouter);
 router.use(competitiveRiskRouter);
+router.use(growthFeasibilityRouter);
 
 export default router;

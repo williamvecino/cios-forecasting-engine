@@ -28,3 +28,4 @@ export * from "./barrier-diagnosis";
 export * from "./case-feedback";
 export * from "./readiness-timeline";
 export * from "./competitive-risk";
+export * from "./growth-feasibility";
