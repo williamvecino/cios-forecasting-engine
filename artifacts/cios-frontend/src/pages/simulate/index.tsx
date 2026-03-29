@@ -33,6 +33,17 @@ interface MaterialFeature {
   detail: string;
 }
 
+interface SignalClassification {
+  signal: string;
+  type: string;
+}
+
+interface DecisionSensitivityItem {
+  factor: string;
+  sensitivity: "HIGH" | "MODERATE" | "LOW";
+  impact_estimate: string;
+}
+
 interface SimulationResult {
   adoption_likelihood: number;
   confidence: string;
@@ -43,6 +54,9 @@ interface SimulationResult {
   strongest_trigger_for_movement: string;
   material_effectiveness: string;
   material_features: MaterialFeature[];
+  signal_classifications?: SignalClassification[];
+  propagation_pathway?: string[];
+  decision_sensitivity?: DecisionSensitivityItem[];
 }
 
 const DEFAULT_SEGMENTS = COMMERCIAL_SEGMENTS;
@@ -516,6 +530,59 @@ export default function SimulatePage() {
                   </div>
                 </div>
               </div>
+
+              {result.propagation_pathway && result.propagation_pathway.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Propagation Pathway</p>
+                  <div className="space-y-2">
+                    {result.propagation_pathway.map((pathway, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <span className="text-[11px] text-primary/60 font-mono mt-0.5 shrink-0">{i + 1}.</span>
+                        <p className="text-[13px] text-foreground leading-relaxed font-mono">{pathway}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {result.decision_sensitivity && result.decision_sensitivity.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Decision Sensitivity</p>
+                  <div className="space-y-2">
+                    {result.decision_sensitivity.map((item, i) => (
+                      <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-2 bg-muted/5">
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                          item.sensitivity === "HIGH"
+                            ? "text-rose-400 bg-rose-400/10 border-rose-400/30"
+                            : item.sensitivity === "MODERATE"
+                            ? "text-amber-400 bg-amber-400/10 border-amber-400/30"
+                            : "text-emerald-400 bg-emerald-400/10 border-emerald-400/30"
+                        }`}>
+                          {item.sensitivity}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium text-foreground">{item.factor}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{item.impact_estimate}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {result.signal_classifications && result.signal_classifications.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Signal Classifications</p>
+                  <div className="flex flex-wrap gap-2">
+                    {result.signal_classifications.map((sc, i) => (
+                      <div key={i} className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2 max-w-xs">
+                        <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">{sc.type.replace(/_/g, " ")}</span>
+                        <p className="text-[11px] text-foreground/80 mt-0.5 leading-relaxed">{sc.signal}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

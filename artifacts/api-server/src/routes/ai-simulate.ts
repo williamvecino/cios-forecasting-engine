@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import multer from "multer";
-import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt, detectRegulatoryAuthority } from "../lib/case-type-router.js";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt, detectRegulatoryAuthority, buildPropagationPathwayPrompt, buildDecisionSensitivityPrompt, buildSimulationEligibilityPrompt, SIGNAL_CLASSIFICATION_TYPES } from "../lib/case-type-router.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -275,6 +275,10 @@ router.post("/ai-simulate/reaction", upload.single("file"), async (req, res) => 
     const driverConstraints = buildDriverConstraintPrompt(caseTypeProfile);
     const safetyConstraints = buildSafetySignalPrompt(caseTypeProfile);
 
+    const propagationPrompt = buildPropagationPathwayPrompt(caseTypeProfile);
+    const sensitivityPrompt = buildDecisionSensitivityPrompt(caseTypeProfile);
+    const eligibilityPrompt = buildSimulationEligibilityPrompt(caseTypeProfile);
+
     const authority = detectRegulatoryAuthority(body.questionText);
     const isEMA = authority === "ema" || authority === "mhra";
 
@@ -306,7 +310,10 @@ The archetype determines HOW this ${isRegulatory ? "stakeholder evaluates" : "se
     const systemPrompt = `You are a behavioral reaction scoring engine. You predict how a specific ${isRegulatory ? "regulatory stakeholder" : "market segment"} will respond to material features under current constraints.
 ${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. Frame all predictions in terms of regulatory decision-making, not commercial adoption.\n" : ""}
 You are given a FEATURE MAP extracted from the material — not the material itself. Score the reaction based on what the features contain and what they lack, combined with this ${isRegulatory ? "stakeholder's" : "segment's"} archetype-driven decision style.
-${archetypeContext}${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}
+${archetypeContext}${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}${propagationPrompt}${sensitivityPrompt}${eligibilityPrompt}
+SIGNAL CLASSIFICATION TYPES: ${SIGNAL_CLASSIFICATION_TYPES.join(", ")}
+When analyzing signals, classify each into one of these types.
+
 RULES:
 - Never use: "Bayesian", "posterior", "Brier", "likelihood ratio", "prior odds"
 - "Probability" is allowed
@@ -324,7 +331,10 @@ OUTPUT FORMAT (return valid JSON):
   "what_this_does_not_change": "What remains unchanged or unaddressed by this material",
   "primary_remaining_barrier": "The single most limiting constraint after this material is considered",
   "strongest_trigger_for_movement": "The specific event or change that would most increase ${outcomeLabel} for this ${isRegulatory ? "stakeholder" : "segment"}",
-  "material_effectiveness": "How well the material addresses what this ${isRegulatory ? "stakeholder" : "segment"} needs to ${isRegulatory ? "support a favorable decision" : "move"}"
+  "material_effectiveness": "How well the material addresses what this ${isRegulatory ? "stakeholder" : "segment"} needs to ${isRegulatory ? "support a favorable decision" : "move"}",
+  "signal_classifications": [{"signal": "description", "type": "one of the SIGNAL CLASSIFICATION TYPES"}],
+  "propagation_pathway": ["Event → Immediate Effect → Secondary Effect → System Outcome"],
+  "decision_sensitivity": [{"factor": "name", "sensitivity": "HIGH|MODERATE|LOW", "impact_estimate": "description"}]
 }`;
 
     const userPrompt = `Score the adoption reaction for:
@@ -385,6 +395,20 @@ Score how the ${body.segment} segment will react given these features and curren
       strongest_trigger_for_movement: parsed.strongest_trigger_for_movement || "",
       material_effectiveness: parsed.material_effectiveness || "",
       material_features: features,
+      signal_classifications: Array.isArray(parsed.signal_classifications)
+        ? parsed.signal_classifications.filter((sc: any) => sc && typeof sc.signal === "string" && typeof sc.type === "string")
+        : [],
+      propagation_pathway: Array.isArray(parsed.propagation_pathway)
+        ? parsed.propagation_pathway.filter((p: any) => typeof p === "string" && p.length > 0)
+        : [],
+      decision_sensitivity: Array.isArray(parsed.decision_sensitivity)
+        ? parsed.decision_sensitivity.filter((ds: any) => ds && typeof ds.factor === "string" && typeof ds.sensitivity === "string")
+            .map((ds: any) => ({
+              factor: ds.factor,
+              sensitivity: ["HIGH", "MODERATE", "LOW"].includes(ds.sensitivity) ? ds.sensitivity : "MODERATE",
+              impact_estimate: typeof ds.impact_estimate === "string" ? ds.impact_estimate : "",
+            }))
+        : [],
     };
 
     res.json(validated);

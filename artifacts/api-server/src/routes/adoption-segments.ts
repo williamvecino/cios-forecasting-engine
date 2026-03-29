@@ -136,6 +136,20 @@ const SEGMENT_DEFINITIONS: SegmentDefinition[] = [
     baseAdoptionModifier: 0.45,
     description: "Entrenched with current therapy. Require compelling head-to-head differentiation to switch.",
   },
+  {
+    name: "Risk Gatekeepers",
+    type: "risk_gatekeeper",
+    signalWeights: {
+      signalTypes: ["Safety signal", "Clinical evidence", "Regulatory", "Real-world evidence", "Risk management"],
+      directionBias: "negative",
+      accessSensitivity: 0.3,
+      workflowSensitivity: 0.2,
+      evidenceThreshold: 0.9,
+      competitiveSensitivity: 0.2,
+    },
+    baseAdoptionModifier: 0.50,
+    description: "Institutional risk officers, P&T committee members, and compliance stakeholders who evaluate safety, liability, and institutional risk before granting formulary or protocol access. Their approval is a prerequisite for broader adoption.",
+  },
 ];
 
 const REGULATORY_SEGMENT_DEFINITIONS: SegmentDefinition[] = [

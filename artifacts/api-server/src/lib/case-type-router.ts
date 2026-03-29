@@ -1,5 +1,25 @@
+export type DecisionType =
+  | "ClinicalOutcome"
+  | "RegulatoryApproval"
+  | "Reimbursement"
+  | "Adoption"
+  | "CompetitiveDefense"
+  | "LifecycleManagement"
+  | "MarketShaping";
+
+export type ResponseMode =
+  | "TrialStrategy"
+  | "RegulatoryStrategy"
+  | "AccessStrategy"
+  | "LaunchStrategy"
+  | "DefenseStrategy"
+  | "LifecycleStrategy"
+  | "ShapingStrategy";
+
 export interface CaseTypeProfile {
   caseType: string;
+  decisionType: DecisionType;
+  responseMode: ResponseMode;
   label: string;
   stepNames: {
     judge: string;
@@ -17,6 +37,9 @@ export interface CaseTypeProfile {
   riskFraming: string;
   successMeasureTypes: string[];
   actionConstraints: string[];
+  evidenceGateOrder?: string[];
+  outcomeStates?: string[];
+  simulationEligibility?: string;
 }
 
 export interface ActorSegment {
@@ -26,6 +49,7 @@ export interface ActorSegment {
   baseModifier: number;
   signalWeights: Record<string, number>;
   relevanceTiming: string;
+  activationCondition?: string;
 }
 
 type RegulatoryAuthority = "fda" | "ema" | "mhra" | "pmda" | "generic";
@@ -38,6 +62,7 @@ const FDA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 1.0,
     signalWeights: { clinical: 0.9, safety: 0.9, regulatory: 1.0, evidence: 0.8 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Activated when clinical data package is submitted or under active review.",
   },
   {
     segmentType: "advisory_committee",
@@ -46,6 +71,7 @@ const FDA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 0.9,
     signalWeights: { clinical: 0.9, safety: 0.95, expert: 0.8, evidence: 0.85 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Activated only when advisory committee meeting is scheduled or convened.",
   },
   {
     segmentType: "regulatory_clinical_team",
@@ -54,6 +80,7 @@ const FDA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 1.1,
     signalWeights: { regulatory: 0.9, clinical: 0.8, safety: 0.7, evidence: 0.75 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Always active when a regulatory case is open.",
   },
   {
     segmentType: "safety_reviewers",
@@ -62,6 +89,7 @@ const FDA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 0.7,
     signalWeights: { safety: 1.0, clinical: 0.6, regulatory: 0.7 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Activated when safety signal is flagged or REMS evaluation is triggered.",
   },
   {
     segmentType: "patient_advocacy",
@@ -70,6 +98,7 @@ const FDA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 0.8,
     signalWeights: { patient: 0.9, advocacy: 0.9, safety: 0.5, clinical: 0.4 },
     relevanceTiming: "pre-approval",
+    activationCondition: "Activated when public hearing or advisory committee testimony is scheduled.",
   },
 ];
 
@@ -81,6 +110,7 @@ const EMA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 1.0,
     signalWeights: { clinical: 0.9, safety: 0.9, regulatory: 1.0, evidence: 0.8 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Activated when marketing authorization application is submitted or under assessment.",
   },
   {
     segmentType: "chmp_members",
@@ -89,6 +119,7 @@ const EMA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 0.9,
     signalWeights: { clinical: 0.9, safety: 0.95, expert: 0.8, evidence: 0.85 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Activated when CHMP opinion phase is reached.",
   },
   {
     segmentType: "prac",
@@ -97,6 +128,7 @@ const EMA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 0.7,
     signalWeights: { safety: 1.0, clinical: 0.6, regulatory: 0.7 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Activated when safety signal is flagged or risk management plan review is triggered.",
   },
   {
     segmentType: "marketing_auth_holder",
@@ -105,6 +137,7 @@ const EMA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 1.1,
     signalWeights: { regulatory: 0.9, clinical: 0.8, safety: 0.7, evidence: 0.75 },
     relevanceTiming: "pre-decision",
+    activationCondition: "Always active when a regulatory case is open.",
   },
   {
     segmentType: "patient_advocacy",
@@ -113,6 +146,7 @@ const EMA_REGULATORY_ACTORS: ActorSegment[] = [
     baseModifier: 0.8,
     signalWeights: { patient: 0.9, advocacy: 0.9, safety: 0.5, clinical: 0.4 },
     relevanceTiming: "pre-approval",
+    activationCondition: "Activated when public hearing or stakeholder consultation is scheduled.",
   },
 ];
 
@@ -141,6 +175,7 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 1.15,
     signalWeights: { phase: 0.9, clinical: 0.85, expert: 0.8, guideline: 0.7, mechanism: 0.6, evidence: 0.9 },
     relevanceTiming: "launch",
+    activationCondition: "Activated when Phase III data is published or guideline review is initiated.",
   },
   {
     segmentType: "community_high",
@@ -149,6 +184,7 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 1.05,
     signalWeights: { guideline: 0.9, clinical: 0.7, payer: 0.8, "real-world": 0.6 },
     relevanceTiming: "launch",
+    activationCondition: "Activated after guideline endorsement or broad payer coverage is achieved.",
   },
   {
     segmentType: "community_cautious",
@@ -157,6 +193,7 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 0.75,
     signalWeights: { "real-world": 0.9, safety: 0.85, guideline: 0.7, payer: 0.6, workflow: 0.5 },
     relevanceTiming: "post-launch",
+    activationCondition: "Activated after real-world evidence accumulates and safety profile is confirmed.",
   },
   {
     segmentType: "access_constrained",
@@ -165,6 +202,7 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 0.55,
     signalWeights: { payer: 0.95, access: 0.9, reimbursement: 0.85, formulary: 0.8, cost: 0.7 },
     relevanceTiming: "post-launch",
+    activationCondition: "Activated when formulary decisions are pending or prior authorization is required.",
   },
   {
     segmentType: "workflow_sensitive",
@@ -173,6 +211,7 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 0.65,
     signalWeights: { workflow: 0.95, operational: 0.85, administration: 0.8, logistics: 0.6 },
     relevanceTiming: "post-launch",
+    activationCondition: "Activated when operational workflow integration is assessed or site readiness is evaluated.",
   },
   {
     segmentType: "guideline_led",
@@ -181,6 +220,7 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 0.85,
     signalWeights: { guideline: 0.95, consensus: 0.8, evidence: 0.85, clinical: 0.7 },
     relevanceTiming: "post-guideline",
+    activationCondition: "Activated after guideline committee review or consensus recommendation is issued.",
   },
   {
     segmentType: "economics_sensitive",
@@ -189,6 +229,7 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 0.70,
     signalWeights: { cost: 0.95, budget: 0.85, economic: 0.9, value: 0.8, payer: 0.7 },
     relevanceTiming: "post-launch",
+    activationCondition: "Activated when health economics data or budget impact analysis is available.",
   },
   {
     segmentType: "competitive_defender",
@@ -197,12 +238,149 @@ const COMMERCIAL_ACTORS: ActorSegment[] = [
     baseModifier: 0.45,
     signalWeights: { competitive: 0.95, "market share": 0.8, switching: 0.85, incumbent: 0.9 },
     relevanceTiming: "post-launch",
+    activationCondition: "Activated when head-to-head data is available or competitive displacement is attempted.",
+  },
+  {
+    segmentType: "risk_gatekeeper",
+    segmentName: "Risk Gatekeepers",
+    description: "Institutional risk officers, P&T committee members, and compliance stakeholders who evaluate safety, liability, and institutional risk before granting formulary or protocol access. Their approval is a prerequisite for broader adoption.",
+    baseModifier: 0.50,
+    signalWeights: { safety: 0.95, regulatory: 0.8, compliance: 0.9, liability: 0.85, evidence: 0.7, "risk-management": 0.9 },
+    relevanceTiming: "pre-launch",
+    activationCondition: "Activated when institutional review, P&T committee evaluation, or risk assessment is triggered.",
+  },
+];
+
+const CLINICAL_OUTCOME_ACTORS: ActorSegment[] = [
+  {
+    segmentType: "trial_investigators",
+    segmentName: "Trial Investigators",
+    description: "Principal investigators and clinical site teams running the trial, responsible for enrollment, protocol adherence, and endpoint measurement.",
+    baseModifier: 1.0,
+    signalWeights: { clinical: 1.0, safety: 0.8, evidence: 0.9, regulatory: 0.5 },
+    relevanceTiming: "pre-readout",
+    activationCondition: "Always active when a clinical outcome case is open.",
+  },
+  {
+    segmentType: "data_safety_board",
+    segmentName: "Data Safety Monitoring Board",
+    description: "Independent committee monitoring safety and efficacy data, with authority to recommend trial modification or termination.",
+    baseModifier: 0.85,
+    signalWeights: { safety: 1.0, clinical: 0.9, evidence: 0.8 },
+    relevanceTiming: "pre-readout",
+    activationCondition: "Activated when interim analysis is scheduled or safety signal is flagged.",
+  },
+  {
+    segmentType: "biostatistics_team",
+    segmentName: "Biostatistics & Data Management",
+    description: "Statistical analysis team responsible for primary endpoint analysis, multiplicity adjustments, and data integrity.",
+    baseModifier: 0.95,
+    signalWeights: { evidence: 1.0, clinical: 0.7, safety: 0.5 },
+    relevanceTiming: "pre-readout",
+    activationCondition: "Activated when data lock or primary analysis is imminent.",
+  },
+  {
+    segmentType: "clinical_development_lead",
+    segmentName: "Clinical Development Leadership",
+    description: "Sponsor's clinical development team making strategic decisions about trial design, endpoint selection, and program continuation.",
+    baseModifier: 1.1,
+    signalWeights: { clinical: 0.9, safety: 0.7, regulatory: 0.6, evidence: 0.8 },
+    relevanceTiming: "pre-readout",
+    activationCondition: "Always active when a clinical outcome case is open.",
+  },
+  {
+    segmentType: "risk_gatekeeper",
+    segmentName: "Risk Gatekeepers",
+    description: "Internal governance and risk committees evaluating program continuation decisions based on benefit-risk, investment, and portfolio impact.",
+    baseModifier: 0.50,
+    signalWeights: { safety: 0.95, regulatory: 0.8, compliance: 0.9, evidence: 0.7, "risk-management": 0.9 },
+    relevanceTiming: "pre-readout",
+    activationCondition: "Activated when program-level risk assessment or portfolio review is triggered.",
   },
 ];
 
 const PROFILES: Record<string, CaseTypeProfile> = {
+  clinical_outcome: {
+    caseType: "clinical_outcome",
+    decisionType: "ClinicalOutcome",
+    responseMode: "TrialStrategy",
+    label: "Clinical Outcome",
+    stepNames: {
+      judge: "Judge Endpoint Success Probability",
+      decide: "Decide Trial Strategy Leverage",
+      respond: "Respond with Trial Strategy",
+      simulate: "Simulate Clinical Outcome Impact",
+    },
+    allowedVocabulary: [
+      "primary endpoint", "secondary endpoint", "statistical significance",
+      "clinical relevance", "p-value threshold", "hazard ratio", "effect size",
+      "overall survival", "progression-free survival", "objective response rate",
+      "interim analysis", "futility boundary", "multiplicity adjustment",
+      "subgroup analysis", "biomarker stratification", "comparator arm",
+      "active control", "placebo control", "non-inferiority margin",
+      "superiority testing", "clinical benefit", "safety profile",
+      "adverse events", "treatment discontinuation", "dose-response",
+    ],
+    disallowedVocabulary: [
+      "market readiness", "adoption ceiling", "launch strategy",
+      "commercial execution", "field force", "detailing", "share of voice",
+      "formulary pull-through", "physician education materials",
+      "prescriber engagement", "market shaping", "brand awareness",
+      "competitive displacement", "payer strategy", "reimbursement",
+    ],
+    vocabularyReplacements: {
+      "market readiness": "trial readiness",
+      "adoption": "clinical outcome",
+      "prescriber": "investigator",
+      "market share": "endpoint achievement",
+      "launch": "data readout",
+      "growth feasibility": "endpoint feasibility",
+    },
+    actorSegments: CLINICAL_OUTCOME_ACTORS,
+    visibleModules: [
+      "question", "signals", "forecast", "judge", "decide", "respond", "simulate",
+      "barrier-diagnosis", "competitive-risk",
+    ],
+    hiddenModules: [
+      "growth-feasibility", "adoption-segments-commercial", "market-readiness",
+    ],
+    driverCategories: [
+      "endpoint_design", "statistical_power", "enrollment_quality",
+      "comparator_selection", "safety_profile", "protocol_adherence",
+      "data_integrity", "interim_analysis", "biomarker_selection",
+    ],
+    riskFraming: "clinical_precedent",
+    successMeasureTypes: [
+      "primary endpoint met", "statistical significance achieved",
+      "clinically meaningful effect size", "safety profile acceptable",
+      "subgroup consistency", "regulatory-grade evidence",
+    ],
+    actionConstraints: [
+      "trial design optimization", "enrollment strategy", "site selection",
+      "protocol amendment", "interim analysis planning", "safety monitoring",
+      "comparator strategy", "endpoint measurement standardization",
+      "data quality assurance", "biomarker validation",
+    ],
+    evidenceGateOrder: [
+      "statistical_validity",
+      "clinical_relevance",
+      "safety_acceptability",
+    ],
+    outcomeStates: [
+      "definitive_success",
+      "borderline_significance",
+      "subgroup_only_success",
+      "clinically_meaningful_not_significant",
+      "safety_limited_success",
+      "inconclusive",
+      "definitive_failure",
+    ],
+    simulationEligibility: "Run only when external clinical interpretation or competitive data affects trajectory. Do not simulate internal/technical trial operations.",
+  },
   regulatory_approval: {
     caseType: "regulatory_approval",
+    decisionType: "RegulatoryApproval",
+    responseMode: "RegulatoryStrategy",
     label: "Regulatory Approval",
     stepNames: {
       judge: "Judge Approval Probability",
@@ -266,9 +444,16 @@ const PROFILES: Record<string, CaseTypeProfile> = {
       "subgroup statistical clarification", "risk mitigation submission readiness",
       "REMS development", "post-marketing study design", "label negotiation",
     ],
+    evidenceGateOrder: [
+      "safety_acceptability",
+      "clinical_evidence_sufficiency",
+      "regulatory_compliance",
+    ],
   },
   launch_readiness: {
     caseType: "launch_readiness",
+    decisionType: "Adoption",
+    responseMode: "LaunchStrategy",
     label: "Launch Readiness",
     stepNames: {
       judge: "Judge Adoption Probability",
@@ -304,6 +489,8 @@ const PROFILES: Record<string, CaseTypeProfile> = {
   },
   competitive_defense: {
     caseType: "competitive_defense",
+    decisionType: "CompetitiveDefense",
+    responseMode: "DefenseStrategy",
     label: "Competitive Defense",
     stepNames: {
       judge: "Judge Competitive Position",
@@ -337,6 +524,8 @@ const PROFILES: Record<string, CaseTypeProfile> = {
   },
   access_expansion: {
     caseType: "access_expansion",
+    decisionType: "Reimbursement",
+    responseMode: "AccessStrategy",
     label: "Access Expansion",
     stepNames: {
       judge: "Judge Access Probability",
@@ -370,6 +559,8 @@ const PROFILES: Record<string, CaseTypeProfile> = {
   },
   clinical_adoption: {
     caseType: "clinical_adoption",
+    decisionType: "Adoption",
+    responseMode: "LaunchStrategy",
     label: "Clinical Adoption",
     stepNames: {
       judge: "Judge Adoption Probability",
@@ -403,6 +594,8 @@ const PROFILES: Record<string, CaseTypeProfile> = {
   },
   lifecycle_management: {
     caseType: "lifecycle_management",
+    decisionType: "LifecycleManagement",
+    responseMode: "LifecycleStrategy",
     label: "Lifecycle Management",
     stepNames: {
       judge: "Judge Outcome Probability",
@@ -436,6 +629,8 @@ const PROFILES: Record<string, CaseTypeProfile> = {
   },
   market_shaping: {
     caseType: "market_shaping",
+    decisionType: "MarketShaping",
+    responseMode: "ShapingStrategy",
     label: "Market Shaping",
     stepNames: {
       judge: "Judge Shaping Success Probability",
@@ -470,6 +665,7 @@ const PROFILES: Record<string, CaseTypeProfile> = {
 };
 
 const CLASSIFIER_TO_ROUTER: Record<string, string> = {
+  clinical_outcome: "clinical_outcome",
   launch_readiness: "launch_readiness",
   competitive_defense: "competitive_defense",
   access_expansion: "access_expansion",
@@ -479,8 +675,37 @@ const CLASSIFIER_TO_ROUTER: Record<string, string> = {
   unclassified: "clinical_adoption",
 };
 
+const CLINICAL_OUTCOME_PATTERNS = [
+  "primary endpoint", "secondary endpoint", "phase iii",
+  "phase 3", "clinical trial", "trial outcome",
+  "endpoint success", "endpoint failure", "endpoint met",
+  "overall survival", "progression-free survival",
+  "hazard ratio", "p-value", "statistical significance",
+  "interim analysis", "futility", "data readout",
+  "topline results", "topline data", "clinical endpoint",
+  "superiority", "non-inferiority", "efficacy endpoint",
+  "trial results", "pivotal trial", "pivotal study",
+  "objective response rate", "complete response rate",
+  "durable response", "event-free survival",
+];
+
+export function isClinicalOutcomeCase(question: string, caseType?: string): boolean {
+  if (caseType === "clinical_outcome") return true;
+  const q = question.toLowerCase();
+  const clinScore = CLINICAL_OUTCOME_PATTERNS.filter(p => q.includes(p)).length;
+  const regScore = [
+    "fda approv", "ema approv", "regulatory approv", "approval", "pdufa",
+    "advisory committee", "nda", "bla",
+  ].filter(p => q.includes(p)).length;
+  const comScore = [
+    "adoption", "market share", "prescriber", "formulary", "launch", "commercial",
+  ].filter(p => q.includes(p)).length;
+  return clinScore >= 2 && clinScore > regScore && clinScore > comScore;
+}
+
 export function isRegulatoryCase(question: string, caseType?: string): boolean {
   if (caseType === "regulatory_approval") return true;
+  if (isClinicalOutcomeCase(question, caseType)) return false;
   const q = question.toLowerCase();
   const regulatoryPatterns = [
     "fda approv", "ema approv", "regulatory approv",
@@ -506,6 +731,9 @@ export function isRegulatoryCase(question: string, caseType?: string): boolean {
 }
 
 export function getCaseTypeProfile(classifierType: string, question?: string): CaseTypeProfile {
+  if (question && isClinicalOutcomeCase(question, classifierType)) {
+    return { ...PROFILES.clinical_outcome };
+  }
   if (question && isRegulatoryCase(question, classifierType)) {
     const profile = { ...PROFILES.regulatory_approval };
     profile.actorSegments = getRegulatoryActors(question);
@@ -516,6 +744,9 @@ export function getCaseTypeProfile(classifierType: string, question?: string): C
 }
 
 export function getProfileForQuestion(question: string, classifierType?: string): CaseTypeProfile {
+  if (isClinicalOutcomeCase(question, classifierType)) {
+    return { ...PROFILES.clinical_outcome };
+  }
   if (isRegulatoryCase(question, classifierType)) {
     const profile = { ...PROFILES.regulatory_approval };
     profile.actorSegments = getRegulatoryActors(question);
@@ -526,6 +757,27 @@ export function getProfileForQuestion(question: string, classifierType?: string)
     return PROFILES[routerKey] || PROFILES.clinical_adoption;
   }
   return PROFILES.clinical_adoption;
+}
+
+export function getDecisionType(profile: CaseTypeProfile): DecisionType {
+  return profile.decisionType;
+}
+
+export function getResponseMode(profile: CaseTypeProfile): ResponseMode {
+  return profile.responseMode;
+}
+
+export function getResponseModeLabel(mode: ResponseMode): string {
+  const labels: Record<ResponseMode, string> = {
+    TrialStrategy: "Trial Strategy",
+    RegulatoryStrategy: "Regulatory Strategy",
+    AccessStrategy: "Access Strategy",
+    LaunchStrategy: "Launch Strategy",
+    DefenseStrategy: "Defense Strategy",
+    LifecycleStrategy: "Lifecycle Strategy",
+    ShapingStrategy: "Shaping Strategy",
+  };
+  return labels[mode] || mode;
 }
 
 export function buildVocabularyConstraintPrompt(profile: CaseTypeProfile): string {
@@ -585,6 +837,30 @@ export function getActorSegments(profile: CaseTypeProfile): ActorSegment[] {
 }
 
 export function buildDecisionLayerPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType === "clinical_outcome") {
+    return `
+DECISION LAYER SEPARATION (MANDATORY):
+This case operates in the CLINICAL OUTCOME layer only.
+
+Layer 0 — Clinical Outcome (THIS CASE):
+  Determined ONLY by: endpoint design, statistical power, enrollment quality, comparator selection, safety profile, protocol adherence.
+  Decision authority: Trial data and pre-specified analysis plan.
+
+Layer 1 — Regulatory Approval (DOWNSTREAM — do not mix):
+  Determined by: benefit-risk assessment, regulatory compliance, label scope.
+  Decision authority: Regulatory agency (FDA, EMA, etc.)
+
+Layer 2 — HTA / Reimbursement (DOWNSTREAM — do not mix):
+  Determined by: cost-effectiveness, budget impact, pricing.
+  Decision authority: Payers, HTA bodies.
+
+RULES:
+- Regulatory approval, FDA decisions, and label scope must NEVER appear as clinical endpoint drivers.
+- Payer strategy, reimbursement, and market access are NOT clinical trial constructs.
+- Commercial strategy, adoption, and market share are NOT relevant to endpoint success.
+- If downstream concepts are relevant, classify them as "downstream impact" only.
+`;
+  }
   if (profile.caseType !== "regulatory_approval") return "";
   return `
 DECISION LAYER SEPARATION (MANDATORY):
@@ -611,6 +887,28 @@ RULES:
 }
 
 export function buildDriverConstraintPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType === "clinical_outcome") {
+    return `
+DRIVER CONSTRAINTS (MANDATORY — CLINICAL OUTCOME):
+Primary drivers of endpoint success must be limited to:
+  - Trial design quality (endpoint selection, sample size, statistical plan)
+  - Enrollment quality and protocol adherence
+  - Comparator selection and effect size assumptions
+  - Safety profile and tolerability
+  - Biomarker stratification and patient selection
+
+DISALLOWED as drivers (these are outcomes or downstream):
+  - "Trial success" or "endpoint met" — these are the OUTCOME, not drivers
+  - Regulatory approval — downstream of trial results
+  - Market share, adoption — commercial layer, not clinical
+  - Cost-effectiveness — reimbursement layer
+
+INFLUENCE FACTORS (not primary drivers):
+  - Competitive trial results — contextual, not causal
+  - KOL opinion on trial design — influence, not authority
+  - Patient recruitment challenges — operational, affects timeline not biology
+`;
+  }
   if (profile.caseType !== "regulatory_approval") return "";
   return `
 DRIVER CONSTRAINTS (MANDATORY):
@@ -642,6 +940,20 @@ If a circular driver is detected (outcome listed as driver), replace with:
 }
 
 export function buildSafetySignalPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType === "clinical_outcome") {
+    return `
+SAFETY SIGNAL RULES (CLINICAL OUTCOME):
+- Safety signals that cross pre-specified stopping boundaries must ALWAYS lower endpoint success probability.
+- Safety vs efficacy tradeoffs must be classified as "Constraining" or "Mixed" — NEVER "Neutral".
+- If DSMB has flagged a safety concern, the forecast ceiling must be constrained regardless of efficacy trends.
+- Treatment discontinuation rates above protocol assumptions are a NEGATIVE signal.
+
+EVIDENCE GATE HIERARCHY (CLINICAL OUTCOME):
+1. Statistical Validity → HIGHEST weight (primary endpoint must meet pre-specified alpha)
+2. Clinical Relevance → HIGH weight (effect size must be clinically meaningful, not just statistically significant)
+3. Safety Acceptability → HIGH weight (adverse event profile must be manageable for the indication)
+`;
+  }
   if (profile.caseType !== "regulatory_approval") return "";
   return `
 SAFETY SIGNAL RULES:
@@ -657,4 +969,124 @@ GATE HIERARCHY:
 `;
 }
 
-export { PROFILES, REGULATORY_ACTORS, COMMERCIAL_ACTORS, FDA_REGULATORY_ACTORS, EMA_REGULATORY_ACTORS };
+export function buildEvidenceGatePrompt(profile: CaseTypeProfile): string {
+  if (!profile.evidenceGateOrder || profile.evidenceGateOrder.length === 0) return "";
+  const gateLabels: Record<string, string> = {
+    statistical_validity: "Statistical Validity (primary endpoint meets pre-specified alpha threshold)",
+    clinical_relevance: "Clinical Relevance (effect size is clinically meaningful for the indication)",
+    safety_acceptability: "Safety Acceptability (adverse event profile is manageable and within tolerance)",
+    safety_acceptability_reg: "Safety Acceptability (benefit-risk balance is acceptable to regulators)",
+    clinical_evidence_sufficiency: "Clinical Evidence Sufficiency (data package supports the indication)",
+    regulatory_compliance: "Regulatory Compliance (submission is complete and meets requirements)",
+  };
+
+  let prompt = `\nEVIDENCE GATE HIERARCHY (MANDATORY — ${profile.label}):
+Gates must be evaluated in this strict order. A later gate CANNOT override a failed earlier gate.\n`;
+  profile.evidenceGateOrder.forEach((gate, idx) => {
+    const label = gateLabels[gate] || gate;
+    prompt += `${idx + 1}. ${label}\n`;
+  });
+  prompt += `\nIf Gate 1 fails, Gates 2+ are moot. If Gate 2 fails despite Gate 1 passing, the outcome is "borderline" at best.\n`;
+  return prompt;
+}
+
+export function buildActionFilterPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType === "clinical_outcome") {
+    return `
+ACTION FILTER (MANDATORY — CLINICAL OUTCOME):
+ALLOWED action types for clinical endpoint decisions:
+${profile.actionConstraints.map(a => `  - ${a}`).join("\n")}
+
+DISALLOWED action types (these belong to downstream decision layers):
+  - Physician education or detailing
+  - Market shaping or brand awareness
+  - Patient advocacy engagement
+  - Payer strategy or formulary negotiations
+  - Commercial launch planning
+  - Field force deployment
+
+SUCCESS METRICS must be limited to:
+${profile.successMeasureTypes.map(m => `  - ${m}`).join("\n")}
+
+Do NOT use commercial, adoption, or regulatory metrics as success measures for clinical endpoint decisions.
+`;
+  }
+  if (profile.actionConstraints.length === 0) return "";
+  let prompt = `\nACTION FILTER (${profile.label}):
+ALLOWED action types: ${profile.actionConstraints.join(", ")}.\n`;
+  prompt += `Do not recommend actions outside this scope.\n`;
+  return prompt;
+}
+
+export function buildOutcomeStatePrompt(profile: CaseTypeProfile): string {
+  if (!profile.outcomeStates || profile.outcomeStates.length === 0) return "";
+  const stateDescriptions: Record<string, string> = {
+    definitive_success: "Primary endpoint met with statistical significance AND clinical relevance — clear positive outcome",
+    borderline_significance: "p-value near threshold (e.g., 0.04-0.06) — technically significant but fragile; sensitivity analyses may shift conclusion",
+    subgroup_only_success: "Primary endpoint missed in ITT population but met in pre-specified subgroup — partial success with narrower label implications",
+    clinically_meaningful_not_significant: "Clinically meaningful effect size observed but p-value did not reach significance — underpowered or high variability",
+    safety_limited_success: "Primary endpoint met but safety profile raises concerns — benefit-risk balance is uncertain",
+    inconclusive: "Results do not clearly support success or failure — additional data or analysis needed",
+    definitive_failure: "Primary endpoint clearly missed with no meaningful clinical signal — negative outcome",
+  };
+
+  let prompt = `\nOUTCOME STATE CLASSIFICATION (MANDATORY — ${profile.label}):
+Do NOT use binary success/failure. Classify the projected outcome into one of these states:\n`;
+  for (const state of profile.outcomeStates) {
+    const desc = stateDescriptions[state] || state;
+    prompt += `- ${state.replace(/_/g, " ").toUpperCase()}: ${desc}\n`;
+  }
+  prompt += `\nAlways state which outcome state applies and WHY. If the probability is between 35-65%, "borderline" or "inconclusive" states are more appropriate than "definitive" states.\n`;
+  return prompt;
+}
+
+export function buildPropagationPathwayPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType !== "clinical_outcome" && profile.caseType !== "regulatory_approval") return "";
+  return `
+PROPAGATION PATHWAY (MANDATORY):
+For each significant signal or scenario, describe the impact pathway using this format:
+  Event → Immediate Effect → Secondary Effect → System Outcome
+
+Examples:
+  - "DSMB safety flag → enrollment pause → timeline delay → probability ceiling drops 15%"
+  - "Subgroup efficacy signal → pre-specified analysis triggered → potential label narrowing → reduced commercial value"
+  - "Competitor readout positive → comparator bar raised → relative effect size questioned → statistical plan review needed"
+
+Each pathway must trace from a specific, observable event to its system-level consequence. Do not skip intermediate steps.
+`;
+}
+
+export function buildDecisionSensitivityPrompt(profile: CaseTypeProfile): string {
+  return `
+DECISION SENSITIVITY INDICATOR (MANDATORY):
+For each key driver or barrier, classify its sensitivity:
+- HIGH SENSITIVITY: A small change in this factor would shift the probability by >10 percentage points
+- MODERATE SENSITIVITY: A change in this factor would shift the probability by 5-10 percentage points
+- LOW SENSITIVITY: This factor contributes to the overall picture but would not shift the outcome by >5 points alone
+
+Include a "decision_sensitivity" field in your response that lists the top 3 most sensitive factors and their classification.
+`;
+}
+
+export function buildSimulationEligibilityPrompt(profile: CaseTypeProfile): string {
+  if (!profile.simulationEligibility) return "";
+  return `\nSIMULATION ELIGIBILITY RULE: ${profile.simulationEligibility}\n`;
+}
+
+export const SIGNAL_CLASSIFICATION_TYPES = [
+  "clinical_efficacy",
+  "safety_tolerability",
+  "regulatory_procedural",
+  "guideline_consensus",
+  "competitive_landscape",
+  "payer_access",
+  "operational_workflow",
+  "epidemiological",
+  "patient_reported",
+  "biomarker",
+  "real_world_evidence",
+] as const;
+
+export type SignalClassificationType = typeof SIGNAL_CLASSIFICATION_TYPES[number];
+
+export { PROFILES, REGULATORY_ACTORS, COMMERCIAL_ACTORS, FDA_REGULATORY_ACTORS, EMA_REGULATORY_ACTORS, CLINICAL_OUTCOME_ACTORS };

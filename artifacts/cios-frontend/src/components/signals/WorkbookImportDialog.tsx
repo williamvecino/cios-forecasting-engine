@@ -12,30 +12,103 @@ import {
   ChevronUp,
   X,
   Download,
+  Loader2,
 } from "lucide-react";
 import {
   processWorkbook,
   type ImportResult,
 } from "@/lib/workbook/importSignalsFromWorkbook";
 
+function getApiBase() {
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+    return `https://${window.location.hostname}:443/api`;
+  }
+  return "/api";
+}
+
 interface WorkbookImportDialogProps {
   open: boolean;
   onClose: () => void;
   onImportComplete: (signals: any[]) => void;
+  caseId?: string;
+  useServerImport?: boolean;
 }
 
 export function WorkbookImportDialog({
   open,
   onClose,
   onImportComplete,
+  caseId,
+  useServerImport,
 }: WorkbookImportDialogProps) {
   const [step, setStep] = useState<"upload" | "review" | "done">("upload");
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [serverResult, setServerResult] = useState<any>(null);
   const [showWarnings, setShowWarnings] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
+
+  const canServerImport = useServerImport && caseId;
+
+  async function handleServerUpload(file: File) {
+    if (!caseId) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("workbook", file);
+      const res = await fetch(`${getApiBase()}/cases/${caseId}/workbook-import`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportResult({
+          success: false,
+          signals: [],
+          totalImported: 0,
+          positiveCount: 0,
+          negativeCount: 0,
+          neutralCount: 0,
+          warnings: [],
+          errors: [data.error || `Server error ${res.status}`],
+        });
+      } else {
+        setServerResult(data);
+        setImportResult({
+          success: true,
+          signals: (data.signals || []).map((s: any) => ({
+            text: s.description || s.type,
+            direction: (s.direction || "neutral").toLowerCase(),
+            strength: s.strength >= 0.7 ? "High" : s.strength >= 0.4 ? "Medium" : "Low",
+          })),
+          totalImported: data.imported,
+          positiveCount: (data.signals || []).filter((s: any) => s.direction === "Positive").length,
+          negativeCount: (data.signals || []).filter((s: any) => s.direction === "Negative").length,
+          neutralCount: (data.signals || []).filter((s: any) => s.direction === "Neutral").length,
+          warnings: data.skipped > 0 ? [`${data.skipped} row(s) skipped (ActiveFlag ≠ Yes)`] : [],
+          errors: [],
+        });
+      }
+      setStep("review");
+    } catch (err: any) {
+      setImportResult({
+        success: false,
+        signals: [],
+        totalImported: 0,
+        positiveCount: 0,
+        negativeCount: 0,
+        neutralCount: 0,
+        warnings: [],
+        errors: [err.message || "Server import failed"],
+      });
+      setStep("review");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function handleFile(file: File) {
     if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
@@ -50,6 +123,11 @@ export function WorkbookImportDialog({
         errors: ["File must be an Excel workbook (.xlsx)"],
       });
       setStep("review");
+      return;
+    }
+
+    if (canServerImport) {
+      handleServerUpload(file);
       return;
     }
 
@@ -72,14 +150,24 @@ export function WorkbookImportDialog({
 
   function handleConfirm() {
     if (!importResult?.signals) return;
-    onImportComplete(importResult.signals);
+    if (canServerImport && serverResult) {
+      const markedSignals = importResult.signals.map((s: any) => ({
+        ...s,
+        _serverImported: true,
+      }));
+      onImportComplete(markedSignals);
+    } else {
+      onImportComplete(importResult.signals);
+    }
     setStep("done");
   }
 
   function handleClose() {
     setStep("upload");
     setImportResult(null);
+    setServerResult(null);
     setShowWarnings(false);
+    setUploading(false);
     onClose();
   }
 
@@ -97,7 +185,14 @@ export function WorkbookImportDialog({
         </div>
 
         <div className="p-6 space-y-4">
-          {step === "upload" && (
+          {uploading && (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+              <p className="text-sm text-slate-300">Uploading and importing signals to database...</p>
+            </div>
+          )}
+
+          {step === "upload" && !uploading && (
             <div
               className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
                 dragOver ? "border-violet-400 bg-violet-500/10" : "border-slate-600 hover:border-slate-500"
@@ -109,7 +204,10 @@ export function WorkbookImportDialog({
             >
               <Upload className="w-10 h-10 text-slate-500 mx-auto mb-3" />
               <p className="text-sm text-slate-300 mb-1">Drop your MIOS/BAOS workbook here</p>
-              <p className="text-xs text-slate-500">Reads CIOS_Signal_Export sheet, ActiveFlag = Yes only</p>
+              <p className="text-xs text-slate-500">
+                Reads CIOS_Signal_Export sheet, ActiveFlag = Yes only
+                {canServerImport && <span className="text-violet-400 ml-1">(imports directly to database)</span>}
+              </p>
               <div className="mt-3 flex items-center justify-center gap-4">
                 <a
                   href={`${import.meta.env.BASE_URL}workbooks/MIOS_BAOS_Calibration_20_Signals.xlsx`}
@@ -129,6 +227,17 @@ export function WorkbookImportDialog({
                   <Download className="w-3 h-3" />
                   ARIKAYCE Analog (10 signals)
                 </a>
+                {canServerImport && (
+                  <a
+                    href={`${getApiBase()}/workbook-import/template`}
+                    download
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    <Download className="w-3 h-3" />
+                    Download Template
+                  </a>
+                )}
               </div>
               <input
                 ref={fileInputRef}

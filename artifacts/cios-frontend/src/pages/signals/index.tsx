@@ -1150,9 +1150,22 @@ export default function SignalsPage() {
   }
 
   function handleWorkbookImport(importedSignals: any[]) {
-    persistSignals(importedSignals);
-    setSignals(importedSignals);
-    importedSignals.forEach((sig: any) => persistSignalToDb(sig));
+    const isServerImported = importedSignals.length > 0 && importedSignals[0]?._serverImported;
+    if (isServerImported) {
+      const uiSignals = importedSignals.map((s: any) => ({
+        ...s,
+        _serverImported: undefined,
+        accepted: true,
+        source: "system" as const,
+        is_locked: true,
+      }));
+      persistSignals(uiSignals);
+      setSignals(uiSignals);
+    } else {
+      persistSignals(importedSignals);
+      setSignals(importedSignals);
+      importedSignals.forEach((sig: any) => persistSignalToDb(sig));
+    }
     if (importedSignals.length > 0) {
       setTimeout(() => triggerGateRecalculation(importedSignals, `Replaced with ${importedSignals.length} workbook signals`), 0);
     }
@@ -1958,6 +1971,8 @@ export default function SignalsPage() {
         open={showWorkbookImport}
         onClose={() => setShowWorkbookImport(false)}
         onImportComplete={handleWorkbookImport}
+        caseId={activeQuestion?.caseId}
+        useServerImport={true}
       />
       {provenanceSignal && (
         <SignalProvenanceDrawer

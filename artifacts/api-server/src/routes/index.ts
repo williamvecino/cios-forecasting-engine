@@ -58,6 +58,7 @@ import readinessTimelineRouter from "./readiness-timeline.js";
 import competitiveRiskRouter from "./competitive-risk.js";
 import growthFeasibilityRouter from "./growth-feasibility.js";
 import simulationEngineRouter from "./simulation-engine.js";
+import workbookImportRouter from "./workbook-import.js";
 
 const router: IRouter = Router();
 
@@ -120,5 +121,6 @@ router.use(readinessTimelineRouter);
 router.use(competitiveRiskRouter);
 router.use(growthFeasibilityRouter);
 router.use(simulationEngineRouter);
+router.use(workbookImportRouter);
 
 export default router;

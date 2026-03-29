@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt } from "../lib/case-type-router.js";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt, buildEvidenceGatePrompt, buildOutcomeStatePrompt, buildActionFilterPrompt, buildPropagationPathwayPrompt, buildDecisionSensitivityPrompt, getResponseModeLabel } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -62,27 +62,46 @@ router.post("/ai-respond/generate", async (req, res) => {
 
     const caseTypeProfile = getProfileForQuestion(body.questionText);
     const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
+    const isClinical = caseTypeProfile.caseType === "clinical_outcome";
     const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
     const decisionLayerConstraints = buildDecisionLayerPrompt(caseTypeProfile);
     const driverConstraints = buildDriverConstraintPrompt(caseTypeProfile);
     const safetyConstraints = buildSafetySignalPrompt(caseTypeProfile);
+    const evidenceGateConstraints = buildEvidenceGatePrompt(caseTypeProfile);
+    const outcomeStateConstraints = buildOutcomeStatePrompt(caseTypeProfile);
+    const actionFilterConstraints = buildActionFilterPrompt(caseTypeProfile);
+    const propagationConstraints = buildPropagationPathwayPrompt(caseTypeProfile);
+    const sensitivityConstraints = buildDecisionSensitivityPrompt(caseTypeProfile);
+    const responseModeLabel = getResponseModeLabel(caseTypeProfile.responseMode);
 
-    const actionExample = isRegulatory
-      ? `"Finalize ARIA risk mitigation strategy because benefit-risk balance is the primary advisory concern."`
-      : `"Secure payer commitment because reimbursement uncertainty is the biggest barrier to adoption."`;
-    const successExample = isRegulatory
-      ? `"Favorable advisory committee vote — confirms benefit-risk acceptance."`
-      : `"First formulary listing — confirms payer acceptance."`;
+    const actionExample = isClinical
+      ? `"Optimize enrollment strategy because patient selection quality directly determines endpoint sensitivity."`
+      : isRegulatory
+        ? `"Finalize ARIA risk mitigation strategy because benefit-risk balance is the primary advisory concern."`
+        : `"Secure payer commitment because reimbursement uncertainty is the biggest barrier to adoption."`;
+    const successExample = isClinical
+      ? `"Interim analysis shows consistent treatment effect — confirms endpoint trajectory."`
+      : isRegulatory
+        ? `"Favorable advisory committee vote — confirms benefit-risk acceptance."`
+        : `"First formulary listing — confirms payer acceptance."`;
 
-    const systemPrompt = `You are a senior ${isRegulatory ? "regulatory" : "strategy"} advisor writing a concise executive brief. Your output will be read by a decision-maker who needs to act, not analyze.
-${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. All language, actions, and success measures must be regulatory — NOT commercial, adoption, or launch-oriented.\n" : ""}
+    const caseTypeLabel = isClinical ? "clinical trial strategy" : isRegulatory ? "regulatory" : "strategy";
+    const caseTypeHeader = isClinical
+      ? "\nThis is a CLINICAL OUTCOME case. All language, actions, and success measures must be trial-focused — NOT regulatory, commercial, or adoption-oriented.\n"
+      : isRegulatory
+        ? "\nThis is a REGULATORY APPROVAL case. All language, actions, and success measures must be regulatory — NOT commercial, adoption, or launch-oriented.\n"
+        : "";
+
+    const systemPrompt = `You are a senior ${caseTypeLabel} advisor writing a concise executive brief. Your output will be read by a decision-maker who needs to act, not analyze.
+RESPONSE MODE: ${responseModeLabel}
+${caseTypeHeader}
 VOICE:
 - Write like a trusted advisor speaking directly to the executive
 - Short, declarative sentences. No filler. No hedging.
 - State what is happening, what matters, what to do. Nothing else.
 - Never use: "Bayesian", "posterior", "Brier score", "likelihood ratio", "prior odds"
 - "Probability" is allowed
-${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}
+${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}${evidenceGateConstraints}${outcomeStateConstraints}${actionFilterConstraints}${propagationConstraints}${sensitivityConstraints}
 ═══ PROBABILITY ALIGNMENT (MANDATORY) ═══
 ${probabilityFrame || "No probability provided. Generate response from signals and question context."}
 The strategic_recommendation MUST be consistent with the probability. If the probability says likely, the recommendation must say likely. If the probability says unlikely, the recommendation must say unlikely. A contradiction between the computed probability and the narrative is a critical error.
@@ -99,7 +118,7 @@ STRUCTURE — return valid JSON with exactly these 5 keys:
 
 CRITICAL RULES:
 - TRANSPARENCY IS MANDATORY. Every statement must explain WHY. Never state a conclusion without saying what evidence or reasoning led to it. The reader should never have to guess where a number or recommendation came from.
-- strategic_recommendation: State the expected ${isRegulatory ? "approval" : "outcome"} trajectory AND its primary constraint. Explain WHY the probability is at this level — name the specific signals or conditions. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome.
+- strategic_recommendation: State the expected ${isClinical ? "endpoint" : isRegulatory ? "approval" : "outcome"} trajectory AND its primary constraint. Explain WHY the probability is at this level — name the specific signals or conditions. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome.
 - why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks AND explain in plain terms why each one matters for the decision. Connect each factor to what it means practically.
 - priority_actions: 3-5 actions. Each action MUST include a brief "because" clause explaining why it is prioritized. Example: ${actionExample}${isRegulatory ? " Actions must be pre-approval and regulatory in scope — no post-approval commercialization tasks like physician education or market rollout." : ""}
 - success_measures: 3-5 observable milestones. Each must briefly state why it indicates progress. Example: ${successExample}${isRegulatory ? " Success measures must be regulatory milestones only — no launch readiness, rollout, or market-share markers." : ""}

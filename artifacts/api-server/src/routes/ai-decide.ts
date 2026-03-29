@@ -4,7 +4,7 @@ import { researchBrand } from "../lib/web-research";
 import { deriveDecisions, type ForecastGate, type DerivedDecisions, type DecisionItem } from "../lib/decision-derivation";
 import { validateDecisionIntegrity, type IntegrityReport } from "../lib/decision-integrity-validator";
 import { assignArchetypesForSegmentation } from "../lib/archetype-assignment";
-import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildSegmentationConstraintPrompt, buildRiskFramingPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt } from "../lib/case-type-router.js";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildSegmentationConstraintPrompt, buildRiskFramingPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt, buildEvidenceGatePrompt, buildOutcomeStatePrompt, buildActionFilterPrompt, buildPropagationPathwayPrompt, buildDecisionSensitivityPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -83,15 +83,28 @@ For competitive_risk, readiness_timeline, and growth_feasibility, ground assessm
 
     const caseTypeProfile = getProfileForQuestion(body.questionText, body.questionType);
     const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
+    const isClinical = caseTypeProfile.caseType === "clinical_outcome";
     const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
     const segConstraints = buildSegmentationConstraintPrompt(caseTypeProfile);
     const riskConstraints = buildRiskFramingPrompt(caseTypeProfile);
     const decisionLayerConstraints = buildDecisionLayerPrompt(caseTypeProfile);
     const driverConstraints = buildDriverConstraintPrompt(caseTypeProfile);
     const safetyConstraints = buildSafetySignalPrompt(caseTypeProfile);
+    const evidenceGateConstraints = buildEvidenceGatePrompt(caseTypeProfile);
+    const outcomeStateConstraints = buildOutcomeStatePrompt(caseTypeProfile);
+    const actionFilterConstraints = buildActionFilterPrompt(caseTypeProfile);
+    const propagationConstraints = buildPropagationPathwayPrompt(caseTypeProfile);
+    const sensitivityConstraints = buildDecisionSensitivityPrompt(caseTypeProfile);
 
-    const impactLabel = isRegulatory ? "impact_on_approval" : "impact_on_adoption";
-    const segmentationBlock = isRegulatory ? `
+    const impactLabel = isClinical ? "impact_on_endpoint" : isRegulatory ? "impact_on_approval" : "impact_on_adoption";
+    const segmentationBlock = isClinical ? `
+  "stakeholder_segmentation": {
+    "primary_decision_makers": { "actors": ["Trial Investigators"], "reason": "Why" },
+    "key_influencers": { "actors": ["Data Safety Monitoring Board"], "reason": "Why" },
+    "supporting_actors": { "actors": ["Biostatistics & Data Management"], "reason": "Why" },
+    "risk_gatekeepers": { "actors": ["Risk Gatekeepers"], "reason": "Why" },
+    "contextual_actors": { "actors": ["Clinical Development Leadership"], "reason": "Why" }
+  }` : isRegulatory ? `
   "stakeholder_segmentation": {
     "primary_decision_makers": { "actors": ["FDA Review Division"], "reason": "Why" },
     "key_influencers": { "actors": ["Advisory Committee Members"], "reason": "Why" },
@@ -105,7 +118,13 @@ For competitive_risk, readiness_timeline, and growth_feasibility, ground assessm
     "resistant": { "segments": ["segment"], "reason": "Why" }
   }`;
 
-    const competitiveBlock = isRegulatory ? `
+    const competitiveBlock = isClinical ? `
+  "clinical_precedent_risk": {
+    "class_precedent": "Prior trial success/failure patterns for this mechanism or endpoint",
+    "safety_spillover_risk": "Low|Moderate|High",
+    "comparator_benchmark": "How trial results may be weighed relative to competitor data",
+    "precedent_implications": "What similar past trial outcomes suggest"
+  }` : isRegulatory ? `
   "regulatory_precedent_risk": {
     "class_precedent": "Prior approval/rejection patterns for this mechanism or class",
     "safety_spillover_risk": "Low|Moderate|High",
@@ -119,7 +138,7 @@ For competitive_risk, readiness_timeline, and growth_feasibility, ground assessm
     "access_response": "Competitive payer actions"
   }`;
 
-    const feasibilityBlock = isRegulatory ? "" : `,
+    const feasibilityBlock = (isRegulatory || isClinical) ? "" : `,
   "growth_feasibility": {
     "segment_size": "Small|Medium|Large",
     "access_expansion": "Coverage growth potential",
@@ -127,14 +146,21 @@ For competitive_risk, readiness_timeline, and growth_feasibility, ground assessm
     "revenue_translation": "Low|Moderate|High"
   }`;
 
-    const systemPrompt = `You are a pharmaceutical ${isRegulatory ? "regulatory strategy" : "commercial strategy"} analyst. Generate contextual detail for a structured decision analysis.
+    const analystType = isClinical ? "clinical trial strategy" : isRegulatory ? "regulatory strategy" : "commercial strategy";
+    const caseHeader = isClinical
+      ? "\nThis is a CLINICAL OUTCOME case. All language, actors, and framing must be trial-focused — NOT regulatory, commercial, or adoption.\n"
+      : isRegulatory
+        ? "\nThis is a REGULATORY APPROVAL case. All language, actors, and framing must be regulatory — NOT commercial/adoption.\n"
+        : "";
+
+    const systemPrompt = `You are a pharmaceutical ${analystType} analyst. Generate contextual detail for a structured decision analysis.
 
 CRITICAL: Each case is unique. Evaluate this specific product on its own merits.
-${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. All language, actors, and framing must be regulatory — NOT commercial/adoption.\n" : ""}
+${caseHeader}
 ${hasResearch ? "REAL-TIME WEB RESEARCH is included below. Ground your analysis in these findings." : "No recent web research was found. Rely on your training knowledge."}
 
 ${hasGates ? `IMPORTANT: A decision framework has been derived from the forecast gates. You must ADD DETAIL to this framework, not replace it. Do not invent barriers or actions that are not in the framework.` : "No forecast gates available. Generate a standalone analysis."}
-${vocabConstraints}${segConstraints}${riskConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}
+${vocabConstraints}${segConstraints}${riskConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}${evidenceGateConstraints}${outcomeStateConstraints}${actionFilterConstraints}${propagationConstraints}${sensitivityConstraints}
 Return ONLY valid JSON with this structure:
 
 {
@@ -158,15 +184,15 @@ Return ONLY valid JSON with this structure:
 }
 
 BARRIER DECOMPOSITION RULES:
-- For each non-strong gate (by gate_id), provide 2-5 specific ${isRegulatory ? "regulatory" : "operational"} drivers.
+- For each non-strong gate (by gate_id), provide 2-5 specific ${isClinical ? "trial design" : isRegulatory ? "regulatory" : "operational"} drivers.
 - NEVER use the gate label itself as a driver name. Break it into the underlying conditions.
 - Each driver must be a concrete, observable condition.
 - "current_state" must describe the actual real-world situation, not restate the gate.
-- "${impactLabel}" must explain HOW this specific driver ${isRegulatory ? "affects the approval decision" : "slows or blocks adoption"}.
+- "${impactLabel}" must explain HOW this specific driver ${isClinical ? "affects endpoint success" : isRegulatory ? "affects the approval decision" : "slows or blocks adoption"}.
 - "what_would_improve_it" must be a concrete, actionable intervention.
-- "expected_effect" must describe the specific change in ${isRegulatory ? "approval" : "adoption"} outlook if the improvement is made.
+- "expected_effect" must describe the specific change in ${isClinical ? "endpoint" : isRegulatory ? "approval" : "adoption"} outlook if the improvement is made.
 
-${isRegulatory ? "Name regulatory actors specific to this case (e.g. 'FDA Neurology Division', 'Peripheral and CNS Drugs Advisory Committee')." : "Name real segment types specific to this product (e.g. 'Pulmonologists at academic centers', 'Community oncologists')."}`;
+${isClinical ? "Name trial stakeholders specific to this case (e.g. 'Principal Investigators at Phase III sites', 'Independent DSMB members')." : isRegulatory ? "Name regulatory actors specific to this case (e.g. 'FDA Neurology Division', 'Peripheral and CNS Drugs Advisory Committee')." : "Name real segment types specific to this product (e.g. 'Pulmonologists at academic centers', 'Community oncologists')."}`;
 
     let researchSection = "";
     if (hasResearch) {

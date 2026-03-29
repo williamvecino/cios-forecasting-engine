@@ -15,6 +15,20 @@ export interface CaseTypeInfo {
   hiddenModules: string[];
 }
 
+const CLINICAL_OUTCOME_PATTERNS = [
+  "primary endpoint", "secondary endpoint", "phase iii",
+  "phase 3", "clinical trial", "trial outcome",
+  "endpoint success", "endpoint failure", "endpoint met",
+  "overall survival", "progression-free survival",
+  "hazard ratio", "p-value", "statistical significance",
+  "interim analysis", "futility", "data readout",
+  "topline results", "topline data", "clinical endpoint",
+  "superiority", "non-inferiority", "efficacy endpoint",
+  "trial results", "pivotal trial", "pivotal study",
+  "objective response rate", "complete response rate",
+  "durable response", "event-free survival",
+];
+
 const REGULATORY_PATTERNS = [
   "fda approv", "ema approv", "regulatory approv",
   "approval", "approve", "approved",
@@ -67,8 +81,25 @@ export function detectAuthority(question: string): RegulatoryAuthority | null {
 
 export function detectCaseType(question: string): CaseTypeInfo {
   const q = question.toLowerCase();
+  const clinScore = CLINICAL_OUTCOME_PATTERNS.filter(p => q.includes(p)).length;
   const regScore = REGULATORY_PATTERNS.filter(p => q.includes(p)).length;
   const comScore = COMMERCIAL_PATTERNS.filter(p => q.includes(p)).length;
+
+  if (clinScore >= 2 && clinScore > regScore && clinScore > comScore) {
+    return {
+      caseType: "clinical_outcome",
+      isRegulatory: false,
+      authority: null,
+      stepNames: {
+        judge: "Judge Endpoint Success Probability",
+        decide: "Decide Trial Strategy Leverage",
+        respond: "Respond with Trial Strategy",
+        simulate: "Simulate Clinical Outcome Impact",
+      },
+      hiddenModules: ["growth-feasibility"],
+    };
+  }
+
   const isRegulatory = regScore >= 2 && regScore > comScore;
 
   if (isRegulatory) {
@@ -130,4 +161,5 @@ export const COMMERCIAL_SEGMENTS = [
   { key: "Persuadables", color: "blue" },
   { key: "Late Movers", color: "amber" },
   { key: "Resistant", color: "rose" },
+  { key: "Risk Gatekeepers", color: "slate" },
 ];

@@ -3,6 +3,7 @@ import { db, casesTable, adoptionSegmentsTable, barrierDiagnosisTable, readiness
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { ModifiedVariable, FeasibilitySnapshot, ReadinessSnapshot, SegmentShift } from "@workspace/db";
+import { SIGNAL_CLASSIFICATION_TYPES } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -294,6 +295,13 @@ router.get("/simulation/scenarios", async (_req, res) => {
   });
 });
 
+router.get("/simulation/signal-classification-types", async (_req, res) => {
+  res.json({
+    types: [...SIGNAL_CLASSIFICATION_TYPES],
+    count: SIGNAL_CLASSIFICATION_TYPES.length,
+  });
+});
+
 router.get("/simulation/cases/:caseId/history", async (req, res) => {
   try {
     const rows = await db.select().from(simulationScenariosTable)
@@ -308,7 +316,15 @@ router.get("/simulation/cases/:caseId/history", async (req, res) => {
 router.post("/simulation/cases/:caseId/run", async (req, res) => {
   try {
     const { caseId } = req.params;
-    const { scenarioId, scenarioName } = req.body;
+    const { scenarioId, scenarioName, signalClassificationType } = req.body;
+
+    if (signalClassificationType && !SIGNAL_CLASSIFICATION_TYPES.includes(signalClassificationType)) {
+      res.status(400).json({
+        error: `Invalid signalClassificationType: ${signalClassificationType}`,
+        validTypes: [...SIGNAL_CLASSIFICATION_TYPES],
+      });
+      return;
+    }
 
     if (!scenarioId) {
       res.status(400).json({ error: "scenarioId is required" });
@@ -653,12 +669,14 @@ router.post("/simulation/cases/:caseId/run", async (req, res) => {
       impactMagnitude: Number(impactMagnitude.toFixed(4)),
       impactDirection,
       rationaleSummary,
+      ...(signalClassificationType ? { signalClassificationType } : {}),
     };
 
     await db.insert(simulationScenariosTable).values(record);
 
     res.json({
       simulation: record,
+      signalClassificationType: signalClassificationType || null,
       baseline: {
         posterior: baselinePosterior,
         feasibility: baselineFeasibilitySnap,
