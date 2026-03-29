@@ -1,0 +1,423 @@
+Refined CIOS Pipeline — With Implementation-Level Detail
+Step 0 — Question Intake (Entry Point)
+
+Example question
+
+Will Arikayce be adopted in first-line NTM after being approved only in refractory NTM?
+
+What happens here
+
+The system captures:
+
+Brand
+Indication
+Target decision
+Time horizon
+Adoption context
+
+Output
+
+Structured case header.
+
+Required fields
+
+CaseID
+Brand
+Indication
+DecisionQuestion
+DecisionType
+ForecastHorizon
+AdoptionPhase
+InitialAssumptions
+
+Guardrail
+
+This step must not interpret evidence or generate signals.
+It defines the decision context only.
+
+Step 1 — Decision Gating Agent
+
+Purpose
+
+Interpret uploaded material and identify the real decision.
+
+Input
+
+Question or uploaded document.
+
+What it does
+
+classifies document type
+extracts the primary decision
+extracts supporting decisions
+separates operational text from strategic text
+
+Output
+
+Decision classification.
+
+Required outputs
+
+PrimaryDecision
+SecondaryDecisions
+DecisionDomain
+DecisionConfidence
+EvidenceSpans
+
+Guardrail
+
+Vendor selection or administrative content must not dominate the decision.
+
+Step 2 — MIOS Deployment (Evidence Layer)
+
+Purpose
+
+Generate clinical and scientific signals.
+
+What it does
+
+Searches and interprets evidence relevant to the decision.
+
+Example
+
+Evidence about Arikayce in:
+
+refractory NTM
+first-line NTM
+symptom improvement
+culture conversion
+
+Output
+
+Evidence signals.
+
+Required fields
+
+SignalID
+SignalType = ClinicalEvidence
+Claim
+EvidenceStrength
+Direction
+Confidence
+Source
+Relevance
+
+Guardrail
+
+MIOS never produces probabilities.
+
+It produces evidence signals only.
+
+Step 3 — BAOS Deployment (Behavior Layer)
+
+Purpose
+
+Identify behavioral resistance and adoption drivers.
+
+What it does
+
+Analyzes cognitive and operational barriers.
+
+Example
+
+Status Quo Bias
+Risk Aversion
+Guideline Anchoring
+Workflow Disruption
+
+Output
+
+Behavior signals.
+
+Required fields
+
+SignalID
+SignalType = BehavioralBarrier
+Barrier
+Driver
+Direction
+Confidence
+Mechanism
+
+Guardrail
+
+BAOS does not interpret clinical evidence.
+
+It interprets behavior.
+
+Step 4 — Add Information Layer (Brand-Specific Signals)
+
+This is the integration point for MIOS and BAOS outputs.
+
+Purpose
+
+Collect all brand-specific signals before external context.
+
+Sources
+
+MIOS
+BAOS
+Manual inputs
+Internal market research
+
+Output
+
+Brand signal set.
+
+Required properties
+
+Normalized direction
+Normalized strength
+Provenance preserved
+
+Guardrail
+
+Signals must not be duplicated.
+
+Step 5 — External Signal Scout
+
+Purpose
+
+Capture the external environment.
+
+What it looks for
+
+Guidelines
+Competitors
+Payer decisions
+Supply constraints
+Advocacy activity
+Market access shifts
+
+Output
+
+External signals.
+
+Required fields
+
+SignalID
+SignalType = External
+Event
+Impact
+Direction
+Confidence
+Timing
+Source
+
+Guardrail
+
+Scout must not forecast.
+
+It collects signals only.
+
+Step 6 — Signal Normalization
+
+Purpose
+
+Create a single clean signal set.
+
+What it does
+
+removes duplicates
+resolves conflicts
+aligns direction
+preserves provenance
+
+Output
+
+Normalized signal register.
+
+Required fields
+
+SignalID
+SourceLayer
+Direction
+Strength
+Confidence
+NormalizedFlag
+
+Guardrail
+
+No signal can exist without a source.
+
+Step 7 — Core Engine (Judge)
+
+Purpose
+
+Produce the forecast.
+
+Input
+
+Normalized signal set.
+
+What it does
+
+Evaluates signal impact and generates:
+
+adoption outlook
+constraints
+drivers
+confidence
+
+Output
+
+Judgment.
+
+Required outputs
+
+ForecastProbability
+PrimaryConstraint
+TopDrivers
+Confidence
+KeyRisks
+
+Guardrail
+
+The engine must remain deterministic.
+
+Same input must produce the same result.
+
+Step 8 — Analysis Agent (Decision Interpretation)
+
+Purpose
+
+Translate judgment into decision logic.
+
+What it does
+
+Explains:
+
+why the forecast is what it is
+what is holding adoption back
+what could change the trajectory
+
+Output
+
+Decision explanation.
+
+Required outputs
+
+RootCause
+ConstraintDrivers
+OpportunityDrivers
+SensitivityFactors
+
+Guardrail
+
+Analysis cannot change the forecast.
+
+Step 9 — Respond Step (Decision Translation)
+
+Purpose
+
+Convert analysis into action.
+
+What it produces
+
+Structured recommendation.
+
+Required outputs
+
+RecommendedAction
+Rationale
+PriorityActions
+SuccessMeasures
+FailureTriggers
+
+Guardrail
+
+Respond does not calculate probability.
+
+Step 10 — Simulation Agent
+
+Purpose
+
+Model adoption behavior.
+
+What it does
+
+Projects how stakeholders react over time.
+
+Output
+
+Scenario paths.
+
+Required outputs
+
+BaseCase
+UpsideCase
+DownsideCase
+TriggerEvents
+TimingShift
+
+Guardrail
+
+Simulation must reflect the existing forecast.
+
+Where the Pipeline Is Strong
+
+These elements are already aligned:
+
+Decision-first workflow
+MIOS → BAOS → signals sequence
+External signal separation
+Deterministic judgment core
+Structured response step
+
+The logic is coherent.
+
+Where More Detail Was Needed (Now Added)
+
+These clarifications prevent future drift:
+
+MIOS and BAOS produce signals only
+External Scout collects context only
+Judge produces probability only
+Analysis explains only
+Respond recommends only
+Simulation projects only
+
+Each agent has a single job.
+
+The Most Important Structural Rule
+
+Every agent must obey this:
+
+One responsibility per agent.
+
+If an agent performs multiple roles, the system becomes unstable.
+
+Final System Flow
+
+Question
+→ Decision Gating
+→ MIOS
+→ BAOS
+→ Add Information
+→ External Scout
+→ Normalize
+→ Judge
+→ Analyze
+→ Respond
+→ Simulate
+
+Readiness Assessment
+
+Based on your current build:
+
+Architecture maturity: high
+Integration maturity: moderate
+Reliability maturity: improving
+
+You are in stabilization, not redesign.
+
+Next Logical Stabilization Targets
+
+Priority order:
+
+Signal normalization reliability
+External signal consistency
+Decision interpretation clarity
+Simulation coherence
+
+These will determine demo readiness.
