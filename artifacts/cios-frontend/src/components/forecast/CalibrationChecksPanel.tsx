@@ -14,6 +14,7 @@ interface CalibrationChecksData {
   checksFailed: number;
   independentEvidenceCount: number;
   totalSignalCount: number;
+  independenceRatio: number;
   adjustedProbability: number;
   uncertaintyRange: { low: number; high: number };
   volatilityScore: number;
@@ -114,9 +115,13 @@ export function CalibrationChecksPanel({ data }: { data: CalibrationChecksData |
               <div className="text-[10px] text-slate-500 uppercase tracking-wider">Independent Evidence</div>
               <div className="text-lg font-bold text-white mt-0.5">
                 {data.independentEvidenceCount}
-                {data.totalSignalCount > data.independentEvidenceCount && (
-                  <span className="text-sm text-slate-500 font-normal"> of {data.totalSignalCount} signals</span>
-                )}
+                <span className="text-sm text-slate-500 font-normal"> / {data.totalSignalCount}</span>
+              </div>
+              <div className={`text-[10px] font-medium mt-0.5 ${
+                data.independenceRatio >= 0.8 ? "text-emerald-400" :
+                data.independenceRatio >= 0.5 ? "text-yellow-400" : "text-amber-400"
+              }`}>
+                {Math.round(data.independenceRatio * 100)}% independent
               </div>
             </div>
             <div className="rounded-xl bg-white/[0.03] border border-white/5 px-3 py-2.5">

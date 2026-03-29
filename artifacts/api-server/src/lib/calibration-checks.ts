@@ -78,6 +78,7 @@ export interface CalibrationChecksResult {
   checksFailed: number;
   independentEvidenceCount: number;
   totalSignalCount: number;
+  independenceRatio: number;
   adjustedProbability: number;
   uncertaintyRange: { low: number; high: number };
   volatilityScore: number;
@@ -384,6 +385,7 @@ export function runCalibrationChecks(
       checksFailed: 0,
       independentEvidenceCount: 0,
       totalSignalCount: 0,
+      independenceRatio: 0,
       adjustedProbability: currentProbability,
       uncertaintyRange: { low: Math.max(0.01, currentProbability - 0.15), high: Math.min(0.99, currentProbability + 0.15) },
       volatilityScore: 0,
@@ -428,6 +430,9 @@ export function runCalibrationChecks(
     checksFailed: 5 - passed,
     independentEvidenceCount: echoCheck.independentEvidenceCount,
     totalSignalCount: signals.length,
+    independenceRatio: signals.length > 0
+      ? Number((echoCheck.independentEvidenceCount / signals.length).toFixed(2))
+      : 0,
     adjustedProbability,
     uncertaintyRange: overconfidenceCheck.uncertaintyRange,
     volatilityScore: overconfidenceCheck.volatilityScore,
