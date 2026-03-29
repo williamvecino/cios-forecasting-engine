@@ -32,6 +32,7 @@ The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built
 - **Executive Judgment Layer (Integrity-Enforced):** A post-forecast judgment engine producing a single canonical `ExecutiveJudgmentResult` object with integrity checks and an audit trail.
 - **Barrier Decomposition & Constraint Decomposition Layer:** Decomposes non-strong gates into operational drivers and maps to a dictionary of 19 abstract constraint categories.
 - **Endpoint Signal Differentiation Layer:** Classifies evidence signals into four tiers (Dominant, Supporting, Neutral, Contradictory) and detects `SignalImbalance`.
+- **Forecast Ledger (Calibration Memory):** Every forecast is automatically versioned and persisted with full inference snapshots including prior/posterior, confidence ceiling state, dependency metrics (diversity, fragility, concentration), top positive/negative drivers, lineage clusters, and environment adjustments. Supports resolution workflow (Resolved True/False/Partial/Not Resolvable), Brier scoring, calibration bucket tracking, update rationale, and version movement display.
 - **Ask CIOS (Case-Aware Question Box):** A persistent panel for open questions about the current case across categories like Explanation, Counterfactual, Resolution, and Interpretation.
 - **Respond Step:** Converts decision output into a client-ready executive response.
 - **Import Project (Universal Ingestion) & Enterprise Data Import:** Allows uploading documents, images, or pasting text for AI-powered extraction of decision questions and signals.

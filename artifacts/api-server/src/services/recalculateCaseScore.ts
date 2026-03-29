@@ -1,5 +1,6 @@
 import { db } from "@workspace/db";
-import { casesTable, signalsTable, actorsTable, calibrationLogTable, AGENT_ARCHETYPES } from "@workspace/db";
+import { casesTable, signalsTable, actorsTable, calibrationLogTable, forecastLedgerTable, AGENT_ARCHETYPES } from "@workspace/db";
+import { desc } from "drizzle-orm";
 import { eq, and } from "drizzle-orm";
 import { randomUUID, createHash } from "crypto";
 import { runForecastEngine } from "../lib/forecast-engine.js";
@@ -55,6 +56,13 @@ function deduplicateSignals<T extends { signalId: string }>(signals: T[]): T[] {
     }
   }
   return result;
+}
+
+function computeCalibrationBucket(probability: number): string {
+  const pct = probability * 100;
+  const lower = Math.floor(pct / 10) * 10;
+  const upper = lower + 10;
+  return `${lower}–${upper}%`;
 }
 
 function enforceSignalLimit<T extends { likelihoodRatio?: number | null }>(signals: T[]): T[] {
@@ -279,6 +287,74 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     predictedProbability: finalProbability,
     snapshotJson: JSON.stringify(snapshotForLog),
   }).onConflictDoNothing();
+
+  try {
+    const prevVersionRows = await db.select({ updateVersion: forecastLedgerTable.updateVersion, predictionId: forecastLedgerTable.predictionId })
+      .from(forecastLedgerTable)
+      .where(eq(forecastLedgerTable.caseId, caseId))
+      .orderBy(desc(forecastLedgerTable.updateVersion))
+      .limit(1);
+    const nextVersion = (prevVersionRows[0]?.updateVersion ?? 0) + 1;
+    const previousPredictionId = prevVersionRows[0]?.predictionId ?? null;
+
+    const topPositiveDrivers = signalsWithAdjustedLR
+      .filter(s => (s.likelihoodRatio ?? 1) > 1)
+      .sort((a, b) => (b.likelihoodRatio ?? 1) - (a.likelihoodRatio ?? 1))
+      .slice(0, 5)
+      .map(s => ({ type: s.signalType, desc: s.signalDescription?.slice(0, 80), lr: s.likelihoodRatio }));
+    const topNegativeDrivers = signalsWithAdjustedLR
+      .filter(s => (s.likelihoodRatio ?? 1) < 1)
+      .sort((a, b) => (a.likelihoodRatio ?? 1) - (b.likelihoodRatio ?? 1))
+      .slice(0, 5)
+      .map(s => ({ type: s.signalType, desc: s.signalDescription?.slice(0, 80), lr: s.likelihoodRatio }));
+
+    const topClusters = dependencyAnalysis.clusters
+      .sort((a, b) => b.clusterSignalCount - a.clusterSignalCount)
+      .slice(0, 5)
+      .map(cl => ({
+        rootId: cl.rootEvidenceId,
+        rootDesc: cl.rootSignal.signal.signalDescription?.slice(0, 80),
+        cluster: cl.rootSignal.sourceCluster,
+        count: cl.clusterSignalCount,
+        echoes: cl.echoCount,
+        translations: cl.translationCount,
+      }));
+
+    const bucket = computeCalibrationBucket(finalProbability);
+
+    await db.insert(forecastLedgerTable).values({
+      id: randomUUID(),
+      predictionId: forecastId,
+      caseId,
+      strategicQuestion: caseData.strategicQuestion ?? "Unspecified question",
+      decisionDomain: caseData.therapeuticArea ?? null,
+      forecastProbability: finalProbability,
+      forecastDate: calculatedAt,
+      timeHorizon: caseData.timeHorizon ?? "12 months",
+      forecastHorizonMonths: caseData.forecastHorizonMonths ?? 12,
+      priorProbability: caseData.priorProbability,
+      confidenceLevel: result.confidenceLevel,
+      confidenceCeilingApplied: ceiling.maxAllowedProbability < 1.0 ? ceiling.maxAllowedProbability : null,
+      confidenceCeilingReason: ceiling.maxAllowedProbability < 1.0 ? ceiling.reason : null,
+      evidenceDiversityScore: dependencyAnalysis.metrics.evidenceDiversityScore,
+      posteriorFragilityScore: dependencyAnalysis.metrics.posteriorFragilityScore,
+      concentrationPenalty: dependencyAnalysis.metrics.concentrationPenalty,
+      independentEvidenceFamilyCount: dependencyAnalysis.metrics.independentEvidenceFamilies,
+      rawSignalCount: limitedSignals.length,
+      compressedSignalCount: dependencyAnalysis.compressedSignals.filter(c => c.compressionFactor < 1).length,
+      keyDriversSummary: JSON.stringify(topPositiveDrivers),
+      topLineageClusters: JSON.stringify(topClusters),
+      counterSignalsSummary: JSON.stringify(topNegativeDrivers),
+      environmentAdjustments: JSON.stringify(envAdjustments),
+      updateVersion: nextVersion,
+      previousPredictionId,
+      resolutionStatus: "open",
+      calibrationBucket: bucket,
+      snapshotJson: JSON.stringify(snapshotForLog),
+    }).onConflictDoNothing();
+  } catch (ledgerErr) {
+    console.error(`[recalc-ledger] failed to save ledger entry for caseId=${caseId}:`, ledgerErr);
+  }
 
   const recalcResult: RecalcResult = {
     score: finalProbability,
