@@ -51,6 +51,7 @@ import agentBaosRouter from "./agent-baos.js";
 import signalDependencyRouter from "./signal-dependency.js";
 import referenceCasesRouter from "./reference-cases.js";
 import adoptionSegmentsRouter from "./adoption-segments.js";
+import barrierDiagnosisRouter from "./barrier-diagnosis.js";
 
 const router: IRouter = Router();
 
@@ -106,5 +107,6 @@ router.use(agentBaosRouter);
 router.use(signalDependencyRouter);
 router.use(referenceCasesRouter);
 router.use(adoptionSegmentsRouter);
+router.use(barrierDiagnosisRouter);
 
 export default router;

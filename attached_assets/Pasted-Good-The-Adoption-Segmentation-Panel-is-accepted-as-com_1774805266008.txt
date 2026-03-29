@@ -1,0 +1,153 @@
+Good. The Adoption Segmentation Panel is accepted as complete.
+
+## Decision
+
+Proceed to the next canonical build step: **Barrier Diagnosis Panel**.
+
+## Purpose
+
+Move from “who is likely to adopt” to **why adoption is being blocked** and which barriers matter most by segment.
+
+This panel must diagnose the dominant sources of resistance, not just list objections. It should show what is suppressing movement in each segment and where intervention would have the highest impact.
+
+## What this panel must answer
+
+At minimum:
+
+* What is the primary barrier blocking adoption overall?
+* What are the top barriers by segment?
+* Are barriers mainly evidence-based, operational, access-related, behavioral, competitive, or identity/role-related?
+* Which barriers are structural versus removable?
+* Which barriers are most important to address first?
+
+## Build requirements
+
+### 1) Define barrier schema
+
+Create a structured barrier object that can support at minimum:
+
+* `BarrierID`
+* `CaseID`
+* `SegmentID`
+* `BarrierName`
+* `BarrierCategory`
+* `BarrierStrength`
+* `BarrierConfidence`
+* `BarrierScope`
+* `PrimarySignals`
+* `CounterSignals`
+* `WhyItMatters`
+* `RemovalDifficulty`
+* `EstimatedImpactIfResolved`
+* `PriorityRank`
+* `RationaleSummary`
+
+### 2) Initial barrier categories
+
+Support a practical first-pass barrier taxonomy grounded in pharma adoption logic.
+
+Examples:
+
+* Evidence / Data Quality
+* Clinical Reasoning
+* Safety / Risk Perception
+* Access / Reimbursement
+* Workflow / Operational Burden
+* Guideline / Standard-of-Care Inertia
+* Identity / Role Ownership
+* Economic / Budget Pressure
+* Competitive Entrenchment
+* Awareness / Translation Gap
+
+These categories must be explicit and consistent.
+
+### 3) Overall + segment-level diagnosis
+
+The panel should diagnose:
+
+* barriers at the overall case level
+* barriers within each adoption segment
+
+I want to see whether the same forecast is being blocked for different reasons in different segments.
+
+### 4) Output required for each barrier
+
+For each barrier show:
+
+* barrier category
+* barrier strength
+* confidence
+* major supporting signals
+* major counter-signals
+* why this barrier matters
+* whether it is structural or potentially removable
+* estimated movement if reduced
+
+### 5) Priority logic
+
+Add a simple ranking system that distinguishes:
+
+* high-impact, removable barriers
+* high-impact but structural barriers
+* lower-impact secondary barriers
+* barriers that are mainly downstream echoes rather than root constraints
+
+The panel should help answer:
+**What barrier should be addressed first?**
+
+### 6) Relationship to adoption segments
+
+Tie barrier diagnosis directly to the segmentation output.
+
+Examples:
+
+* Academic KOLs may be minimally blocked by evidence but constrained by guideline timing
+* Community cautious adopters may be more blocked by workflow burden and translation gap
+* Access-constrained accounts may be mostly blocked by pathway and budget
+
+This must be segment-grounded, not generic.
+
+### 7) UI requirements
+
+Need a usable panel that shows:
+
+* ranked overall barriers
+* barrier distribution by category
+* barriers by segment
+* drilldown with supporting and counter-signals
+* priority and removability indicators
+
+Functional first, polished later.
+
+### 8) Guardrail
+
+Do not let this become a generic objection list.
+
+Barrier diagnosis must remain tied to:
+
+* forecast logic
+* dependency-controlled signals
+* segment outputs
+* explicit supporting/counter evidence
+
+## Deliverables
+
+Return with:
+
+1. barrier schema
+2. barrier taxonomy
+3. overall barrier ranking working
+4. segment-level barrier diagnosis working
+5. priority / removability logic working
+6. usable panel UI
+7. clear note on how barriers are derived from forecast + segment logic
+
+## Build-sequence reminder
+
+After Barrier Diagnosis, then:
+
+1. Readiness Timeline
+2. Competitive Risk Panel
+3. Growth Feasibility Panel
+4. Actors / Segments Simulation
+5. RFP Intake and Insight Agent

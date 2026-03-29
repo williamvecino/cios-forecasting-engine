@@ -24,3 +24,4 @@ export * from "./assumption-registry";
 export * from "./decision-classifications";
 export * from "./reference-cases";
 export * from "./adoption-segments";
+export * from "./barrier-diagnosis";

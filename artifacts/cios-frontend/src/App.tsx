@@ -30,6 +30,7 @@ import ComparisonGroupsPage from "@/pages/comparison-groups/index";
 import ForecastLedgerPage from "@/pages/forecast-ledger/index";
 import ReferenceCasesPage from "@/pages/reference-cases/index";
 import AdoptionSegmentsPage from "@/pages/adoption-segments/index";
+import BarrierDiagnosisPage from "@/pages/barrier-diagnosis/index";
 import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import NotFound from "@/pages/not-found";
 import { useRoute, useLocation } from "wouter";
@@ -103,6 +104,7 @@ function Router() {
       <Route path="/forecast-ledger" component={ForecastLedgerPage} />
       <Route path="/reference-cases" component={ReferenceCasesPage} />
       <Route path="/adoption-segments" component={AdoptionSegmentsPage} />
+      <Route path="/barrier-diagnosis" component={BarrierDiagnosisPage} />
       <Route path="/calibration" component={Calibration} />
       <Route path="/field-intelligence" component={FieldIntelligence} />
       <Route path="/watchlist" component={Watchlist} />
