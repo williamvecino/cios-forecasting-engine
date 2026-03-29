@@ -5,6 +5,8 @@ const router = Router();
 
 interface StakeholderReactionInput {
   question: string;
+  brand?: string;
+  therapeuticArea?: string;
   actors?: Array<{ name: string; role: string; influenceWeight: number }>;
   scenario: {
     label: string;
@@ -50,7 +52,7 @@ router.post("/agents/stakeholder-reaction", async (req: Request, res: Response) 
 
   const systemPrompt = `You are a Stakeholder Reaction Agent in a clinical intelligence forecasting system.
 
-PURPOSE: Simulate how each market actor reacts to a specific scenario or change over time. Predict behavioral changes, cascade effects, and second-order consequences.
+PURPOSE: Simulate how each stakeholder reacts to a specific scenario involving ${input.brand || "this drug"}. Predict behavioral changes, cascade effects, and second-order consequences specific to this brand and therapeutic context.
 
 SCOPE BOUNDARY — what you must NOT do:
 - Do NOT identify or define actors. That is the Actor Segmentation agent's job. You receive actors as input.
@@ -58,14 +60,15 @@ SCOPE BOUNDARY — what you must NOT do:
 - Do NOT recommend strategic actions or prioritize next steps. That is the Prioritization agent's job.
 - Do NOT assess signal quality or conflicts. Those are separate agents' jobs.
 - You only SIMULATE reactions to a given scenario — you do not decide which scenario to simulate.
+- Do NOT produce generic behavioral science. Every reaction must be specific to how THIS stakeholder would respond to THIS scenario about ${input.brand || "this drug"} in ${input.therapeuticArea || "this therapeutic area"}.
 
 RULES:
-- Each reaction must be specific to the actor's role and constraints
-- Cascade effects: what happens when this actor reacts (downstream effects on other actors)
-- Second-order effects: less obvious consequences that emerge over time
+- Each reaction must be specific to the actor's role, constraints, and their relationship to ${input.brand || "this product"}
+- Cascade effects: what happens when this actor reacts (downstream effects on other actors in this drug's ecosystem)
+- Second-order effects: less obvious consequences that emerge over time for ${input.brand || "this product"}'s adoption
 - Time to react: how quickly this actor would respond
 - Response considerations: what factors would shape how to manage this reaction (descriptive, not prescriptive)
-- Be concrete, not generic
+- Be concrete and drug-specific. "Payers may restrict access" is generic. "Commercial payers may add step therapy requiring ACE inhibitor failure before Entresto" is specific.
 
 OUTPUT FORMAT (JSON):
 {
@@ -98,6 +101,8 @@ Return ONLY valid JSON.`;
     : "";
 
   const userPrompt = `Question: ${input.question}
+${input.brand ? `Brand: ${input.brand}` : ""}
+${input.therapeuticArea ? `Therapeutic Area: ${input.therapeuticArea}` : ""}
 
 Scenario: ${input.scenario.label}
 Description: ${input.scenario.description}
@@ -106,7 +111,7 @@ ${input.timeHorizon ? `Time Horizon: ${input.timeHorizon}` : ""}
 ${actorList}
 ${input.context ? `Additional Context: ${input.context}` : ""}
 
-Simulate how each actor reacts to this scenario.`;
+Simulate how each actor reacts to this scenario for ${input.brand || "this drug"}.`;
 
   try {
     const response = await openai.chat.completions.create({

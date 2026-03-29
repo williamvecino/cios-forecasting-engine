@@ -75,6 +75,8 @@ All agents follow canonical invariants: bounded (fixed I/O schema), deterministi
 | 14 | MIOS | POST /api/agents/mios | Add Information (MiosBaosPanel) | BUILT |
 | 15 | BAOS | POST /api/agents/baos | Add Information (MiosBaosPanel) | BUILT |
 
+**Brand-Anchoring Audit (Complete):** All decision-facing agents (Actor Segmentation, Case Comparator, Prioritization, Stakeholder Reaction, External Signal Scout) accept `brand` and `therapeuticArea` fields and enforce domain-specific reasoning. Agents produce only stakeholders, analogs, actions, reactions, and signals relevant to the specific drug and therapeutic area — no generic consulting output.
+
 **Validation Harness:** 13 core tests (A-M) + 40 cross-domain tests (4 cases × 10 agents) in `agent-validation-harness.ts`. 43 locked unit tests.
 **Cross-Domain Test Cases:** Oncology (anti-PDL1 RFP), Cardiology (beta-blocker combo), MedTech (AI liquid biopsy), Rare Disease (gene therapy), Digital Health (PDT for T2D).
 

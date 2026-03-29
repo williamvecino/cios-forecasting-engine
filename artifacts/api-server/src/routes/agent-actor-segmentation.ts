@@ -5,6 +5,7 @@ const router = Router();
 
 interface ActorSegmentationInput {
   question: string;
+  brand?: string;
   therapeuticArea?: string;
   indication?: string;
   signals?: Array<{ text: string; direction: string }>;
@@ -48,24 +49,29 @@ router.post("/agents/actor-segmentation", async (req: Request, res: Response) =>
     return res.status(400).json({ error: "question is required" });
   }
 
+  const brandContext = input.brand ? `for ${input.brand}` : "";
+
   const systemPrompt = `You are an Actor Segmentation Agent in a clinical intelligence forecasting system.
 
-PURPOSE: Given a decision question and context, identify all relevant market actors (stakeholders, organizations, regulatory bodies, patient populations, competitor entities). For each actor, define their role, behavioral characteristics, constraints, triggers, influence weight, timing, signal sensitivity, and interactions with other actors.
+PURPOSE: Given a decision question about a specific drug/brand, identify ONLY the 3-6 stakeholders who directly influence whether ${input.brand || "this product"} gets adopted. Think like a pharma launch strategist — who actually moves the needle on this drug's adoption?
 
 SCOPE BOUNDARY — what you must NOT do:
 - Do NOT simulate how actors react to scenarios. That is the Stakeholder Reaction agent's job.
 - Do NOT estimate probabilities or forecast outcomes. That is the forecast engine's job.
 - Do NOT recommend actions. That is the Prioritization agent's job.
 - Do NOT generate signals or evidence. That is MIOS, BAOS, or External Signal Scout's job.
+- Do NOT include actors who do not DIRECTLY influence adoption of ${input.brand || "this specific product"}. If an actor is peripheral or has minimal influence on this specific decision, leave them out. Noise clouds judgment.
 - You only MAP actors and their characteristics — you do not predict their behavior.
 
 RULES:
-- Identify 4-8 distinct actor segments — no more, no fewer
-- Each actor must be specific (not "healthcare providers" but "community oncologists in US")
+- Identify 3-6 distinct actor segments — only those who MATTER for this drug's adoption. Fewer is better if fewer truly matter.
+- Each actor must be specific to this therapeutic area and brand (not "healthcare providers" but "community oncologists treating NSCLC" or "heart failure cardiologists")
 - Influence weights must sum to approximately 100 across all actors
 - Interactions must be directional and typed
 - Signal sensitivity maps how each actor would react to different types of evidence
 - Timing indicates when each actor becomes most relevant in the decision horizon
+- Only include regulators if a regulatory event is pending. Only include patients if patient advocacy directly drives prescribing. Only include payers if access/formulary is a real barrier for this specific drug.
+- Think: "If I were presenting to the brand team, which 3-5 stakeholders would I put on the slide?"
 
 OUTPUT FORMAT (JSON):
 {
@@ -105,12 +111,13 @@ OUTPUT FORMAT (JSON):
 Return ONLY valid JSON. No markdown, no explanation outside the JSON.`;
 
   const userPrompt = `Question: ${input.question}
+${input.brand ? `Brand: ${input.brand}` : ""}
 ${input.therapeuticArea ? `Therapeutic Area: ${input.therapeuticArea}` : ""}
 ${input.indication ? `Indication: ${input.indication}` : ""}
 ${input.signals?.length ? `Key Signals:\n${input.signals.map(s => `- [${s.direction}] ${s.text}`).join("\n")}` : ""}
 ${input.context ? `Additional Context: ${input.context}` : ""}
 
-Identify all relevant actors and map their interactions for this decision.`;
+Identify ONLY the stakeholders who directly influence ${input.brand || "this product"}'s adoption. Leave out anyone peripheral.`;
 
   try {
     const response = await openai.chat.completions.create({

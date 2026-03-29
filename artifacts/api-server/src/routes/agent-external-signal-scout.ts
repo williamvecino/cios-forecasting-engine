@@ -6,6 +6,9 @@ const router = Router();
 interface ExternalSignalScoutInput {
   activeQuestion: string;
   subject?: string;
+  brand?: string;
+  therapeuticArea?: string;
+  indication?: string;
   timeHorizon?: string;
   existingSignals?: string[];
 }
@@ -48,7 +51,10 @@ router.post("/agents/external-signal-scout", async (req, res) => {
     }
 
     const activeQuestion = body.activeQuestion.trim();
-    const subject = body.subject || "";
+    const subject = body.subject || body.brand || "";
+    const brand = body.brand || body.subject || "";
+    const therapeuticArea = body.therapeuticArea || "";
+    const indication = body.indication || "";
     const timeHorizon = body.timeHorizon || "12 months";
     const existingSignals = body.existingSignals || [];
 
@@ -58,10 +64,13 @@ router.post("/agents/external-signal-scout", async (req, res) => {
 
     const systemPrompt = `You are an external signal scout for a pharmaceutical intelligence system.
 
-Your single job: identify 5-10 relevant EXTERNAL signals that could affect the outcome of a decision question.
+Your single job: identify 5-10 relevant EXTERNAL signals that could affect the outcome of a decision question about ${brand || "a specific drug"}.
 
 Decision question: "${activeQuestion}"
-${subject ? `Subject: ${subject}` : ""}
+${brand ? `Brand: ${brand}` : ""}
+${subject && subject !== brand ? `Subject: ${subject}` : ""}
+${therapeuticArea ? `Therapeutic Area: ${therapeuticArea}` : ""}
+${indication ? `Indication: ${indication}` : ""}
 Time horizon: ${timeHorizon}
 ${existingContext}
 
@@ -73,22 +82,24 @@ SCOPE BOUNDARY — what you must NOT do:
 - Do NOT resolve signal conflicts. That is the Conflict Resolver's job.
 
 SCOPE — what you SHOULD find:
-- Competitor actions, launches, or pipeline events that affect this decision
-- Regulatory environment changes (guideline updates, policy shifts, CMS rules)
-- Payer landscape changes (formulary decisions, prior auth policy changes)
-- Market dynamics (pricing trends, generic entry timelines, market access shifts)
-- External clinical events (competitor trial readouts, conference presentations)
-- Macroeconomic or system-level changes affecting the therapeutic area
+- Competitor actions, launches, or pipeline events that affect this decision IN THIS THERAPEUTIC AREA
+- Regulatory environment changes (guideline updates, policy shifts, CMS rules) relevant to this drug category
+- Payer landscape changes (formulary decisions, prior auth policy changes) specific to this therapeutic area
+- Market dynamics (pricing trends, generic entry timelines, market access shifts) for this drug class
+- External clinical events (competitor trial readouts, conference presentations) in this disease area
+- System-level changes affecting THIS therapeutic area specifically
 
 Rules:
 1. Only suggest signals that are plausibly real and relevant to this specific decision.
-2. Each signal must have a specific source (e.g., "FDA advisory committee", "CMS proposed rule", "ASCO 2025 abstract", "competitor 10-K filing").
-3. Each signal must have a plausible date or timeframe.
-4. Do NOT forecast. Signals describe what has happened or is expected to happen, not what the outcome will be.
-5. Do NOT duplicate any existing signals the user already has.
-6. Prioritize signals by relevance to the decision.
-7. Signal types: regulatory, competitive, clinical, market, payer, guideline, pipeline, safety, economic.
-8. Be specific — "FDA approved competitor drug X" not "regulatory changes."
+2. Every signal must be relevant to the SAME therapeutic area and disease context as the question. Do NOT surface signals from unrelated therapeutic areas — a cardiology signal is noise for an oncology question.
+3. Each signal must have a specific source (e.g., "FDA advisory committee", "CMS proposed rule", "ASCO 2025 abstract", "competitor 10-K filing").
+4. Each signal must have a plausible date or timeframe.
+5. Do NOT forecast. Signals describe what has happened or is expected to happen, not what the outcome will be.
+6. Do NOT duplicate any existing signals the user already has.
+7. Prioritize signals by relevance to the decision. Cut anything that would not matter to the brand team.
+8. Signal types: regulatory, competitive, clinical, market, payer, guideline, pipeline, safety, economic.
+9. Be specific — "FDA approved competitor drug X for NSCLC" not "regulatory changes."
+10. Think: "Would a pharma strategist put this signal on the competitive landscape slide for this drug?" If not, leave it out.
 
 Respond with valid JSON only. No markdown, no explanation.
 
@@ -114,7 +125,7 @@ Output schema:
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Find external signals relevant to this decision: ${activeQuestion}` },
+        { role: "user", content: `Find external signals in ${therapeuticArea || "this therapeutic area"} relevant to ${brand || "this drug"}: ${activeQuestion}` },
       ],
       temperature: 0,
       seed: 42,

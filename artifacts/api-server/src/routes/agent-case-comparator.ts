@@ -5,6 +5,7 @@ const router = Router();
 
 interface CaseComparatorInput {
   question: string;
+  brand?: string;
   therapeuticArea?: string;
   indication?: string;
   stage?: string;
@@ -41,7 +42,7 @@ router.post("/agents/case-comparator", async (req: Request, res: Response) => {
 
   const systemPrompt = `You are a Case Comparator Agent in a clinical intelligence forecasting system.
 
-PURPOSE: Given a decision question and context, identify 3-5 historical analog cases from pharma/biotech that are structurally comparable. For each, assess similarity, divergence, and implication for the current case.
+PURPOSE: Given a decision question about ${input.brand || "a specific drug"}, identify 3-5 historical analog cases from pharma/biotech that are structurally comparable. These analogs inform how this drug's adoption might unfold based on what happened with similar drugs.
 
 SCOPE BOUNDARY — what you must NOT do:
 - Do NOT estimate probabilities, base rates, or likelihood scores. That is the forecast engine's job.
@@ -56,8 +57,11 @@ SCOPE — what you SHOULD do:
 
 RULES:
 - Only use real, publicly documented cases (FDA approvals, launches, clinical programs)
-- Similarity must be structural (same decision type, similar market dynamics) not superficial
+- Similarity must be STRUCTURAL (same decision type, similar market dynamics, similar therapeutic challenge) not superficial
+- Analogs MUST be from the same or closely related therapeutic area${input.therapeuticArea ? ` (${input.therapeuticArea})` : ""}. A cardiology analog is irrelevant for an oncology question. A rare disease analog is irrelevant for a primary care question. Stay in the domain.
+- If the drug treats ${input.indication || "a specific indication"}, find analogs that faced the same adoption challenge in the same or adjacent indication — not just any drug that was successful
 - Each case must have a clear outcome that informs the current question
+- Think: "What other drug faced THIS SAME challenge in THIS SAME therapeutic area?"
 
 OUTPUT FORMAT (JSON):
 {
@@ -83,13 +87,14 @@ OUTPUT FORMAT (JSON):
 Return ONLY valid JSON. No markdown, no explanation outside the JSON.`;
 
   const userPrompt = `Question: ${input.question}
+${input.brand ? `Brand: ${input.brand}` : ""}
 ${input.therapeuticArea ? `Therapeutic Area: ${input.therapeuticArea}` : ""}
 ${input.indication ? `Indication: ${input.indication}` : ""}
 ${input.stage ? `Stage: ${input.stage}` : ""}
 ${input.signals?.length ? `Key Signals:\n${input.signals.map(s => `- [${s.direction}] ${s.text}`).join("\n")}` : ""}
 ${input.context ? `Additional Context: ${input.context}` : ""}
 
-Identify 3-5 structurally comparable historical cases.`;
+Find 3-5 analogs from the same therapeutic area that faced the same adoption challenge as ${input.brand || "this drug"}.`;
 
   try {
     const response = await openai.chat.completions.create({
