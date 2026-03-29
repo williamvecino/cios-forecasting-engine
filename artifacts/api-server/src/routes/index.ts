@@ -54,6 +54,7 @@ import adoptionSegmentsRouter from "./adoption-segments.js";
 import barrierDiagnosisRouter from "./barrier-diagnosis.js";
 import caseFeedbackRouter from "./case-feedback.js";
 import caseTypeRouter from "./case-type.js";
+import readinessTimelineRouter from "./readiness-timeline.js";
 
 const router: IRouter = Router();
 
@@ -112,5 +113,6 @@ router.use(adoptionSegmentsRouter);
 router.use(barrierDiagnosisRouter);
 router.use(caseFeedbackRouter);
 router.use(caseTypeRouter);
+router.use(readinessTimelineRouter);
 
 export default router;

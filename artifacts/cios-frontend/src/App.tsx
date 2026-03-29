@@ -32,6 +32,7 @@ import ReferenceCasesPage from "@/pages/reference-cases/index";
 import AdoptionSegmentsPage from "@/pages/adoption-segments/index";
 import BarrierDiagnosisPage from "@/pages/barrier-diagnosis/index";
 import CaseFeedbackPage from "@/pages/case-feedback/index";
+import ReadinessTimelinePage from "@/pages/readiness-timeline/index";
 import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import NotFound from "@/pages/not-found";
 import { useRoute, useLocation } from "wouter";
@@ -107,6 +108,7 @@ function Router() {
       <Route path="/adoption-segments" component={AdoptionSegmentsPage} />
       <Route path="/barrier-diagnosis" component={BarrierDiagnosisPage} />
       <Route path="/case-feedback" component={CaseFeedbackPage} />
+      <Route path="/readiness-timeline" component={ReadinessTimelinePage} />
       <Route path="/calibration" component={Calibration} />
       <Route path="/field-intelligence" component={FieldIntelligence} />
       <Route path="/watchlist" component={Watchlist} />
