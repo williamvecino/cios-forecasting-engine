@@ -16,6 +16,7 @@ import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
 import { IntegrityPanel } from "@/components/forecast/IntegrityPanel";
+import { CalibrationChecksPanel } from "@/components/forecast/CalibrationChecksPanel";
 import {
   ArrowRight,
   BookOpen,
@@ -1279,6 +1280,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 )}
               </p>
             </div>
+
+            <CalibrationChecksPanel data={(f as any)._calibrationChecks} />
           </>
         );
       })()}

@@ -31,6 +31,7 @@ import {
   type GateStatus,
 } from "../lib/engine-guardrails.js";
 import { getProfileForQuestion } from "../lib/case-type-router.js";
+import { runCalibrationChecks } from "../lib/calibration-checks.js";
 
 interface SafetyCeilingResult {
   applied: boolean;
@@ -304,6 +305,17 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     environmentAdjustedProbability = Math.min(environmentAdjustedProbability, safetyCeiling.ceiling);
   }
 
+  const calibrationChecks = runCalibrationChecks(
+    signalsWithAdjustedLR,
+    caseData.priorProbability ?? 0.5,
+    environmentAdjustedProbability,
+    caseData.strategicQuestion ?? "",
+  );
+
+  if (calibrationChecks.adjustedProbability !== environmentAdjustedProbability) {
+    environmentAdjustedProbability = calibrationChecks.adjustedProbability;
+  }
+
   // Keep bucket field for backward compatibility with downstream consumers
   const bucket = getBucket(rawProbability);
 
@@ -347,6 +359,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       filteredOut: allSignals.length - eligibleSignals.length,
     },
     _safetyCeiling: safetyCeiling,
+    _calibrationChecks: calibrationChecks,
   };
 
   await db.update(casesTable).set({
