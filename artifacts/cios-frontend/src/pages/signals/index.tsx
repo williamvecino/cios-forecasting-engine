@@ -54,6 +54,7 @@ import ConflictResolverPanel from "@/components/signals/ConflictResolverPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import MiosBaosPanel from "@/components/signals/MiosBaosPanel";
+import SignalDependencyPanel from "@/components/signals/SignalDependencyPanel";
 
 function isMiosBaosSignal(s: any): boolean {
   const st = (s.source_type || "").toUpperCase();
@@ -1533,6 +1534,10 @@ export default function SignalsPage() {
               observed_date: s.observed_date || null,
             }))}
           />
+
+          {activeQuestion?.caseId && (
+            <SignalDependencyPanel caseId={activeQuestion.caseId} />
+          )}
 
           <ConflictResolverPanel
             question={questionText}

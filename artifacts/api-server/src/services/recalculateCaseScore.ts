@@ -8,6 +8,7 @@ import { getLrCorrections, getBucket, computeDecay } from "../lib/calibration-ut
 import { computeHierarchicalCalibration } from "../lib/calibration-fallback.js";
 import { deriveQuestionType } from "../lib/case-context.js";
 import { filterEligibleSignals, applyEventFamilyGuardrail } from "../lib/signal-eligibility.js";
+import { runDependencyAnalysis, applyCompressionToSignals } from "../lib/signal-dependency-engine.js";
 import {
   computeEnvironmentAdjustments,
   applyEnvironmentToProbability,
@@ -126,7 +127,14 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
   const eligibleSignals = filterEligibleSignals(allSignals, caseTargetContext);
   const guardedSignals = applyEventFamilyGuardrail(eligibleSignals);
   const dedupedSignals = deduplicateSignals(guardedSignals);
-  const signals = enforceSignalLimit(dedupedSignals);
+  const limitedSignals = enforceSignalLimit(dedupedSignals);
+
+  const dependencyAnalysis = runDependencyAnalysis(limitedSignals);
+  const signals = applyCompressionToSignals(limitedSignals, dependencyAnalysis);
+
+  if (dependencyAnalysis.warnings.length > 0) {
+    console.log(`[recalc-dependency] caseId=${caseId} clusters=${dependencyAnalysis.metrics.clusterCount} compressed=${dependencyAnalysis.compressedSignals.filter(c => c.compressionFactor < 1).length} warnings=${dependencyAnalysis.warnings.length} diversity=${dependencyAnalysis.metrics.evidenceDiversityScore} fragility=${dependencyAnalysis.metrics.posteriorFragilityScore}`);
+  }
 
   const corrections = await getLrCorrections();
   const now = Date.now();
@@ -234,6 +242,12 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
       driverCount: signalsWithAdjustedLR.length,
       largestShift: Number(largestShift.toFixed(4)),
       finalProbability,
+    },
+    _dependencyAnalysis: {
+      metrics: dependencyAnalysis.metrics,
+      warnings: dependencyAnalysis.warnings,
+      clusterCount: dependencyAnalysis.clusters.length,
+      compressedCount: dependencyAnalysis.compressedSignals.filter(c => c.compressionFactor < 1).length,
     },
   };
 

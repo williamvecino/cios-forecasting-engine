@@ -1,0 +1,180 @@
+Build the **Signal Dependency & Redundancy Control Layer** as the **next required implementation step** in CIOS. This is now canonical and must be completed **before** Forecast Ledger, segmentation panels, barrier diagnosis, readiness timeline, competitive risk, growth feasibility, or reaction simulation.
+
+## Purpose
+
+Prevent posterior inflation caused by causally related pharma signals being treated as independent evidence.
+
+## Canonical engine rule
+
+**Raw signals must not update the posterior directly until dependency control has been applied.**
+
+## New canonical flow
+
+**Question -> Raw Signals -> Dependency/Lineage Analysis -> Cluster Compression -> Incremental Novelty Scoring -> Posterior Update -> Confidence / Concentration Warning**
+
+## What to build now
+
+### 1) Extend the signal schema
+
+Add these fields to every signal object / row:
+
+* `RootEvidenceID`
+* `SignalLineage`
+* `SourceCluster`
+* `DependencyRole`
+* `LineageConfidence`
+* `NovelInformationFlag`
+* `EchoVsTranslation`
+
+#### Allowed values
+
+**SourceCluster**
+
+* Clinical Evidence
+* KOL / Expert Interpretation
+* Publication / Guideline
+* Market Research
+* Field Feedback
+* Real-World Evidence
+* Access / Policy
+* Competitive Intelligence
+* Operational / Workflow
+* Other
+
+**DependencyRole**
+
+* Root
+* Direct derivative
+* Second-order derivative
+* Independent parallel evidence
+
+**LineageConfidence**
+
+* High
+* Medium
+* Low
+
+**NovelInformationFlag**
+
+* Yes
+* Partial
+* No
+
+**EchoVsTranslation**
+
+* Echo
+* Translation
+* Independent
+
+### 2) Create a Dependency / Lineage analysis layer
+
+Before scoring, inspect all active signals and determine:
+
+* which signals share the same `RootEvidenceID`
+* whether a signal is a root, derivative, second-order derivative, or independent parallel evidence
+* whether a signal adds genuinely new information or mainly restates prior evidence
+* whether downstream signals are echoes versus meaningful operational/behavioral translations
+
+This layer should run automatically before any posterior calculation.
+
+### 3) Add cluster compression
+
+Signals linked to the same root evidence must be compressed before scoring.
+
+Do **not** stack five related descendant signals as five separate updates.
+
+Implement logic so that:
+
+* the **root** signal carries the primary update
+* descendant signals contribute only **incremental** value if they contain new information
+* pure echoes contribute zero or near-zero incremental value
+* translation signals may contribute modest incremental value if they reveal behavioral, access, segmentation, timing, or workflow implications not already contained in the root evidence
+
+### 4) Add novelty scoring
+
+Create an internal novelty assessment for compressed clusters.
+
+At minimum produce:
+
+* `ClusterSignalCount`
+* `CompressedSignalCount`
+* `NoveltyScore`
+* `EchoDensity`
+* `EvidenceDiversityScore`
+* `PosteriorFragilityScore`
+* `ConcentrationPenalty`
+
+Behavioral rule:
+
+* repeated expressions of the same underlying evidence should not materially increase certainty
+* certainty should rise from **independent reasons**, not repeated downstream echoes
+
+### 5) Add concentration / overstatement warnings
+
+Trigger a visible warning when:
+
+* more than 3 active signals share the same `RootEvidenceID`
+* more than 50% of posterior movement comes from one lineage cluster
+* descendant signals materially outnumber root or independent signals
+* evidence diversity is low
+* posterior appears inflated by correlated signal stacking
+
+Example warning text:
+“Most active updates trace back to the same underlying evidence event. Posterior may be overstated due to correlated signals. Review compressed cluster view.”
+
+### 6) Add orthogonality checks
+
+The system should evaluate whether active evidence comes from genuinely different evidence families.
+
+The goal is to estimate:
+**How many independent reasons exist to believe this outcome?**
+
+Not:
+**How many positive signals were entered?**
+
+### 7) UI / output requirements for this phase
+
+Add a simple developer-facing and user-visible summary panel showing:
+
+* Active root evidence groups
+* Signals compressed by lineage
+* Independent evidence families represented
+* Concentration warning state
+* Evidence diversity level
+* Posterior fragility indication
+
+This does not need final polished UI yet. Functional visibility is more important than design.
+
+## Non-negotiable implementation rule
+
+Do not allow the existing posterior engine to score raw signals first and compress later. Compression and lineage control must happen **before** posterior updating.
+
+## Initial build priority
+
+Implement the smallest working version first:
+
+### Phase 1
+
+* schema extension
+* lineage tagging
+* root evidence grouping
+* basic compression
+* warning trigger
+* updated posterior flow
+
+### Phase 2
+
+* novelty scoring refinement
+* echo vs translation logic
+* diversity / fragility metrics
+* summary panel improvements
+
+## Why this is next
+
+This layer protects inference integrity, affects every downstream calculation, is difficult to retrofit later, and prevents systemic posterior inflation from correlated pharma signals, especially as MIOS and BAOS integrations increase signal volume.
+
+## Important architectural principle
+
+CIOS should estimate **how many independent reasons** exist to believe an outcome, not count multiple downstream echoes of the same upstream event as separate evidence.
+
+After this layer is functional, then move to the Forecast Ledger.

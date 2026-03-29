@@ -67,6 +67,14 @@ export const signalsTable = pgTable("signals", {
   observedAt: timestamp("observed_at"),
   notes: text("notes"),
 
+  rootEvidenceId: text("root_evidence_id"),
+  signalLineage: text("signal_lineage"),
+  sourceCluster: text("source_cluster"),
+  dependencyRole: text("dependency_role"),
+  lineageConfidence: text("lineage_confidence"),
+  novelInformationFlag: text("novel_information_flag"),
+  echoVsTranslation: text("echo_vs_translation"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
