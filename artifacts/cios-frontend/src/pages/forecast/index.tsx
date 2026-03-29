@@ -1813,6 +1813,7 @@ function BottomLinks({ forecastData }: { forecastData?: any }) {
         <div className="mt-2 text-sm text-slate-300">Keep these accessible without crowding the main workflow.</div>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link href="/forecast-ledger" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Forecast Ledger</Link>
+          <Link href="/reference-cases" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Reference Cases</Link>
           <Link href="/calibration" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Calibration</Link>
           <Link href="/workbench" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Workbench</Link>
         </div>

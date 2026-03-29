@@ -49,6 +49,7 @@ import agentStakeholderReactionRouter from "./agent-stakeholder-reaction.js";
 import agentMiosRouter from "./agent-mios.js";
 import agentBaosRouter from "./agent-baos.js";
 import signalDependencyRouter from "./signal-dependency.js";
+import referenceCasesRouter from "./reference-cases.js";
 
 const router: IRouter = Router();
 
@@ -102,5 +103,6 @@ router.use(agentStakeholderReactionRouter);
 router.use(agentMiosRouter);
 router.use(agentBaosRouter);
 router.use(signalDependencyRouter);
+router.use(referenceCasesRouter);
 
 export default router;
