@@ -88,7 +88,7 @@ export default function MiosBaosPanel({
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<"idle" | "mios" | "baos" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [expandedSection, setExpandedSection] = useState<"mios" | "baos" | null>(null);
+  const [expandedSections, setExpandedSections] = useState<{ mios: boolean; baos: boolean }>({ mios: false, baos: false });
 
   const [miosDecisions, setMiosDecisions] = useState<SignalDecision[]>([]);
   const [baosDecisions, setBaosDecisions] = useState<SignalDecision[]>([]);
@@ -132,7 +132,7 @@ export default function MiosBaosPanel({
       setBaosResult(baos);
       setBaosDecisions(baos.barrierSignals.map(() => "pending" as SignalDecision));
       setPhase("done");
-      setExpandedSection("mios");
+      setExpandedSections({ mios: true, baos: true });
     } catch (e: any) {
       setError(e.message);
       setPhase("idle");
@@ -331,7 +331,7 @@ export default function MiosBaosPanel({
 
           <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5">
             <button
-              onClick={() => setExpandedSection(expandedSection === "mios" ? null : "mios")}
+              onClick={() => setExpandedSections(prev => ({ ...prev, mios: !prev.mios }))}
               className="w-full flex items-center justify-between px-4 py-3 cursor-pointer"
             >
               <div className="flex items-center gap-2">
@@ -344,7 +344,7 @@ export default function MiosBaosPanel({
                 {pendingMiosCount > 0 && pendingMiosCount < miosResult.evidenceSignals.length && (
                   <span className="text-[10px] text-muted-foreground">{pendingMiosCount} pending</span>
                 )}
-                {acceptedMiosCount > 0 && (
+                {pendingMiosCount > 0 && (
                   <button
                     onClick={(ev) => { ev.stopPropagation(); acceptAllMios(); }}
                     className="text-[10px] text-cyan-400 hover:text-cyan-300 transition"
@@ -352,10 +352,10 @@ export default function MiosBaosPanel({
                     Accept all
                   </button>
                 )}
-                {expandedSection === "mios" ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-cyan-400" />}
+                {expandedSections.mios ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-cyan-400" />}
               </div>
             </button>
-            {expandedSection === "mios" && (
+            {expandedSections.mios && (
               <div className="px-4 pb-4 space-y-2">
                 {miosResult.beliefShiftsIdentified.length > 0 && (
                   <div className="mb-3">
@@ -443,7 +443,7 @@ export default function MiosBaosPanel({
 
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/5">
             <button
-              onClick={() => setExpandedSection(expandedSection === "baos" ? null : "baos")}
+              onClick={() => setExpandedSections(prev => ({ ...prev, baos: !prev.baos }))}
               className="w-full flex items-center justify-between px-4 py-3 cursor-pointer"
             >
               <div className="flex items-center gap-2">
@@ -456,7 +456,7 @@ export default function MiosBaosPanel({
                 {pendingBaosCount > 0 && pendingBaosCount < baosResult.barrierSignals.length && (
                   <span className="text-[10px] text-muted-foreground">{pendingBaosCount} pending</span>
                 )}
-                {acceptedBaosCount > 0 && (
+                {pendingBaosCount > 0 && (
                   <button
                     onClick={(ev) => { ev.stopPropagation(); acceptAllBaos(); }}
                     className="text-[10px] text-amber-400 hover:text-amber-300 transition"
@@ -464,10 +464,10 @@ export default function MiosBaosPanel({
                     Accept all
                   </button>
                 )}
-                {expandedSection === "baos" ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
+                {expandedSections.baos ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
               </div>
             </button>
-            {expandedSection === "baos" && (
+            {expandedSections.baos && (
               <div className="px-4 pb-4 space-y-2">
                 {baosResult.barrierSignals.map((b, i) => {
                   const decision = baosDecisions[i];
