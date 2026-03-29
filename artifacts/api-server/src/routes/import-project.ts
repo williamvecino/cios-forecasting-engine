@@ -1786,6 +1786,15 @@ YOUR ANALYSIS STEPS:
    - Include time horizons where relevant
    - Are prioritized (critical, important, supplementary)
 
+   **CIOS QUESTION RULES (CRITICAL)**:
+   - The #1 CIOS question MUST be the KEY COMPETITIVE/STRATEGIC question from the document.
+   - For pharma RFPs, the key question is almost always about competitive positioning: "Will [Brand] be positioned for launch against [competitors] in [indication(s)]?" or "Can [Brand] capture [X] market share against [competitors] within [timeframe]?"
+   - Generate exactly 2-3 ranked CIOS questions. Rank 1 = the key question. Rank 2-3 = important secondary questions the user may want to analyze later.
+   - Each CIOS question MUST include a "rank" field (1, 2, or 3) and a "rankRationale" explaining why it is ranked that way.
+   - The #1 question should be the one that, if answered well, would most directly address the document's core business decision.
+   - Do NOT generate generic questions like "What are the key safety outcomes?" as CIOS questions — those belong in MIOS. CIOS questions must be about strategic positioning, market adoption, competitive dynamics, or launch readiness.
+   - Sub-questions: If the key question naturally decomposes (e.g., drug positioning in TWO cancers), generate the overarching question as #1 and the per-indication sub-questions as #2 and #3.
+
 5. IDENTIFY MISSING INFORMATION
    - What critical inputs are missing from the document that each system would need?
 
@@ -1843,12 +1852,14 @@ Respond in JSON:
       "summary": "What CIOS should focus on from this document",
       "recommendedQuestions": [
         {
-          "text": "Specific CIOS question",
+          "text": "Specific CIOS question — the KEY competitive/strategic question as #1",
           "rationale": "Which part of the document this addresses",
           "category": "launch_strategy | market_adoption | competitive_positioning | scenario_analysis | forecast | brand_strategy | commercial_planning | timing | access",
           "priority": "critical | important | supplementary",
           "suggestedTimeHorizon": "e.g. 12 months",
-          "suggestedSubject": "The product/brand this question is about"
+          "suggestedSubject": "The product/brand this question is about",
+          "rank": 1,
+          "rankRationale": "Why this is the #1 question — e.g. 'This directly addresses the core launch positioning decision in the RFP'"
         }
       ]
     }
@@ -1926,6 +1937,8 @@ Respond in JSON:
           priority: q.priority || "important",
           suggestedTimeHorizon: q.suggestedTimeHorizon || "12 months",
           suggestedSubject: q.suggestedSubject || "",
+          rank: typeof q.rank === "number" ? q.rank : undefined,
+          rankRationale: q.rankRationale || undefined,
         })) : [],
       };
     };
@@ -1937,6 +1950,26 @@ Respond in JSON:
       return [];
     };
 
+    const ciosRouted = ensureRouted("cios");
+    if (ciosRouted.recommendedQuestions.length > 0) {
+      const hasRanks = ciosRouted.recommendedQuestions.some((q: any) => typeof q.rank === "number");
+      if (!hasRanks) {
+        ciosRouted.recommendedQuestions.forEach((q: any, i: number) => {
+          q.rank = i + 1;
+          if (!q.rankRationale) {
+            q.rankRationale = i === 0
+              ? "Primary competitive/strategic question from document"
+              : `Supporting question #${i + 1}`;
+          }
+        });
+      }
+      ciosRouted.recommendedQuestions.sort((a: any, b: any) => (a.rank || 99) - (b.rank || 99));
+
+      if (ciosRouted.recommendedQuestions.length > 5) {
+        ciosRouted.recommendedQuestions = ciosRouted.recommendedQuestions.slice(0, 5);
+      }
+    }
+
     const result = {
       documentType: parsed.documentType || "Unknown",
       primaryDecision: parsed.primaryDecision || "",
@@ -1947,7 +1980,7 @@ Respond in JSON:
       routedContent: {
         mios: ensureRouted("mios"),
         baos: ensureRouted("baos"),
-        cios: ensureRouted("cios"),
+        cios: ciosRouted,
       },
       filteredContent: {
         summary: parsed.filteredContent?.summary || "",

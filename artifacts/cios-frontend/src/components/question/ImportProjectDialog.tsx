@@ -136,6 +136,8 @@ interface RecommendedQuestion {
   suggestedTimeHorizon: string;
   suggestedSubject: string;
   system?: "mios" | "baos" | "cios";
+  rank?: number;
+  rankRationale?: string;
 }
 
 interface DecisionPack {
@@ -564,23 +566,26 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
 
       const allQuestions: RecommendedQuestion[] = [];
       (["mios", "baos", "cios"] as const).forEach(sys => {
-        pack.routedContent[sys].recommendedQuestions.forEach(q => {
+        const sysQuestions = [...pack.routedContent[sys].recommendedQuestions];
+        if (sys === "cios") {
+          sysQuestions.sort((a: any, b: any) => (a.rank || 99) - (b.rank || 99));
+        }
+        sysQuestions.forEach(q => {
           allQuestions.push({ ...q, system: sys });
         });
       });
 
       const initialSelected = new Set<number>();
       allQuestions.forEach((q, i) => {
-        if (q.priority === "critical" || q.priority === "important") {
+        if (q.system === "cios" && q.rank === 1) {
+          initialSelected.add(i);
+        } else if (q.priority === "critical" || q.priority === "important") {
           initialSelected.add(i);
         }
       });
       setSelectedQuestionIndexes(initialSelected);
 
-      const tabWithMost = (["cios", "mios", "baos"] as const).reduce((best, sys) =>
-        pack.routedContent[sys].recommendedQuestions.length > pack.routedContent[best].recommendedQuestions.length ? sys : best
-      , "cios" as "mios" | "baos" | "cios");
-      setGatedActiveTab(tabWithMost);
+      setGatedActiveTab("cios");
 
       setPhase("gated-pack");
     } catch (err: any) {
@@ -596,12 +601,38 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
     if (gatedPack && onMultiImport) {
       const allQuestions: RecommendedQuestion[] = [];
       (["mios", "baos", "cios"] as const).forEach(sys => {
-        gatedPack.routedContent[sys].recommendedQuestions.forEach(q => {
+        const sysQuestions = [...gatedPack.routedContent[sys].recommendedQuestions];
+        if (sys === "cios") {
+          sysQuestions.sort((a: any, b: any) => (a.rank || 99) - (b.rank || 99));
+        }
+        sysQuestions.forEach(q => {
           allQuestions.push({ ...q, system: sys });
         });
       });
       const selected = allQuestions.filter((_, i) => selectedQuestionIndexes.has(i));
       if (selected.length === 0) return;
+
+      const deferred = allQuestions.filter((q, i) => !selectedQuestionIndexes.has(i) && q.system === "cios");
+      if (deferred.length > 0) {
+        try {
+          const existing = JSON.parse(localStorage.getItem("cios.deferredQuestions") || "[]");
+          const newDeferred = deferred.map(q => ({
+            text: q.text,
+            rationale: q.rationale,
+            category: q.category,
+            priority: q.priority,
+            suggestedTimeHorizon: q.suggestedTimeHorizon,
+            suggestedSubject: q.suggestedSubject,
+            rank: q.rank,
+            rankRationale: q.rankRationale,
+            savedAt: new Date().toISOString(),
+            sourceDocument: gatedPack.documentType,
+            businessContext: gatedPack.businessContext,
+          }));
+          localStorage.setItem("cios.deferredQuestions", JSON.stringify([...newDeferred, ...existing].slice(0, 20)));
+        } catch {}
+      }
+
       onMultiImport(selected, gatedPack);
       return;
     }
@@ -829,19 +860,51 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {routed.recommendedQuestions.map((q, i) => {
+                    {(sys === "cios"
+                      ? [...routed.recommendedQuestions].sort((a: any, b: any) => (a.rank || 99) - (b.rank || 99))
+                      : routed.recommendedQuestions
+                    ).map((q, i) => {
                       const globalI = offset + i;
                       const isSelected = selectedQuestionIndexes.has(globalI);
+                      const isCiosRanked = sys === "cios" && typeof (q as any).rank === "number";
+                      const qRank = (q as any).rank as number | undefined;
+                      const qRankRationale = (q as any).rankRationale as string | undefined;
+                      const isKeyQuestion = isCiosRanked && qRank === 1;
+                      const isAnalyzeLater = isCiosRanked && qRank !== undefined && qRank > 1;
                       return (
                         <div
                           key={i}
                           onClick={() => toggleQuestionSelection(globalI)}
                           className={`rounded-xl border p-4 cursor-pointer transition-all ${
-                            isSelected
+                            isKeyQuestion && isSelected
+                              ? "border-violet-500/50 bg-violet-500/10 ring-2 ring-violet-500/30"
+                              : isSelected
                               ? `${sc.border} ${sc.bg} ring-1 ring-current/20`
+                              : isAnalyzeLater
+                              ? "border-border bg-muted/5 hover:border-muted-foreground/30 opacity-80"
                               : "border-border bg-muted/5 hover:border-muted-foreground/30"
                           }`}
                         >
+                          {isKeyQuestion && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 uppercase tracking-wider">
+                                #1 Key Question
+                              </span>
+                              {qRankRationale && (
+                                <span className="text-[10px] text-violet-400/70 italic">{qRankRationale}</span>
+                              )}
+                            </div>
+                          )}
+                          {isAnalyzeLater && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-500/15 text-slate-400 border border-slate-500/25 uppercase tracking-wider">
+                                #{qRank} Analyze Later
+                              </span>
+                              {qRankRationale && (
+                                <span className="text-[10px] text-slate-500 italic">{qRankRationale}</span>
+                              )}
+                            </div>
+                          )}
                           <div className="flex items-start gap-3">
                             <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                               isSelected ? `${sc.border} ${sc.bg}` : "border-muted-foreground/30"
@@ -849,7 +912,7 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
                               {isSelected && <Check className={`w-3 h-3 ${sc.text}`} />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-foreground leading-relaxed">{q.text}</div>
+                              <div className={`text-sm font-medium text-foreground leading-relaxed ${isKeyQuestion ? "text-violet-200" : ""}`}>{q.text}</div>
                               <div className="text-xs text-muted-foreground mt-1.5">{q.rationale}</div>
                               <div className="flex items-center gap-2 mt-2 flex-wrap">
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded border ${priorityColor(q.priority)}`}>{q.priority}</span>

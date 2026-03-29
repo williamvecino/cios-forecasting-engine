@@ -24,6 +24,8 @@ import {
   SplitSquareVertical,
   Target,
   Clock,
+  Archive,
+  Trash2,
 } from "lucide-react";
 import ImportProjectDialog from "@/components/question/ImportProjectDialog";
 
@@ -886,9 +888,122 @@ export default function QuestionPage() {
                 </div>
               </div>
             )}
+
+            <DeferredQuestionsPanel onUseQuestion={(text) => {
+              setShowImportProject(false);
+              setRawInput(text);
+            }} />
           </>
         )}
       </div>
     </WorkflowLayout>
+  );
+}
+
+interface DeferredQuestion {
+  text: string;
+  rationale: string;
+  category: string;
+  priority: string;
+  suggestedTimeHorizon: string;
+  suggestedSubject: string;
+  rank?: number;
+  rankRationale?: string;
+  savedAt: string;
+  sourceDocument?: string;
+  businessContext?: string;
+}
+
+function DeferredQuestionsPanel({ onUseQuestion }: { onUseQuestion: (text: string) => void }) {
+  const [deferred, setDeferred] = useState<DeferredQuestion[]>([]);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("cios.deferredQuestions") || "[]");
+      if (Array.isArray(stored) && stored.length > 0) {
+        setDeferred(stored);
+      }
+    } catch {}
+  }, []);
+
+  const removeQuestion = (index: number) => {
+    const updated = deferred.filter((_, i) => i !== index);
+    setDeferred(updated);
+    localStorage.setItem("cios.deferredQuestions", JSON.stringify(updated));
+  };
+
+  if (deferred.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-muted/10 transition rounded-2xl"
+      >
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-slate-500/10 p-2">
+            <Archive className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-foreground">Saved Questions</div>
+            <div className="text-[11px] text-muted-foreground">
+              {deferred.length} question{deferred.length !== 1 ? "s" : ""} saved for later analysis
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {expanded ? "Hide" : "Show"}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border px-5 py-4 space-y-2">
+          {deferred.map((q, i) => (
+            <div key={i} className="rounded-xl border border-border bg-muted/5 p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground leading-relaxed">{q.text}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{q.rationale}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removeQuestion(i); }}
+                  className="rounded-lg border border-border p-1.5 hover:bg-red-500/10 hover:border-red-500/30 transition shrink-0"
+                  title="Remove"
+                >
+                  <Trash2 className="w-3 h-3 text-muted-foreground hover:text-red-400" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {q.rank && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-400 border border-slate-500/25">
+                    Rank #{q.rank}
+                  </span>
+                )}
+                {q.suggestedSubject && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    {q.suggestedSubject}
+                  </span>
+                )}
+                <span className="text-[10px] text-muted-foreground">{q.suggestedTimeHorizon}</span>
+                {q.sourceDocument && (
+                  <span className="text-[10px] text-muted-foreground/60">from {q.sourceDocument}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => { onUseQuestion(q.text); removeQuestion(i); }}
+                className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition inline-flex items-center gap-1.5"
+              >
+                <ArrowRight className="w-3 h-3" />
+                Analyze This Question
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
