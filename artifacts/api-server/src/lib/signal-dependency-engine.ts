@@ -397,8 +397,9 @@ function computeMetrics(
   const totalEchos = allTagged.filter((t) => t.echoVsTranslation === "Echo").length;
   const echoDensity = totalSignals > 0 ? totalEchos / totalSignals : 0;
 
-  const uniqueClusters = new Set(allTagged.map((t) => t.sourceCluster));
-  const evidenceDiversityScore = Math.min(1, uniqueClusters.size / Math.max(SOURCE_CLUSTERS.length / 2, 1));
+  const evidenceDiversityScore = totalSignals > 0
+    ? Math.min(1, (independentFamilies + clusterCount) / totalSignals)
+    : 0;
 
   const totalCompressedImpact = compressed.reduce(
     (sum, c) => sum + Math.abs(c.compressedLikelihoodRatio - 1), 0
