@@ -1,0 +1,171 @@
+Good. The Signal Dependency & Redundancy Control Layer is now present. Next step is **validation hardening and behavioral enforcement**, not new feature expansion.
+
+## Immediate objective
+
+Prove that the new layer is not just implemented, but actually changing inference correctly under realistic pharma signal patterns.
+
+## Next required work
+
+### 1) Build a gold-set dependency validation suite
+
+Create explicit test cases that simulate real pharma correlation structures and verify the posterior behaves correctly.
+
+Include at minimum these scenarios:
+
+* **Single trial cascade**
+
+  * trial data
+  * KOL commentary on the trial
+  * publication discussing the trial
+  * market research reacting to the publication
+  * field feedback echoing physician reactions
+
+Expected behavior:
+
+* all signals grouped under one root evidence source
+
+* root drives primary update
+
+* echoes contribute near-zero
+
+* translations contribute only modest incremental value
+
+* posterior materially lower than naive uncompressed stacking
+
+* **Two truly independent evidence families**
+
+  * positive trial evidence
+  * separate access / payer signal
+  * separate workflow / operational adoption signal
+
+Expected behavior:
+
+* diversity score rises
+
+* confidence can increase more legitimately
+
+* posterior moves more than in single-lineage case
+
+* **False diversity case**
+
+  * 6 positive signals that all derive from one conference presentation or publication wave
+
+Expected behavior:
+
+* strong concentration warning
+
+* high echo density
+
+* high fragility
+
+* capped certainty
+
+* **Mixed positive root + negative translation**
+
+  * positive trial
+  * positive KOL response
+  * negative field signal on workflow burden
+  * negative access signal on pathway restrictions
+
+Expected behavior:
+
+* system preserves cross-family contradiction
+* translation signals are not discarded as echoes
+* posterior does not drift upward unrealistically
+
+### 2) Create side-by-side naive vs dependency-controlled comparison mode
+
+For internal validation only, compute:
+
+* posterior from naive raw stacking
+* posterior from dependency-controlled compression
+* delta between the two
+
+Expose this in developer/admin mode so we can see where the new layer is preventing inflation.
+
+This is critical. I want to see whether the layer is actually reducing overstatement in realistic cases.
+
+### 3) Add confidence ceiling logic tied to evidence diversity
+
+Implement a rule that confidence cannot rise above defined thresholds unless multiple independent evidence families are present.
+
+Example logic:
+
+* if evidence comes mostly from one lineage cluster, confidence is capped
+* if only one evidence family is represented, certainty cannot look “high”
+* high posterior with low diversity must display as fragile / provisional
+
+The system should distinguish:
+
+* high probability from diverse evidence
+  vs
+* high probability from concentrated echoed evidence
+
+Those are not equivalent.
+
+### 4) Tighten echo vs translation rules
+
+I want explicit deterministic rules or scoring logic for when a downstream signal counts as:
+
+* Echo
+* Translation
+* Independent
+
+At minimum document the logic used for classification, with examples.
+
+Specifically, translation should only get incremental value if it adds one of the following:
+
+* behavioral adoption information
+* access / policy information
+* operational / workflow implication
+* segment-specific response
+* timing or sequencing implication
+
+If not, default toward Echo.
+
+### 5) Add cluster-detail inspection
+
+In the UI and/or dev panel, allow inspection of each lineage cluster:
+
+* root evidence source
+* all descendant signals
+* classification of each as echo / translation / independent
+* compressed contribution
+* warning status
+
+I need to be able to inspect why the engine treated clustered signals the way it did.
+
+### 6) Add explicit audit fields to saved output
+
+Persist dependency-control outputs in case records, not just transient calculations.
+
+Save at minimum:
+
+* RootEvidenceID
+* cluster membership
+* compressed vs raw signal count
+* EvidenceDiversityScore
+* PosteriorFragilityScore
+* ConcentrationPenalty
+* warning state
+
+This must become part of the case memory and future Forecast Ledger foundation.
+
+### 7) Do not move to Forecast Ledger until this is validated
+
+The next milestone is not more UI. It is proof that this layer behaves correctly across gold-set pharma scenarios.
+
+## Deliverables for this next step
+
+Return with:
+
+1. Gold-set scenario list
+2. Test results for each scenario
+3. Naive vs compressed posterior comparisons
+4. Confidence-ceiling rules implemented
+5. Cluster inspection view
+6. Any failure cases still producing inflation or incorrect compression
+
+## Architectural rule
+
+This layer is only successful if it changes inference quality, not merely signal organization.

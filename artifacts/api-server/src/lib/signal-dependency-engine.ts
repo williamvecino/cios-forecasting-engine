@@ -51,6 +51,7 @@ export interface EvidenceCluster {
 export interface CompressedSignal {
   originalSignalId: string;
   compressedLikelihoodRatio: number;
+  rawLikelihoodRatio: number;
   compressionFactor: number;
   isRoot: boolean;
   clusterId: string;
@@ -62,6 +63,7 @@ export interface DependencyAnalysisResult {
   compressedSignals: CompressedSignal[];
   metrics: DependencyMetrics;
   warnings: ConcentrationWarning[];
+  confidenceCeiling: ConfidenceCeiling;
 }
 
 export interface DependencyMetrics {
@@ -75,11 +77,26 @@ export interface DependencyMetrics {
   concentrationPenalty: number;
 }
 
+export interface ConfidenceCeiling {
+  maxAllowedProbability: number;
+  reason: string;
+  diversityLevel: "high" | "moderate" | "low" | "single";
+}
+
 export interface ConcentrationWarning {
   type: "cluster_size" | "posterior_concentration" | "descendant_overload" | "low_diversity" | "correlated_stacking";
   severity: "high" | "medium" | "low";
   message: string;
   clusterId?: string;
+}
+
+export interface NaiveVsCompressedComparison {
+  naiveLrProduct: number;
+  compressedLrProduct: number;
+  naivePosterior: number;
+  compressedPosterior: number;
+  delta: number;
+  inflationPrevented: number;
 }
 
 const SIGNAL_TYPE_TO_CLUSTER: Record<string, SourceCluster> = {
@@ -95,7 +112,7 @@ const SIGNAL_TYPE_TO_CLUSTER: Record<string, SourceCluster> = {
   CAPACITY_INFRASTRUCTURE: "Operational / Workflow",
 };
 
-function inferSourceCluster(signal: Signal): SourceCluster {
+export function inferSourceCluster(signal: Signal): SourceCluster {
   if (signal.sourceCluster) {
     const match = SOURCE_CLUSTERS.find(
       (c) => c.toLowerCase() === (signal.sourceCluster ?? "").toLowerCase()
@@ -105,7 +122,7 @@ function inferSourceCluster(signal: Signal): SourceCluster {
   return SIGNAL_TYPE_TO_CLUSTER[signal.signalType ?? ""] ?? "Other";
 }
 
-function computeTextSimilarity(a: string, b: string): number {
+export function computeTextSimilarity(a: string, b: string): number {
   const wordsA = new Set(a.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean));
   const wordsB = new Set(b.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean));
   if (wordsA.size === 0 || wordsB.size === 0) return 0;
@@ -114,16 +131,46 @@ function computeTextSimilarity(a: string, b: string): number {
   return intersection / Math.max(wordsA.size, wordsB.size);
 }
 
+const TRANSLATION_QUALIFYING_CLUSTERS: Set<SourceCluster> = new Set([
+  "Field Feedback",
+  "Access / Policy",
+  "Operational / Workflow",
+  "Market Research",
+  "Real-World Evidence",
+]);
+
+const TRANSLATION_KEYWORDS = /\b(adopt|prescri|switch|workflow|access|formulary|pathway|tier|step.?therapy|copay|prior.?auth|burden|friction|segment|community|academic|uptake|lag|delay|timeline|sequenc|reimburse|coverage|copay|deductible|restrict|prefer|non.?prefer|block|denial|appeal|utiliz)/i;
+
+export function classifyEchoOrTranslation(
+  rootCluster: SourceCluster,
+  candidateCluster: SourceCluster,
+  candidateDesc: string
+): EchoVsTranslation {
+  if (rootCluster === candidateCluster) return "Echo";
+
+  if (TRANSLATION_QUALIFYING_CLUSTERS.has(candidateCluster)) {
+    if (TRANSLATION_KEYWORDS.test(candidateDesc)) return "Translation";
+  }
+
+  return "Echo";
+}
+
 function inferLineageRelationship(
   signal: Signal,
   candidate: Signal
 ): { isRelated: boolean; role: DependencyRole; confidence: LineageConfidence; echoOrTranslation: EchoVsTranslation } {
   if (signal.rootEvidenceId && candidate.rootEvidenceId && signal.rootEvidenceId === candidate.rootEvidenceId) {
-    return { isRelated: true, role: "Direct derivative", confidence: "High", echoOrTranslation: "Echo" };
+    const clsA = inferSourceCluster(signal);
+    const clsB = inferSourceCluster(candidate);
+    const etype = classifyEchoOrTranslation(clsA, clsB, candidate.signalDescription ?? "");
+    return { isRelated: true, role: "Direct derivative", confidence: "High", echoOrTranslation: etype };
   }
 
   if (signal.correlationGroup && candidate.correlationGroup && signal.correlationGroup === candidate.correlationGroup) {
-    return { isRelated: true, role: "Direct derivative", confidence: "High", echoOrTranslation: "Echo" };
+    const clsA = inferSourceCluster(signal);
+    const clsB = inferSourceCluster(candidate);
+    const etype = classifyEchoOrTranslation(clsA, clsB, candidate.signalDescription ?? "");
+    return { isRelated: true, role: "Direct derivative", confidence: "High", echoOrTranslation: etype };
   }
 
   const descA = signal.signalDescription ?? "";
@@ -131,21 +178,21 @@ function inferLineageRelationship(
   const similarity = computeTextSimilarity(descA, descB);
 
   if (similarity > 0.7) {
-    const sameCluster = inferSourceCluster(signal) === inferSourceCluster(candidate);
-    if (sameCluster) {
-      return { isRelated: true, role: "Direct derivative", confidence: "Medium", echoOrTranslation: "Echo" };
-    } else {
-      return { isRelated: true, role: "Direct derivative", confidence: "Medium", echoOrTranslation: "Translation" };
-    }
+    const clsA = inferSourceCluster(signal);
+    const clsB = inferSourceCluster(candidate);
+    const etype = classifyEchoOrTranslation(clsA, clsB, descB);
+    return { isRelated: true, role: "Direct derivative", confidence: "Medium", echoOrTranslation: etype };
   }
 
   if (similarity > 0.5) {
-    const sameCluster = inferSourceCluster(signal) === inferSourceCluster(candidate);
+    const clsA = inferSourceCluster(signal);
+    const clsB = inferSourceCluster(candidate);
+    const etype = classifyEchoOrTranslation(clsA, clsB, descB);
     return {
       isRelated: true,
       role: "Second-order derivative",
       confidence: "Low",
-      echoOrTranslation: sameCluster ? "Echo" : "Translation",
+      echoOrTranslation: etype,
     };
   }
 
@@ -171,25 +218,29 @@ function tagSignals(signals: Signal[]): DependencyTaggedSignal[] {
         const rootLR = Math.abs((tagged[i].signal.likelihoodRatio ?? 1) - 1);
         const candLR = Math.abs((tagged[j].signal.likelihoodRatio ?? 1) - 1);
 
+        let rootIdx: number, descIdx: number;
         if (rootLR >= candLR) {
-          if (tagged[i].dependencyRole === "Independent parallel evidence") {
-            tagged[i].dependencyRole = "Root";
-          }
-          tagged[j].dependencyRole = rel.role;
-          tagged[j].rootEvidenceId = tagged[i].rootEvidenceId;
-          tagged[j].lineageConfidence = rel.confidence;
-          tagged[j].echoVsTranslation = rel.echoOrTranslation;
-          tagged[j].novelInformationFlag = rel.echoOrTranslation === "Echo" ? "No" : "Partial";
+          rootIdx = i;
+          descIdx = j;
         } else {
-          if (tagged[j].dependencyRole === "Independent parallel evidence") {
-            tagged[j].dependencyRole = "Root";
-          }
-          tagged[i].dependencyRole = rel.role;
-          tagged[i].rootEvidenceId = tagged[j].rootEvidenceId;
-          tagged[i].lineageConfidence = rel.confidence;
-          tagged[i].echoVsTranslation = rel.echoOrTranslation;
-          tagged[i].novelInformationFlag = rel.echoOrTranslation === "Echo" ? "No" : "Partial";
+          rootIdx = j;
+          descIdx = i;
         }
+
+        if (tagged[rootIdx].dependencyRole === "Independent parallel evidence") {
+          tagged[rootIdx].dependencyRole = "Root";
+        }
+        tagged[descIdx].dependencyRole = rel.role;
+        tagged[descIdx].rootEvidenceId = tagged[rootIdx].rootEvidenceId;
+        tagged[descIdx].lineageConfidence = rel.confidence;
+
+        const correctEchoType = classifyEchoOrTranslation(
+          tagged[rootIdx].sourceCluster,
+          tagged[descIdx].sourceCluster,
+          tagged[descIdx].signal.signalDescription ?? ""
+        );
+        tagged[descIdx].echoVsTranslation = correctEchoType;
+        tagged[descIdx].novelInformationFlag = correctEchoType === "Echo" ? "No" : "Partial";
       }
     }
   }
@@ -257,6 +308,7 @@ function compressClusterSignals(clusters: EvidenceCluster[], independents: Depen
     compressed.push({
       originalSignalId: cluster.rootSignal.signal.id,
       compressedLikelihoodRatio: cluster.rootSignal.signal.likelihoodRatio ?? 1,
+      rawLikelihoodRatio: cluster.rootSignal.signal.likelihoodRatio ?? 1,
       compressionFactor: 1.0,
       isRoot: true,
       clusterId: cluster.rootEvidenceId,
@@ -283,6 +335,7 @@ function compressClusterSignals(clusters: EvidenceCluster[], independents: Depen
       compressed.push({
         originalSignalId: desc.signal.id,
         compressedLikelihoodRatio: Number(compressedLR.toFixed(4)),
+        rawLikelihoodRatio: rawLR,
         compressionFactor: Number(factor.toFixed(4)),
         isRoot: false,
         clusterId: cluster.rootEvidenceId,
@@ -291,9 +344,11 @@ function compressClusterSignals(clusters: EvidenceCluster[], independents: Depen
   }
 
   for (const ind of independents) {
+    const lr = ind.signal.likelihoodRatio ?? 1;
     compressed.push({
       originalSignalId: ind.signal.id,
-      compressedLikelihoodRatio: ind.signal.likelihoodRatio ?? 1,
+      compressedLikelihoodRatio: lr,
+      rawLikelihoodRatio: lr,
       compressionFactor: 1.0,
       isRoot: false,
       clusterId: ind.rootEvidenceId,
@@ -346,6 +401,42 @@ function computeMetrics(
     evidenceDiversityScore: Number(evidenceDiversityScore.toFixed(3)),
     posteriorFragilityScore: Number(posteriorFragilityScore.toFixed(3)),
     concentrationPenalty: Number(concentrationPenalty.toFixed(3)),
+  };
+}
+
+export function computeConfidenceCeiling(metrics: DependencyMetrics): ConfidenceCeiling {
+  const families = metrics.independentEvidenceFamilies;
+  const diversity = metrics.evidenceDiversityScore;
+  const fragility = metrics.posteriorFragilityScore;
+
+  if (families <= 1 && metrics.totalSignalCount > 0) {
+    return {
+      maxAllowedProbability: 0.65,
+      reason: "All evidence traces to a single source family. Probability is capped until independent evidence is added.",
+      diversityLevel: "single",
+    };
+  }
+
+  if (diversity < 0.2 || fragility > 0.7) {
+    return {
+      maxAllowedProbability: 0.70,
+      reason: "Evidence diversity is very low or probability depends heavily on one lineage. Ceiling applied.",
+      diversityLevel: "low",
+    };
+  }
+
+  if (diversity < 0.4 || fragility > 0.5) {
+    return {
+      maxAllowedProbability: 0.80,
+      reason: "Moderate evidence diversity. Probability can rise further with more independent evidence families.",
+      diversityLevel: "moderate",
+    };
+  }
+
+  return {
+    maxAllowedProbability: 1.0,
+    reason: "Evidence comes from multiple independent families. No ceiling applied.",
+    diversityLevel: "high",
   };
 }
 
@@ -425,6 +516,7 @@ export function runDependencyAnalysis(signals: Signal[]): DependencyAnalysisResu
         concentrationPenalty: 0,
       },
       warnings: [],
+      confidenceCeiling: { maxAllowedProbability: 1.0, reason: "No signals present.", diversityLevel: "high" },
     };
   }
 
@@ -433,6 +525,7 @@ export function runDependencyAnalysis(signals: Signal[]): DependencyAnalysisResu
   const compressed = compressClusterSignals(clusters, independents);
   const metrics = computeMetrics(clusters, independents, compressed, tagged);
   const warnings = generateWarnings(clusters, metrics, tagged);
+  const confidenceCeiling = computeConfidenceCeiling(metrics);
 
   return {
     clusters,
@@ -440,6 +533,7 @@ export function runDependencyAnalysis(signals: Signal[]): DependencyAnalysisResu
     compressedSignals: compressed,
     metrics,
     warnings,
+    confidenceCeiling,
   };
 }
 
@@ -462,4 +556,36 @@ export function applyCompressionToSignals(
     }
     return s;
   });
+}
+
+export function computeNaiveVsCompressed(
+  signals: Signal[],
+  analysis: DependencyAnalysisResult,
+  priorProbability: number
+): NaiveVsCompressedComparison {
+  const prior = Math.max(0.01, Math.min(0.99, priorProbability));
+  const priorOdds = prior / (1 - prior);
+
+  let naiveLrProduct = 1;
+  let compressedLrProduct = 1;
+
+  for (const cs of analysis.compressedSignals) {
+    naiveLrProduct *= cs.rawLikelihoodRatio;
+    compressedLrProduct *= cs.compressedLikelihoodRatio;
+  }
+
+  const naiveOdds = priorOdds * naiveLrProduct;
+  const compressedOdds = priorOdds * compressedLrProduct;
+
+  const naivePosterior = Number(Math.min(0.99, naiveOdds / (1 + naiveOdds)).toFixed(4));
+  const compressedPosterior = Number(Math.min(0.99, compressedOdds / (1 + compressedOdds)).toFixed(4));
+
+  return {
+    naiveLrProduct: Number(naiveLrProduct.toFixed(4)),
+    compressedLrProduct: Number(compressedLrProduct.toFixed(4)),
+    naivePosterior,
+    compressedPosterior,
+    delta: Number((naivePosterior - compressedPosterior).toFixed(4)),
+    inflationPrevented: Number(Math.max(0, naivePosterior - compressedPosterior).toFixed(4)),
+  };
 }

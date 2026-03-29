@@ -8,6 +8,8 @@ import {
   ChevronUp,
   RefreshCw,
   TreePine,
+  BarChart3,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +18,7 @@ interface DependencyCluster {
   rootSignalDescription: string;
   rootSignalType: string;
   rootSourceCluster: string;
+  rootLikelihoodRatio: number;
   clusterSignalCount: number;
   compressedSignalCount: number;
   echoCount: number;
@@ -23,11 +26,15 @@ interface DependencyCluster {
   descendants: {
     signalId: string;
     description: string;
+    signalType: string;
+    sourceCluster: string;
     dependencyRole: string;
     echoVsTranslation: string;
     novelInformationFlag: string;
     lineageConfidence: string;
+    rawLikelihoodRatio: number;
     compressionFactor: number;
+    compressedLikelihoodRatio: number;
   }[];
 }
 
@@ -42,6 +49,12 @@ interface DependencyMetrics {
   concentrationPenalty: number;
 }
 
+interface ConfidenceCeiling {
+  maxAllowedProbability: number;
+  reason: string;
+  diversityLevel: "high" | "moderate" | "low" | "single";
+}
+
 interface ConcentrationWarning {
   type: string;
   severity: "high" | "medium" | "low";
@@ -54,6 +67,16 @@ interface IndependentFamily {
   description: string;
   sourceCluster: string;
   signalType: string;
+  likelihoodRatio: number;
+}
+
+interface NaiveVsComparison {
+  naiveLrProduct: number;
+  compressedLrProduct: number;
+  naivePosterior: number;
+  compressedPosterior: number;
+  delta: number;
+  inflationPrevented: number;
 }
 
 interface DependencyData {
@@ -61,7 +84,10 @@ interface DependencyData {
   independentFamilies: IndependentFamily[];
   metrics: DependencyMetrics;
   warnings: ConcentrationWarning[];
+  confidenceCeiling: ConfidenceCeiling;
+  comparison: NaiveVsComparison;
   signalCount: number;
+  priorProbability: number;
 }
 
 function getApiBase() {
@@ -82,6 +108,12 @@ function severityBadge(severity: "high" | "medium" | "low") {
   if (severity === "high") return "bg-rose-500/15 text-rose-400 border-rose-500/30";
   if (severity === "medium") return "bg-amber-500/15 text-amber-400 border-amber-500/30";
   return "bg-blue-500/15 text-blue-400 border-blue-500/30";
+}
+
+function ceilingColor(level: string) {
+  if (level === "high") return "text-emerald-400";
+  if (level === "moderate") return "text-amber-400";
+  return "text-rose-400";
 }
 
 export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
@@ -159,6 +191,46 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
             </div>
           )}
 
+          {data.comparison.inflationPrevented > 0 && (
+            <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 className="w-4 h-4 text-indigo-400" />
+                <div className="text-xs font-semibold text-indigo-300">Naive vs Dependency-Controlled Posterior</div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-rose-400">{Math.round(data.comparison.naivePosterior * 100)}%</div>
+                  <div className="text-[10px] text-slate-500" title="What the probability would be if all signals were treated as independent evidence">Naive (raw stacking)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-emerald-400">{Math.round(data.comparison.compressedPosterior * 100)}%</div>
+                  <div className="text-[10px] text-slate-500" title="The corrected probability after removing the effect of correlated/echoed signals">Dependency-controlled</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-amber-400">-{Math.round(data.comparison.inflationPrevented * 100)} pts</div>
+                  <div className="text-[10px] text-slate-500" title="How many percentage points of inflation were prevented by detecting signal dependencies">Inflation prevented</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {data.confidenceCeiling.diversityLevel !== "high" && (
+            <div className={cn(
+              "rounded-xl border p-3 flex items-start gap-2",
+              data.confidenceCeiling.diversityLevel === "single" ? "border-rose-500/30 bg-rose-500/5" :
+              data.confidenceCeiling.diversityLevel === "low" ? "border-rose-500/20 bg-rose-500/5" :
+              "border-amber-500/20 bg-amber-500/5"
+            )}>
+              <ShieldAlert className={cn("w-4 h-4 shrink-0 mt-0.5", ceilingColor(data.confidenceCeiling.diversityLevel))} />
+              <div>
+                <div className={cn("text-xs font-semibold", ceilingColor(data.confidenceCeiling.diversityLevel))}>
+                  Confidence Ceiling: {Math.round(data.confidenceCeiling.maxAllowedProbability * 100)}%
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1">{data.confidenceCeiling.reason}</div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
               <div className="text-lg font-bold text-white">{data.metrics.totalSignalCount}</div>
@@ -172,13 +244,13 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
               <div className={cn("text-lg font-bold", metricColor(data.metrics.evidenceDiversityScore))}>
                 {Math.round(data.metrics.evidenceDiversityScore * 100)}%
               </div>
-              <div className="text-[10px] text-slate-500 mt-1" title="How many different types of evidence sources are represented — clinical, market, KOL, payer, etc. Higher = more robust forecast">Evidence Diversity</div>
+              <div className="text-[10px] text-slate-500 mt-1" title="How many different types of evidence sources are represented — clinical, market, KOL, payer, etc.">Evidence Diversity</div>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
               <div className={cn("text-lg font-bold", metricColor(data.metrics.posteriorFragilityScore, true))}>
                 {Math.round(data.metrics.posteriorFragilityScore * 100)}%
               </div>
-              <div className="text-[10px] text-slate-500 mt-1" title="How much of the probability shift depends on a single evidence cluster — high fragility means the forecast is vulnerable if that one evidence source is wrong">Fragility</div>
+              <div className="text-[10px] text-slate-500 mt-1" title="How much of the probability shift depends on a single evidence cluster">Fragility</div>
             </div>
           </div>
 
@@ -187,19 +259,19 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
               <div className={cn("text-sm font-semibold", metricColor(data.metrics.noveltyScore))}>
                 {Math.round(data.metrics.noveltyScore * 100)}%
               </div>
-              <div className="text-[10px] text-slate-500" title="What percentage of signals contain genuinely new information rather than restating existing evidence">Novelty</div>
+              <div className="text-[10px] text-slate-500" title="What percentage of signals contain genuinely new information">Novelty</div>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-center">
               <div className={cn("text-sm font-semibold", metricColor(data.metrics.echoDensity, true))}>
                 {Math.round(data.metrics.echoDensity * 100)}%
               </div>
-              <div className="text-[10px] text-slate-500" title="What fraction of signals are echoes — restatements of upstream evidence that add little new information">Echo Density</div>
+              <div className="text-[10px] text-slate-500" title="What fraction of signals are echoes — restatements of upstream evidence">Echo Density</div>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-center">
               <div className={cn("text-sm font-semibold", data.metrics.concentrationPenalty > 0 ? "text-rose-400" : "text-emerald-400")}>
                 {data.metrics.concentrationPenalty > 0 ? `-${Math.round(data.metrics.concentrationPenalty * 100)}%` : "None"}
               </div>
-              <div className="text-[10px] text-slate-500" title="A reduction applied to the probability when too much of the evidence comes from a single lineage cluster">Concentration Penalty</div>
+              <div className="text-[10px] text-slate-500" title="Reduction applied when too much evidence comes from one lineage">Concentration Penalty</div>
             </div>
           </div>
 
@@ -241,7 +313,9 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
                       <TreePine className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                       <div className="min-w-0">
                         <div className="text-xs text-white font-medium truncate">{cl.rootSignalDescription}</div>
-                        <div className="text-[10px] text-slate-500">{cl.rootSourceCluster} · {cl.clusterSignalCount} signals → {cl.compressedSignalCount} effective</div>
+                        <div className="text-[10px] text-slate-500">
+                          {cl.rootSourceCluster} · LR {cl.rootLikelihoodRatio?.toFixed(2)} · {cl.clusterSignalCount} signals → {cl.compressedSignalCount} effective
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -263,13 +337,13 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
                       {cl.descendants.map((d) => (
                         <div
                           key={d.signalId}
-                          className="flex items-center justify-between text-[10px] px-2 py-1.5 rounded bg-slate-800/40"
+                          className="rounded bg-slate-800/40 px-2 py-2 space-y-1"
                         >
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 text-[10px]">
                             <Layers className="w-3 h-3 text-slate-500 shrink-0" />
-                            <span className="text-slate-400 truncate">{d.description}</span>
+                            <span className="text-slate-400 truncate flex-1">{d.description}</span>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <div className="flex items-center gap-2 text-[10px] pl-5 flex-wrap">
                             <span className={cn(
                               "px-1.5 py-0.5 rounded",
                               d.echoVsTranslation === "Echo" ? "bg-slate-700/50 text-slate-500" :
@@ -278,9 +352,24 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
                             )}>
                               {d.echoVsTranslation}
                             </span>
-                            <span className="text-slate-600" title={`This signal's impact is multiplied by ${Math.round(d.compressionFactor * 100)}% because ${d.echoVsTranslation === "Echo" ? "it restates existing evidence" : d.echoVsTranslation === "Translation" ? "it translates evidence into a different domain" : "it provides independent evidence"}`}>
+                            <span className="text-slate-600">{d.dependencyRole}</span>
+                            <span className="text-slate-600">·</span>
+                            <span className="text-slate-600">{d.sourceCluster}</span>
+                            <span className="text-slate-600">·</span>
+                            <span className="text-slate-500" title={`Raw LR: ${d.rawLikelihoodRatio?.toFixed(2)} → Compressed: ${d.compressedLikelihoodRatio?.toFixed(2)} (×${d.compressionFactor.toFixed(2)} factor). ${d.echoVsTranslation === "Echo" ? "Echoes contribute ≈5% of their raw impact because they restate existing evidence." : d.echoVsTranslation === "Translation" ? "Translations contribute ≈35% of their raw impact because they add behavioral/access/workflow context." : "Full impact — independent evidence."}`}>
+                              LR {d.rawLikelihoodRatio?.toFixed(2)} → {d.compressedLikelihoodRatio?.toFixed(2)}
+                            </span>
+                            <span className="text-slate-600" title={`Compression factor: ${d.compressionFactor.toFixed(2)}`}>
                               ×{d.compressionFactor.toFixed(2)}
                             </span>
+                            {d.novelInformationFlag !== "Yes" && (
+                              <span className={cn(
+                                "px-1 py-0.5 rounded",
+                                d.novelInformationFlag === "No" ? "bg-rose-500/10 text-rose-400/60" : "bg-amber-500/10 text-amber-400/60"
+                              )}>
+                                {d.novelInformationFlag === "No" ? "No novel info" : "Partial novelty"}
+                              </span>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -305,6 +394,7 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
                     <Shield className="w-3 h-3 text-emerald-400/60 shrink-0" />
                     <span className="text-slate-300 truncate flex-1">{f.description}</span>
                     <span className="text-slate-600 shrink-0">{f.sourceCluster}</span>
+                    <span className="text-slate-600 shrink-0">LR {f.likelihoodRatio?.toFixed(2)}</span>
                   </div>
                 ))}
               </div>

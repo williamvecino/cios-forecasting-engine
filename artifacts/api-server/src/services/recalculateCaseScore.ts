@@ -215,7 +215,13 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     forecastHorizonMonths: resolveHorizonMonths(caseData.timeHorizon),
   };
   const envAdjustments = computeEnvironmentAdjustments(envConfig);
-  const finalProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
+  let finalProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
+
+  const ceiling = dependencyAnalysis.confidenceCeiling;
+  if (ceiling.maxAllowedProbability < 1.0 && finalProbability > ceiling.maxAllowedProbability) {
+    console.log(`[recalc-ceiling] caseId=${caseId} raw=${finalProbability.toFixed(4)} ceiling=${ceiling.maxAllowedProbability} reason="${ceiling.diversityLevel}" applying_cap`);
+    finalProbability = ceiling.maxAllowedProbability;
+  }
 
   const calculatedAt = new Date();
 
@@ -246,8 +252,23 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     _dependencyAnalysis: {
       metrics: dependencyAnalysis.metrics,
       warnings: dependencyAnalysis.warnings,
+      confidenceCeiling: dependencyAnalysis.confidenceCeiling,
       clusterCount: dependencyAnalysis.clusters.length,
       compressedCount: dependencyAnalysis.compressedSignals.filter(c => c.compressionFactor < 1).length,
+      rawVsCompressedSignalCount: {
+        raw: limitedSignals.length,
+        compressed: dependencyAnalysis.compressedSignals.filter(c => c.compressionFactor < 1).length,
+        unchanged: dependencyAnalysis.compressedSignals.filter(c => c.compressionFactor >= 1).length,
+      },
+      clusterDetails: dependencyAnalysis.clusters.map(cl => ({
+        rootEvidenceId: cl.rootEvidenceId,
+        rootDescription: cl.rootSignal.signal.signalDescription?.slice(0, 100),
+        rootSourceCluster: cl.rootSignal.sourceCluster,
+        signalCount: cl.clusterSignalCount,
+        echoCount: cl.echoCount,
+        translationCount: cl.translationCount,
+      })),
+      independentFamilyCount: dependencyAnalysis.independentSignals.length,
     },
   };
 
