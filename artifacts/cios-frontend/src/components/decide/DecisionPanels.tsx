@@ -601,14 +601,16 @@ function AdoptionSegmentationPanel({ data, archetypes }: { data: NonNullable<Dec
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1.5 mb-1.5">
-                {g.data.segments.map((seg, i) => (
-                  <span key={i} className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[11px] text-slate-200">
-                    {seg}
-                  </span>
-                ))}
-              </div>
-              <div className="text-[11px] text-muted-foreground">{g.data.reason}</div>
+              {g.data?.segments && Array.isArray(g.data.segments) && g.data.segments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-1.5">
+                  {g.data.segments.map((seg: string, i: number) => (
+                    <span key={i} className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[11px] text-slate-200">
+                      {seg}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="text-[11px] text-muted-foreground">{g.data?.reason}</div>
               {arch && (
                 <div className="mt-2 pt-2 border-t border-border/30 space-y-1.5">
                   <div className="text-[11px] text-violet-300/80">
