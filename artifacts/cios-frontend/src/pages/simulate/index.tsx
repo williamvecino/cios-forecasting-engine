@@ -103,7 +103,7 @@ export default function SimulatePage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
-  const questionText = activeQuestion?.question || activeQuestion?.questionText || "";
+  const questionText = activeQuestion?.text || "";
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isRegulatory ? REGULATORY_SEGMENTS : DEFAULT_SEGMENTS;
   const hasInput = selectedSegment && (materialText.trim() || file);
@@ -185,8 +185,8 @@ export default function SimulatePage() {
       const contextData: Record<string, any> = {
         segment: selectedSegment,
         archetype: selectedArchetype?.primary_archetype?.archetype_name || null,
-        questionText: activeQuestion.text,
-        subject: activeQuestion.subject || activeQuestion.text,
+        questionText,
+        subject: activeQuestion.subject || questionText,
         timeHorizon: activeQuestion.timeHorizon || "12 months",
         probability,
         constrainedProbability,
