@@ -1859,7 +1859,12 @@ Respond in JSON:
           "suggestedTimeHorizon": "e.g. 12 months",
           "suggestedSubject": "The product/brand this question is about",
           "rank": 1,
-          "rankRationale": "Why this is the #1 question — e.g. 'This directly addresses the core launch positioning decision in the RFP'"
+          "rankRationale": "Why this is the #1 question — e.g. 'Positioning against competitors determines initial adoption trajectory'",
+          "decisionType": "Launch positioning | Patient strategy | Evidence readiness | Market access | Competitive response | Adoption forecast",
+          "strategicImpact": "High | Moderate | Low",
+          "urgency": "Immediate | Near-term | Medium | Long-term",
+          "evidenceDependency": "High | Moderate | Low",
+          "confidence": "High | Moderate | Low"
         }
       ]
     }
@@ -1939,6 +1944,11 @@ Respond in JSON:
           suggestedSubject: q.suggestedSubject || "",
           rank: typeof q.rank === "number" ? q.rank : undefined,
           rankRationale: q.rankRationale || undefined,
+          decisionType: q.decisionType || undefined,
+          strategicImpact: q.strategicImpact || undefined,
+          urgency: q.urgency || undefined,
+          evidenceDependency: q.evidenceDependency || undefined,
+          confidence: q.confidence || undefined,
         })) : [],
       };
     };
@@ -1951,6 +1961,15 @@ Respond in JSON:
     };
 
     const ciosRouted = ensureRouted("cios");
+
+    const STRATEGIC_CATEGORIES = [
+      "launch_strategy", "market_adoption", "competitive_positioning",
+      "forecast", "brand_strategy", "commercial_planning", "timing", "access",
+    ];
+    const NON_STRATEGIC_CATEGORIES = [
+      "operational", "administrative", "vendor_selection", "logistics",
+    ];
+
     if (ciosRouted.recommendedQuestions.length > 0) {
       const hasRanks = ciosRouted.recommendedQuestions.some((q: any) => typeof q.rank === "number");
       if (!hasRanks) {
@@ -1963,11 +1982,56 @@ Respond in JSON:
           }
         });
       }
+
       ciosRouted.recommendedQuestions.sort((a: any, b: any) => (a.rank || 99) - (b.rank || 99));
 
-      if (ciosRouted.recommendedQuestions.length > 5) {
-        ciosRouted.recommendedQuestions = ciosRouted.recommendedQuestions.slice(0, 5);
+      ciosRouted.recommendedQuestions.forEach((q: any, i: number) => {
+        q.rank = i + 1;
+      });
+
+      if (ciosRouted.recommendedQuestions.length > 3) {
+        ciosRouted.recommendedQuestions = ciosRouted.recommendedQuestions.slice(0, 3);
       }
+
+      const rank1 = ciosRouted.recommendedQuestions[0];
+      if (rank1) {
+        const cat = (rank1.category || "").toLowerCase();
+        const isNonStrategic = NON_STRATEGIC_CATEGORIES.some(nc => cat.includes(nc));
+        const textLower = (rank1.text || "").toLowerCase();
+        const isOperational = isNonStrategic ||
+          (!STRATEGIC_CATEGORIES.some(sc => cat.includes(sc)) &&
+           !textLower.includes("launch") && !textLower.includes("position") &&
+           !textLower.includes("compet") && !textLower.includes("adopt") &&
+           !textLower.includes("market") && !textLower.includes("share"));
+
+        if (isOperational && ciosRouted.recommendedQuestions.length > 1) {
+          const betterIdx = ciosRouted.recommendedQuestions.findIndex((q: any, i: number) => {
+            if (i === 0) return false;
+            const qCat = (q.category || "").toLowerCase();
+            const qText = (q.text || "").toLowerCase();
+            return STRATEGIC_CATEGORIES.some(sc => qCat.includes(sc)) ||
+              qText.includes("launch") || qText.includes("position") ||
+              qText.includes("compet") || qText.includes("adopt") ||
+              qText.includes("market") || qText.includes("share");
+          });
+          if (betterIdx > 0) {
+            const swapped = ciosRouted.recommendedQuestions[betterIdx];
+            ciosRouted.recommendedQuestions[betterIdx] = rank1;
+            ciosRouted.recommendedQuestions[0] = swapped;
+            ciosRouted.recommendedQuestions.forEach((q: any, i: number) => { q.rank = i + 1; });
+            console.log(`[gate] Rule 4 repair: swapped rank 1 with rank ${betterIdx + 1} for strategic focus`);
+          }
+        }
+      }
+
+      ciosRouted.recommendedQuestions.forEach((q: any) => {
+        if (!q.decisionType) q.decisionType = q.category?.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) || "Strategic";
+        if (!q.strategicImpact) q.strategicImpact = q.rank === 1 ? "High" : "Moderate";
+        if (!q.urgency) q.urgency = q.rank === 1 ? "Immediate" : "Near-term";
+        if (!q.evidenceDependency) q.evidenceDependency = "Moderate";
+        if (!q.confidence) q.confidence = q.rank === 1 ? "High" : "Moderate";
+        if (!q.rankRationale) q.rankRationale = `Ranked #${q.rank} based on strategic importance`;
+      });
     }
 
     const result = {

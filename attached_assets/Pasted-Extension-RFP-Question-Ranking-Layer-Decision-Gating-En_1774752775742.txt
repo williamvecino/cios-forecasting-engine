@@ -1,0 +1,382 @@
+Extension — RFP Question Ranking Layer (Decision Gating Enhancement)
+
+This is now a mandatory sub-step inside Decision Gating, not a UI feature.
+
+It determines which strategic question becomes the primary CIOS case.
+
+Step 1A — RFP Question Ranking (inside Decision Gating)
+Purpose
+
+Identify the core competitive or strategic question and rank the top candidates.
+
+This prevents:
+
+vague starting questions
+misaligned cases
+scattered analysis
+Inputs
+
+RFP document
+Brand
+Indication
+Competitive context
+
+Processing Logic
+
+The agent must:
+
+Identify the central strategic decision
+Generate candidate decision questions
+Rank them by strategic importance
+Provide a rationale for ranking
+Required Output
+
+Exactly 2–3 ranked questions.
+
+No more.
+No less.
+
+Output Schema
+
+Rank
+Question
+DecisionType
+StrategicImpact
+Urgency
+EvidenceDependency
+Confidence
+Rationale
+
+Example Output
+
+Rank 1
+Will MPDL3280A be positioned for launch against competitors in UBC and NSCLC?
+
+DecisionType
+Launch positioning
+
+StrategicImpact
+High
+
+Urgency
+Immediate
+
+EvidenceDependency
+Moderate
+
+Confidence
+High
+
+Rationale
+Positioning against competitors determines initial adoption trajectory.
+
+Rank 2
+What patient engagement strategy will differentiate anti-PDL1 from anti-PD1?
+
+DecisionType
+Patient strategy
+
+StrategicImpact
+Moderate
+
+Urgency
+Near-term
+
+EvidenceDependency
+Low
+
+Confidence
+Moderate
+
+Rationale
+Engagement strategy supports adoption but does not determine launch viability.
+
+Rank 3
+What evidence gaps must be addressed before launch?
+
+DecisionType
+Evidence readiness
+
+StrategicImpact
+Moderate
+
+Urgency
+Medium
+
+EvidenceDependency
+High
+
+Confidence
+Moderate
+
+Rationale
+Evidence gaps influence long-term adoption but not immediate launch readiness.
+
+Server-Side Validation Rules
+
+These must run automatically.
+
+If AI output fails, backend must correct.
+
+Rule 1 — Rank Presence
+
+Every question must have:
+
+Rank
+
+If missing:
+
+Assign rank automatically.
+
+Rule 2 — Rank Uniqueness
+
+Ranks must be:
+
+1
+2
+3
+
+No duplicates.
+
+Rule 3 — Question Count
+
+Allowed:
+
+2 or 3
+
+If more:
+
+Keep top 3.
+
+If fewer:
+
+Generate additional candidate.
+
+Rule 4 — Strategic Focus
+
+The top-ranked question must be:
+
+Competitive
+Adoption
+Launch
+Positioning
+
+Not:
+
+Operational
+Administrative
+Vendor selection
+
+Step 1B — Ranked Question Selection UI
+
+This is presentation logic only.
+
+It does not change system behavior.
+
+Default Behavior
+
+When gating results load:
+
+CIOS tab opens automatically
+Rank 1 question is pre-selected
+Other questions are visible but inactive
+Visual Labels
+
+Rank 1
+
+Badge:
+
+#1 Key Question
+
+Color:
+
+Violet
+
+Rank 2 and 3
+
+Badge:
+
+#2 Analyze Later
+#3 Analyze Later
+
+Color:
+
+Slate
+
+Interaction Rules
+
+User can:
+
+Select any question
+Deselect any question
+Run multiple questions sequentially
+
+Guardrail
+
+Ranking is guidance.
+
+Not a lock.
+
+Step 1C — Saved Questions for Later
+
+This is a persistence mechanism.
+
+It prevents lost strategic questions.
+
+Trigger
+
+When a case is created:
+
+Any unselected ranked question is automatically saved.
+
+Storage Location
+
+Saved Questions Panel
+
+On:
+
+Define Question page
+
+Required Fields
+
+QuestionID
+OriginalRank
+SourceDocument
+Brand
+Indication
+CreatedDate
+Status
+
+Allowed Status Values
+
+Saved
+Analyzed
+Removed
+
+User Actions
+
+Analyze This Question
+Remove Question
+
+Guardrail
+
+Saved questions must never be deleted automatically.
+
+Only user removal is allowed.
+
+Updated Pipeline — With Ranking Layer
+
+Question
+→ Decision Gating
+→ Question Ranking
+→ Question Selection
+→ Saved Questions
+→ MIOS
+→ BAOS
+→ Add Information
+→ External Scout
+→ Normalize
+→ Judge
+→ Analyze
+→ Respond
+→ Simulate
+
+Why This Layer Matters
+
+It solves three systemic risks.
+
+Risk 1 — Wrong Starting Question
+
+Without ranking:
+
+The system may analyze the wrong problem.
+
+Ranking fixes that.
+
+Risk 2 — Question Drift
+
+Without saved questions:
+
+Important decisions disappear.
+
+Saved Questions fixes that.
+
+Risk 3 — Fragmented Strategy
+
+Without prioritization:
+
+Teams analyze everything.
+
+Ranking focuses attention.
+
+Integration Rules — Non-Negotiable
+
+These protect system stability.
+
+Rule 1
+
+Ranking must happen before MIOS.
+
+Rule 2
+
+Only one question runs per case.
+
+Rule 3
+
+Saved questions must not trigger analysis automatically.
+
+Rule 4
+
+Ranking logic must be deterministic.
+
+Validation Test for This Feature
+
+Use the Roche anti-PDL1 RFP.
+
+Expected result:
+
+Rank 1
+
+Launch positioning against competitors in UBC and NSCLC
+
+Rank 2
+
+Patient engagement differentiation strategy
+
+Rank 3
+
+Evidence readiness for launch
+
+Failure conditions:
+
+More than 3 questions
+No ranking
+Operational questions ranked first
+Missing rationale
+
+What This Adds to the System
+
+Not complexity.
+
+Control.
+
+It ensures:
+
+The system starts with the right decision
+The workflow stays focused
+Strategic questions are preserved
+
+Bottom Line
+
+Your addition is correct and important.
+
+With this formalization:
+
+The Decision Gating layer now becomes:
+
+Decision Identification
+Decision Ranking
+Decision Selection
+Decision Persistence
+
+That turns intake into a disciplined starting point rather than an open-ended prompt.

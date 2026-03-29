@@ -909,9 +909,15 @@ interface DeferredQuestion {
   suggestedSubject: string;
   rank?: number;
   rankRationale?: string;
+  decisionType?: string;
+  strategicImpact?: string;
+  urgency?: string;
+  evidenceDependency?: string;
+  confidence?: string;
   savedAt: string;
   sourceDocument?: string;
   businessContext?: string;
+  status?: "Saved" | "Analyzed" | "Removed";
 }
 
 function DeferredQuestionsPanel({ onUseQuestion }: { onUseQuestion: (text: string) => void }) {
@@ -927,13 +933,16 @@ function DeferredQuestionsPanel({ onUseQuestion }: { onUseQuestion: (text: strin
     } catch {}
   }, []);
 
-  const removeQuestion = (index: number) => {
-    const updated = deferred.filter((_, i) => i !== index);
+  const updateQuestionStatus = (index: number, newStatus: "Analyzed" | "Removed") => {
+    const updated = deferred.map((q, i) =>
+      i === index ? { ...q, status: newStatus as const } : q
+    );
     setDeferred(updated);
     localStorage.setItem("cios.deferredQuestions", JSON.stringify(updated));
   };
 
-  if (deferred.length === 0) return null;
+  const activeQuestions = deferred.filter(q => q.status !== "Removed");
+  if (activeQuestions.length === 0) return null;
 
   return (
     <div className="rounded-2xl border border-border bg-card">
@@ -949,7 +958,7 @@ function DeferredQuestionsPanel({ onUseQuestion }: { onUseQuestion: (text: strin
           <div className="text-left">
             <div className="text-sm font-semibold text-foreground">Saved Questions</div>
             <div className="text-[11px] text-muted-foreground">
-              {deferred.length} question{deferred.length !== 1 ? "s" : ""} saved for later analysis
+              {activeQuestions.length} question{activeQuestions.length !== 1 ? "s" : ""} saved for later analysis
             </div>
           </div>
         </div>
@@ -960,8 +969,10 @@ function DeferredQuestionsPanel({ onUseQuestion }: { onUseQuestion: (text: strin
 
       {expanded && (
         <div className="border-t border-border px-5 py-4 space-y-2">
-          {deferred.map((q, i) => (
-            <div key={i} className="rounded-xl border border-border bg-muted/5 p-4 space-y-2">
+          {deferred.filter(q => q.status !== "Removed").map((q) => {
+            const originalIndex = deferred.indexOf(q);
+            return (
+            <div key={originalIndex} className={`rounded-xl border bg-muted/5 p-4 space-y-2 ${q.status === "Analyzed" ? "border-emerald-500/20 opacity-70" : "border-border"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-foreground leading-relaxed">{q.text}</div>
@@ -969,17 +980,45 @@ function DeferredQuestionsPanel({ onUseQuestion }: { onUseQuestion: (text: strin
                 </div>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); removeQuestion(i); }}
+                  onClick={(e) => { e.stopPropagation(); updateQuestionStatus(originalIndex, "Removed"); }}
                   className="rounded-lg border border-border p-1.5 hover:bg-red-500/10 hover:border-red-500/30 transition shrink-0"
                   title="Remove"
                 >
                   <Trash2 className="w-3 h-3 text-muted-foreground hover:text-red-400" />
                 </button>
               </div>
+              {(q.decisionType || q.strategicImpact || q.urgency) && (
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  {q.decisionType && (
+                    <span><span className="text-muted-foreground/60">Type:</span> <span className="text-foreground/70">{q.decisionType}</span></span>
+                  )}
+                  {q.strategicImpact && (
+                    <span><span className="text-muted-foreground/60">Impact:</span> <span className={q.strategicImpact === "High" ? "text-amber-400" : "text-foreground/70"}>{q.strategicImpact}</span></span>
+                  )}
+                  {q.urgency && (
+                    <span><span className="text-muted-foreground/60">Urgency:</span> <span className={q.urgency === "Immediate" ? "text-red-400" : "text-foreground/70"}>{q.urgency}</span></span>
+                  )}
+                  {q.evidenceDependency && (
+                    <span><span className="text-muted-foreground/60">Evidence:</span> <span className="text-foreground/70">{q.evidenceDependency}</span></span>
+                  )}
+                  {q.confidence && (
+                    <span><span className="text-muted-foreground/60">Confidence:</span> <span className={q.confidence === "High" ? "text-emerald-400" : "text-foreground/70"}>{q.confidence}</span></span>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-2 flex-wrap">
                 {q.rank && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-400 border border-slate-500/25">
                     Rank #{q.rank}
+                  </span>
+                )}
+                {q.status && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                    q.status === "Analyzed" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                    q.status === "Removed" ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                    "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                  }`}>
+                    {q.status}
                   </span>
                 )}
                 {q.suggestedSubject && (
@@ -992,16 +1031,21 @@ function DeferredQuestionsPanel({ onUseQuestion }: { onUseQuestion: (text: strin
                   <span className="text-[10px] text-muted-foreground/60">from {q.sourceDocument}</span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => { onUseQuestion(q.text); removeQuestion(i); }}
-                className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition inline-flex items-center gap-1.5"
-              >
-                <ArrowRight className="w-3 h-3" />
-                Analyze This Question
-              </button>
+              {q.status !== "Analyzed" ? (
+                <button
+                  type="button"
+                  onClick={() => { onUseQuestion(q.text); updateQuestionStatus(originalIndex, "Analyzed"); }}
+                  className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition inline-flex items-center gap-1.5"
+                >
+                  <ArrowRight className="w-3 h-3" />
+                  Analyze This Question
+                </button>
+              ) : (
+                <div className="text-[10px] text-emerald-400 italic">Sent to analysis</div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

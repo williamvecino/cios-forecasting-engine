@@ -138,6 +138,11 @@ interface RecommendedQuestion {
   system?: "mios" | "baos" | "cios";
   rank?: number;
   rankRationale?: string;
+  decisionType?: string;
+  strategicImpact?: string;
+  urgency?: string;
+  evidenceDependency?: string;
+  confidence?: string;
 }
 
 interface DecisionPack {
@@ -625,9 +630,15 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
             suggestedSubject: q.suggestedSubject,
             rank: q.rank,
             rankRationale: q.rankRationale,
+            decisionType: q.decisionType,
+            strategicImpact: q.strategicImpact,
+            urgency: q.urgency,
+            evidenceDependency: q.evidenceDependency,
+            confidence: q.confidence,
             savedAt: new Date().toISOString(),
             sourceDocument: gatedPack.documentType,
             businessContext: gatedPack.businessContext,
+            status: "Saved" as const,
           }));
           localStorage.setItem("cios.deferredQuestions", JSON.stringify([...newDeferred, ...existing].slice(0, 20)));
         } catch {}
@@ -914,6 +925,25 @@ export default function ImportProjectDialog({ onImportComplete, onMultiImport, o
                             <div className="flex-1 min-w-0">
                               <div className={`text-sm font-medium text-foreground leading-relaxed ${isKeyQuestion ? "text-violet-200" : ""}`}>{q.text}</div>
                               <div className="text-xs text-muted-foreground mt-1.5">{q.rationale}</div>
+                              {isCiosRanked && ((q as any).decisionType || (q as any).strategicImpact || (q as any).urgency) && (
+                                <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                                  {(q as any).decisionType && (
+                                    <span><span className="text-muted-foreground/60">Type:</span> <span className="text-foreground/70">{(q as any).decisionType}</span></span>
+                                  )}
+                                  {(q as any).strategicImpact && (
+                                    <span><span className="text-muted-foreground/60">Impact:</span> <span className={`${(q as any).strategicImpact === "High" ? "text-amber-400" : "text-foreground/70"}`}>{(q as any).strategicImpact}</span></span>
+                                  )}
+                                  {(q as any).urgency && (
+                                    <span><span className="text-muted-foreground/60">Urgency:</span> <span className={`${(q as any).urgency === "Immediate" ? "text-red-400" : "text-foreground/70"}`}>{(q as any).urgency}</span></span>
+                                  )}
+                                  {(q as any).evidenceDependency && (
+                                    <span><span className="text-muted-foreground/60">Evidence:</span> <span className="text-foreground/70">{(q as any).evidenceDependency}</span></span>
+                                  )}
+                                  {(q as any).confidence && (
+                                    <span><span className="text-muted-foreground/60">Confidence:</span> <span className={`${(q as any).confidence === "High" ? "text-emerald-400" : "text-foreground/70"}`}>{(q as any).confidence}</span></span>
+                                  )}
+                                </div>
+                              )}
                               <div className="flex items-center gap-2 mt-2 flex-wrap">
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded border ${priorityColor(q.priority)}`}>{q.priority}</span>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">{categoryLabel(q.category)}</span>
