@@ -50,6 +50,7 @@ import agentMiosRouter from "./agent-mios.js";
 import agentBaosRouter from "./agent-baos.js";
 import signalDependencyRouter from "./signal-dependency.js";
 import referenceCasesRouter from "./reference-cases.js";
+import adoptionSegmentsRouter from "./adoption-segments.js";
 
 const router: IRouter = Router();
 
@@ -104,5 +105,6 @@ router.use(agentMiosRouter);
 router.use(agentBaosRouter);
 router.use(signalDependencyRouter);
 router.use(referenceCasesRouter);
+router.use(adoptionSegmentsRouter);
 
 export default router;
