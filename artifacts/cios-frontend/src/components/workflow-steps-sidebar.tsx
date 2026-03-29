@@ -4,6 +4,7 @@ import type { WorkflowStep } from "../lib/workflow";
 
 const STEPS = [
   { key: "question", label: "Define Question", path: "/question" },
+  { key: "comparison-groups", label: "Define Comparison Groups", path: "/comparison-groups" },
   { key: "signals", label: "Add Information", path: "/signals" },
   { key: "forecast", label: "Judge", path: "/forecast" },
   { key: "decide", label: "Decide", path: "/decide" },
@@ -29,7 +30,7 @@ export default function WorkflowStepsSidebar({
   const [location] = useLocation();
 
   const currentIdx = STEPS.findIndex((s) => location.startsWith(s.path));
-  const showDiagnostics = hasActiveQuestion && currentIdx >= 2;
+  const showDiagnostics = hasActiveQuestion && currentIdx >= 3;
 
   return (
     <aside className="hidden lg:block w-[220px] shrink-0">

@@ -17,6 +17,7 @@ interface InterpretedQuestion {
   outcome: string;
   questionType: string;
   entities: string[];
+  comparisonGroups: string[];
   restatedQuestion: string;
 }
 
@@ -30,17 +31,66 @@ function asStringArray(val: unknown): string[] {
   return [];
 }
 
+const SCENARIO_TRIGGERS = /\b(or|vs\.?|versus|between|compared to|alternatively)\b/i;
+
+function deriveComparisonGroups(rawInput: string, outcomes: string[], questionType: string): string[] {
+  const q = rawInput.toLowerCase();
+
+  if (outcomes.length >= 2) {
+    return outcomes.slice(0, 2);
+  }
+
+  if (SCENARIO_TRIGGERS.test(rawInput)) {
+    if (q.includes("launch") && (q.includes("timing") || q.includes("202") || q.includes("delay"))) {
+      return ["Early launch", "Delayed launch"];
+    }
+    if (q.includes("adoption")) {
+      return ["Rapid adoption", "Slow adoption"];
+    }
+    if (q.includes("approval")) {
+      return ["Approval achieved", "Approval delayed"];
+    }
+  }
+
+  if (q.includes("launch") && (q.includes("timing") || q.includes("202") || q.includes("delay") || q.includes("push"))) {
+    return ["Early launch", "Delayed launch"];
+  }
+  if (q.includes("adoption") && (q.includes("target") || q.includes("threshold") || q.includes("achieve"))) {
+    return ["Rapid adoption", "Slow adoption"];
+  }
+  if (q.includes("approv") && (q.includes("delay") || q.includes("achiev") || q.includes("will"))) {
+    return ["Approval achieved", "Approval delayed"];
+  }
+  if (q.includes("guideline") || q.includes("nccn") || q.includes("asco")) {
+    return ["Guideline inclusion", "Guideline exclusion"];
+  }
+  if (q.includes("biosimilar") || q.includes("generic")) {
+    return ["Market entry on time", "Market entry delayed"];
+  }
+
+  return [];
+}
+
 function sanitizeInterpretation(raw: Record<string, unknown>, rawInput: string): InterpretedQuestion {
+  const outcomes = asStringArray(raw.outcomes);
+  const questionType = asString(raw.questionType, "binary");
+
+  let comparisonGroups = asStringArray(raw.comparisonGroups);
+  if (comparisonGroups.length < 2) {
+    comparisonGroups = deriveComparisonGroups(rawInput, outcomes, questionType);
+  }
+
   return {
     decisionType: asString(raw.decisionType, "Decision"),
     event: asString(raw.event, rawInput.slice(0, 100)),
-    outcomes: asStringArray(raw.outcomes),
+    outcomes,
     timeHorizon: asString(raw.timeHorizon, "12 months"),
     primaryConstraint: asString(raw.primaryConstraint, "To be determined"),
     subject: asString(raw.subject, ""),
     outcome: asString(raw.outcome, ""),
-    questionType: asString(raw.questionType, "binary"),
+    questionType,
     entities: asStringArray(raw.entities),
+    comparisonGroups,
     restatedQuestion: asString(raw.restatedQuestion, rawInput),
   };
 }
@@ -69,7 +119,14 @@ From any input — whether it is a clean question, messy notes, bullet points, p
 7. outcome: The outcome being measured in one or two words (e.g., "adoption", "launch timing", "market share", "guideline inclusion")
 8. questionType: One of "binary", "comparative", "ranking", "threshold", or "timing"
 9. entities: Any specific populations, specialties, regions, or groups mentioned (e.g., ["pulmonologists", "Northeast centers"])
-10. restatedQuestion: A clean, one-sentence restatement of the question in executive language
+10. comparisonGroups: Decision-based scenario comparison groups derived from the question's outcome alternatives. These must be outcome scenarios, NOT entity names.
+    - If the question contains timing alternatives (e.g., "2026 or 2027"), use those as groups (e.g., ["Late 2026 launch", "Late 2027 launch"])
+    - If the question implies adoption scenarios, use ["Rapid adoption", "Slow adoption"]
+    - If the question implies approval scenarios, use ["Approval achieved", "Approval delayed"]
+    - If the question contains "or", "vs", "between" with scenario alternatives, extract those alternatives
+    - Do NOT use company names, drug names, or geographic regions as comparison groups
+    - Comparison groups should always represent competing outcome scenarios for the SAME subject
+11. restatedQuestion: A clean, one-sentence restatement of the question in executive language
 
 Always provide all fields. If a field cannot be determined, use a reasonable inference rather than leaving it blank.
 
@@ -82,7 +139,7 @@ Respond with valid JSON only. No markdown, no explanation.`;
         { role: "user", content: rawInput },
       ],
       temperature: 0.3,
-      max_tokens: 800,
+      max_tokens: 1000,
     });
 
     const content = response.choices[0]?.message?.content || "";

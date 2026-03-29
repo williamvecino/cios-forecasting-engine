@@ -14,7 +14,7 @@ The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built
 - The Core CIOS Judgment Engine is the central decision-maker; new agents act as support layers.
 - The system must fail gracefully, and raw uploaded documents are processed by gating agents.
 - Provenance must be preserved for every signal entering judgment.
-- Existing engine or UI workflows should not be destabilized, and no new visible steps should be added to the 6-step workflow: Define Question → Add Information → Judge → Decide → Respond → Simulate.
+- Existing engine or UI workflows should not be destabilized. The 7-step workflow is: Define Question → Define Comparison Groups → Add Information → Judge → Decide → Respond → Simulate.
 
 **Key Features and Design Principles:**
 - **Bayesian Forecast Engine:** Calculates posterior probabilities with transparent calculation paths.
@@ -33,6 +33,7 @@ The CIOS platform is a monorepo utilizing pnpm workspaces. The frontend is built
 - **Barrier Decomposition & Constraint Decomposition Layer:** Decomposes non-strong gates into operational drivers and maps to a dictionary of 19 abstract constraint categories.
 - **Endpoint Signal Differentiation Layer:** Classifies evidence signals into four tiers (Dominant, Supporting, Neutral, Contradictory) and detects `SignalImbalance`.
 - **Forecast Ledger (Calibration Memory):** Every forecast is automatically versioned and persisted with full inference snapshots including prior/posterior, confidence ceiling state, dependency metrics (diversity, fragility, concentration), top positive/negative drivers, lineage clusters, and environment adjustments. Supports resolution workflow (Resolved True/False/Partial/Not Resolvable), Brier scoring, calibration bucket tracking, update rationale, and version movement display.
+- **Decision-Based Comparison Groups:** Step 2 derives outcome scenarios (not entities) from the strategic question. The AI interpretation agent extracts `comparisonGroups` from question alternatives (e.g., "Late 2026 launch" vs "Late 2027 launch"). Default groups auto-generated for launch timing, adoption, approval, and guideline questions. Users can edit/add/remove groups before proceeding. Signals and evidence are evaluated against these scenario groups.
 - **Ask CIOS (Case-Aware Question Box):** A persistent panel for open questions about the current case across categories like Explanation, Counterfactual, Resolution, and Interpretation.
 - **Respond Step:** Converts decision output into a client-ready executive response.
 - **Import Project (Universal Ingestion) & Enterprise Data Import:** Allows uploading documents, images, or pasting text for AI-powered extraction of decision questions and signals.

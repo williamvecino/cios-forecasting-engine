@@ -15,6 +15,7 @@ export interface CreateQuestionInput {
   timeHorizon?: string;
   questionType?: string;
   entities?: string[];
+  comparisonGroups?: string[];
   subject?: string;
   outcome?: string;
 }
@@ -46,6 +47,7 @@ export function useActiveQuestion() {
       timeHorizon: input.timeHorizon?.trim() || undefined,
       questionType: input.questionType || undefined,
       entities: input.entities || undefined,
+      comparisonGroups: input.comparisonGroups || undefined,
       subject: input.subject || undefined,
       outcome: input.outcome || undefined,
     };
@@ -60,11 +62,13 @@ export function useActiveQuestion() {
     const updated: ActiveQuestion = {
       id: prev?.id ?? createQuestionId(),
       text: input.text.trim(),
+      rawInput: input.rawInput?.trim() || prev?.rawInput || undefined,
       createdAt: prev?.createdAt ?? new Date().toISOString(),
       caseId: input.caseId?.trim() || undefined,
       timeHorizon: input.timeHorizon?.trim() || undefined,
       questionType: input.questionType || undefined,
       entities: input.entities || undefined,
+      comparisonGroups: input.comparisonGroups || prev?.comparisonGroups || undefined,
       subject: input.subject || undefined,
       outcome: input.outcome || undefined,
     };

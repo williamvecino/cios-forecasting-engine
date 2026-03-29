@@ -69,6 +69,7 @@ interface Interpretation {
   outcome: string;
   questionType: string;
   entities: string[];
+  comparisonGroups: string[];
   restatedQuestion: string;
 }
 
@@ -168,6 +169,7 @@ export default function QuestionPage() {
       outcome: parsed?.outcome || "",
       questionType: parsed?.questionType || "binary",
       entities: parsed?.populationOrEntities || [],
+      comparisonGroups: [],
       restatedQuestion: interpreted || text,
     };
   }
@@ -240,6 +242,7 @@ export default function QuestionPage() {
         timeHorizon: interpretation.timeHorizon || "12 months",
         questionType: interpretation.questionType || "binary",
         entities: interpretation.entities || [],
+        comparisonGroups: interpretation.comparisonGroups || [],
         subject: interpretation.subject || undefined,
         outcome: interpretation.outcome || undefined,
       };
@@ -251,7 +254,7 @@ export default function QuestionPage() {
         } catch {}
       }
 
-      navigate("/signals");
+      navigate("/comparison-groups");
       return;
     }
 
@@ -295,11 +298,12 @@ export default function QuestionPage() {
         timeHorizon: interpretation.timeHorizon || "12 months",
         questionType: interpretation.questionType || "binary",
         entities: interpretation.entities || [],
+        comparisonGroups: interpretation.comparisonGroups || [],
         subject: interpretation.subject || undefined,
         outcome: interpretation.outcome || undefined,
       };
       createQuestion(payload);
-      navigate("/signals");
+      navigate("/comparison-groups");
     } catch (err) {
       console.error("Failed to create case:", err);
       setSubmitError("Unable to create a case. Check your connection and try again.");
@@ -407,12 +411,13 @@ export default function QuestionPage() {
         timeHorizon: q.timeHorizon || "12 months",
         questionType: q.questionType || "binary",
         entities: q.entities || [],
+        comparisonGroups: q.comparisonGroups || [],
         subject: q.subject || undefined,
         outcome: q.outcome || undefined,
       };
       createQuestion(payload);
       setShowImportProject(false);
-      navigate("/signals");
+      navigate("/comparison-groups");
     } catch (err) {
       console.error("Failed to create imported case:", err);
       setSubmitError("Unable to create the case. Check your connection and try again.");
@@ -595,6 +600,7 @@ export default function QuestionPage() {
           timeHorizon: firstQuestion.suggestedTimeHorizon || "12 months",
           questionType: "binary",
           entities: [],
+          comparisonGroups: [],
           subject: firstQuestion.suggestedSubject || undefined,
           outcome: undefined,
         };
@@ -604,7 +610,7 @@ export default function QuestionPage() {
         if (failedQuestions.length > 0) {
           setSubmitError(`Created ${createdCaseIds.length} case${createdCaseIds.length > 1 ? "s" : ""}, but ${failedQuestions.length} failed. You can find all cases in the Forecasts page.`);
         }
-        navigate("/signals");
+        navigate("/comparison-groups");
       } else {
         setSubmitError("No cases could be created. Please try again.");
         setPageState("input");
@@ -613,7 +619,7 @@ export default function QuestionPage() {
       console.error("Failed to create multi-import cases:", err);
       if (createdCaseIds.length > 0) {
         setSubmitError(`Partially completed: ${createdCaseIds.length} case${createdCaseIds.length > 1 ? "s" : ""} created before error. Check the Forecasts page.`);
-        navigate("/signals");
+        navigate("/comparison-groups");
       } else {
         setSubmitError("Unable to create cases. Check your connection and try again.");
         setPageState("input");
@@ -732,10 +738,10 @@ export default function QuestionPage() {
               <div className="mt-4 flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => navigate("/signals")}
+                  onClick={() => navigate("/comparison-groups")}
                   className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2"
                 >
-                  Continue to Add Information
+                  Continue to Comparison Groups
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button

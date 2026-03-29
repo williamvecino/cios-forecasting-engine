@@ -26,6 +26,7 @@ import ForecastPage from "@/pages/forecast/index";
 import DecidePage from "@/pages/decide/index";
 import RespondPage from "@/pages/respond/index";
 import SimulatePage from "@/pages/simulate/index";
+import ComparisonGroupsPage from "@/pages/comparison-groups/index";
 import ForecastLedgerPage from "@/pages/forecast-ledger/index";
 import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import NotFound from "@/pages/not-found";
@@ -71,6 +72,7 @@ function Router() {
       <Route path="/system" component={SystemPage} />
 
       <Route path="/question"><QuestionPageFresh /></Route>
+      <Route path="/comparison-groups" component={ComparisonGroupsPage} />
       <Route path="/signals" component={SignalsPage} />
       <Route path="/forecast" component={ForecastPage} />
       <Route path="/decide" component={DecidePage} />

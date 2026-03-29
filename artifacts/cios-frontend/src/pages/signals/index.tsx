@@ -347,6 +347,20 @@ function generateContextualSuggestions(ctx: QuestionContext): Signal[] {
       raw.push({ id: "sys-9", text: `Launch readiness assessments underway for ${subjectLabel} in priority markets`, caveat: "", direction: "positive", strength: "Medium", reliability: "Confirmed", category: "timing", source: "system", accepted: false });
   }
 
+  if (q.includes("launch") || q.includes("manufact") || q.includes("supply") || q.includes("produc") || q.includes("capacity") || q.includes("timing")) {
+    const supplySignals: Omit<Signal, "impact">[] = [
+      { id: "sys-mfg1", text: `Manufacturing slot scheduling status for ${subjectLabel} — slot allocation confirmed or pending`, caveat: "Critical determinant of launch readiness timeline", direction: "neutral", strength: "High", reliability: "Probable", category: "timing", source: "system", accepted: false },
+      { id: "sys-mfg2", text: `Production capacity allocation for ${subjectLabel} at designated manufacturing sites`, caveat: "Capacity constraints can delay launch by 6-12 months", direction: "neutral", strength: "High", reliability: "Probable", category: "timing", source: "system", accepted: false },
+      { id: "sys-mfg3", text: `Portfolio priority ranking of ${subjectLabel} relative to other pipeline assets`, caveat: "Internal portfolio decisions affect resource allocation and timing", direction: "neutral", strength: "Medium", reliability: "Probable", category: "timing", source: "system", accepted: false },
+      { id: "sys-mfg4", text: `Commercial inventory build progress for ${subjectLabel} pre-launch stocking`, caveat: "Inventory readiness determines go/no-go for commercial launch date", direction: "neutral", strength: "High", reliability: "Probable", category: "timing", source: "system", accepted: false },
+      { id: "sys-mfg5", text: `Pre-launch supply readiness assessment for ${subjectLabel} — packaging, labeling, distribution`, caveat: "Supply chain readiness is a necessary condition for on-time launch", direction: "neutral", strength: "High", reliability: "Probable", category: "timing", source: "system", accepted: false },
+    ];
+    const existingIds = new Set(raw.map(s => s.id));
+    for (const s of supplySignals) {
+      if (!existingIds.has(s.id)) raw.push(s);
+    }
+  }
+
   return raw.map((s) => ({ ...s, impact: computeImpact(s) }));
 }
 
@@ -397,8 +411,7 @@ function generateSummary(signals: Signal[], questionType?: string, entities?: st
 
 function getStepHeading(questionType?: string): string {
   switch (questionType) {
-    case "comparative": return "What explains the difference between groups?";
-    case "ranking": return "What will make one group lead?";
+    case "ranking": return "What will make one scenario lead?";
     default: return "What new information do we have?";
   }
 }
@@ -451,20 +464,21 @@ export default function SignalsPage() {
   const questionText = activeQuestion?.rawInput || activeQuestion?.text || "";
   const questionType = activeQuestion?.questionType;
   const entities = activeQuestion?.entities || [];
+  const comparisonGroups = activeQuestion?.comparisonGroups || [];
   const subject = activeQuestion?.subject;
   const outcome = activeQuestion?.outcome;
   const timeHorizon = activeQuestion?.timeHorizon;
   const storedTherapeuticArea = typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined;
-  const isComparative = questionType === "comparative" && entities.length >= 2;
+  const isComparative = comparisonGroups.length >= 2;
 
   const questionCtx: QuestionContext = useMemo(() => ({
     text: questionText,
     questionType,
-    entities,
+    entities: comparisonGroups.length >= 2 ? comparisonGroups : entities,
     subject,
     outcome,
     timeHorizon,
-  }), [questionText, questionType, entities, subject, outcome, timeHorizon]);
+  }), [questionText, questionType, comparisonGroups, entities, subject, outcome, timeHorizon]);
 
   const fallbackSuggestions = useMemo(
     () => generateSuggestions(questionCtx),
@@ -611,7 +625,7 @@ export default function SignalsPage() {
   const VALID_STRENGTHS = new Set(["High", "Medium", "Low"]);
   const VALID_RELIABILITIES = new Set(["Confirmed", "Probable", "Speculative"]);
 
-  const contextKey = `${subject}|${questionText}|${outcome}|${questionType}|${entities.join(",")}|${timeHorizon}`;
+  const contextKey = `${subject}|${questionText}|${outcome}|${questionType}|${comparisonGroups.join(",")}|${entities.join(",")}|${timeHorizon}`;
 
   const hasPersistedSignals = useCallback(() => {
     try {
@@ -674,7 +688,7 @@ export default function SignalsPage() {
         questionType,
         questionText,
         timeHorizon,
-        entities,
+        entities: comparisonGroups.length >= 2 ? comparisonGroups : entities,
         ...(searchKeywords?.length ? { keywords: searchKeywords } : {}),
       }),
     })
@@ -1227,7 +1241,7 @@ export default function SignalsPage() {
   const supportingSignals = allSignals.filter((s) => s.impact !== "High");
   const pending = allSignals.filter((s) => !s.accepted);
   const accepted = allSignals.filter((s) => s.accepted);
-  const summary = generateSummary(allSignals, questionType, entities);
+  const summary = generateSummary(allSignals, questionType, comparisonGroups.length >= 2 ? comparisonGroups : entities);
 
   const hasSourceClassification = allSignals.some((s) => s.signal_source);
   const internalSignals = allSignals.filter((s) => s.signal_source === "internal");
@@ -1272,6 +1286,7 @@ export default function SignalsPage() {
       totalConfirmed: confirmedDrivers + confirmedSupporting,
       hasDirection,
       questionType: questionType || "binary",
+      comparisonGroups: comparisonGroups,
       entities: entities,
       updatedAt: Date.now(),
       coveredFamilies: coveredFamilies.length,
@@ -1293,10 +1308,10 @@ export default function SignalsPage() {
         <section className="space-y-5">
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Step 2
+              Step 3
             </div>
             <h1 className="mt-2 text-2xl font-semibold text-foreground">
-              {getStepHeading(questionType)}
+              What new information do we have?
             </h1>
           </div>
 
@@ -1305,12 +1320,12 @@ export default function SignalsPage() {
               <div className="flex items-center gap-3">
                 <GitCompareArrows className="w-5 h-5 text-violet-400 shrink-0" />
                 <div>
-                  <div className="text-[10px] text-violet-400 font-semibold uppercase tracking-wider mb-1">Comparing</div>
+                  <div className="text-[10px] text-violet-400 font-semibold uppercase tracking-wider mb-1">Scenario Comparison</div>
                   <div className="text-sm font-medium text-foreground">
-                    {entities.map((e, i) => (
-                      <span key={e}>
+                    {comparisonGroups.map((g, i) => (
+                      <span key={g}>
                         {i > 0 && <span className="text-muted-foreground mx-1.5">vs</span>}
-                        <span className="text-violet-300">{e}</span>
+                        <span className="text-violet-300">{g}</span>
                       </span>
                     ))}
                   </div>

@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 
 const STEP_MAP: Record<string, string> = {
   question: "/question",
+  "comparison-groups": "/comparison-groups",
   signals: "/signals",
   forecast: "/forecast",
   decide: "/decide",
@@ -18,6 +19,7 @@ const STEP_MAP: Record<string, string> = {
   analogs: "/forecast",
   portfolio: "/decide",
   agents: "/signals",
+  refinement: "/question",
 };
 
 function inferQuestionType(text: string): string {

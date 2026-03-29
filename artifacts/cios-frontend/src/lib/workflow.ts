@@ -1,4 +1,4 @@
-export type WorkflowStep = "question" | "signals" | "forecast" | "decide" | "respond" | "simulate";
+export type WorkflowStep = "question" | "comparison-groups" | "signals" | "forecast" | "decide" | "respond" | "simulate";
 
 export interface ActiveQuestion {
   id: string;
@@ -9,6 +9,7 @@ export interface ActiveQuestion {
   timeHorizon?: string;
   questionType?: string;
   entities?: string[];
+  comparisonGroups?: string[];
   subject?: string;
   outcome?: string;
 }
@@ -31,36 +32,43 @@ export function getWorkflowSteps(): {
       path: "/question",
     },
     {
+      key: "comparison-groups",
+      label: "2 — Define Comparison Groups",
+      title: "Define Comparison Groups",
+      description: "Set the outcome scenarios to compare.",
+      path: "/comparison-groups",
+    },
+    {
       key: "signals",
-      label: "2 — Add Information",
+      label: "3 — Add Information",
       title: "Add Information",
       description: "Add the new evidence or signal changes.",
       path: "/signals",
     },
     {
       key: "forecast",
-      label: "3 — Judge",
+      label: "4 — Judge",
       title: "Judge",
       description: "Review the executive judgment, probability, and what drives the call.",
       path: "/forecast",
     },
     {
       key: "decide",
-      label: "4 — Decide",
+      label: "5 — Decide",
       title: "Decide",
       description: "Turn the judgment into action.",
       path: "/decide",
     },
     {
       key: "respond",
-      label: "5 — Respond",
+      label: "6 — Respond",
       title: "Respond",
       description: "Generate a client-ready response.",
       path: "/respond",
     },
     {
       key: "simulate",
-      label: "6 — Simulate",
+      label: "7 — Simulate",
       title: "Simulate Adoption Reaction",
       description: "Test how segments react to specific materials.",
       path: "/simulate",
