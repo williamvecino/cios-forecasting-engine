@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "CLdr7FB6drfZ5-msOTrrD"
+uri = "file://cios_export.tar.gz"
+type = "unspecified"
+title = "CIOS Project Export"
