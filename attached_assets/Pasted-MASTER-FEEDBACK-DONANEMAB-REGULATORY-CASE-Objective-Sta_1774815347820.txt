@@ -1,0 +1,522 @@
+MASTER FEEDBACK — DONANEMAB REGULATORY CASE
+
+Objective: Stabilize causal logic, decision-layer separation, and actor behavior modeling for regulatory approval workflows.
+
+This document consolidates all required fixes identified during the case walkthrough.
+
+SECTION 1 — Core System Architecture Fixes
+1. Enforce Sequential Decision Layer Separation
+
+The system currently mixes:
+
+Regulatory approval
+Reimbursement / HTA
+Adoption
+
+These must be separated into explicit decision layers.
+
+Required architecture
+
+Layer 1
+Regulatory approval
+
+Layer 2
+HTA / reimbursement
+
+Layer 3
+Adoption / utilization
+
+Required behavior
+
+Regulatory approval must be determined only by:
+
+clinical efficacy
+safety profile
+regulatory compliance
+data integrity
+risk mitigation
+
+Reimbursement must be determined by:
+
+cost-effectiveness
+budget impact
+pricing
+
+Adoption must be determined by:
+
+physician behavior
+infrastructure readiness
+patient acceptance
+Required rule
+
+Cost-effectiveness constraints must never appear in:
+
+Regulatory bottlenecks
+
+They belong only in:
+
+Access constraints
+Reimbursement constraints
+
+2. Remove Circular Drivers
+
+The system currently allows:
+
+Regulatory approval by EMA
+Regulatory approval by FDA
+
+to appear as drivers.
+
+These are outcomes, not causes.
+
+Required rule
+
+If:
+
+VariableType = DecisionOutcome
+
+Then:
+
+Disallow placement in:
+
+Drivers
+Signals
+Constraints
+
+Replace with
+
+Regulatory readiness
+Submission completeness
+Evidence sufficiency
+Safety resolution
+
+SECTION 2 — Signal and Evidence Logic Fixes
+3. Safety vs Efficacy Must Always Exert Downward Pressure
+
+A high-importance safety signal currently produces:
+
+Total Downward Pressure: 0
+
+This is incorrect.
+
+Required rule
+
+If:
+
+SignalImportance = High
+AND SignalDirection = Negative or Constraining
+AND GateStatus ≠ Resolved
+
+Then:
+
+DownwardPressure must be greater than zero
+
+Expected behavior
+
+High unresolved safety risk must always reduce forecast probability.
+
+4. Reclassify Safety vs Efficacy Signal
+
+Currently placed under:
+
+Neutral
+
+This is incorrect.
+
+Required classification
+
+Safety vs efficacy must be:
+
+Constraining
+or
+Mixed
+
+Never:
+
+Neutral
+
+5. Separate Regulatory Drivers from Market Access Drivers
+
+Health economics currently appears as a driver of approval.
+
+This is incorrect.
+
+Required rule
+
+If:
+
+DecisionAuthority = FDA or EMA
+
+Then:
+
+Primary drivers must be limited to:
+
+clinical efficacy
+safety profile
+trial integrity
+regulatory compliance
+
+Health economics must be classified as:
+
+Downstream impact
+
+SECTION 3 — Terminology Standardization
+6. Replace Adoption Language in Regulatory Cases
+
+Current terms:
+
+Adoption
+Adoption ceiling
+Adoption dynamics
+Impact on adoption
+
+These are incorrect for regulatory workflows.
+
+Required replacements
+
+Adoption → Approval readiness
+Adoption ceiling → Approval constraint
+Adoption dynamics → Regulatory readiness
+Impact on adoption → Impact on approval likelihood
+
+Required rule
+
+If:
+
+DecisionType = RegulatoryApproval
+
+Then:
+
+Use:
+
+Approval
+Readiness
+Review
+Decision
+
+Not:
+
+Adoption
+
+7. Decouple Regulatory Authorization from Market Readiness
+
+Current behavior:
+
+Approval automatically implies market readiness.
+
+This is incorrect.
+
+Required rule
+
+Approval confirms:
+
+Regulatory authorization
+
+Market readiness requires:
+
+Manufacturing
+Distribution
+Coverage
+Implementation
+
+SECTION 4 — Gate and Constraint Logic
+8. Add Gate Hierarchy Weighting
+
+All gates are currently treated equally.
+
+This is incorrect.
+
+Required hierarchy
+
+Safety resolution → High weight
+Data sufficiency → High weight
+Advisory recommendation → Medium weight
+Communication readiness → Low weight
+
+Required behavior
+
+If safety is unresolved:
+
+Forecast ceiling must be constrained regardless of other progress.
+
+9. Define Success Measures as Decision Outcomes
+
+Current success measures include:
+
+Post-approval readiness signals
+
+These must be removed.
+
+Required rule
+
+Success measures must correspond to:
+
+Decision gate resolution
+or
+Regulatory milestone completion
+
+Not:
+
+Operational readiness
+
+SECTION 5 — Actor Modeling Fixes
+10. Align Actors to Regulatory Authority
+
+Simulation still uses:
+
+FDA actors in EMA cases.
+
+Required mapping
+
+FDA Review Division → EMA Rapporteur / CHMP
+Advisory Committee Members → CHMP Members
+Safety Reviewers → PRAC
+Sponsor Regulatory Team → Marketing Authorization Holder
+
+Required rule
+
+Actors must be dynamically generated based on:
+
+RegulatoryAuthority
+
+11. Remove Payers from Regulatory Approval Simulation
+
+Payers influence reimbursement, not approval.
+
+Required rule
+
+If:
+
+DecisionType = RegulatoryApproval
+
+Then:
+
+Exclude:
+
+Payers
+Health systems
+Reimbursement authorities
+
+Unless:
+
+Decision includes access or coverage
+
+12. Replace Coordination Relationship Between Payers and Regulators
+
+Current behavior:
+
+Payers coordinate with EMA.
+
+This is incorrect.
+
+Required relationship
+
+EMA → Approval decision
+
+Payers → Reimbursement decision
+
+Connection type:
+
+Sequential dependency
+
+Not:
+
+Coordination
+
+13. Reclassify Patient Advocacy
+
+Currently modeled as:
+
+Driver
+
+This is incorrect.
+
+Required classification
+
+Patient advocacy must be:
+
+Influence factor
+
+Not:
+
+Driver
+
+Required structure
+
+Primary drivers:
+
+efficacy
+safety
+data integrity
+
+Influence factors:
+
+patient advocacy
+media attention
+political pressure
+SECTION 6 — Simulation Logic Fixes
+14. Suppress Actors Outside the Decision Phase
+
+Actors currently appear even when inactive.
+
+Required rule
+
+If:
+
+ActorActivationPhase ≠ CurrentDecisionPhase
+
+Then:
+
+Hide actor from active simulation panel
+
+15. Add Sequential Cascade Risk Modeling
+
+Current cascade stops at approval.
+
+This is incomplete.
+
+Required cascade chain
+
+Safety concern
+→ regulatory delay
+→ reimbursement delay
+→ adoption delay
+
+16. Define Indirect Influence Pathways for Expert Actors
+
+KOL influence is currently underspecified.
+
+Required behavior
+
+KOL endorsement must modify:
+
+Committee confidence
+Evidence interpretation
+
+Not:
+
+Decision authority
+
+17. Add Phase-Specific Behavior Sensitivity
+
+Actor responsiveness must change across phases.
+
+Example
+
+Before approval:
+
+Safety sensitivity = high
+
+After approval:
+
+Safety sensitivity = moderate
+
+SECTION 7 — Segmentation and Behavioral Modeling
+18. Add Segmentation Usage Guidance Tab
+
+Segmentation is currently applied automatically.
+
+This is incorrect.
+
+Required UI element
+
+Small informational tab.
+
+Tab text
+
+Use segmentation when:
+
+Behavior varies across actors
+Implementation capacity affects outcomes
+Market uptake is uncertain
+
+Do not use segmentation when:
+
+The decision is regulatory approval
+The outcome depends on safety or evidence
+The decision authority is centralized
+
+SECTION 8 — MIOS / CIOS Usage Clarification
+19. Add MIOS / CIOS Guidance Tab
+
+Users currently lack guidance on when to use behavioral diagnostics.
+
+Required UI element
+
+Small tab near:
+
+MIOS / CIOS section
+
+Tab title
+
+When to Use MIOS / CIOS
+
+Tab content
+
+Use MIOS / CIOS when:
+
+Behavioral response determines outcomes
+Adoption varies across stakeholders
+Implementation barriers affect utilization
+Market dynamics influence success
+
+Do not use MIOS / CIOS when:
+
+The decision is regulatory approval
+The outcome depends on safety or clinical evidence
+The decision authority is centralized
+
+Required rule
+
+If:
+
+DecisionType = RegulatoryApproval
+
+Then:
+
+MIOS / CIOS should be optional
+
+Not required
+
+SECTION 9 — Optional System Improvements (Non-Urgent)
+
+These improve clarity but are not required for correctness.
+
+Display Decision Authority
+
+Add visible field:
+
+Decision Authority
+European Medicines Agency
+
+Display Decision Boundary Labels
+
+Example:
+
+EMA — Regulatory layer
+
+Payers — Access layer
+
+KOLs — Influence layer
+
+Maintain Domain-Pure Strategy Outputs
+
+Avoid introducing:
+
+Commercialization planning
+
+Into:
+
+Regulatory strategy
+
+Final Outcome
+
+Once these changes are implemented, the system will:
+
+separate approval, access, and adoption correctly
+remove circular logic
+enforce causal validity
+stabilize simulation behavior
+standardize regulatory workflows
+prevent cross-layer contamination
+correctly guide MIOS / CIOS usage

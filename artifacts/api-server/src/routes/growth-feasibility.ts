@@ -26,6 +26,9 @@ interface FeasibilityInput {
   blockedMilestones: string[];
   competitiveThreats: string[];
   priorityTier?: string;
+  isInherited?: boolean;
+  segmentSpecificBarrierCount?: number;
+  totalBarrierCount?: number;
 }
 
 function computeFeasibilityScore(input: FeasibilityInput): number {
@@ -41,13 +44,21 @@ function computeFeasibilityScore(input: FeasibilityInput): number {
 
   let raw = adoptionComponent + barrierComponent + readinessComponent + competitiveComponent;
 
-  if (input.structuralBarrierCount >= 2) {
+  const structPenalty = input.isInherited
+    ? Math.min(input.structuralBarrierCount, 2) * 0.5
+    : input.structuralBarrierCount;
+
+  if (structPenalty >= 2) {
     raw *= 0.7;
-  } else if (input.structuralBarrierCount === 1) {
+  } else if (structPenalty >= 1) {
     raw *= 0.85;
   }
 
-  if (input.blockedMilestoneCount >= 3) {
+  const blockedPenalty = input.isInherited
+    ? Math.floor(input.blockedMilestoneCount * 0.5)
+    : input.blockedMilestoneCount;
+
+  if (blockedPenalty >= 3) {
     raw *= 0.75;
   }
 
@@ -55,19 +66,32 @@ function computeFeasibilityScore(input: FeasibilityInput): number {
 }
 
 function classifyTier(score: number, input: FeasibilityInput): FeasibilityTier {
-  if (score >= 0.65 && input.structuralBarrierCount === 0 && input.blockedMilestoneCount <= 1) {
+  const effectiveStructural = input.isInherited
+    ? Math.min(input.structuralBarrierCount, 2) * 0.5
+    : input.structuralBarrierCount;
+  const effectiveBlocked = input.isInherited
+    ? Math.floor(input.blockedMilestoneCount * 0.5)
+    : input.blockedMilestoneCount;
+
+  if (score >= 0.65 && effectiveStructural < 1 && effectiveBlocked <= 1) {
     return "high_growth";
   }
-  if (score >= 0.45 && input.structuralBarrierCount <= 1) {
+  if (score >= 0.45 && effectiveStructural <= 1) {
     return "moderate_growth";
   }
   if (score >= 0.25) {
-    if (input.structuralBarrierCount >= 2 || input.blockedMilestoneCount >= 3) {
+    if (effectiveStructural >= 2 && input.adoptionLikelihood < 0.5) {
+      return "blocked";
+    }
+    if (effectiveBlocked >= 3 && input.readinessScore < 0.4) {
       return "blocked";
     }
     return "constrained_growth";
   }
-  if (input.adoptionLikelihood < 0.2 && input.readinessScore < 0.3) {
+  if (input.adoptionLikelihood < 0.25 && input.readinessScore < 0.3) {
+    return "monitor_only";
+  }
+  if (score < 0.15) {
     return "monitor_only";
   }
   return "blocked";
@@ -76,17 +100,29 @@ function classifyTier(score: number, input: FeasibilityInput): FeasibilityTier {
 function computeNearTermPotential(input: FeasibilityInput): number {
   let near = input.adoptionLikelihood * 0.4 + input.nearTermReadiness * 0.3 + (1 - input.barrierLoad) * 0.3;
 
-  if (input.blockedMilestoneCount >= 2) near *= 0.6;
-  if (input.structuralBarrierCount >= 1) near *= 0.8;
+  const effectiveBlocked = input.isInherited
+    ? Math.floor(input.blockedMilestoneCount * 0.5)
+    : input.blockedMilestoneCount;
+  const effectiveStructural = input.isInherited
+    ? Math.min(input.structuralBarrierCount, 2) * 0.5
+    : input.structuralBarrierCount;
+
+  if (effectiveBlocked >= 2) near *= 0.6;
+  if (effectiveStructural >= 1) near *= 0.8;
 
   return Math.max(0, Math.min(1, near));
 }
 
 function computeMediumTermPotential(input: FeasibilityInput): number {
+  const totalBarriers = input.removableBarrierCount + input.structuralBarrierCount;
+  const removableRatio = totalBarriers > 0
+    ? input.removableBarrierCount / totalBarriers
+    : 0.5;
+
   let medium = input.adoptionLikelihood * 0.35 +
     input.readinessScore * 0.25 +
     (1 - input.competitiveRiskLoad) * 0.2 +
-    (input.removableBarrierCount > 0 ? 0.2 * (input.removableBarrierCount / (input.removableBarrierCount + input.structuralBarrierCount || 1)) : 0.15);
+    0.2 * removableRatio;
 
   if (input.removableBarrierCount >= 2) medium *= 1.1;
 
@@ -102,19 +138,38 @@ function labelPotential(score: number): string {
 
 function deriveUnlocks(input: FeasibilityInput): string[] {
   const unlocks: string[] = [];
+  const seen = new Set<string>();
+
+  const addUnique = (text: string) => {
+    const key = text.toLowerCase().slice(0, 50);
+    if (!seen.has(key)) { seen.add(key); unlocks.push(text); }
+  };
+
+  if (input.adoptionLikelihood >= 0.6 && input.barrierLoad > 0.5) {
+    addUnique("Reduce barrier load to unlock high-adoption potential");
+  }
+
+  if (input.adoptionLikelihood >= 0.6 && input.readinessScore < 0.5) {
+    addUnique("Accelerate readiness milestones to capitalize on adoption strength");
+  }
 
   for (const lever of input.upwardLevers.slice(0, 2)) {
-    unlocks.push(lever);
+    addUnique(lever);
   }
 
   for (const m of input.blockedMilestones.slice(0, 2)) {
-    unlocks.push(`Resolve blocked milestone: ${m}`);
+    addUnique(`Resolve blocked milestone: ${m}`);
   }
 
   if (input.removableBarrierCount > 0) {
     for (const b of input.barrierNames.filter(b => !b.toLowerCase().includes("structural")).slice(0, 1)) {
-      unlocks.push(`Remove barrier: ${b}`);
+      const short = b.length > 80 ? b.slice(0, 77) + "..." : b;
+      addUnique(`Remove barrier: ${short}`);
     }
+  }
+
+  if (input.competitiveRiskLoad > 0.3 && input.adoptionLikelihood > 0.5) {
+    addUnique("Strengthen competitive differentiation to protect adoption gains");
   }
 
   return unlocks.slice(0, 4);
@@ -122,21 +177,42 @@ function deriveUnlocks(input: FeasibilityInput): string[] {
 
 function deriveConstraints(input: FeasibilityInput): string[] {
   const constraints: string[] = [];
+  const seen = new Set<string>();
 
-  for (const blocker of input.movementBlockers.slice(0, 2)) {
-    constraints.push(blocker);
+  const addUnique = (text: string) => {
+    const key = text.toLowerCase().slice(0, 50);
+    if (!seen.has(key)) { seen.add(key); constraints.push(text); }
+  };
+
+  if (input.structuralBarrierCount > 0 && !input.isInherited) {
+    addUnique(`${input.structuralBarrierCount} structural barrier(s) limiting scale`);
+  } else if (input.structuralBarrierCount > 0 && input.isInherited) {
+    addUnique("System-wide structural barriers constrain this segment");
   }
 
-  for (const threat of input.competitiveThreats.slice(0, 1)) {
-    constraints.push(`Competitive pressure: ${threat}`);
+  if (input.barrierLoad > 0.7) {
+    addUnique(`High barrier load (${Math.round(input.barrierLoad * 100)}%) suppressing growth`);
   }
 
-  if (input.structuralBarrierCount > 0) {
-    constraints.push(`${input.structuralBarrierCount} structural barrier(s) limiting scale`);
+  for (const threat of input.competitiveThreats.slice(0, 2)) {
+    const short = threat.length > 60 ? threat.slice(0, 57) + "..." : threat;
+    addUnique(`Competitive pressure: ${short}`);
   }
 
   if (input.blockedMilestoneCount >= 2) {
-    constraints.push(`${input.blockedMilestoneCount} milestones blocked or delayed`);
+    addUnique(`${input.blockedMilestoneCount} milestones blocked or delayed`);
+  }
+
+  if (input.readinessScore < 0.4 && input.adoptionLikelihood > 0.5) {
+    addUnique("Readiness gap: adoption intent exceeds operational readiness");
+  }
+
+  if (input.adoptionLikelihood < 0.3) {
+    addUnique("Low adoption likelihood limits near-term revenue potential");
+  }
+
+  for (const blocker of input.movementBlockers.slice(0, 1)) {
+    addUnique(blocker);
   }
 
   return constraints.slice(0, 4);
@@ -211,7 +287,10 @@ router.post("/growth-feasibility/:caseId/generate", async (req, res) => {
   const caseId = req.params.caseId;
 
   try {
-    const [caseData] = await db.select().from(casesTable).where(eq(casesTable.id, caseId));
+    let [caseData] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId));
+    if (!caseData) {
+      [caseData] = await db.select().from(casesTable).where(eq(casesTable.id, caseId));
+    }
     if (!caseData) return res.status(404).json({ error: "Case not found" });
 
     const baseProbability = caseData.currentProbability ?? 0.5;
@@ -344,13 +423,22 @@ router.post("/growth-feasibility/:caseId/generate", async (req, res) => {
       const segMilestones = milestones.filter(m => m.segmentId === seg.segmentId || m.segmentName === segName);
       const segRisks = risks.filter(r => r.segmentId === seg.segmentId || r.segmentName === segName);
 
-      const effectiveBarriers = segBarriers.length > 0 ? segBarriers : overallBarriers;
-      const effectiveMilestones = segMilestones.length > 0 ? segMilestones : overallMilestones;
-      const effectiveRisks = segRisks.length > 0 ? segRisks : overallRisks;
+      const hasOwnBarriers = segBarriers.length > 0;
+      const hasOwnMilestones = segMilestones.length > 0;
+      const hasOwnRisks = segRisks.length > 0;
+
+      const effectiveBarriers = hasOwnBarriers ? segBarriers : overallBarriers;
+      const effectiveMilestones = hasOwnMilestones ? segMilestones : overallMilestones;
+      const effectiveRisks = hasOwnRisks ? segRisks : overallRisks;
 
       const segBarrierLoad = effectiveBarriers.length > 0
         ? Math.min(1, effectiveBarriers.reduce((s, b) => s + (b.barrierStrength ?? 0), 0) / effectiveBarriers.length)
         : barrierLoad;
+
+      const barrierIsInherited = !hasOwnBarriers && overallBarriers.length > 0;
+      const milestoneIsInherited = !hasOwnMilestones && overallMilestones.length > 0;
+      const isInherited = barrierIsInherited || milestoneIsInherited;
+
       const segStructural = effectiveBarriers.filter(b => b.removalDifficulty === "structural").length;
       const segRemovable = effectiveBarriers.filter(b => b.removalDifficulty === "feasible" || b.removalDifficulty === "moderate").length;
       const segReady = effectiveMilestones.filter(m => m.currentStatus === "substantially_ready" || m.currentStatus === "on_track");
@@ -395,6 +483,9 @@ router.post("/growth-feasibility/:caseId/generate", async (req, res) => {
         blockedMilestones: segBlocked.map(m => m.milestoneName ?? ""),
         competitiveThreats: effectiveRisks.slice(0, 2).map(r => r.riskName ?? ""),
         priorityTier: seg.priorityTier ?? undefined,
+        isInherited,
+        segmentSpecificBarrierCount: segBarriers.length,
+        totalBarrierCount: effectiveBarriers.length,
       };
 
       const segScore = computeFeasibilityScore(segInput);
