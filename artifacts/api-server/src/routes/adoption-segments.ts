@@ -4,7 +4,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runDependencyAnalysis } from "../lib/signal-dependency-engine.js";
 import { runForecast } from "../lib/forecast-engine.js";
-import { isRegulatoryCase } from "../lib/case-type-router.js";
+import { isRegulatoryCase, detectRegulatoryAuthority } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -208,6 +208,79 @@ const REGULATORY_SEGMENT_DEFINITIONS: SegmentDefinition[] = [
     },
     baseAdoptionModifier: 0.8,
     description: "Patient organizations influencing advisory sentiment, public testimony, and benefit-risk framing. Active pre-approval in regulatory cases.",
+  },
+];
+
+const EMA_REGULATORY_SEGMENT_DEFINITIONS: SegmentDefinition[] = [
+  {
+    name: "CHMP / Rapporteur Team",
+    type: "chmp_rapporteur",
+    signalWeights: {
+      signalTypes: ["Clinical evidence", "Phase III clinical", "Safety signal", "Regulatory", "Mechanism of action"],
+      directionBias: "neutral",
+      accessSensitivity: 0.05,
+      workflowSensitivity: 0.05,
+      evidenceThreshold: 0.9,
+      competitiveSensitivity: 0.1,
+    },
+    baseAdoptionModifier: 1.0,
+    description: "CHMP rapporteur and co-rapporteur conducting scientific assessment of the marketing authorization application, evaluating benefit-risk balance.",
+  },
+  {
+    name: "PRAC Safety Reviewers",
+    type: "prac_safety",
+    signalWeights: {
+      signalTypes: ["Safety signal", "Clinical evidence", "Real-world evidence", "Regulatory"],
+      directionBias: "negative",
+      accessSensitivity: 0.05,
+      workflowSensitivity: 0.05,
+      evidenceThreshold: 0.95,
+      competitiveSensitivity: 0.05,
+    },
+    baseAdoptionModifier: 0.7,
+    description: "Pharmacovigilance Risk Assessment Committee evaluating risk management plans, safety signals, and post-authorization obligations.",
+  },
+  {
+    name: "Marketing Authorization Holder (MAH)",
+    type: "mah_sponsor",
+    signalWeights: {
+      signalTypes: ["Regulatory", "Clinical evidence", "Safety signal", "Phase III clinical"],
+      directionBias: "positive",
+      accessSensitivity: 0.1,
+      workflowSensitivity: 0.1,
+      evidenceThreshold: 0.7,
+      competitiveSensitivity: 0.15,
+    },
+    baseAdoptionModifier: 1.1,
+    description: "Sponsor/MAH regulatory affairs team managing the centralized procedure, responding to questions, and preparing risk mitigation.",
+  },
+  {
+    name: "Scientific Advisory Group",
+    type: "ema_scientific_advisory",
+    signalWeights: {
+      signalTypes: ["Clinical evidence", "Safety signal", "Expert opinion", "Phase III clinical", "Real-world evidence"],
+      directionBias: "neutral",
+      accessSensitivity: 0.05,
+      workflowSensitivity: 0.05,
+      evidenceThreshold: 0.85,
+      competitiveSensitivity: 0.15,
+    },
+    baseAdoptionModifier: 0.9,
+    description: "EMA Scientific Advisory Group providing external expert input on benefit-risk evaluation for CHMP decision-making.",
+  },
+  {
+    name: "Patient Advocacy Groups",
+    type: "patient_advocacy",
+    signalWeights: {
+      signalTypes: ["Real-world evidence", "Clinical evidence", "Expert opinion"],
+      directionBias: "positive",
+      accessSensitivity: 0.3,
+      workflowSensitivity: 0.1,
+      evidenceThreshold: 0.4,
+      competitiveSensitivity: 0.1,
+    },
+    baseAdoptionModifier: 0.8,
+    description: "Patient organizations influencing CHMP sentiment through public hearings and benefit-risk framing. Influence factor, not primary decision-maker.",
   },
 ];
 
@@ -436,9 +509,15 @@ router.post("/cases/:caseId/adoption-segments/generate", async (req, res) => {
 
   await db.delete(adoptionSegmentsTable).where(eq(adoptionSegmentsTable.caseId, caseId));
 
-  const question = caseData.question || "";
+  const question = caseData.strategicQuestion || caseData.question || "";
   const useRegulatory = isRegulatoryCase(question);
-  const segmentDefs = useRegulatory ? REGULATORY_SEGMENT_DEFINITIONS : SEGMENT_DEFINITIONS;
+  let segmentDefs = SEGMENT_DEFINITIONS;
+  if (useRegulatory) {
+    const authority = detectRegulatoryAuthority(question);
+    segmentDefs = (authority === "ema" || authority === "mhra")
+      ? EMA_REGULATORY_SEGMENT_DEFINITIONS
+      : REGULATORY_SEGMENT_DEFINITIONS;
+  }
 
   const generatedSegments: any[] = [];
 

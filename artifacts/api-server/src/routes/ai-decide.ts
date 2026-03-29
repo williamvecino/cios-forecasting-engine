@@ -4,7 +4,7 @@ import { researchBrand } from "../lib/web-research";
 import { deriveDecisions, type ForecastGate, type DerivedDecisions, type DecisionItem } from "../lib/decision-derivation";
 import { validateDecisionIntegrity, type IntegrityReport } from "../lib/decision-integrity-validator";
 import { assignArchetypesForSegmentation } from "../lib/archetype-assignment";
-import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildSegmentationConstraintPrompt, buildRiskFramingPrompt } from "../lib/case-type-router.js";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildSegmentationConstraintPrompt, buildRiskFramingPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -86,6 +86,9 @@ For competitive_risk, readiness_timeline, and growth_feasibility, ground assessm
     const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
     const segConstraints = buildSegmentationConstraintPrompt(caseTypeProfile);
     const riskConstraints = buildRiskFramingPrompt(caseTypeProfile);
+    const decisionLayerConstraints = buildDecisionLayerPrompt(caseTypeProfile);
+    const driverConstraints = buildDriverConstraintPrompt(caseTypeProfile);
+    const safetyConstraints = buildSafetySignalPrompt(caseTypeProfile);
 
     const impactLabel = isRegulatory ? "impact_on_approval" : "impact_on_adoption";
     const segmentationBlock = isRegulatory ? `
@@ -131,7 +134,7 @@ ${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. All language, actors, an
 ${hasResearch ? "REAL-TIME WEB RESEARCH is included below. Ground your analysis in these findings." : "No recent web research was found. Rely on your training knowledge."}
 
 ${hasGates ? `IMPORTANT: A decision framework has been derived from the forecast gates. You must ADD DETAIL to this framework, not replace it. Do not invent barriers or actions that are not in the framework.` : "No forecast gates available. Generate a standalone analysis."}
-${vocabConstraints}${segConstraints}${riskConstraints}
+${vocabConstraints}${segConstraints}${riskConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}
 Return ONLY valid JSON with this structure:
 
 {

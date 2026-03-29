@@ -6,6 +6,7 @@ import WorkflowStepsSidebar from "./workflow-steps-sidebar";
 import ActiveQuestionBanner from "./active-question-banner";
 import AssumptionRegistry from "./assumption-registry";
 import { useAssumptions } from "../hooks/use-assumptions";
+import { MethodologyGuidance } from "./methodology-guidance";
 
 interface Props {
   currentStep: WorkflowStep;
@@ -81,13 +82,21 @@ export default function WorkflowLayout({
         />
 
         <div className="flex gap-6">
-          <WorkflowStepsSidebar
-            currentStep={currentStep}
-            hasActiveQuestion={!!activeQuestion}
-            assumptionCount={assumptions.length}
-            hasInvalidatedAssumptions={hasInvalidated}
-            onOpenAssumptions={() => setShowAssumptions(true)}
-          />
+          <div className="space-y-4">
+            <WorkflowStepsSidebar
+              currentStep={currentStep}
+              hasActiveQuestion={!!activeQuestion}
+              assumptionCount={assumptions.length}
+              hasInvalidatedAssumptions={hasInvalidated}
+              onOpenAssumptions={() => setShowAssumptions(true)}
+            />
+            {activeQuestion && (
+              <MethodologyGuidance
+                questionText={activeQuestion.text || ""}
+                currentStep={currentStep}
+              />
+            )}
+          </div>
 
           <main className="flex-1 min-w-0">{children}</main>
         </div>

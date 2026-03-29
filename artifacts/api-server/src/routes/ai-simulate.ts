@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import multer from "multer";
-import { getProfileForQuestion, buildVocabularyConstraintPrompt } from "../lib/case-type-router.js";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt, detectRegulatoryAuthority } from "../lib/case-type-router.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -271,15 +271,28 @@ router.post("/ai-simulate/reaction", upload.single("file"), async (req, res) => 
     const caseTypeProfile = getProfileForQuestion(body.questionText);
     const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
     const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
+    const decisionLayerConstraints = buildDecisionLayerPrompt(caseTypeProfile);
+    const driverConstraints = buildDriverConstraintPrompt(caseTypeProfile);
+    const safetyConstraints = buildSafetySignalPrompt(caseTypeProfile);
 
-    const archetypeContext = body.archetype ? `
-ASSIGNED ARCHETYPE: ${body.archetype}
-Use this archetype's known behavioral pattern to predict the reaction:${isRegulatory ? `
+    const authority = detectRegulatoryAuthority(body.questionText);
+    const isEMA = authority === "ema" || authority === "mhra";
+
+    const regulatoryArchetypes = isEMA ? `
+- EMA Rapporteur: focuses on benefit-risk evidence quality, scientific assessment, and CHMP recommendation
+- PRAC Specialist: prioritizes pharmacovigilance, risk management plans, and post-authorization safety
+- CHMP Expert: weighs clinical significance and unmet need against safety uncertainty for marketing authorization
+- Patient Representative: advocates based on disease burden and access to treatment
+- MAH Strategist: evaluates submission completeness, responses to questions, and authorization pathway` : `
 - Regulatory Evaluator: focuses on benefit-risk evidence quality and completeness
 - Safety Specialist: prioritizes risk signal resolution and post-marketing plan adequacy
 - Advisory Expert: weighs clinical significance and unmet need against safety uncertainty
 - Patient Representative: advocates based on disease burden and access to treatment
-- Regulatory Strategist: evaluates submission completeness and review pathway alignment` : `
+- Regulatory Strategist: evaluates submission completeness and review pathway alignment`;
+
+    const archetypeContext = body.archetype ? `
+ASSIGNED ARCHETYPE: ${body.archetype}
+Use this archetype's known behavioral pattern to predict the reaction:${isRegulatory ? regulatoryArchetypes : `
 - Evidence-Driven Innovator: moves on strong clinical data, low guideline dependence
 - Operational Pragmatist: interested but blocked by workflow/staffing/infrastructure burden
 - Guideline Follower: waits for NCCN/society/institutional endorsement before acting
@@ -293,7 +306,7 @@ The archetype determines HOW this ${isRegulatory ? "stakeholder evaluates" : "se
     const systemPrompt = `You are a behavioral reaction scoring engine. You predict how a specific ${isRegulatory ? "regulatory stakeholder" : "market segment"} will respond to material features under current constraints.
 ${isRegulatory ? "\nThis is a REGULATORY APPROVAL case. Frame all predictions in terms of regulatory decision-making, not commercial adoption.\n" : ""}
 You are given a FEATURE MAP extracted from the material — not the material itself. Score the reaction based on what the features contain and what they lack, combined with this ${isRegulatory ? "stakeholder's" : "segment's"} archetype-driven decision style.
-${archetypeContext}${vocabConstraints}
+${archetypeContext}${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}
 RULES:
 - Never use: "Bayesian", "posterior", "Brier", "likelihood ratio", "prior odds"
 - "Probability" is allowed

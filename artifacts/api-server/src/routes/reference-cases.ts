@@ -317,14 +317,6 @@ router.get("/reference-cases", async (_req, res) => {
   res.json(cases);
 });
 
-router.get("/reference-cases/:referenceCaseId", async (req, res) => {
-  const rows = await db.select().from(referenceCasesTable)
-    .where(eq(referenceCasesTable.referenceCaseId, req.params.referenceCaseId))
-    .limit(1);
-  if (!rows[0]) return res.status(404).json({ error: "Reference case not found" });
-  res.json(rows[0]);
-});
-
 router.get("/reference-cases/tags/all", async (_req, res) => {
   const cases = await db.select({ structuralTags: referenceCasesTable.structuralTags }).from(referenceCasesTable);
   const tagSet = new Set<string>();
@@ -404,6 +396,106 @@ router.get("/reference-cases/similar/:predictionId", async (req, res) => {
     .slice(0, 5);
 
   res.json(filtered);
+});
+
+interface ChallengeCaseDefinition {
+  referenceCaseId: string;
+  caseName: string;
+  expectedProbabilityRange: { min: number; max: number };
+  tolerancePp: number;
+  validationCriteria: string[];
+}
+
+const CHALLENGE_CASES: ChallengeCaseDefinition[] = [
+  {
+    referenceCaseId: "REF-001",
+    caseName: "Orphan Pulmonary — Strong Clinical, Slow Access",
+    expectedProbabilityRange: { min: 0.53, max: 0.63 },
+    tolerancePp: 5,
+    validationCriteria: [
+      "Forecast reflects payer access barriers constraining clinical strength",
+      "Workflow friction identified as adoption ceiling factor",
+      "Initial probability not inflated by KOL enthusiasm alone",
+    ],
+  },
+  {
+    referenceCaseId: "REF-002",
+    caseName: "Oncology Biosimilar — Competitive Disruption",
+    expectedProbabilityRange: { min: 0.77, max: 0.87 },
+    tolerancePp: 5,
+    validationCriteria: [
+      "Interchangeability designation weighted appropriately",
+      "GPO channel effect reflected in probability",
+      "Physician brand loyalty not overweighted vs access signals",
+    ],
+  },
+];
+
+router.get("/reference-cases/challenge-library", async (_req, res) => {
+  try {
+    res.json({ challengeCases: CHALLENGE_CASES, count: CHALLENGE_CASES.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/reference-cases/:referenceCaseId", async (req, res) => {
+  const rows = await db.select().from(referenceCasesTable)
+    .where(eq(referenceCasesTable.referenceCaseId, req.params.referenceCaseId))
+    .limit(1);
+  if (!rows[0]) return res.status(404).json({ error: "Reference case not found" });
+  res.json(rows[0]);
+});
+
+router.post("/reference-cases/challenge-validate", async (req, res) => {
+  try {
+    const { referenceCaseId, actualProbability } = req.body;
+    if (!referenceCaseId || actualProbability == null) {
+      res.status(400).json({ error: "referenceCaseId and actualProbability are required" });
+      return;
+    }
+
+    const challenge = CHALLENGE_CASES.find(c => c.referenceCaseId === referenceCaseId);
+    if (!challenge) {
+      res.status(404).json({ error: `No challenge case found for ${referenceCaseId}` });
+      return;
+    }
+
+    const toleranceDecimal = challenge.tolerancePp / 100;
+    const effectiveMin = challenge.expectedProbabilityRange.min - toleranceDecimal;
+    const effectiveMax = challenge.expectedProbabilityRange.max + toleranceDecimal;
+    const withinRange = actualProbability >= effectiveMin && actualProbability <= effectiveMax;
+
+    const deviation = actualProbability < challenge.expectedProbabilityRange.min
+      ? challenge.expectedProbabilityRange.min - actualProbability
+      : actualProbability > challenge.expectedProbabilityRange.max
+        ? actualProbability - challenge.expectedProbabilityRange.max
+        : 0;
+
+    let grade: "pass" | "marginal" | "fail";
+    if (deviation === 0) {
+      grade = "pass";
+    } else if (deviation <= toleranceDecimal) {
+      grade = "marginal";
+    } else {
+      grade = "fail";
+    }
+
+    res.json({
+      referenceCaseId,
+      caseName: challenge.caseName,
+      actualProbability,
+      expectedRange: challenge.expectedProbabilityRange,
+      tolerancePp: challenge.tolerancePp,
+      effectiveRange: { min: effectiveMin, max: effectiveMax },
+      withinRange,
+      deviationPp: Math.round(deviation * 100),
+      grade,
+      validationCriteria: challenge.validationCriteria,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

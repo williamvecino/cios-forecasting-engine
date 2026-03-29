@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
 import { StakeholderReactionPanel } from "@/components/simulate/StakeholderReactionPanel";
-import { detectCaseType, REGULATORY_SEGMENTS, COMMERCIAL_SEGMENTS } from "@/lib/case-type-utils";
+import { detectCaseType, REGULATORY_SEGMENTS, COMMERCIAL_SEGMENTS, getRegulatorySegments } from "@/lib/case-type-utils";
 
 interface ArchetypeInfo {
   segment_name: string;
@@ -105,7 +105,7 @@ export default function SimulatePage() {
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.text || "";
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
-  const SEGMENTS = caseTypeInfo.isRegulatory ? REGULATORY_SEGMENTS : DEFAULT_SEGMENTS;
+  const SEGMENTS = caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
   const hasInput = selectedSegment && (materialText.trim() || file);
 
   useEffect(() => {

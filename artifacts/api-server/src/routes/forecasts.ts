@@ -30,6 +30,59 @@ import {
   type GuardrailLog,
   type GateStatus,
 } from "../lib/engine-guardrails.js";
+import { getProfileForQuestion } from "../lib/case-type-router.js";
+
+interface SafetyCeilingResult {
+  applied: boolean;
+  ceiling: number;
+  reason: string | null;
+  unresolvedSafetySignals: number;
+}
+
+function applySafetyCeiling(
+  probability: number,
+  signals: Array<{ direction?: string | null; strengthScore?: number | null; status?: string | null; signalType?: string | null; category?: string | null; signalDescription?: string | null }>,
+  isRegulatory: boolean,
+): SafetyCeilingResult {
+  if (!isRegulatory) return { applied: false, ceiling: 1.0, reason: null, unresolvedSafetySignals: 0 };
+
+  const safetyKeywords = ["safety", "adverse", "side effect", "toxicity", "risk", "aria", "amyloid-related", "edema", "hemorrhage", "death", "mortality", "black box", "warning", "contraindication"];
+  const resolvedStatuses = ["resolved", "invalidated", "superseded", "archived"];
+
+  const unresolvedSafety = signals.filter(s => {
+    const dir = (s.direction ?? "").toLowerCase();
+    if (dir !== "negative") return false;
+    const st = (s.status ?? "").toLowerCase();
+    if (resolvedStatuses.includes(st)) return false;
+    const strength = s.strengthScore ?? 0;
+    if (strength < 0.5) return false;
+    const desc = (s.signalDescription ?? "").toLowerCase();
+    const cat = (s.category ?? "").toLowerCase();
+    const type = (s.signalType ?? "").toLowerCase();
+    const isSafety = safetyKeywords.some(kw => desc.includes(kw) || cat.includes(kw) || type.includes(kw));
+    return isSafety;
+  });
+
+  if (unresolvedSafety.length === 0) return { applied: false, ceiling: 1.0, reason: null, unresolvedSafetySignals: 0 };
+
+  const highStrength = unresolvedSafety.filter(s => (s.strengthScore ?? 0) >= 0.8);
+  let ceiling: number;
+  if (highStrength.length >= 2) {
+    ceiling = 0.55;
+  } else if (highStrength.length === 1) {
+    ceiling = 0.65;
+  } else {
+    ceiling = 0.75;
+  }
+
+  const capped = Math.min(probability, ceiling);
+  return {
+    applied: capped < probability,
+    ceiling,
+    reason: `${unresolvedSafety.length} unresolved safety signal(s) (${highStrength.length} high-strength) constrain forecast ceiling to ${Math.round(ceiling * 100)}%`,
+    unresolvedSafetySignals: unresolvedSafety.length,
+  };
+}
 
 function resolveSpecialtyProfile(raw: string | null): SpecialtyActorProfile {
   const map: Record<string, SpecialtyActorProfile> = {
@@ -244,6 +297,13 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   );
   environmentAdjustedProbability = guardrailedProbability;
 
+  const caseTypeProfile = getProfileForQuestion(caseData.strategicQuestion ?? "", caseData.caseType ?? undefined);
+  const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
+  const safetyCeiling = applySafetyCeiling(environmentAdjustedProbability, allSignals as any, isRegulatory);
+  if (safetyCeiling.applied) {
+    environmentAdjustedProbability = Math.min(environmentAdjustedProbability, safetyCeiling.ceiling);
+  }
+
   // Keep bucket field for backward compatibility with downstream consumers
   const bucket = getBucket(rawProbability);
 
@@ -286,6 +346,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       eligibleSignals: eligibleSignals.length,
       filteredOut: allSignals.length - eligibleSignals.length,
     },
+    _safetyCeiling: safetyCeiling,
   };
 
   await db.update(casesTable).set({

@@ -28,7 +28,9 @@ export interface ActorSegment {
   relevanceTiming: string;
 }
 
-const REGULATORY_ACTORS: ActorSegment[] = [
+type RegulatoryAuthority = "fda" | "ema" | "mhra" | "pmda" | "generic";
+
+const FDA_REGULATORY_ACTORS: ActorSegment[] = [
   {
     segmentType: "fda_review_division",
     segmentName: "FDA Review Division",
@@ -64,12 +66,72 @@ const REGULATORY_ACTORS: ActorSegment[] = [
   {
     segmentType: "patient_advocacy",
     segmentName: "Patient Advocacy Groups",
-    description: "Patient organizations influencing advisory sentiment, public testimony, and benefit-risk framing. Active pre-approval in regulatory cases.",
+    description: "Patient organizations influencing advisory sentiment, public testimony, and benefit-risk framing. Classified as influence factor, not primary driver.",
     baseModifier: 0.8,
     signalWeights: { patient: 0.9, advocacy: 0.9, safety: 0.5, clinical: 0.4 },
     relevanceTiming: "pre-approval",
   },
 ];
+
+const EMA_REGULATORY_ACTORS: ActorSegment[] = [
+  {
+    segmentType: "ema_rapporteur",
+    segmentName: "EMA Rapporteur / CHMP",
+    description: "Primary assessment team within the Committee for Medicinal Products for Human Use evaluating benefit-risk, clinical evidence, and marketing authorization scope.",
+    baseModifier: 1.0,
+    signalWeights: { clinical: 0.9, safety: 0.9, regulatory: 1.0, evidence: 0.8 },
+    relevanceTiming: "pre-decision",
+  },
+  {
+    segmentType: "chmp_members",
+    segmentName: "CHMP Members",
+    description: "Committee members voting on marketing authorization recommendation based on scientific assessment and benefit-risk evaluation.",
+    baseModifier: 0.9,
+    signalWeights: { clinical: 0.9, safety: 0.95, expert: 0.8, evidence: 0.85 },
+    relevanceTiming: "pre-decision",
+  },
+  {
+    segmentType: "prac",
+    segmentName: "PRAC (Pharmacovigilance)",
+    description: "Pharmacovigilance Risk Assessment Committee evaluating safety signals, risk management plans, and post-authorization safety requirements.",
+    baseModifier: 0.7,
+    signalWeights: { safety: 1.0, clinical: 0.6, regulatory: 0.7 },
+    relevanceTiming: "pre-decision",
+  },
+  {
+    segmentType: "marketing_auth_holder",
+    segmentName: "Marketing Authorization Holder",
+    description: "Sponsor organization managing the marketing authorization application, responding to CHMP questions, and preparing risk management plans.",
+    baseModifier: 1.1,
+    signalWeights: { regulatory: 0.9, clinical: 0.8, safety: 0.7, evidence: 0.75 },
+    relevanceTiming: "pre-decision",
+  },
+  {
+    segmentType: "patient_advocacy",
+    segmentName: "Patient Advocacy Groups",
+    description: "Patient organizations influencing EMA scientific advice, public hearings, and benefit-risk framing. Classified as influence factor, not primary driver.",
+    baseModifier: 0.8,
+    signalWeights: { patient: 0.9, advocacy: 0.9, safety: 0.5, clinical: 0.4 },
+    relevanceTiming: "pre-approval",
+  },
+];
+
+const REGULATORY_ACTORS = FDA_REGULATORY_ACTORS;
+
+export function detectRegulatoryAuthority(question: string): RegulatoryAuthority {
+  const q = question.toLowerCase();
+  if (q.includes("ema") || q.includes("european") || q.includes("chmp") || q.includes("prac") || q.includes("marketing authoriz") || q.includes("eu ")) return "ema";
+  if (q.includes("mhra") || q.includes("uk regulator")) return "mhra";
+  if (q.includes("pmda") || q.includes("japan")) return "pmda";
+  if (q.includes("fda") || q.includes("pdufa") || q.includes("advisory committee")) return "fda";
+  return "generic";
+}
+
+export function getRegulatoryActors(question: string): ActorSegment[] {
+  const authority = detectRegulatoryAuthority(question);
+  if (authority === "ema" || authority === "mhra") return EMA_REGULATORY_ACTORS;
+  return FDA_REGULATORY_ACTORS;
+}
 
 const COMMERCIAL_ACTORS: ActorSegment[] = [
   {
@@ -445,7 +507,9 @@ export function isRegulatoryCase(question: string, caseType?: string): boolean {
 
 export function getCaseTypeProfile(classifierType: string, question?: string): CaseTypeProfile {
   if (question && isRegulatoryCase(question, classifierType)) {
-    return PROFILES.regulatory_approval;
+    const profile = { ...PROFILES.regulatory_approval };
+    profile.actorSegments = getRegulatoryActors(question);
+    return profile;
   }
   const routerKey = CLASSIFIER_TO_ROUTER[classifierType] || "clinical_adoption";
   return PROFILES[routerKey] || PROFILES.clinical_adoption;
@@ -453,7 +517,9 @@ export function getCaseTypeProfile(classifierType: string, question?: string): C
 
 export function getProfileForQuestion(question: string, classifierType?: string): CaseTypeProfile {
   if (isRegulatoryCase(question, classifierType)) {
-    return PROFILES.regulatory_approval;
+    const profile = { ...PROFILES.regulatory_approval };
+    profile.actorSegments = getRegulatoryActors(question);
+    return profile;
   }
   if (classifierType) {
     const routerKey = CLASSIFIER_TO_ROUTER[classifierType] || "clinical_adoption";
@@ -518,4 +584,77 @@ export function getActorSegments(profile: CaseTypeProfile): ActorSegment[] {
   return profile.actorSegments;
 }
 
-export { PROFILES, REGULATORY_ACTORS, COMMERCIAL_ACTORS };
+export function buildDecisionLayerPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType !== "regulatory_approval") return "";
+  return `
+DECISION LAYER SEPARATION (MANDATORY):
+This case operates in the REGULATORY APPROVAL layer only.
+
+Layer 1 — Regulatory Approval (THIS CASE):
+  Determined ONLY by: clinical efficacy, safety profile, regulatory compliance, data integrity, risk mitigation.
+  Decision authority: Regulatory agency (FDA, EMA, etc.)
+
+Layer 2 — HTA / Reimbursement (DOWNSTREAM — do not mix):
+  Determined by: cost-effectiveness, budget impact, pricing.
+  Decision authority: Payers, HTA bodies.
+
+Layer 3 — Adoption / Utilization (DOWNSTREAM — do not mix):
+  Determined by: physician behavior, infrastructure readiness, patient acceptance.
+  Decision authority: Prescribers, health systems.
+
+RULES:
+- Cost-effectiveness, budget impact, and pricing must NEVER appear as regulatory bottlenecks or drivers.
+- Payers, health systems, and reimbursement authorities must NEVER appear as regulatory decision-makers.
+- Market readiness, operational readiness, and adoption ceiling are NOT regulatory constructs.
+- If these concepts are relevant, classify them as "downstream impact" only.
+`;
+}
+
+export function buildDriverConstraintPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType !== "regulatory_approval") return "";
+  return `
+DRIVER CONSTRAINTS (MANDATORY):
+Primary drivers of regulatory approval must be limited to:
+  - Clinical efficacy evidence
+  - Safety profile and risk management
+  - Trial integrity and data quality
+  - Regulatory compliance and submission completeness
+  - Evidence sufficiency
+
+DISALLOWED as drivers (these are outcomes or downstream):
+  - "Regulatory approval by [agency]" — this is the OUTCOME, not a driver
+  - "FDA approval", "EMA approval" — outcomes, not causes
+  - Cost-effectiveness — belongs to reimbursement layer
+  - Market share, adoption — belongs to adoption layer
+  - Health economics — downstream impact only
+
+INFLUENCE FACTORS (not primary drivers):
+  - Patient advocacy — influence factor, not driver
+  - Media attention — influence factor
+  - Political pressure — influence factor
+  - KOL endorsement — modifies committee confidence and evidence interpretation, NOT decision authority
+
+If a circular driver is detected (outcome listed as driver), replace with:
+  - "Regulatory readiness" instead of "regulatory approval"
+  - "Submission completeness" instead of "FDA decision"
+  - "Evidence sufficiency" instead of "approval likelihood"
+`;
+}
+
+export function buildSafetySignalPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType !== "regulatory_approval") return "";
+  return `
+SAFETY SIGNAL RULES:
+- A high-importance safety signal that is unresolved must ALWAYS exert downward pressure on probability.
+- Safety vs efficacy tradeoffs must be classified as "Constraining" or "Mixed" — NEVER "Neutral".
+- If safety is unresolved, the forecast ceiling must be constrained regardless of other progress.
+
+GATE HIERARCHY:
+- Safety resolution → HIGH weight (blocks approval regardless of other gates)
+- Data sufficiency → HIGH weight
+- Advisory recommendation → MEDIUM weight
+- Communication readiness → LOW weight
+`;
+}
+
+export { PROFILES, REGULATORY_ACTORS, COMMERCIAL_ACTORS, FDA_REGULATORY_ACTORS, EMA_REGULATORY_ACTORS };

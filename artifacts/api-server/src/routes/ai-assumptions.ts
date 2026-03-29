@@ -3,6 +3,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { db } from "@workspace/db";
 import { assumptionRegistryTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -137,6 +138,11 @@ router.post("/ai-assumptions/extract", async (req, res) => {
       .from(assumptionRegistryTable)
       .where(eq(assumptionRegistryTable.caseId, body.caseId));
 
+    const caseTypeProfile = getProfileForQuestion(body.questionText);
+    const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
+    const decisionLayerConstraints = buildDecisionLayerPrompt(caseTypeProfile);
+    const driverConstraints = buildDriverConstraintPrompt(caseTypeProfile);
+
     const caseContext = buildCaseContext(body);
     const existingContext = existingRows.length
       ? `\nEXISTING ASSUMPTIONS (preserve IDs, update status if evidence has changed):\n${existingRows.map(a => `- [${a.assumptionId}] [${a.assumptionStatus}] [${a.assumptionCategory}] [impact:${a.impactLevel}] ${a.assumptionStatement}`).join("\n")}`
@@ -172,7 +178,7 @@ RULES:
 - STRICT DEDUPLICATION: if multiple constraints, barriers, or signals imply the same underlying assumption (e.g., "payer coverage pending" and "coverage unresolved" and "payer decision not final"), you MUST merge them into ONE normalized assumption. Never create multiple assumptions that describe the same condition from different angles. When in doubt, merge.
 - Link each assumption to gate labels from context when relevant
 - If existing assumptions are provided, preserve their IDs. Update status to "validated" if confirmed, "invalidated" if contradicted. Add new ones as needed.
-${existingContext}
+${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${existingContext}
 
 OUTPUT FORMAT — return valid JSON:
 {

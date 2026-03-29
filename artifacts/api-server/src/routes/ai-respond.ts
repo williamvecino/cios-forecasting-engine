@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { getProfileForQuestion, buildVocabularyConstraintPrompt } from "../lib/case-type-router.js";
+import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -63,6 +63,9 @@ router.post("/ai-respond/generate", async (req, res) => {
     const caseTypeProfile = getProfileForQuestion(body.questionText);
     const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
     const vocabConstraints = buildVocabularyConstraintPrompt(caseTypeProfile);
+    const decisionLayerConstraints = buildDecisionLayerPrompt(caseTypeProfile);
+    const driverConstraints = buildDriverConstraintPrompt(caseTypeProfile);
+    const safetyConstraints = buildSafetySignalPrompt(caseTypeProfile);
 
     const actionExample = isRegulatory
       ? `"Finalize ARIA risk mitigation strategy because benefit-risk balance is the primary advisory concern."`
@@ -79,7 +82,7 @@ VOICE:
 - State what is happening, what matters, what to do. Nothing else.
 - Never use: "Bayesian", "posterior", "Brier score", "likelihood ratio", "prior odds"
 - "Probability" is allowed
-${vocabConstraints}
+${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}
 ═══ PROBABILITY ALIGNMENT (MANDATORY) ═══
 ${probabilityFrame || "No probability provided. Generate response from signals and question context."}
 The strategic_recommendation MUST be consistent with the probability. If the probability says likely, the recommendation must say likely. If the probability says unlikely, the recommendation must say unlikely. A contradiction between the computed probability and the narrative is a critical error.
