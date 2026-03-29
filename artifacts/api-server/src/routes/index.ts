@@ -52,6 +52,8 @@ import signalDependencyRouter from "./signal-dependency.js";
 import referenceCasesRouter from "./reference-cases.js";
 import adoptionSegmentsRouter from "./adoption-segments.js";
 import barrierDiagnosisRouter from "./barrier-diagnosis.js";
+import caseFeedbackRouter from "./case-feedback.js";
+import caseTypeRouter from "./case-type.js";
 
 const router: IRouter = Router();
 
@@ -108,5 +110,7 @@ router.use(signalDependencyRouter);
 router.use(referenceCasesRouter);
 router.use(adoptionSegmentsRouter);
 router.use(barrierDiagnosisRouter);
+router.use(caseFeedbackRouter);
+router.use(caseTypeRouter);
 
 export default router;

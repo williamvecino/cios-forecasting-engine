@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { signalsTable, casesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, ne } from "drizzle-orm";
 import { runDependencyAnalysis, computeNaiveVsCompressed } from "../lib/signal-dependency-engine.js";
 
 const router = Router();
@@ -11,7 +11,10 @@ router.get("/cases/:caseId/signal-dependency", async (req, res) => {
     const { caseId } = req.params;
 
     const signals = await db.select().from(signalsTable).where(
-      and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
+      and(
+        eq(signalsTable.caseId, caseId),
+        inArray(signalsTable.status, ["active", "candidate", "reviewed", "validated"])
+      )
     );
 
     const caseRow = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);

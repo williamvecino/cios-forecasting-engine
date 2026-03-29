@@ -1,0 +1,474 @@
+CIOS Feedback Package — Sequential Fixes from One Full Test Case
+Case used
+
+VESALIUS-CV — evolocumab primary prevention
+
+Objective
+
+Strengthen CIOS by fixing issues revealed during one complete end-to-end run and by adding an internal case-feedback mechanism so testing can accumulate systematically inside the product.
+
+1. Global Product Goal
+
+This test showed that the workflow runs end-to-end, but several layers are still defaulting to a commercial/adoption template even when the case is fundamentally a clinical endpoint prediction.
+
+The main product goal now should be:
+
+Make CIOS case-type aware.
+
+The system should distinguish between at least these case types before driver selection, decision logic, response logic, and simulation logic are applied:
+
+Clinical endpoint prediction
+Regulatory outcome prediction
+Adoption / commercialization forecast
+Market access / payer forecast
+Competitive response forecast
+Strategic decision / business case
+
+This is the biggest structural issue surfaced by the case.
+
+2. Add a Dedicated “Case Feedback” Module
+
+A formal feedback layer is now needed inside the system so test learnings can be captured per case without relying on external notes.
+
+Required new module
+
+Add a new case-attached module called:
+
+Case Feedback
+
+It should live in the workflow shell or diagnostics area and be available throughout the case lifecycle.
+
+Required fields for each feedback entry
+
+Step
+Define / Add Information / Judge / Decide / Respond / Simulate / Resolve / General
+
+Observed Behavior
+What the system did
+
+Expected Behavior
+What should have happened
+
+Impact
+Critical / High / Medium / Low
+
+Category
+Driver selection / Dependency control / Confidence logic / UI rendering / Workflow logic / Reaction weighting / Translation strength / Case typing / Data pipeline / Other
+
+Reproducible
+Yes / No / Unknown
+
+Status
+Open / Triaged / Fixed / Retest needed
+
+Optional screenshot reference
+
+Required behaviors
+Feedback must stay attached to the case
+Feedback must be reviewable later in a case history view
+Feedback must support multiple entries per case
+Feedback should be exportable
+Feedback should not alter calculations
+Feedback should become the main way to cluster learnings per test case
+
+This addition is important because testing is now producing system-level patterns, not just isolated bugs.
+
+3. Step-by-Step Fixes
+Step: Define Comparison Groups
+Finding
+
+The system allows broad binary comparison groups, which is acceptable. No blocking bug here.
+
+Improvement
+
+Do not force the user to design “ideal” scenario buckets. The system should accept normal user phrasing and optionally suggest refinements only when useful.
+
+Fix request
+
+Add a non-blocking comparison group refinement suggestion layer.
+
+Example behavior:
+
+If the user enters:
+
+Significant reduction
+No significant reduction
+
+The system may suggest:
+
+Clinically meaningful reduction
+Borderline / modest reduction
+No reduction
+
+But this must remain optional, not required.
+
+Goal
+
+The user should not need expert framing to proceed.
+
+Step: Add Information
+Finding 1 — Dependency panel metrics bug
+
+The Signal Dependency & Redundancy Control panel showed logically impossible values:
+
+Total Signals: 0
+Independent Families: 0
+Evidence Diversity: 0%
+Novelty: 100%
+
+despite signals clearly existing.
+
+Fix request
+
+Audit the data flow between:
+
+Signal Normalizer
+→ Dependency / Redundancy Control
+→ UI render
+
+Specifically verify:
+
+normalized signal list is passed correctly
+RootEvidenceID assignment executes before rendering
+lineage classification executes before rendering
+the panel is not showing default initialization values
+Add instrumentation
+
+Log these values during runtime:
+
+signal_count_after_normalization
+signal_count_after_dependency_analysis
+signal_count_before_render
+
+This appears to be either a UI state sync issue or downstream data handoff issue.
+
+Finding 2 — Signals are not being compressed conceptually enough
+
+Multiple signals were clearly derivatives of the same VESALIUS-CV root evidence but were still presented like distinct positives.
+
+Fix request
+
+Enforce the already-defined dependency framework more aggressively:
+
+Required fields:
+
+RootEvidenceID
+SignalLineage
+DependencyRole
+SourceCluster
+NovelInformationFlag
+
+Required behavior:
+
+derivative signals should not count as independent evidence
+the engine should compress related signals before posterior updating
+UI should clearly show clustered evidence families
+Goal
+
+The posterior should reflect the number of independent reasons to believe the outcome, not the number of reformulations of the same evidence.
+
+Finding 3 — Minimal-input fallback is too generic
+
+In this case MIOS/BAOS were not run and signals were not manually confirmed, yet the system still produced a full forecast. That is good. But the fallback behavior appears too generic and drifts into adoption logic.
+
+Fix request
+
+Add a minimal-input fallback mode that remains case-type specific.
+
+If MIOS/BAOS are not run, the engine should still work, but it should:
+
+use only baseline case-type appropriate drivers
+avoid defaulting to commercialization gates when the case is clinical
+explicitly label the forecast as based on limited structured input
+Goal
+
+Minimal-input forecasts should still be directionally correct and type-appropriate.
+
+Step: Judge
+Finding 1 — Driver selection mismatch
+
+The Judgment layer used adoption/readiness and commercial execution constraints for what was really a clinical endpoint prediction.
+
+Examples included:
+
+workflow integration
+staff training and familiarity
+administrative burden
+
+These are not first-order drivers for a trial endpoint question.
+
+Fix request
+
+Implement case-type specific driver sets before judgment.
+
+For clinical endpoint prediction, primary driver families should default to:
+
+clinical evidence strength
+mechanistic plausibility
+endpoint structure
+population risk profile
+statistical power / event rate considerations
+precedent trial performance
+
+Operational adoption drivers should not dominate this case type.
+
+Goal
+
+The Judge step should reason within the correct causal layer for the question being asked.
+
+Finding 2 — Confidence explanation is wrong
+
+The system showed low confidence, which can be fine, but explained it as if the evidence itself were weak. In this case the evidence base was not weak; unresolved constraints were the issue.
+
+Fix request
+
+Separate evidence strength from constraint uncertainty in the confidence model.
+
+Add two visible components:
+
+Evidence Confidence
+How strong and direct the evidence is
+
+Execution / Constraint Confidence
+How much unresolved external conditions affect the forecast ceiling
+
+Then compute overall confidence from both, but explain them separately.
+
+Goal
+
+Low confidence should not automatically imply weak evidence.
+
+Step: Decide
+Finding
+
+The Decide layer worked structurally, but it again defaulted toward market adoption and execution actions despite the originating question being a clinical endpoint prediction.
+
+Fix request
+
+Case-type aware Decide logic.
+
+For clinical endpoint cases, Decide should prioritize:
+
+interpretation of what the forecast means for confidence in outcome
+what additional evidence would most change the probability
+which missing data or design issues remain constraining
+whether the result justifies preparation for downstream strategic scenarios
+
+It should not immediately behave like a post-readout commercialization plan unless the case itself is adoption-oriented.
+
+Goal
+
+Decision logic must match the actual question domain.
+
+Step: Respond
+Finding 1 — Output is too weak and non-directional
+
+The Respond layer produced a reasonable summary but not a strong decision output. It listed multiple actions in parallel rather than stating what to do first.
+
+Fix request
+
+Implement a mandatory response structure.
+
+Every Respond output should be generated in this order:
+
+Primary Action
+The highest-leverage action that addresses the dominant constraint
+
+Next Action
+The immediate follow-up once the primary action is underway or resolved
+
+Monitor
+Signals or conditions to track but not act on immediately
+
+Do Not Prioritize Yet
+Reasonable actions that are premature under current constraints
+
+Goal
+
+Respond should output a plan, not a menu.
+
+Finding 2 — Response layer lacks decisiveness
+
+The language is too memo-like and descriptive.
+
+Fix request
+
+Tighten the Respond layer prompt / logic so the first paragraph always answers:
+
+What should we do first?
+Why now?
+What are we explicitly not doing yet?
+Goal
+
+Increase decision force without changing underlying forecast logic.
+
+Step: Simulate
+Finding 1 — Simulation runs, but reaction weighting is biased
+
+Simulation functionally worked. It extracted features, produced an adoption likelihood, identified what the material changes and does not change, and surfaced the key remaining barrier.
+
+But again, the engine overweighted operational burden and guideline ambiguity relative to the strength of the clinical efficacy trigger.
+
+Fix request
+
+Make the simulation reaction layer case-type and trigger-type aware.
+
+If the trigger is a strong clinical efficacy readout, the first-order reaction should be:
+
+increased confidence in clinical benefit
+threshold assessment for action
+evidence credibility response
+
+Only after that should the system evaluate:
+
+operational adoption barriers
+workflow issues
+infrastructure limitations
+Goal
+
+The first reaction should match the nature of the stimulus.
+
+Finding 2 — Simulation asks for too much manual setup
+
+The Simulate step currently requires more user effort than necessary.
+
+Fix request
+
+For resolved or clearly structured cases, allow a one-click default simulation path:
+
+Run Default Simulation
+
+This should:
+
+select the most relevant segment automatically
+use the core forecast output as trigger material
+generate one baseline reaction without upload requirements
+Goal
+
+Make simulation usable during testing without forcing custom scenario design every time.
+
+4. Cross-Step Structural Fixes
+A. Add case-type classification at the very beginning
+
+Before any real logic runs, the system should classify the case.
+
+Required new layer:
+
+Case Type Classifier
+
+At case creation, classify the question into one primary type and one optional secondary type.
+
+Output fields:
+
+PrimaryCaseType
+SecondaryCaseType
+Confidence
+AlternativeInterpretation
+
+This classification should govern:
+
+driver library
+gate logic
+decision logic
+respond logic
+simulation logic
+
+This one addition would likely fix much of the template drift seen across Judge, Decide, Respond, and Simulate.
+
+B. Create distinct driver libraries by case type
+
+Current evidence suggests the same driver universe is being used too broadly.
+
+Build separate driver libraries for:
+
+clinical endpoint questions
+regulatory questions
+adoption / commercialization questions
+payer / access questions
+competitive strategy questions
+
+And require the engine to choose from the correct library first before adding generalized overlays.
+
+C. Distinguish forecast types from execution types
+
+The system currently flows too easily from “will this happen?” into “how do we drive adoption?” even when the case is not about execution.
+
+Add a rule:
+
+Prediction mode and execution mode must be distinct.
+
+Prediction mode should answer:
+
+probability
+key drivers
+what would change the probability
+
+Execution mode should answer:
+
+what to do
+in what order
+who to target
+what not to do yet
+
+The transition from one to the other should be explicit, not automatic.
+
+D. Improve fallback-mode labeling
+
+If the system runs without MIOS/BAOS or without confirmed signals, it should visibly state:
+
+input completeness level
+whether fallback logic was used
+whether the output is preliminary or fully structured
+
+This will improve trust and reduce confusion during testing.
+
+5. Add a Resolution / Closure Step if Not Already Visible
+
+If there is not already an explicit close-and-resolve screen, add one.
+
+The end of every case should include:
+
+Resolved Outcome
+What actually happened
+
+Forecast vs Reality
+How close the model was
+
+Driver Review
+Which drivers helped or hurt accuracy
+
+Case Feedback Summary
+Open feedback items attached to the case
+
+Calibration Update
+Whether the case contributes to model learning / dashboard stats
+
+This matters because testing is not complete until the case is closed and benchmarked against reality.
+
+6. Suggested Sequential Build Order for Replit
+
+This is the order I would fix things.
+
+Phase 1 — Core integrity
+Fix dependency panel signal-count bug
+Verify downstream data flow from normalization to dependency analysis to render
+Enforce RootEvidenceID / lineage / compression before posterior updating
+Phase 2 — Case-type control
+Add Case Type Classifier at case start
+Create case-type-specific driver libraries
+Route Judge / Decide / Respond / Simulate through case-type logic
+Phase 3 — Response quality
+Implement mandatory Respond structure:
+Primary Action
+Next Action
+Monitor
+Do Not Prioritize Yet
+Strengthen response wording so outputs are more directional
+Phase 4 — Simulation usability
+Make simulation trigger-type aware
+Add one-click default simulation path for testing
+Phase 5 — Testing infrastructure
+Add Case Feedback module
+Attach feedback entries to each case
+Add export / review capability for feedback clusters
+Add case closure / resolution summary if missing

@@ -1,0 +1,24 @@
+We completed one full end-to-end CIOS test case using VESALIUS-CV and want to strengthen the system based on observed behavior.
+
+Primary fixes needed:
+
+Fix the Signal Dependency & Redundancy Control panel bug. It showed zero signals and zero independent families despite signals existing. Audit data flow from normalization to dependency analysis to UI render and add logging for signal counts at each stage.
+Enforce true dependency compression before posterior updating. Multiple signals derived from the same VESALIUS-CV root evidence should not count as independent evidence. Use RootEvidenceID, lineage tagging, dependency role, novelty flag, and source cluster fields.
+Add a Case Type Classifier at case creation. The system currently defaults too often into commercialization/adoption logic even when the question is a clinical endpoint prediction. Case type should govern driver selection, gate logic, response logic, and simulation logic.
+Create separate driver libraries by case type. Clinical endpoint questions should prioritize clinical/statistical drivers, not workflow, staff training, or commercialization readiness.
+Separate evidence confidence from constraint uncertainty. The system currently uses low confidence language as if evidence were weak, when in this case the uncertainty came more from unresolved constraints.
+Strengthen the Respond layer. Outputs are too list-like and not directional enough. Make every response follow this sequence: Primary Action, Next Action, Monitor, Do Not Prioritize Yet.
+Make Simulate trigger-type aware. Strong clinical efficacy readouts should first change evidence confidence and action thresholds before emphasizing operational burden.
+Add a one-click default simulation path for testing so users can run a baseline simulation without uploading materials or building custom scenarios.
+Add a dedicated Case Feedback module attached to each case with fields for step, observed behavior, expected behavior, impact, category, reproducibility, status, and optional screenshot reference.
+Add or improve case closure so resolved outcome, forecast vs reality, driver review, and feedback summary are all visible at the end of the case.
+
+Recommended implementation order:
+
+dependency bug and data flow
+case type classification
+driver libraries
+Respond structure
+simulation usability
+case feedback module
+case closure summary

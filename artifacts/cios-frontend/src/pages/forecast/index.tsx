@@ -1817,6 +1817,7 @@ function BottomLinks({ forecastData }: { forecastData?: any }) {
           <Link href="/calibration" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Calibration</Link>
           <Link href="/adoption-segments" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Adoption Segments</Link>
           <Link href="/barrier-diagnosis" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Barrier Diagnosis</Link>
+          <Link href="/case-feedback" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Case Feedback</Link>
           <Link href="/workbench" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Workbench</Link>
         </div>
       </div>
