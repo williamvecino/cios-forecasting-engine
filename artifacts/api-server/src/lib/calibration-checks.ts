@@ -57,6 +57,7 @@ export interface CorrelationCheckResult {
   adjustedIndependenceScore: number;
   rawIndependenceScore: number;
   causalDrivers: string[];
+  independentEvidenceCount: number;
   summary: string;
 }
 
@@ -165,8 +166,8 @@ function runEchoCheck(signals: Signal[], depAnalysis: DependencyAnalysisResult):
     totalSignalCount: signals.length,
     clusters,
     summary: hasEchoes
-      ? `${echoesDetected} echo signal(s) detected from ${depAnalysis.clusters.length} evidence cluster(s). ${compressedCount} signal(s) compressed. Independent evidence families: ${independentEvidenceCount} of ${signals.length} total signals.`
-      : `No evidence echoes detected. ${independentEvidenceCount} independent evidence families from ${signals.length} signals.`,
+      ? `${echoesDetected} echo(es) detected — ${independentEvidenceCount} independent evidence families after compression (${signals.length} raw signals, ${compressedCount} compressed).`
+      : `${independentEvidenceCount} independent evidence families identified. No echoes detected.`,
   };
 }
 
@@ -268,7 +269,8 @@ function runMissingSignalCheck(
   };
 }
 
-function runCorrelationCheck(signals: Signal[]): CorrelationCheckResult {
+function runCorrelationCheck(signals: Signal[], depAnalysis: DependencyAnalysisResult): CorrelationCheckResult {
+  const independentFamilies = depAnalysis.metrics.independentEvidenceFamilies;
   const signalDrivers: Array<{ signalId: string; description: string; drivers: string[] }> = [];
 
   for (const s of signals) {
@@ -302,21 +304,23 @@ function runCorrelationCheck(signals: Signal[]): CorrelationCheckResult {
   }
 
   const uniqueDrivers = [...causalDriverSet];
-  const totalPairs = (signals.length * (signals.length - 1)) / 2;
-  const rawIndependenceScore = totalPairs > 0 ? 1.0 : 1.0;
+  const rawIndependenceScore = signals.length > 0
+    ? independentFamilies / signals.length
+    : 1.0;
   const correlationPenalty = Math.min(correlatedPairs.length * 0.05, 0.4);
-  const adjustedIndependenceScore = Math.max(0.2, 1.0 - correlationPenalty);
+  const adjustedIndependenceScore = Math.max(0.2, rawIndependenceScore - correlationPenalty);
 
   return {
     check: "correlation",
     passed: correlatedPairs.length <= 2,
     correlatedPairs: correlatedPairs.slice(0, 10),
     adjustedIndependenceScore,
-    rawIndependenceScore: 1.0,
+    rawIndependenceScore: Number(rawIndependenceScore.toFixed(2)),
     causalDrivers: uniqueDrivers,
+    independentEvidenceCount: independentFamilies,
     summary: correlatedPairs.length > 0
-      ? `${correlatedPairs.length} correlated signal pair(s) sharing ${uniqueDrivers.length} causal driver(s): ${uniqueDrivers.join(", ")}. Independence score adjusted from 1.00 to ${adjustedIndependenceScore.toFixed(2)}.`
-      : "No shared causal drivers detected between signals. Full independence assumed.",
+      ? `${correlatedPairs.length} correlated signal pair(s) sharing ${uniqueDrivers.length} causal driver(s): ${uniqueDrivers.join(", ")}. ${independentFamilies} independent evidence families from ${signals.length} signals. Independence score: ${adjustedIndependenceScore.toFixed(2)}.`
+      : `No shared causal drivers detected. ${independentFamilies} independent evidence families from ${signals.length} signals. Full independence assumed.`,
   };
 }
 
@@ -329,16 +333,15 @@ function runOverconfidenceCheck(
   const fragility = depAnalysis.metrics.posteriorFragilityScore;
   const diversity = depAnalysis.metrics.evidenceDiversityScore;
   const independentFamilies = depAnalysis.metrics.independentEvidenceFamilies;
-  const totalSignals = signals.length;
 
-  const signalConcentration = independentFamilies > 0
-    ? 1 - (independentFamilies / Math.max(totalSignals, 1))
+  const signalConcentration = independentFamilies > 0 && signals.length > 0
+    ? 1 - (independentFamilies / Math.max(signals.length, 1))
     : 1.0;
 
   const positiveCount = signals.filter(s => (s.direction ?? "").toLowerCase() === "positive").length;
   const negativeCount = signals.filter(s => (s.direction ?? "").toLowerCase() === "negative").length;
-  const directionBalance = totalSignals > 0
-    ? Math.abs(positiveCount - negativeCount) / totalSignals
+  const directionBalance = independentFamilies > 0
+    ? Math.abs(positiveCount - negativeCount) / independentFamilies
     : 0;
 
   const volatilityBase = (fragility * 0.3) + (signalConcentration * 0.25) + ((1 - diversity) * 0.2) + ((1 - correlationResult.adjustedIndependenceScore) * 0.15) + (directionBalance * 0.1);
@@ -387,7 +390,7 @@ export function runCalibrationChecks(
       evidenceEcho: { check: "evidence_echo", passed: true, echoesDetected: 0, compressedCount: 0, redundancyPenalty: 0, independentEvidenceCount: 0, totalSignalCount: 0, clusters: [], summary: "No signals to check." },
       anchorBias: { check: "anchor_bias", passed: true, directionChangeDetected: false, priorDirection: "neutral", currentDirection: "neutral", updateSensitivityMultiplier: 1.0, confidenceStabilityReduction: 0, conflictingSignals: 0, alignedSignals: 0, summary: "No signals to check." },
       missingSignal: { check: "missing_signal", passed: true, implicitNegativeSignals: [], totalImplicitNegatives: 0, adjustedLrProduct: 1.0, summary: "No signals to check." },
-      correlation: { check: "correlation", passed: true, correlatedPairs: [], adjustedIndependenceScore: 1.0, rawIndependenceScore: 1.0, causalDrivers: [], summary: "No signals to check." },
+      correlation: { check: "correlation", passed: true, correlatedPairs: [], adjustedIndependenceScore: 1.0, rawIndependenceScore: 1.0, causalDrivers: [], independentEvidenceCount: 0, summary: "No signals to check." },
       overconfidence: { check: "overconfidence", passed: true, uncertaintyRange: { low: Math.max(0.01, currentProbability - 0.15), high: Math.min(0.99, currentProbability + 0.15) }, volatilityScore: 0, signalConcentration: 0, fragility: 0, diversityScore: 0, summary: "No signals — prior probability only." },
     };
     return emptyResult;
@@ -398,7 +401,7 @@ export function runCalibrationChecks(
   const echoCheck = runEchoCheck(signals, depAnalysis);
   const anchorCheck = runAnchorCheck(signals, priorProbability, currentProbability);
   const missingCheck = runMissingSignalCheck(signals, questionText);
-  const correlationCheck = runCorrelationCheck(signals);
+  const correlationCheck = runCorrelationCheck(signals, depAnalysis);
   const overconfidenceCheck = runOverconfidenceCheck(currentProbability, signals, depAnalysis, correlationCheck);
 
   let adjustedProbability = currentProbability;
