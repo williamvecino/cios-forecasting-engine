@@ -292,6 +292,190 @@ const SEED_CASES = [
     structuralTags: JSON.stringify(["KOL enthusiasm inflation", "false diversity", "early overconfidence", "competitive disruption"]),
     caseSummary: "KOL enthusiasm at conferences did not translate to community practice. Community GIs were reluctant to switch stable patients, payer barriers added friction, and competitor rebates protected incumbent share. The evidence base was concentrated in correlated KOL and patient preference signals."
   },
+  {
+    referenceCaseId: "REF-009",
+    caseName: "VESALIUS-CV — Trial Outcome in Primary Prevention",
+    decisionDomain: "Cardiology",
+    questionText: "Will adding evolocumab to standard therapy significantly reduce first major cardiovascular events in high-risk patients without prior MI or stroke?",
+    comparisonGroups: JSON.stringify(["Primary endpoint met", "Primary endpoint not met"]),
+    forecastHorizon: "36 months",
+    initialForecast: 0.55,
+    finalForecast: 0.67,
+    confidenceLevel: "Moderate",
+    evidenceDiversityScore: 0.65,
+    posteriorFragilityScore: 0.2,
+    concentrationPenalty: 0,
+    independentEvidenceFamilyCount: 5,
+    keyDrivers: JSON.stringify([
+      { desc: "FOURIER trial prior evidence supporting PCSK9 mechanism in CV prevention", lr: 2.8 },
+      { desc: "Demonstrated >60% LDL-C reduction linked to CV event reduction", lr: 2.2 },
+      { desc: "ACC/AHA guidelines support PCSK9i in high-risk primary prevention", lr: 1.9 },
+      { desc: "High baseline MACE rate in primary prevention population", lr: 1.8 }
+    ]),
+    keyConstraints: JSON.stringify([
+      { desc: "Primary prevention population has lower absolute event rate than secondary", lr: 0.85 },
+      { desc: "Injection-site reactions and neurocognitive concern in PCSK9i class", lr: 0.85 }
+    ]),
+    majorLineageClusters: JSON.stringify([
+      { cluster: "PCSK9 clinical trial evidence (FOURIER lineage)", count: 4, echoes: 2, translations: 1 },
+      { cluster: "Biomarker/LDL-C reduction data", count: 2, echoes: 0, translations: 1 },
+      { cluster: "Guideline/epidemiological evidence", count: 2, echoes: 0, translations: 0 }
+    ]),
+    outcome: "Met primary endpoint — ~25% reduction in major CV events, ~36% reduction in first MI",
+    resolutionType: "resolved_true",
+    brierScore: 0.1097,
+    calibrationLesson: "Strong prior evidence from FOURIER lineage correctly predicted directional outcome, but dependency compression was critical — multiple signals traced to same PCSK9 mechanism of action. Moderate-confidence forecasts (50-70%) should weight evidence diversity and prior trial lineage carefully.",
+    biasPattern: "Precedent bias risk — FOURIER lineage signals required compression",
+    structuralTags: JSON.stringify(["clinical trial outcome", "dependency compression", "FOURIER lineage", "moderate confidence calibration", "primary prevention"]),
+    caseSummary: "Binary clinical endpoint with clear statistical threshold. High signal density from prior PCSK9 evidence (FOURIER) required dependency compression to avoid posterior inflation. Tests evidence weighting vs precedent bias and calibration of moderate-confidence forecasts."
+  },
+  {
+    referenceCaseId: "REF-010",
+    caseName: "Donanemab FDA — Regulatory Approval with Safety Signal Conflict",
+    decisionDomain: "Neurology",
+    questionText: "Will the FDA approve donanemab for early symptomatic Alzheimer's disease?",
+    comparisonGroups: JSON.stringify(["FDA approval", "FDA rejection or delay"]),
+    forecastHorizon: "18 months",
+    initialForecast: 0.50,
+    finalForecast: 0.47,
+    confidenceLevel: "Moderate",
+    evidenceDiversityScore: 0.55,
+    posteriorFragilityScore: 0.35,
+    concentrationPenalty: 0,
+    independentEvidenceFamilyCount: 4,
+    keyDrivers: JSON.stringify([
+      { desc: "TRAILBLAZER-ALZ 2 met primary endpoint with 35% slowing of cognitive decline", lr: 2.5 },
+      { desc: "FDA approved lecanemab — establishes anti-amyloid regulatory pathway", lr: 2.2 },
+      { desc: "68% amyloid clearance supports biologic plausibility", lr: 2.0 },
+      { desc: "Advisory committee voted in favor with stipulations", lr: 1.7 }
+    ]),
+    keyConstraints: JSON.stringify([
+      { desc: "ARIA-E in 24% of patients, 3 treatment-related deaths — significant safety signal", lr: 0.55 },
+      { desc: "FDA issued Complete Response Letter requesting additional analyses", lr: 0.75 }
+    ]),
+    majorLineageClusters: JSON.stringify([
+      { cluster: "Anti-amyloid clinical trial evidence", count: 3, echoes: 1, translations: 1 },
+      { cluster: "Regulatory precedent (lecanemab pathway)", count: 2, echoes: 0, translations: 1 },
+      { cluster: "Safety/ARIA data", count: 2, echoes: 1, translations: 0 }
+    ]),
+    outcome: "FDA approved donanemab (Kisunla) on July 2, 2024 for early symptomatic AD with REMS",
+    resolutionType: "resolved_true",
+    brierScore: 0.2837,
+    calibrationLesson: "Classic risk-benefit regulatory decision. Conflicting signals (strong efficacy vs safety deaths) made this a genuine 50/50 forecast. The lecanemab precedent was the decisive signal — class pathway establishment reduced regulatory uncertainty. Safety concerns resulted in REMS requirement but did not block approval. Forecasts must distinguish safety-as-blocker from safety-as-condition.",
+    biasPattern: "Safety signal overweighting — deaths created false-confidence in rejection",
+    structuralTags: JSON.stringify(["regulatory approval", "risk-benefit conflict", "safety signal interpretation", "precedent dependency", "false-confidence detection"]),
+    caseSummary: "Conflicting signals: strong efficacy data vs treatment-related deaths. Regulatory precedent (lecanemab) proved decisive. Tests risk signal interpretation, regulatory probability calibration, and false-confidence detection when safety signals conflict with efficacy."
+  },
+  {
+    referenceCaseId: "REF-011",
+    caseName: "Donanemab EU — Geographic Regulatory Divergence",
+    decisionDomain: "Neurology",
+    questionText: "Will European regulators approve donanemab for Alzheimer's disease?",
+    comparisonGroups: JSON.stringify(["EMA approval", "EMA rejection"]),
+    forecastHorizon: "18 months",
+    initialForecast: 0.45,
+    finalForecast: 0.41,
+    confidenceLevel: "Low",
+    evidenceDiversityScore: 0.45,
+    posteriorFragilityScore: 0.4,
+    concentrationPenalty: 0,
+    independentEvidenceFamilyCount: 3,
+    keyDrivers: JSON.stringify([
+      { desc: "Same TRAILBLAZER-ALZ 2 efficacy data — 35% slowing of cognitive decline", lr: 2.2 },
+      { desc: "Patient advocacy groups in Europe advocating for access", lr: 1.3 }
+    ]),
+    keyConstraints: JSON.stringify([
+      { desc: "ARIA-E 24%, 3 deaths — EMA historically more conservative on safety-benefit", lr: 0.45 },
+      { desc: "Lecanemab withdrawn from EMA review — no anti-amyloid precedent in EU", lr: 0.5 },
+      { desc: "CHMP applies stricter clinical meaningfulness thresholds for neurodegeneration", lr: 0.55 },
+      { desc: "NICE and European HTA bodies questioned clinical meaningfulness", lr: 0.6 }
+    ]),
+    majorLineageClusters: JSON.stringify([
+      { cluster: "Anti-amyloid clinical trial evidence", count: 3, echoes: 1, translations: 1 },
+      { cluster: "Regulatory environment (EMA conservatism)", count: 3, echoes: 0, translations: 2 }
+    ]),
+    outcome: "Rejected by CHMP — benefits did not outweigh risks (safety concerns, insufficient clinical meaningfulness)",
+    resolutionType: "resolved_false",
+    brierScore: 0.1665,
+    calibrationLesson: "Same evidence, different outcome. The absence of a class precedent (lecanemab withdrawn from EMA) and EMA's stricter clinical meaningfulness threshold were decisive. Geographic divergence cases require modeling the regulatory environment as a first-order variable, not just the evidence base. FDA approval does not predict EMA approval.",
+    biasPattern: "Overgeneralization — FDA approval falsely increased EU confidence",
+    structuralTags: JSON.stringify(["geographic divergence", "actor environment sensitivity", "regulatory conservatism", "overgeneralization risk", "same evidence different outcome"]),
+    caseSummary: "Same drug, same evidence, opposite regulatory outcome. Tests actor environment sensitivity, regional decision modeling, and overgeneralization risk. The absence of a class precedent in EU and stricter CHMP thresholds drove rejection despite FDA approval of the same asset."
+  },
+  {
+    referenceCaseId: "REF-012",
+    caseName: "CHAMPION-AF — Late-Breaker Composite Endpoint",
+    decisionDomain: "Cardiology",
+    questionText: "Will left atrial appendage closure demonstrate non-inferiority to NOAC therapy and reduce bleeding risk?",
+    comparisonGroups: JSON.stringify(["Dual endpoint met", "Endpoint not met"]),
+    forecastHorizon: "24 months",
+    initialForecast: 0.50,
+    finalForecast: 0.59,
+    confidenceLevel: "Moderate",
+    evidenceDiversityScore: 0.6,
+    posteriorFragilityScore: 0.25,
+    concentrationPenalty: 0,
+    independentEvidenceFamilyCount: 5,
+    keyDrivers: JSON.stringify([
+      { desc: "Prior PROTECT AF/PREVAIL trials showed LAAC feasibility in AF", lr: 1.6 },
+      { desc: "Large registry data (>100K patients) shows declining complication rates", lr: 1.5 },
+      { desc: "CMS expanded LAAC coverage criteria in 2023", lr: 1.6 },
+      { desc: "Modern trial design uses NOAC comparator — more rigorous", lr: 1.4 }
+    ]),
+    keyConstraints: JSON.stringify([
+      { desc: "Procedural complications (pericardial effusion, embolization) in 2-4%", lr: 0.7 },
+      { desc: "Prior trials against warfarin — NOAC non-inferiority is harder bar", lr: 0.8 }
+    ]),
+    majorLineageClusters: JSON.stringify([
+      { cluster: "LAAC clinical trial evidence (PROTECT/PREVAIL lineage)", count: 3, echoes: 1, translations: 1 },
+      { cluster: "Real-world registry evidence", count: 2, echoes: 0, translations: 1 },
+      { cluster: "Payer/coverage evidence", count: 2, echoes: 1, translations: 0 }
+    ]),
+    outcome: "Met non-inferiority for stroke AND superiority for major bleeding reduction vs NOAC",
+    resolutionType: "resolved_true",
+    brierScore: 0.1643,
+    calibrationLesson: "Compound endpoints require separate probability assessment for each component. Non-inferiority is structurally different from superiority — the dual success was partly due to the bleeding endpoint being a lower bar. Multi-signal evidence from clinical trials, registries, and payer support converged. Adoption-relevant signal weighting matters for compound endpoints.",
+    biasPattern: "Compound endpoint underconfidence — bleeding superiority was more predictable than stroke non-inferiority",
+    structuralTags: JSON.stringify(["composite endpoint", "non-inferiority trial", "adoption sensitivity", "multi-signal convergence", "device adoption"]),
+    caseSummary: "Compound endpoint prediction with behavioral adoption implications. Tests CIOS ability to handle composite endpoints, adoption-relevant signal weighting, and forecast revision logic. Multi-signal evidence from trials, registries, and payer actions converged to support dual success."
+  },
+  {
+    referenceCaseId: "REF-013",
+    caseName: "Part D Redesign — Structural Policy Change",
+    decisionDomain: "Health Policy / Market Structure",
+    questionText: "Will the 2025 Part D redesign materially increase manufacturer liability in catastrophic coverage?",
+    comparisonGroups: JSON.stringify(["Material liability increase", "No material change"]),
+    forecastHorizon: "36 months",
+    initialForecast: 0.60,
+    finalForecast: 0.57,
+    confidenceLevel: "Moderate",
+    evidenceDiversityScore: 0.7,
+    posteriorFragilityScore: 0.15,
+    concentrationPenalty: 0,
+    independentEvidenceFamilyCount: 5,
+    keyDrivers: JSON.stringify([
+      { desc: "IRA signed into law with bipartisan support — explicit Part D redesign provisions", lr: 3.5 },
+      { desc: "CMS issued final rule implementing manufacturer discount program", lr: 3.0 },
+      { desc: "CBO scored manufacturer liability at ~20% in catastrophic coverage", lr: 2.8 },
+      { desc: "Bipartisan support for $2K OOP cap reduces repeal risk", lr: 1.8 },
+      { desc: "PBMs and plans already restructuring formularies for 2025", lr: 2.0 }
+    ]),
+    keyConstraints: JSON.stringify([
+      { desc: "PhRMA legal and lobbying challenges to IRA provisions", lr: 0.75 }
+    ]),
+    majorLineageClusters: JSON.stringify([
+      { cluster: "Legislative/regulatory evidence", count: 3, echoes: 0, translations: 1 },
+      { cluster: "Economic/structural evidence", count: 2, echoes: 1, translations: 0 },
+      { cluster: "Market behavior evidence (PBM/plan anticipation)", count: 2, echoes: 0, translations: 1 }
+    ]),
+    outcome: "Manufacturers bear ~20% catastrophic liability under IRA Part D redesign, effective January 2025",
+    resolutionType: "resolved_true",
+    brierScore: 0.1849,
+    calibrationLesson: "Structural policy changes with legislative finality and regulatory execution are highly predictable once signed into law. The forecast should have been more confident earlier. Lobbying/legal challenges created false uncertainty — once legislation is enacted and CMS issues final rules, implementation is near-certain. Economic necessity logic and long-horizon calibration require distinguishing enacted policy from proposed policy.",
+    biasPattern: "False uncertainty from lobbying noise — enacted legislation has high implementation probability",
+    structuralTags: JSON.stringify(["structural policy change", "legislative finality", "economic necessity", "long-horizon calibration", "market structure shift"]),
+    caseSummary: "Structural policy change with high predictability once enacted into law. Tests structural vs operational signal weighting, economic necessity logic, and long-horizon forecasting calibration. Market was already pricing in the change before effective date."
+  },
 ];
 
 async function seedReferenceCases() {
