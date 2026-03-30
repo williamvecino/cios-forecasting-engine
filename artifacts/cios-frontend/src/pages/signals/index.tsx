@@ -2198,12 +2198,16 @@ function MinimalSignalCard({
     Echo: "bg-slate-700/50 text-slate-400 border-slate-600/30",
     Translation: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     Independent: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    "Independent parallel evidence": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    Root: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     "Root Evidence": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     Corroborating: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
     Derivative: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    "Direct derivative": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    "Second-order derivative": "bg-orange-500/10 text-orange-400 border-orange-500/20",
   };
 
-  const DEPENDENCY_ROLES = ["Root Evidence", "Corroborating", "Derivative", "Independent"];
+  const DEPENDENCY_ROLES = ["Root", "Direct derivative", "Second-order derivative", "Independent parallel evidence", "Corroborating"];
   const ECHO_TYPES = ["Echo", "Translation", "Independent"];
 
   const handleOverrideSave = async () => {
@@ -2327,6 +2331,9 @@ function MinimalSignalCard({
                   <span className="text-[9px] text-amber-400/70" title={`This signal's weight is reduced to ${Math.round(lineage.compressionFactor * 100)}% because it echoes or derives from an upstream signal`}>
                     ×{lineage.compressionFactor.toFixed(2)} weight
                   </span>
+                )}
+                {lineage.novelInformationFlag === "Yes" && (
+                  <span className="text-[9px] text-emerald-400/60 bg-emerald-500/10 rounded-full px-1.5 py-0.5 border border-emerald-500/20">Novel</span>
                 )}
                 {lineage.novelInformationFlag === "No" && (
                   <span className="text-[9px] text-rose-400/60 bg-rose-500/10 rounded-full px-1.5 py-0.5 border border-rose-500/20">No novel info</span>
