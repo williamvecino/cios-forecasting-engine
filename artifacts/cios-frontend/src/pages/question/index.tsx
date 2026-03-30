@@ -85,12 +85,10 @@ interface RefineResult {
 }
 
 const EXAMPLE_QUESTIONS = [
-  "Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?",
-  "Will ARIKAYCE achieve target specialist adoption among pulmonologists within 12 months?",
-  "Will anti-amyloid biologic adoption reach memory clinic threshold despite REMS infusion site requirements within 24 months?",
-  "Will non-stimulant ADHD therapy gain community pediatrics adoption within 12 months given stimulant supply constraints?",
-  "Will NCCN include this therapy in 2027 guidelines?",
-  "Will a biosimilar enter the market before 2028?",
+  "Will the FDA approve a supplemental indication for Keytruda in adjuvant melanoma within 12 months?",
+  "Will Humira biosimilar uptake exceed 40% formulary share among commercial payers by Q4 2026?",
+  "Will Kisqali achieve first-line CDK4/6 inhibitor preference among community oncologists within 18 months?",
+  "Will Leqembi reach 5,000 active patients in the US despite REMS and infusion-site access barriers within 24 months?",
 ];
 
 interface Interpretation {
