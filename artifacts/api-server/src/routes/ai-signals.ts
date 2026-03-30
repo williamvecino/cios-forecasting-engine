@@ -385,6 +385,41 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
   }
 });
 
+router.post("/ai-signals/completeness", async (req, res) => {
+  try {
+    const { question, questionType, subject, existingSignals } = req.body;
+    if (!question || !subject) {
+      res.status(400).json({ error: "question and subject are required" });
+      return;
+    }
+    const signalList = (existingSignals || []).slice(0, 30).map((t: string, i: number) => `${i + 1}. ${t}`).join("\n");
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      seed: 42,
+      messages: [
+        {
+          role: "system",
+          content: `You are a pharmaceutical forecasting signal analyst. Given a forecasting question, subject, and existing signals, identify 3-5 important signals that are MISSING from the current set. Focus on signals that cover gaps in: economic drivers, structural defenses, competitive pressures, and execution capacity. Each suggestion must be specific and actionable, not generic.
+
+Return JSON: { "suggestions": [{ "text": "...", "rationale": "why this is missing and important", "category": "economic|structural|competitive|execution" }] }`,
+        },
+        {
+          role: "user",
+          content: `Question: ${question}\nSubject: ${subject}\nQuestion type: ${questionType || "binary"}\n\nExisting signals:\n${signalList}\n\nWhat important signals are missing?`,
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const text = response.choices[0]?.message?.content || "{}";
+    const parsed = JSON.parse(text);
+    res.json(parsed);
+  } catch (err: any) {
+    console.error("Signal completeness error:", err);
+    res.status(500).json({ error: "Failed to analyze signal completeness" });
+  }
+});
+
 router.post("/ai-signals/frame", async (req, res) => {
   try {
     const { questionText, subject, therapeuticArea, diseaseState } = req.body;

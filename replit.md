@@ -59,6 +59,7 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Expanded Signal Direction Model:** Direction expanded to 6 values for richer signal interpretation.
 - **MIOS Evidence Verification Guardrail:** Automated evidence verification layer extracting and verifying identifiers (PMID, DOI, NCT) against registries, with red-flag detection.
 - **Archetype Signal Grammars (9 Archetypes):** Each CaseFrame includes `judgmentQuestions`, `correctSignalTypes`, and `incorrectSignalTypes`.
+- **Signal Structure & Efficiency Upgrade:** Driver Role field (Primary Driver, Supporting Driver, Counterforce, Context Signal, Noise) auto-assigned to every signal with user override; Driver Coverage Validation checking 4 required categories (economic, structural, competitive, execution); Signal Map Panel grouping signals by mechanism; Causal Alignment Check flagging indirect signals; Signal Completeness Suggestions via AI analysis with one-click addition.
 - **AI Signal Deduplication:** Semantic and similarity-based deduplication of signals.
 - **Simulation Driver Traceability:** Simulation API returns `drivers` array with weight, direction, and rationale.
 - **Probability Banding:** Formal bands (Low, Moderate, High, Very High) for probability display.

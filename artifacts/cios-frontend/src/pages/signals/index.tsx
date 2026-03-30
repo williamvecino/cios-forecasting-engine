@@ -55,6 +55,9 @@ import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import MiosBaosPanel from "@/components/signals/MiosBaosPanel";
 import SignalDependencyPanel, { type SignalLineageInfo } from "@/components/signals/SignalDependencyPanel";
+import SignalMapPanel from "@/components/signals/SignalMapPanel";
+import DriverCoveragePanel from "@/components/signals/DriverCoveragePanel";
+import SignalCompletenessPanel from "@/components/signals/SignalCompletenessPanel";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 function isMiosBaosSignal(s: any): boolean {
@@ -173,6 +176,86 @@ const PRIORITY_RANK: Record<PrioritySource, number> = {
 
 type SignalSource = "internal" | "external" | "missing";
 
+type DriverRole = "primary_driver" | "supporting_driver" | "counterforce" | "context_signal" | "noise";
+
+const DRIVER_ROLE_LABELS: Record<DriverRole, string> = {
+  primary_driver: "Primary Driver",
+  supporting_driver: "Supporting Driver",
+  counterforce: "Counterforce",
+  context_signal: "Context Signal",
+  noise: "Noise",
+};
+
+const DRIVER_ROLE_COLORS: Record<DriverRole, string> = {
+  primary_driver: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+  supporting_driver: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  counterforce: "text-red-400 bg-red-500/10 border-red-500/20",
+  context_signal: "text-slate-400 bg-slate-500/10 border-slate-500/20",
+  noise: "text-zinc-500 bg-zinc-500/10 border-zinc-500/20",
+};
+
+type MechanismGroup = "economic_pressure" | "structural_protection" | "competitive_threat" | "execution_change";
+
+const MECHANISM_LABELS: Record<MechanismGroup, string> = {
+  economic_pressure: "Economic Pressure",
+  structural_protection: "Structural Protection",
+  competitive_threat: "Competitive Threat",
+  execution_change: "Execution Change",
+};
+
+const MECHANISM_COLORS: Record<MechanismGroup, { border: string; bg: string; text: string; icon: string }> = {
+  economic_pressure: { border: "border-amber-500/20", bg: "bg-amber-500/5", text: "text-amber-400", icon: "text-amber-400" },
+  structural_protection: { border: "border-blue-500/20", bg: "bg-blue-500/5", text: "text-blue-400", icon: "text-blue-400" },
+  competitive_threat: { border: "border-red-500/20", bg: "bg-red-500/5", text: "text-red-400", icon: "text-red-400" },
+  execution_change: { border: "border-emerald-500/20", bg: "bg-emerald-500/5", text: "text-emerald-400", icon: "text-emerald-400" },
+};
+
+const DRIVER_COVERAGE_CATEGORIES: Record<string, { label: string; keywords: string[] }> = {
+  economic: { label: "Economic driver", keywords: ["price", "cost", "revenue", "margin", "reimbursement", "formulary", "copay", "economic", "financial", "budget", "payer", "payment", "rebate", "discount", "spend"] },
+  structural: { label: "Structural defense", keywords: ["patent", "exclusivity", "regulatory", "fda", "ema", "approval", "label", "indication", "guideline", "formulary position", "lock", "barrier", "protection", "ip", "litigation"] },
+  competitive: { label: "Competitive pressure", keywords: ["competitor", "biosimilar", "generic", "market share", "launch", "entrant", "rivalry", "competing", "alternative", "switch", "displacement", "threat"] },
+  execution: { label: "Execution capacity", keywords: ["supply", "manufacturing", "distribution", "sales force", "launch readiness", "field", "commercial", "capacity", "infrastructure", "training", "operational", "execution"] },
+};
+
+function assignDriverRole(signal: { text: string; direction: Direction; strength: Strength; impact: Impact; category: Category }): DriverRole {
+  const text = signal.text.toLowerCase();
+  const isNegative = signal.direction === "decreases_probability" || signal.direction === "negative" || signal.direction === "signals_risk_escalation";
+  if (isNegative && (signal.strength === "High" || signal.impact === "High")) return "counterforce";
+  if (signal.impact === "High" && signal.strength === "High") return "primary_driver";
+  if (signal.impact === "High" || signal.strength === "High") return "supporting_driver";
+  if (signal.impact === "Low" && signal.strength === "Low") return "noise";
+  if (signal.direction === "neutral" || signal.direction === "signals_uncertainty") return "context_signal";
+  return "supporting_driver";
+}
+
+function assignMechanismGroup(signal: { text: string; category: Category; signal_domain?: SignalDomain }): MechanismGroup {
+  const text = signal.text.toLowerCase();
+  for (const [key, { keywords }] of Object.entries(DRIVER_COVERAGE_CATEGORIES)) {
+    if (keywords.some(kw => text.includes(kw))) {
+      if (key === "economic") return "economic_pressure";
+      if (key === "structural") return "structural_protection";
+      if (key === "competitive") return "competitive_threat";
+      if (key === "execution") return "execution_change";
+    }
+  }
+  if (signal.category === "competition" || signal.signal_domain === "competitive_dynamics") return "competitive_threat";
+  if (signal.category === "access" || signal.signal_domain === "market_access") return "economic_pressure";
+  if (signal.category === "evidence" || signal.signal_domain === "regulatory_activity" || signal.signal_domain === "clinical_evidence") return "structural_protection";
+  return "execution_change";
+}
+
+function checkCausalAlignment(signalText: string, questionText: string, outcome: string): boolean {
+  const sigWords = new Set(signalText.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  const qWords = new Set(questionText.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  const oWords = new Set(outcome.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  const combined = new Set([...qWords, ...oWords]);
+  let overlap = 0;
+  for (const w of sigWords) {
+    if (combined.has(w)) overlap++;
+  }
+  return overlap >= 2 || (sigWords.size <= 5 && overlap >= 1);
+}
+
 interface Signal {
   id: string;
   text: string;
@@ -209,6 +292,32 @@ interface Signal {
   identifierValue?: string;
   registryMatch?: boolean;
   verificationRedFlags?: string;
+  driver_role?: DriverRole;
+  mechanism_group?: MechanismGroup;
+  causal_aligned?: boolean;
+}
+
+function enrichSignalFields(sig: Signal, questionText?: string, outcomeText?: string): Signal {
+  const enriched = { ...sig };
+  if (!enriched.driver_role) {
+    enriched.driver_role = assignDriverRole(enriched);
+  }
+  if (!enriched.mechanism_group) {
+    enriched.mechanism_group = assignMechanismGroup(enriched);
+  }
+  if (questionText) {
+    enriched.causal_aligned = checkCausalAlignment(enriched.text, questionText, outcomeText || questionText);
+  }
+  return enriched;
+}
+
+function reEnrichSignalFields(sig: Signal, questionText?: string, outcomeText?: string): Signal {
+  return {
+    ...sig,
+    driver_role: assignDriverRole(sig),
+    mechanism_group: assignMechanismGroup(sig),
+    causal_aligned: questionText ? checkCausalAlignment(sig.text, questionText, outcomeText || questionText) : sig.causal_aligned,
+  };
 }
 
 interface IncomingEvent {
@@ -644,9 +753,9 @@ export default function SignalsPage() {
       return null;
     })();
     if (persisted && persisted.length > 0) {
-      setSignals(persisted);
+      setSignals(persisted.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
     } else {
-      setSignals([...fallbackSuggestions]);
+      setSignals(fallbackSuggestions.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
     }
     setIncomingEvents(fallbackEvents);
     setAiLoading(false);
@@ -792,7 +901,7 @@ export default function SignalsPage() {
             const VALID_SIGNAL_SOURCES = new Set(["internal", "external", "missing"]);
             const signal_source = VALID_SIGNAL_SOURCES.has(s.signal_source) ? s.signal_source as SignalSource : undefined;
             const signal_domain = VALID_SIGNAL_DOMAINS.has(s.signal_domain) ? s.signal_domain as SignalDomain : undefined;
-            return {
+            return enrichSignalFields({
               id: `${idPrefix}-${i + 1}`,
               text: s.text,
               caveat: s.rationale || "",
@@ -819,7 +928,7 @@ export default function SignalsPage() {
               question_relevance_note: s.question_relevance_note || undefined,
               priority_source: signal_class === "uncertainty" ? "ai_uncertainty" as PrioritySource : "ai_derived" as PrioritySource,
               is_locked: false,
-            };
+            }, questionText, outcome);
           });
           setProcessingCounts(prev => ({ ...prev, normalized: mapped.length }));
           setSignals((prev) => {
@@ -1211,7 +1320,8 @@ export default function SignalsPage() {
     setSignals((prev) => {
       const updated = prev.map((s) => {
         if (s.id !== id) return s;
-        return { ...s, impact: computeImpact(s) };
+        const withImpact = { ...s, impact: computeImpact(s) };
+        return enrichSignalFields(withImpact, questionText, outcome);
       });
       const editedSignal = updated.find(s => s.id === id);
       if (editedSignal?.accepted) {
@@ -1235,7 +1345,7 @@ export default function SignalsPage() {
     }
     const base = { strength: newStrength, reliability: newReliability };
     const autoCategory = inferCategory(newText.trim());
-    const sig: Signal = {
+    const sig: Signal = enrichSignalFields({
       id: `user-${Date.now()}`,
       text: newText.trim(),
       caveat: "",
@@ -1248,7 +1358,7 @@ export default function SignalsPage() {
       accepted: true,
       priority_source: "manual_confirmed",
       is_locked: true,
-    };
+    }, questionText, outcome);
     setSignals((prev) => {
       const updated = [...prev, sig];
       persistSignals(updated);
@@ -1266,18 +1376,19 @@ export default function SignalsPage() {
   function handleWorkbookImport(importedSignals: any[]) {
     const isServerImported = importedSignals.length > 0 && importedSignals[0]?._serverImported;
     if (isServerImported) {
-      const uiSignals = importedSignals.map((s: any) => ({
+      const uiSignals = importedSignals.map((s: any) => enrichSignalFields({
         ...s,
         _serverImported: undefined,
         accepted: true,
         source: "system" as const,
         is_locked: true,
-      }));
+      }, questionText, outcome));
       persistSignals(uiSignals);
       setSignals(uiSignals);
     } else {
-      persistSignals(importedSignals);
-      setSignals(importedSignals);
+      const enriched = importedSignals.map((s: any) => enrichSignalFields(s, questionText, outcome));
+      persistSignals(enriched);
+      setSignals(enriched);
       importedSignals.forEach((sig: any) => persistSignalToDb(sig));
     }
     if (importedSignals.length > 0) {
@@ -1292,7 +1403,7 @@ export default function SignalsPage() {
       const rel = row.reliability || "Probable";
       const base = { strength: str as Strength, reliability: rel as Reliability };
       const cat = (row.category as Category) || inferCategory(row.text);
-      return {
+      return enrichSignalFields({
         id: `import-${Date.now()}-${i}`,
         text: row.text,
         caveat: "",
@@ -1307,7 +1418,7 @@ export default function SignalsPage() {
         is_locked: true,
         source_url: row.source_url,
         signal_source: row.signal_source,
-      };
+      }, questionText, outcome);
     });
 
     const seen = new Set<string>();
@@ -1340,7 +1451,7 @@ export default function SignalsPage() {
       alert("This signal already exists. Each signal can only be added once.");
       return;
     }
-    const sig: Signal = {
+    const sig: Signal = enrichSignalFields({
       id: `ev-conv-${Date.now()}`,
       text: evText,
       caveat: "",
@@ -1353,7 +1464,7 @@ export default function SignalsPage() {
       accepted: true,
       priority_source: "observed_verified",
       is_locked: true,
-    };
+    }, questionText, outcome);
     setSignals((prev) => {
       const updated = [...prev, sig];
       persistSignals(updated);
@@ -1671,7 +1782,7 @@ export default function SignalsPage() {
             timeHorizon={activeQuestion?.timeHorizon}
             existingSignalTexts={allSignals.map((s) => s.text)}
             onAcceptSignal={(sig) => {
-              const newSignal: Signal = {
+              const newSignal: Signal = enrichSignalFields({
                 id: `scout-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                 text: sig.text,
                 caveat: `Source: ${sig.sourceType}`,
@@ -1692,7 +1803,7 @@ export default function SignalsPage() {
                 brand_verified: false,
                 priority_source: "ai_derived",
                 is_locked: false,
-              };
+              }, questionText, outcome);
               setSignals((prev) => {
                 const updated = [...prev, newSignal];
                 persistSignals(updated);
@@ -2100,6 +2211,85 @@ export default function SignalsPage() {
             </div>
           )}
 
+          {!aiLoading && allSignals.length > 0 && (
+            <SignalMapPanel
+              signals={allSignals.map((s) => ({
+                id: s.id,
+                text: s.text,
+                mechanism_group: s.mechanism_group,
+                driver_role: s.driver_role,
+                accepted: s.accepted,
+              }))}
+            />
+          )}
+
+          {!aiLoading && allSignals.length > 0 && (
+            <DriverCoveragePanel
+              signals={allSignals.map((s) => ({ id: s.id, text: s.text, accepted: s.accepted }))}
+              onAddSignal={(text) => {
+                const base = { strength: "Medium" as Strength, reliability: "Probable" as Reliability };
+                const sig: Signal = enrichSignalFields({
+                  id: `suggest-${Date.now()}`,
+                  text,
+                  caveat: "",
+                  direction: "increases_probability" as Direction,
+                  strength: "Medium",
+                  reliability: "Probable",
+                  impact: computeImpact(base),
+                  category: inferCategory(text),
+                  source: "user",
+                  accepted: true,
+                  priority_source: "manual_confirmed",
+                  is_locked: true,
+                }, questionText, outcome);
+                setSignals((prev) => {
+                  const exists = prev.some((s) => s.text.toLowerCase() === text.toLowerCase());
+                  if (exists) return prev;
+                  const updated = [...prev, sig];
+                  persistSignals(updated);
+                  persistSignalToDb(sig);
+                  setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
+                  return updated;
+                });
+              }}
+            />
+          )}
+
+          {!aiLoading && allSignals.length >= 2 && (
+            <SignalCompletenessPanel
+              signals={allSignals.map((s) => ({ id: s.id, text: s.text }))}
+              questionText={questionText}
+              questionType={questionType || "binary"}
+              subject={subject || ""}
+              onAddSignal={(text) => {
+                const base = { strength: "Medium" as Strength, reliability: "Probable" as Reliability };
+                const sig: Signal = enrichSignalFields({
+                  id: `complete-${Date.now()}`,
+                  text,
+                  caveat: "",
+                  direction: "increases_probability" as Direction,
+                  strength: "Medium",
+                  reliability: "Probable",
+                  impact: computeImpact(base),
+                  category: inferCategory(text),
+                  source: "user",
+                  accepted: true,
+                  priority_source: "manual_confirmed",
+                  is_locked: true,
+                }, questionText, outcome);
+                setSignals((prev) => {
+                  const exists = prev.some((s) => s.text.toLowerCase() === text.toLowerCase());
+                  if (exists) return prev;
+                  const updated = [...prev, sig];
+                  persistSignals(updated);
+                  persistSignalToDb(sig);
+                  setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
+                  return updated;
+                });
+              }}
+            />
+          )}
+
           <div className="border-t border-border pt-3">
             <button
               type="button"
@@ -2338,6 +2528,19 @@ function MinimalSignalCard({
           <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Primary Driver</span>
         </div>
       )}
+      {signal.driver_role && (
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${DRIVER_ROLE_COLORS[signal.driver_role] || "text-slate-400 bg-slate-500/10 border-slate-500/20"}`}>
+            {DRIVER_ROLE_LABELS[signal.driver_role] || signal.driver_role}
+          </span>
+          {signal.causal_aligned === false && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[9px] font-medium text-amber-400">
+              <AlertTriangle className="w-2.5 h-2.5" />
+              Indirect signal — low decision relevance
+            </span>
+          )}
+        </div>
+      )}
       {signal.superseded && (
         <div className="text-xs text-muted-foreground mb-2">Superseded by newer evidence</div>
       )}
@@ -2390,10 +2593,16 @@ function MinimalSignalCard({
         </div>
       </div>
       {editing ? (
-        <div className="mt-3 grid grid-cols-3 gap-3">
-          <SelectField label="Direction" value={signal.direction} onChange={(v) => onUpdate({ direction: v as Direction })} options={["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]} displayLabels={[`Supports ${outcomeLabel}`, `Slows ${outcomeLabel}`, "Uncertain", "Risk Escalation", "Operational", "Market Response"]} />
-          <SelectField label="Strength" value={signal.strength} onChange={(v) => onUpdate({ strength: v as Strength })} options={["High", "Medium", "Low"]} />
-          <SelectField label="Confidence" value={signal.reliability} onChange={(v) => onUpdate({ reliability: v as Reliability })} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Strong", "Moderate", "Weak"]} />
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <SelectField label="Direction" value={signal.direction} onChange={(v) => onUpdate({ direction: v as Direction })} options={["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]} displayLabels={[`Supports ${outcomeLabel}`, `Slows ${outcomeLabel}`, "Uncertain", "Risk Escalation", "Operational", "Market Response"]} />
+            <SelectField label="Strength" value={signal.strength} onChange={(v) => onUpdate({ strength: v as Strength })} options={["High", "Medium", "Low"]} />
+            <SelectField label="Confidence" value={signal.reliability} onChange={(v) => onUpdate({ reliability: v as Reliability })} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Strong", "Moderate", "Weak"]} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <SelectField label="Driver Role" value={signal.driver_role || "supporting_driver"} onChange={(v) => onUpdate({ driver_role: v as DriverRole })} options={["primary_driver", "supporting_driver", "counterforce", "context_signal", "noise"]} displayLabels={["Primary Driver", "Supporting Driver", "Counterforce", "Context Signal", "Noise"]} />
+            <SelectField label="Mechanism" value={signal.mechanism_group || "execution_change"} onChange={(v) => onUpdate({ mechanism_group: v as MechanismGroup })} options={["economic_pressure", "structural_protection", "competitive_threat", "execution_change"]} displayLabels={["Economic Pressure", "Structural Protection", "Competitive Threat", "Execution Change"]} />
+          </div>
         </div>
       ) : (
         <div className="mt-3 space-y-2">
