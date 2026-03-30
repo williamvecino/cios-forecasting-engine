@@ -17,24 +17,27 @@ import {
 
 const EXAMPLE_QUESTIONS = [
   {
-    category: "Adoption & Launch",
+    category: "Regulatory & Safety",
     prompts: [
-      "Will community pulmonologists adopt within 12 months?",
-      "Will first-line adoption exceed 20% in academic centers?",
+      "Will the FDA approve a supplemental indication for Keytruda in adjuvant melanoma within 12 months?",
     ],
   },
   {
-    category: "Market Access",
+    category: "Competitive Positioning",
     prompts: [
-      "Will payer restrictions delay uptake by more than 6 months?",
-      "When will commercial payers begin restricting access?",
+      "Will Humira biosimilar uptake exceed 40% formulary share among commercial payers by Q4 2026?",
     ],
   },
   {
-    category: "Competitive & Stakeholder",
+    category: "Physician Adoption",
     prompts: [
-      "Which stakeholder segment is most likely to adopt first?",
-      "Will switching from standard-of-care exceed 15% in the first year?",
+      "Will Kisqali achieve first-line CDK4/6 inhibitor preference among community oncologists within 18 months?",
+    ],
+  },
+  {
+    category: "Access & Barriers",
+    prompts: [
+      "Will Leqembi reach 5,000 active patients in the US despite REMS and infusion-site access barriers within 24 months?",
     ],
   },
 ];

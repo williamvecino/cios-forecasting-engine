@@ -6,11 +6,10 @@ import { BookOpen, Sparkles, FileText, Target, Eye, ChevronDown, ChevronUp } fro
 import { MOCK_CASE } from "@/lib/mock-case";
 
 const SAMPLE_QUESTIONS = [
-  { type: "Binary", q: "Will ARIKAYCE gain first-line adoption in 12 months?" },
-  { type: "Comparative", q: "Will Northeast academic centers adopt faster than Southern community centers?" },
-  { type: "Ranking", q: "Which regions will adopt first-line ARIKAYCE fastest?" },
-  { type: "Threshold", q: "Will first-line adoption exceed 20% in academic centers?" },
-  { type: "Timing", q: "When will commercial payers begin restricting access?" },
+  { type: "Binary", q: "Will the FDA approve a supplemental indication for Keytruda in adjuvant melanoma within 12 months?" },
+  { type: "Comparative", q: "Will Humira biosimilar uptake exceed 40% formulary share among commercial payers by Q4 2026?" },
+  { type: "Threshold", q: "Will Kisqali achieve first-line CDK4/6 inhibitor preference among community oncologists within 18 months?" },
+  { type: "Timing", q: "Will Leqembi reach 5,000 active patients in the US despite REMS and infusion-site access barriers within 24 months?" },
 ];
 
 const TEMPLATES = [
