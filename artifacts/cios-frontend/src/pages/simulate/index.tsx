@@ -60,6 +60,13 @@ interface DecisionSensitivityItem {
   impact_estimate: string;
 }
 
+interface DriverItem {
+  driver: string;
+  weight: "HIGH" | "MODERATE" | "LOW";
+  direction: "supporting" | "opposing" | "neutral";
+  rationale: string;
+}
+
 interface SimulationResult {
   case_type?: string;
   vocabulary_replacements?: Record<string, string>;
@@ -75,6 +82,7 @@ interface SimulationResult {
   signal_classifications?: SignalClassification[];
   propagation_pathway?: string[];
   decision_sensitivity?: DecisionSensitivityItem[];
+  drivers?: DriverItem[];
 }
 
 const DEFAULT_SEGMENTS = COMMERCIAL_SEGMENTS;
@@ -150,6 +158,16 @@ const EXPECTED_EFFECTS = [
   { value: "increases", label: "Increases probability" },
   { value: "decreases", label: "Decreases probability" },
   { value: "mixed", label: "Mixed / uncertain" },
+  { value: "delays", label: "Delays timeline" },
+  { value: "reverses", label: "Reverses prior trend" },
+];
+
+const SCENARIO_POLARITY = [
+  { value: "positive", label: "Positive scenario" },
+  { value: "negative", label: "Negative scenario" },
+  { value: "neutral", label: "Neutral scenario" },
+  { value: "delay", label: "Delay scenario" },
+  { value: "reversal", label: "Reversal scenario" },
 ];
 
 const PRIMARY_TARGETS = [
@@ -225,7 +243,7 @@ function strengthBadge(strength: string) {
   );
 }
 
-type AccordionSection = "reaction" | "features" | "propagation" | "sensitivity" | "classifications" | "safety_measures" | null;
+type AccordionSection = "reaction" | "features" | "drivers" | "propagation" | "sensitivity" | "classifications" | "safety_measures" | null;
 
 const SAFETY_SUCCESS_MEASURES = [
   { label: "Switch Rate Monitoring", icon: Activity, description: "Track prescriber movement between behavioral segments (continue, pause, wait, switch) over time. Measure velocity and volume of switches to alternative therapies." },
@@ -451,6 +469,52 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
           </div>
         )}
 
+        {result.drivers && result.drivers.length > 0 && (
+          <div>
+            <AccordionHeader
+              title="Driver Analysis"
+              isOpen={activeSection === "drivers"}
+              onClick={() => toggle("drivers")}
+              count={result.drivers.length}
+            />
+            {activeSection === "drivers" && (
+              <div className="px-5 pb-4 space-y-2">
+                {result.drivers
+                  .sort((a, b) => {
+                    const order = { HIGH: 0, MODERATE: 1, LOW: 2 };
+                    return (order[a.weight] ?? 1) - (order[b.weight] ?? 1);
+                  })
+                  .map((d, i) => (
+                    <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-2 bg-muted/5">
+                      <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
+                        <span className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                          d.weight === "HIGH"
+                            ? "text-rose-400 bg-rose-400/10 border-rose-400/30"
+                            : d.weight === "MODERATE"
+                            ? "text-amber-400 bg-amber-400/10 border-amber-400/30"
+                            : "text-emerald-400 bg-emerald-400/10 border-emerald-400/30"
+                        }`}>
+                          {d.weight}
+                        </span>
+                        <span className={`text-[9px] font-medium ${
+                          d.direction === "supporting" ? "text-emerald-400"
+                            : d.direction === "opposing" ? "text-rose-400"
+                            : "text-slate-400"
+                        }`}>
+                          {d.direction === "supporting" ? "▲" : d.direction === "opposing" ? "▼" : "—"} {d.direction}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-foreground">{d.driver}</p>
+                        {d.rationale && <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{d.rationale}</p>}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {result.propagation_pathway && result.propagation_pathway.length > 0 && (
           <div>
             <AccordionHeader title="Propagation Pathway" isOpen={activeSection === "propagation"} onClick={() => toggle("propagation")} />
@@ -550,6 +614,7 @@ export default function SimulatePage() {
   const [scenarioName, setScenarioName] = useState("");
   const [scenarioDescription, setScenarioDescription] = useState("");
   const [scenarioType, setScenarioType] = useState("");
+  const [scenarioPolarity, setScenarioPolarity] = useState("");
   const [messageSource, setMessageSource] = useState("");
   const [evidenceBasis, setEvidenceBasis] = useState("");
   const [primaryTarget, setPrimaryTarget] = useState("");
@@ -618,6 +683,7 @@ export default function SimulatePage() {
 
   function buildScenarioDesc() {
     const type = SCENARIO_TYPES.find(t => t.value === scenarioType)?.label || scenarioType;
+    const polarity = SCENARIO_POLARITY.find(p => p.value === scenarioPolarity)?.label || "";
     const source = MESSAGE_SOURCES.find(s => s.value === messageSource)?.label || messageSource;
     const effect = EXPECTED_EFFECTS.find(e => e.value === expectedEffect)?.label || expectedEffect;
     const target = PRIMARY_TARGETS.find(t => t.value === primaryTarget)?.label || "";
@@ -627,6 +693,7 @@ export default function SimulatePage() {
     const conf = CONFIDENCE_LEVELS.find(c => c.value === confidenceLevel)?.label || confidenceLevel;
     const parts = [
       `${type} from ${source}.`,
+      polarity ? `Scenario polarity: ${polarity}.` : "",
       effect ? `Effect: ${effect}.` : "",
       target ? `Target: ${target}.` : "",
       evidence ? `Evidence: ${evidence}.` : "",
@@ -694,6 +761,7 @@ export default function SimulatePage() {
         scenarioName: scenarioName.trim(),
         scenarioDescription: scenarioDescription.trim() || undefined,
         scenarioType,
+        scenarioPolarity: scenarioPolarity || undefined,
         messageSource,
         evidenceBasis: evidenceBasis || undefined,
         primaryTarget: primaryTarget || undefined,
@@ -820,6 +888,7 @@ export default function SimulatePage() {
 
                     <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                       <DropdownField label="Scenario Type" value={scenarioType} onChange={setScenarioType} options={SCENARIO_TYPES} placeholder="Select scenario type..." />
+                      <DropdownField label="Scenario Polarity" value={scenarioPolarity} onChange={setScenarioPolarity} options={SCENARIO_POLARITY} placeholder="Select polarity..." />
                       <DropdownField label="Message Source" value={messageSource} onChange={setMessageSource} options={MESSAGE_SOURCES} placeholder="Select source..." />
                       <DropdownField label="Evidence Basis" value={evidenceBasis} onChange={setEvidenceBasis} options={EVIDENCE_BASIS_OPTIONS} placeholder="Select evidence type..." />
                       <DropdownField label="Primary Target of Scenario" value={primaryTarget} onChange={setPrimaryTarget} options={PRIMARY_TARGETS} placeholder="Select primary target..." />

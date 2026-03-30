@@ -102,8 +102,11 @@ export function ProbabilityGauge({ value, label, size = 200 }: { value: number, 
   const strokeDashoffset = circumference - value * circumference;
   
   let color = "var(--color-warning)";
-  if (value >= 0.6) color = "var(--color-success)";
-  if (value < 0.4) color = "var(--color-destructive)";
+  let bandLabel = "Moderate";
+  if (value > 0.8) { color = "var(--color-success)"; bandLabel = "Very High"; }
+  else if (value >= 0.6) { color = "var(--color-success)"; bandLabel = "High"; }
+  else if (value >= 0.3) { color = "var(--color-warning)"; bandLabel = "Moderate"; }
+  else { color = "var(--color-destructive)"; bandLabel = "Low"; }
 
   return (
     <div className="relative flex flex-col items-center justify-center">
@@ -129,6 +132,7 @@ export function ProbabilityGauge({ value, label, size = 200 }: { value: number, 
         <span className="text-3xl font-display font-bold text-foreground">
           {(value * 100).toFixed(1)}%
         </span>
+        <span className="text-[9px] font-bold uppercase tracking-wider mt-0.5" style={{ color }}>{bandLabel}</span>
         {label && <span className="text-xs font-medium text-muted-foreground mt-1 uppercase tracking-wider">{label}</span>}
       </div>
     </div>

@@ -38,7 +38,7 @@ interface NormalizationResult {
 interface SignalInput {
   id: string;
   text: string;
-  direction: "positive" | "negative" | "neutral";
+  direction: string;
   strength: "High" | "Medium" | "Low";
   confidence: string;
   source: string;

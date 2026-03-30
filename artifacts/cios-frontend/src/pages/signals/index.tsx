@@ -89,7 +89,31 @@ function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): 
   });
 }
 
-type Direction = "positive" | "negative" | "neutral";
+type Direction = "positive" | "negative" | "neutral" | "increases_probability" | "decreases_probability" | "signals_uncertainty" | "signals_risk_escalation" | "operational_readiness" | "market_response";
+
+type SignalDomain = "clinical_evidence" | "safety_pharmacovigilance" | "regulatory_activity" | "guideline_activity" | "market_access" | "operational_readiness" | "competitive_dynamics" | "legal_litigation";
+
+const SIGNAL_DOMAIN_LABELS: Record<SignalDomain, string> = {
+  clinical_evidence: "Clinical Evidence",
+  safety_pharmacovigilance: "Safety / PV",
+  regulatory_activity: "Regulatory",
+  guideline_activity: "Guideline",
+  market_access: "Market Access",
+  operational_readiness: "Operational",
+  competitive_dynamics: "Competitive",
+  legal_litigation: "Legal",
+};
+
+const SIGNAL_DOMAIN_COLORS: Record<SignalDomain, string> = {
+  clinical_evidence: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
+  safety_pharmacovigilance: "text-rose-400 bg-rose-400/10 border-rose-400/30",
+  regulatory_activity: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+  guideline_activity: "text-violet-400 bg-violet-400/10 border-violet-400/30",
+  market_access: "text-amber-400 bg-amber-400/10 border-amber-400/30",
+  operational_readiness: "text-slate-400 bg-slate-400/10 border-slate-400/30",
+  competitive_dynamics: "text-red-400 bg-red-400/10 border-red-400/30",
+  legal_litigation: "text-orange-400 bg-orange-400/10 border-orange-400/30",
+};
 type Strength = "High" | "Medium" | "Low";
 type Reliability = "Confirmed" | "Probable" | "Speculative";
 type Impact = "High" | "Medium" | "Low";
@@ -172,6 +196,7 @@ interface Signal {
   applies_within_time_horizon?: TimeHorizonApplicability;
   translation_confidence?: TranslationConfidence;
   question_relevance_note?: string;
+  signal_domain?: SignalDomain;
   priority_source?: PrioritySource;
   is_locked?: boolean;
   conflict_with?: string;
@@ -384,10 +409,10 @@ function generateSuggestions(ctx: QuestionContext): Signal[] {
 
 function generateSummary(signals: Signal[], questionType?: string, entities?: string[]): string {
   const accepted = signals.filter((s) => s.accepted || s.source === "system");
-  const positiveHigh = accepted.filter((s) => s.direction === "positive" && s.impact === "High");
-  const negativeHigh = accepted.filter((s) => s.direction === "negative" && s.impact === "High");
-  const posCount = accepted.filter((s) => s.direction === "positive").length;
-  const negCount = accepted.filter((s) => s.direction === "negative").length;
+  const positiveHigh = accepted.filter((s) => isPositiveDirection(s.direction) && s.impact === "High");
+  const negativeHigh = accepted.filter((s) => isNegativeDirection(s.direction) && s.impact === "High");
+  const posCount = accepted.filter((s) => isPositiveDirection(s.direction)).length;
+  const negCount = accepted.filter((s) => isNegativeDirection(s.direction)).length;
 
   if (questionType === "comparative" && entities && entities.length >= 2) {
     const groupA = entities[0];
@@ -440,10 +465,24 @@ function inferCategory(text: string): Category {
 function getDirectionLabel(direction: Direction, outcomeLabel?: string): string {
   const target = outcomeLabel || "outcome";
   switch (direction) {
-    case "positive": return `Supports ${target}`;
-    case "negative": return `Slows ${target}`;
-    default: return "Neutral";
+    case "positive":
+    case "increases_probability": return `Supports ${target}`;
+    case "negative":
+    case "decreases_probability": return `Slows ${target}`;
+    case "signals_risk_escalation": return "Risk escalation";
+    case "operational_readiness": return "Operational readiness";
+    case "market_response": return "Market response";
+    case "signals_uncertainty":
+    default: return "Neutral / Uncertain";
   }
+}
+
+function isPositiveDirection(d: Direction): boolean {
+  return d === "positive" || d === "increases_probability";
+}
+
+function isNegativeDirection(d: Direction): boolean {
+  return d === "negative" || d === "decreases_probability" || d === "signals_risk_escalation";
 }
 
 function getConfidenceLabel(reliability: Reliability): string {
@@ -632,7 +671,8 @@ export default function SignalsPage() {
   }, [caseKey, fallbackSuggestions, fallbackEvents]);
 
   const VALID_CATEGORIES = new Set(["evidence", "access", "competition", "guideline", "timing", "adoption"]);
-  const VALID_DIRECTIONS = new Set(["positive", "negative", "neutral"]);
+  const VALID_DIRECTIONS = new Set(["positive", "negative", "neutral", "increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]);
+  const VALID_SIGNAL_DOMAINS = new Set(["clinical_evidence", "safety_pharmacovigilance", "regulatory_activity", "guideline_activity", "market_access", "operational_readiness", "competitive_dynamics", "legal_litigation"]);
   const VALID_STRENGTHS = new Set(["High", "Medium", "Low"]);
   const VALID_RELIABILITIES = new Set(["Confirmed", "Probable", "Speculative"]);
 
@@ -729,6 +769,7 @@ export default function SignalsPage() {
             const idPrefix = searchKeywords?.length ? "find" : "ai";
             const VALID_SIGNAL_SOURCES = new Set(["internal", "external", "missing"]);
             const signal_source = VALID_SIGNAL_SOURCES.has(s.signal_source) ? s.signal_source as SignalSource : undefined;
+            const signal_domain = VALID_SIGNAL_DOMAINS.has(s.signal_domain) ? s.signal_domain as SignalDomain : undefined;
             return {
               id: `${idPrefix}-${i + 1}`,
               text: s.text,
@@ -743,6 +784,7 @@ export default function SignalsPage() {
               signal_class,
               signal_family,
               signal_source,
+              signal_domain,
               source_url: s.source_url || null,
               source_type: s.source_type || undefined,
               observed_date: s.observed_date || null,
@@ -882,7 +924,7 @@ export default function SignalsPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [newText, setNewText] = useState("");
-  const [newDirection, setNewDirection] = useState<Direction>("positive");
+  const [newDirection, setNewDirection] = useState<Direction>("increases_probability");
   const [newStrength, setNewStrength] = useState<Strength>("Medium");
   const [newReliability, setNewReliability] = useState<Reliability>("Probable");
 
@@ -951,8 +993,8 @@ export default function SignalsPage() {
       const group = gateGroups[cat];
       if (group.length < 2) continue;
 
-      const positives = group.filter(s => s.direction === "positive");
-      const negatives = group.filter(s => s.direction === "negative");
+      const positives = group.filter(s => isPositiveDirection(s.direction));
+      const negatives = group.filter(s => isNegativeDirection(s.direction));
 
       if (positives.length > 0 && negatives.length > 0) {
         for (const pos of positives) {
@@ -993,7 +1035,7 @@ export default function SignalsPage() {
     if (!caseId) return;
 
     const API = import.meta.env.VITE_API_URL || "";
-    const dbDirection = signal.direction === "negative" ? "Negative" : signal.direction === "neutral" ? "Neutral" : "Positive";
+    const dbDirection = isNegativeDirection(signal.direction) ? "Negative" : (signal.direction === "neutral" || signal.direction === "signals_uncertainty") ? "Neutral" : "Positive";
 
     fetch(`${API}/api/cases/${caseId}/signals`, {
       method: "POST",
@@ -1622,7 +1664,7 @@ export default function SignalsPage() {
                       <p className="text-sm font-medium text-foreground mt-0.5">{topDriver.text}</p>
                     </div>
                     <span className="shrink-0 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 uppercase">
-                      {topDriver.direction === "positive" ? "Supporting" : topDriver.direction === "negative" ? "Opposing" : "Neutral"}
+                      {isPositiveDirection(topDriver.direction) ? "Supporting" : isNegativeDirection(topDriver.direction) ? "Opposing" : "Neutral"}
                     </span>
                   </div>
                 ) : null;
@@ -1854,7 +1896,7 @@ export default function SignalsPage() {
                 className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50"
               />
               <div className="grid grid-cols-3 gap-3">
-                <SelectField label="Direction" value={newDirection} onChange={(v) => setNewDirection(v as Direction)} options={["positive", "negative", "neutral"]} displayLabels={["Supports outcome", "Slows outcome", "Neutral"]} />
+                <SelectField label="Direction" value={newDirection} onChange={(v) => setNewDirection(v as Direction)} options={["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]} displayLabels={["Supports outcome", "Slows outcome", "Uncertain", "Risk Escalation", "Operational", "Market Response"]} />
                 <SelectField label="Strength" value={newStrength} onChange={(v) => setNewStrength(v as Strength)} options={["High", "Medium", "Low"]} />
                 <SelectField label="Confidence" value={newReliability} onChange={(v) => setNewReliability(v as Reliability)} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Strong", "Moderate", "Weak"]} />
               </div>
@@ -2124,27 +2166,34 @@ function MinimalSignalCard({
       </div>
       {editing ? (
         <div className="mt-3 grid grid-cols-3 gap-3">
-          <SelectField label="Direction" value={signal.direction} onChange={(v) => onUpdate({ direction: v as Direction })} options={["positive", "negative", "neutral"]} displayLabels={[`Supports ${outcomeLabel}`, `Slows ${outcomeLabel}`, "Neutral"]} />
+          <SelectField label="Direction" value={signal.direction} onChange={(v) => onUpdate({ direction: v as Direction })} options={["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]} displayLabels={[`Supports ${outcomeLabel}`, `Slows ${outcomeLabel}`, "Uncertain", "Risk Escalation", "Operational", "Market Response"]} />
           <SelectField label="Strength" value={signal.strength} onChange={(v) => onUpdate({ strength: v as Strength })} options={["High", "Medium", "Low"]} />
           <SelectField label="Confidence" value={signal.reliability} onChange={(v) => onUpdate({ reliability: v as Reliability })} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Strong", "Moderate", "Weak"]} />
         </div>
       ) : (
-        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm md:grid-cols-4">
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Direction</div>
-            <div className="text-foreground/90">{getDirectionLabel(signal.direction, outcomeLabel)}</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Importance</div>
-            <div className="text-foreground/90">{signal.impact}</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Confidence</div>
-            <div className="text-foreground/90">{getConfidenceLabel(signal.reliability)}</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Source</div>
-            <div className="text-foreground/90">{getSourceLabel(signal)}</div>
+        <div className="mt-3 space-y-2">
+          {signal.signal_domain && (
+            <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${SIGNAL_DOMAIN_COLORS[signal.signal_domain] || "text-slate-400 bg-slate-400/10 border-slate-400/30"}`}>
+              {SIGNAL_DOMAIN_LABELS[signal.signal_domain] || signal.signal_domain}
+            </span>
+          )}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm md:grid-cols-4">
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Direction</div>
+              <div className="text-foreground/90">{getDirectionLabel(signal.direction, outcomeLabel)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Importance</div>
+              <div className="text-foreground/90">{signal.impact}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Confidence</div>
+              <div className="text-foreground/90">{getConfidenceLabel(signal.reliability)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Source</div>
+              <div className="text-foreground/90">{getSourceLabel(signal)}</div>
+            </div>
           </div>
         </div>
       )}

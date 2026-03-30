@@ -9,10 +9,18 @@ interface EventGate {
   constrains_probability_to: number;
 }
 
+type SignalDirection = "positive" | "negative" | "neutral" | "increases_probability" | "decreases_probability" | "signals_uncertainty" | "signals_risk_escalation" | "operational_readiness" | "market_response";
+
+function normalizeDirection(d: SignalDirection): "positive" | "negative" | "neutral" {
+  if (d === "positive" || d === "increases_probability") return "positive";
+  if (d === "negative" || d === "decreases_probability" || d === "signals_risk_escalation") return "negative";
+  return "neutral";
+}
+
 interface SignalInput {
   id: string;
   text: string;
-  direction: "positive" | "negative" | "neutral";
+  direction: SignalDirection;
   strength: "High" | "Medium" | "Low";
   reliability: "Confirmed" | "Probable" | "Speculative";
   category: string;
@@ -27,7 +35,7 @@ export interface SignalGateMapping {
   signal_text: string;
   target_gate_id: string;
   target_gate_label: string;
-  direction: "positive" | "negative" | "neutral";
+  direction: SignalDirection;
   strength: "High" | "Medium" | "Low";
   confidence: "High" | "Medium" | "Low";
   evidence_weight: number;
@@ -142,13 +150,14 @@ export function mapSignalToGate(signal: SignalInput, gates: EventGate[]): string
 export function createSignalGateMapping(signal: SignalInput, gate: EventGate): SignalGateMapping {
   const rawWeight = (STRENGTH_WEIGHT[signal.strength] || 2) * (RELIABILITY_WEIGHT[signal.reliability] || 2);
   const confidence = signal.reliability === "Confirmed" ? "High" : signal.reliability === "Probable" ? "Medium" : "Low";
-  const directionMultiplier = signal.direction === "negative" ? -1 : signal.direction === "neutral" ? 0 : 1;
+  const normDir = normalizeDirection(signal.direction);
+  const directionMultiplier = normDir === "negative" ? -1 : normDir === "neutral" ? 0 : 1;
   let evidenceWeight = rawWeight * directionMultiplier;
 
-  if (signal.direction === "positive" && evidenceWeight < 0) {
+  if (normDir === "positive" && evidenceWeight < 0) {
     evidenceWeight = Math.abs(evidenceWeight);
   }
-  if (signal.direction === "negative" && evidenceWeight > 0) {
+  if (normDir === "negative" && evidenceWeight > 0) {
     evidenceWeight = -Math.abs(evidenceWeight);
   }
 

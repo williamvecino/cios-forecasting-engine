@@ -6,7 +6,7 @@ const router = Router();
 interface RawSignal {
   id: string;
   text: string;
-  direction: "positive" | "negative" | "neutral";
+  direction: string;
   strength: "High" | "Medium" | "Low";
   confidence: "Confirmed" | "Probable" | "Speculative";
   source: string;
@@ -19,7 +19,7 @@ interface NormalizedSignal {
   id: string;
   originalIds: string[];
   text: string;
-  direction: "positive" | "negative" | "neutral";
+  direction: string;
   strength: "High" | "Medium" | "Low";
   confidence: "Confirmed" | "Probable" | "Speculative";
   source: string;

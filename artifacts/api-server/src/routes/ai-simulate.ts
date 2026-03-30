@@ -334,7 +334,8 @@ OUTPUT FORMAT (return valid JSON):
   "material_effectiveness": "How well the material addresses what this ${isRegulatory ? "stakeholder" : "segment"} needs to ${isRegulatory ? "support a favorable decision" : "move"}",
   "signal_classifications": [{"signal": "description", "type": "one of the SIGNAL CLASSIFICATION TYPES"}],
   "propagation_pathway": ["Event → Immediate Effect → Secondary Effect → System Outcome"],
-  "decision_sensitivity": [{"factor": "name", "sensitivity": "HIGH|MODERATE|LOW", "impact_estimate": "description"}]
+  "decision_sensitivity": [{"factor": "name", "sensitivity": "HIGH|MODERATE|LOW", "impact_estimate": "description"}],
+  "drivers": [{"driver": "name of key driver", "weight": "HIGH|MODERATE|LOW", "direction": "supporting|opposing|neutral", "rationale": "why this driver matters for this segment"}]
 }`;
 
     const userPrompt = `Score the adoption reaction for:
@@ -409,6 +410,15 @@ Score how the ${body.segment} segment will react given these features and curren
               factor: ds.factor,
               sensitivity: ["HIGH", "MODERATE", "LOW"].includes(ds.sensitivity) ? ds.sensitivity : "MODERATE",
               impact_estimate: typeof ds.impact_estimate === "string" ? ds.impact_estimate : "",
+            }))
+        : [],
+      drivers: Array.isArray(parsed.drivers)
+        ? parsed.drivers.filter((d: any) => d && typeof d.driver === "string")
+            .map((d: any) => ({
+              driver: d.driver,
+              weight: ["HIGH", "MODERATE", "LOW"].includes(d.weight) ? d.weight : "MODERATE",
+              direction: ["supporting", "opposing", "neutral"].includes(d.direction) ? d.direction : "neutral",
+              rationale: typeof d.rationale === "string" ? d.rationale : "",
             }))
         : [],
     };

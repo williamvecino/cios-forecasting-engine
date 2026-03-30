@@ -159,7 +159,8 @@ For each signal, provide:
 - **signal_class**: "observed" | "derived" | "uncertainty"
 - **signal_source**: "internal" | "external" | "missing"
 - **category**: one of "evidence", "access", "competition", "guideline", "timing", "adoption"
-- **direction**: "positive", "negative", or "neutral"
+- **signal_domain**: one of "clinical_evidence", "safety_pharmacovigilance", "regulatory_activity", "guideline_activity", "market_access", "operational_readiness", "competitive_dynamics", "legal_litigation"
+- **direction**: "increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"
 - **strength**: "High", "Medium", or "Low" — calibrated using the IMPORTANCE CALIBRATION RULES above
 - **reliability**: "Confirmed" (observed from verified source), "Probable" (reasonable inference), "Speculative" (uncertain)
 - **source_type**: e.g. "official_company", "official_brand_site", "clinicaltrials", "guideline", "payer_policy", "scientific_publication", "conference", "inferred", "press_release", "investor_relations"
@@ -174,7 +175,12 @@ For each signal, provide:
 - **translation_confidence**: "high" | "moderate" | "low"
 - **question_relevance_note**: One sentence explaining how directly this signal answers the specific question asked
 
-Generate 8-15 causally relevant signals. Observed brand developments first, then derived signals, then uncertainties. Only include signals from families that directly influence the decision mechanism.
+DEDUPLICATION RULES — apply strictly:
+- NEVER generate two signals that describe the same underlying fact, event, or inference from different angles. Each signal must represent a DISTINCT piece of evidence or reasoning.
+- If two candidate signals share >80% of the same factual basis, MERGE them into one signal that captures the complete picture.
+- Before finalizing, review all signals and remove any that are semantically redundant with another signal already in the list.
+
+Generate 8-15 causally relevant, non-redundant signals. Observed brand developments first, then derived signals, then uncertainties. Only include signals from families that directly influence the decision mechanism.
 
 For incoming_events, generate 5 events the forecaster should monitor:
 { "id": "ev-N", "title": "...", "type": "evidence|access|competition|guideline|adoption", "description": "...", "relevance": "..." }
@@ -316,9 +322,40 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
     if (isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) {
       if (Array.isArray(parsed.signals)) {
         parsed.signals = parsed.signals.filter(
-          (s: any) => s.signal_family !== "system_operational"
+          (s: any) => s.signal_family !== "system_operational" && s.signal_domain !== "operational_readiness"
         );
       }
+    }
+
+    if (Array.isArray(parsed.signals)) {
+      const VALID_DIRECTIONS = new Set(["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]);
+      const VALID_DOMAINS = new Set(["clinical_evidence", "safety_pharmacovigilance", "regulatory_activity", "guideline_activity", "market_access", "operational_readiness", "competitive_dynamics", "legal_litigation"]);
+      const LEGACY_DIRECTION_MAP: Record<string, string> = { positive: "increases_probability", negative: "decreases_probability", neutral: "signals_uncertainty" };
+      parsed.signals = parsed.signals.map((s: any) => {
+        if (s.direction && !VALID_DIRECTIONS.has(s.direction)) {
+          s.direction = LEGACY_DIRECTION_MAP[s.direction] || "signals_uncertainty";
+        }
+        if (s.signal_domain && !VALID_DOMAINS.has(s.signal_domain)) {
+          s.signal_domain = "clinical_evidence";
+        }
+        if (!s.signal_domain) {
+          s.signal_domain = "clinical_evidence";
+        }
+        return s;
+      });
+
+      const seen: string[] = [];
+      parsed.signals = parsed.signals.filter((s: any) => {
+        const tokens = new Set<string>((s.text || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((w: string) => w.length > 3));
+        for (const prev of seen) {
+          const prevTokens = new Set<string>(prev.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((w: string) => w.length > 3));
+          const intersection = [...tokens].filter((t: string) => prevTokens.has(t)).length;
+          const union = new Set<string>([...tokens, ...prevTokens]).size;
+          if (union > 0 && intersection / union > 0.7) return false;
+        }
+        seen.push(s.text || "");
+        return true;
+      });
     }
 
     res.json(parsed);

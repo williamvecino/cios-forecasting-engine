@@ -14,7 +14,7 @@ interface CaseDirectionContext {
 const router = Router();
 
 const VALID_SIGNAL_TYPES = new Set<string>(SIGNAL_TYPES);
-const VALID_DIRECTIONS = new Set(["Positive", "Negative"]);
+const VALID_DIRECTIONS = new Set(["Positive", "Negative", "Neutral"]);
 const VALID_SCOPES = new Set(["local", "regional", "national", "global"]);
 const VALID_TIMINGS = new Set(["early", "current", "late"]);
 
@@ -40,7 +40,7 @@ function validateSignalInput(body: Record<string, any>): ValidationError[] {
   }
 
   if (!body.direction || !VALID_DIRECTIONS.has(body.direction)) {
-    errors.push({ field: "direction", message: `Required. Must be "Positive" or "Negative".` });
+    errors.push({ field: "direction", message: `Required. Must be "Positive", "Negative", or "Neutral".` });
   }
 
   const strength = Number(body.strengthScore);

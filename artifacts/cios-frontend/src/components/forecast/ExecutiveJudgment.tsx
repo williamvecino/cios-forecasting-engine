@@ -26,6 +26,20 @@ interface ExecutiveJudgmentProps {
   isLoading?: boolean;
 }
 
+function getProbabilityBand(pct: number): { label: string; description: string } {
+  if (pct > 80) return { label: "Very High", description: "Strong convergence of evidence supports this outcome" };
+  if (pct >= 60) return { label: "High", description: "Evidence favors this outcome" };
+  if (pct >= 30) return { label: "Moderate", description: "Mixed signals — outcome could go either way" };
+  return { label: "Low", description: "Limited evidence or significant barriers to this outcome" };
+}
+
+const BAND_COLORS: Record<string, string> = {
+  "Very High": "text-emerald-300 bg-emerald-500/15 border-emerald-500/25",
+  High: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  Moderate: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  Low: "text-rose-400 bg-rose-500/10 border-rose-500/20",
+};
+
 function getVerdictConfig(pct: number) {
   if (pct >= 60) return {
     icon: CheckCircle2,
@@ -143,18 +157,23 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
       <div className={`flex items-center gap-4 rounded-2xl ${config.bg} border ${config.border} p-4`}>
         <VerdictIcon className={`w-8 h-8 ${config.color} shrink-0`} />
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Most Likely Outcome</div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Most Likely Outcome</div>
+            <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${BAND_COLORS[getProbabilityBand(judgment.probability).label] || "text-slate-400 bg-slate-500/10 border-slate-500/20"}`}>
+              {getProbabilityBand(judgment.probability).label}
+            </span>
+          </div>
           <div className="flex items-baseline gap-3 flex-wrap">
             <span className={`text-lg font-bold ${config.color}`}>{judgment.mostLikelyOutcome}</span>
           </div>
           <div className="text-[10px] text-slate-600 mt-1 leading-snug">
-            {judgment.probability >= 60
-              ? `At ${judgment.probability}%, the evidence points toward this outcome happening — most signals support it`
+            {getProbabilityBand(judgment.probability).description} — {judgment.probability >= 60
+              ? `at ${judgment.probability}%, the evidence points toward this outcome happening`
               : judgment.probability >= 40
-              ? `At ${judgment.probability}%, the outcome is uncertain — evidence is mixed and could go either way`
+              ? `at ${judgment.probability}%, the outcome is uncertain — evidence is mixed`
               : judgment.probability >= 10
-              ? `At ${judgment.probability}%, the evidence suggests this outcome is unlikely without significant changes`
-              : "Insufficient evidence to form a reliable view — more data is needed"}
+              ? `at ${judgment.probability}%, the evidence suggests this outcome is unlikely without significant changes`
+              : "insufficient evidence to form a reliable view"}
           </div>
         </div>
       </div>
