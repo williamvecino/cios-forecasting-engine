@@ -145,9 +145,12 @@ Output schema:
       outcomeStructure: {
         recommended: ostr.recommended === "multi_state" ? "multi_state" : "binary",
         explanation: typeof ostr.explanation === "string" ? ostr.explanation : "",
-        states: Array.isArray(ostr.states)
-          ? ostr.states.filter((s: any): s is string => typeof s === "string" && s.trim() !== "")
-          : ["Yes", "No"],
+        states: (() => {
+          const filtered = Array.isArray(ostr.states)
+            ? ostr.states.filter((s: any): s is string => typeof s === "string" && s.trim() !== "")
+            : [];
+          return filtered.length >= 2 ? filtered : ["Yes", "No"];
+        })(),
       },
     };
 

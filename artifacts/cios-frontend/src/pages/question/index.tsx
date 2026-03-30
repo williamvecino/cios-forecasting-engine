@@ -870,9 +870,19 @@ export default function QuestionPage() {
                   )}
 
                   {refineResult.feasibility.refinedQuestion && feasVerdict === "feasible_with_refinement" && (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 mt-2">
-                      <div className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-1">Refined Version</div>
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 mt-2 space-y-2">
+                      <div className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">Refined Version</div>
                       <div className="text-sm text-foreground">{refineResult.feasibility.refinedQuestion}</div>
+                      {editedProposal !== refineResult.feasibility.refinedQuestion && (
+                        <button
+                          type="button"
+                          onClick={() => setEditedProposal(refineResult.feasibility.refinedQuestion!)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/10"
+                        >
+                          <Check className="w-3 h-3" />
+                          Use refined version
+                        </button>
+                      )}
                     </div>
                   )}
 
