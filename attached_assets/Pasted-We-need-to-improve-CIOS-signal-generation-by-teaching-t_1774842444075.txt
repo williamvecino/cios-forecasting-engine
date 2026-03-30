@@ -1,0 +1,72 @@
+We need to improve CIOS signal generation by teaching the system how to interpret each case before searching for signals.
+
+For every case, add a mandatory Case Framing Layer before External Signal Scout. This layer must explicitly derive:
+
+* company
+* brand / product
+* forecasted outcome
+* decision domain
+* time horizon
+* decision archetype
+* allowed signal families
+* forbidden signal families
+* case-specific search targets
+
+For the current Viatris case:
+
+Case name:
+Viatris generic Abilify Maintena 1-month vial U.S. launch timing
+
+Forecast question:
+Will Viatris launch a generic version of Abilify Maintena 1-month vial in the United States by December 31, 2026?
+
+Decision archetype:
+Launch timing / regulatory-manufacturing readiness
+
+What this case is really about:
+Whether legal entry, regulatory readiness, sterile manufacturing readiness, and launch operations are sufficiently advanced to support launch by the target date.
+
+Allowed signal families:
+
+* patent settlement / legal entry date
+* ANDA filing / FDA approval / review status
+* sterile facility readiness
+* manufacturing slot allocation
+* batch validation / CMC readiness
+* production capacity allocation
+* packaging / labeling / distribution readiness
+* inventory build / launch stocking
+* payer access / channel readiness
+* internal portfolio prioritization
+
+Forbidden signal families:
+
+* clinical differentiation
+* guideline review
+* physician switching inertia
+* KOL sentiment
+* treatment preference
+* market adoption dynamics
+* standard-of-care inertia
+
+Signal acceptance rule:
+A signal is valid only if it directly changes the probability of legal, regulatory, manufacturing, or operational readiness by the target date.
+
+Signal rejection rule:
+Reject any signal that mainly affects post-launch uptake rather than launch feasibility or launch timing.
+
+Required new behavior:
+
+1. Generate a Decision Interpretation Block before searching
+2. Use that block to constrain signal generation
+3. Score each suggested signal for case relevance before display
+4. Suppress suggested signals that are outside the allowed signal families
+
+For this case, every valid signal should map to one of four questions:
+
+1. Can Viatris legally launch by then?
+2. Can Viatris get regulatory clearance by then?
+3. Can Viatris manufacture enough sterile product by then?
+4. Can Viatris operationally supply and distribute the product by then?
+
+If a candidate signal does not map to one of those four questions, it should be downgraded or excluded.

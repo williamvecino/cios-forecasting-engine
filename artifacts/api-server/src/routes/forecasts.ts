@@ -222,6 +222,9 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   const corrections = await getLrCorrections();
   const now = Date.now();
   const signalsWithAdjustedLR = normalizedSignals.map((s) => {
+    if (s.direction === "Neutral") {
+      return { ...s, likelihoodRatio: 1.0 };
+    }
     const correction = corrections[s.signalType ?? ""] ?? 1.0;
     const ageMonths = s.createdAt
       ? (now - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30)
