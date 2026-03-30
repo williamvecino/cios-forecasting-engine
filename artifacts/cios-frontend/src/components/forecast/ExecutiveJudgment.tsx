@@ -178,14 +178,47 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
         </div>
       </div>
 
-      {judgment.compositeScenarios && judgment.compositeScenarios.length > 0 && (
-        <div className="space-y-3">
+      {judgment.compositeScenarios && judgment.compositeScenarios.length > 0 && (() => {
+        const maxProb = Math.max(...judgment.compositeScenarios.map(s => s.probability));
+        const SCENARIO_COLORS = [
+          "bg-emerald-400", "bg-sky-400", "bg-amber-400", "bg-violet-400",
+          "bg-rose-400", "bg-teal-400", "bg-orange-400", "bg-indigo-400",
+        ];
+        return (
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-teal-400" />
-            <h3 className="text-[10px] font-bold text-teal-300 uppercase tracking-wider">Scenario Outcomes</h3>
+            <h3 className="text-[10px] font-bold text-teal-300 uppercase tracking-wider">Outcome Probability Distribution</h3>
           </div>
+
+          <div className="rounded-2xl border border-teal-500/20 bg-teal-500/[0.03] p-4 space-y-3">
+            <div className="h-6 rounded-full overflow-hidden flex bg-slate-800/50">
+              {judgment.compositeScenarios.map((scenario, si) => (
+                <div
+                  key={scenario.id}
+                  className={`${SCENARIO_COLORS[si % SCENARIO_COLORS.length]} ${si === 0 ? "rounded-l-full" : ""} ${si === judgment.compositeScenarios!.length - 1 ? "rounded-r-full" : ""} flex items-center justify-center transition-all`}
+                  style={{ width: `${scenario.probability}%` }}
+                  title={`${scenario.label} — ${scenario.probability}%`}
+                >
+                  {scenario.probability >= 12 && (
+                    <span className="text-[9px] font-bold text-slate-900 tabular-nums">{scenario.probability}%</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {judgment.compositeScenarios.map((scenario, si) => (
+                <div key={scenario.id} className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${SCENARIO_COLORS[si % SCENARIO_COLORS.length]}`} />
+                  <span className="text-[10px] text-slate-400">{scenario.label}</span>
+                  <span className="text-[10px] font-bold text-slate-200 tabular-nums">— {scenario.probability}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-2">
-            {judgment.compositeScenarios.map((scenario) => (
+            {judgment.compositeScenarios.map((scenario, si) => (
               <div
                 key={scenario.id}
                 className={`rounded-2xl border p-4 transition ${
@@ -194,32 +227,34 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
                     : "border-white/10 bg-white/[0.02]"
                 }`}
               >
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 mb-2">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <span className={`text-xs font-bold tabular-nums ${scenario.isSelected ? config.color : "text-slate-500"}`}>
                       #{scenario.rank}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-semibold ${scenario.isSelected ? "text-white" : "text-slate-300"}`}>
-                        {scenario.label}
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className={`text-sm font-semibold ${scenario.isSelected ? "text-white" : "text-slate-300"}`}>
+                          {scenario.label}
+                        </span>
+                        <span className="text-sm font-bold tabular-nums text-slate-200">— {scenario.probability}%</span>
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{scenario.rationale}</div>
+                      {scenario.rationale && (
+                        <div className="text-[10px] text-slate-500 mt-0.5">{scenario.rationale}</div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className={`rounded-full px-3 py-1 text-xs font-bold tabular-nums ${
-                      scenario.probability >= 30 ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" :
-                      scenario.probability >= 15 ? "bg-amber-500/15 text-amber-300 border border-amber-500/20" :
-                      "bg-slate-500/15 text-slate-400 border border-slate-500/20"
-                    }`}>
-                      {scenario.probability}%
-                    </div>
-                    {scenario.isSelected && (
-                      <span className="rounded-full bg-teal-500/15 text-teal-300 border border-teal-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
-                        Selected
-                      </span>
-                    )}
-                  </div>
+                  {scenario.isSelected && (
+                    <span className="rounded-full bg-teal-500/15 text-teal-300 border border-teal-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shrink-0">
+                      Most Likely
+                    </span>
+                  )}
+                </div>
+                <div className="relative h-2 rounded-full bg-slate-800/50 overflow-hidden">
+                  <div
+                    className={`absolute inset-y-0 left-0 rounded-full transition-all ${SCENARIO_COLORS[si % SCENARIO_COLORS.length]}`}
+                    style={{ width: `${(scenario.probability / maxProb) * 100}%` }}
+                  />
                 </div>
                 {scenario.isSelected && Object.keys(scenario.dimensions).length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/5">
@@ -235,7 +270,8 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
             ))}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <div className="rounded-2xl bg-indigo-500/8 border border-indigo-500/20 p-4">
         <div className="flex items-center gap-2 mb-2">
