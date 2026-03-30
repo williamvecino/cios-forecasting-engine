@@ -754,7 +754,7 @@ export default function QuestionPage() {
             <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-4">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">AI Suggested Question</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">CIOS Suggested Question</span>
               </div>
 
               {isEditingProposal ? (
@@ -1106,7 +1106,7 @@ export default function QuestionPage() {
                   What decision are you trying to make?
                 </label>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Type your question in plain language. AI will structure it, validate feasibility, and recommend an outcome format before you proceed.
+                  Type your question in plain language. CIOS will structure it, validate feasibility, and recommend an outcome format before you proceed.
                 </p>
                 <textarea
                   value={rawInput}

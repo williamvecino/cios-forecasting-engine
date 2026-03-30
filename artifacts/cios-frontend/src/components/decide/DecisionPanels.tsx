@@ -251,7 +251,7 @@ export default function DecisionPanels() {
       })
       .catch((err) => {
         console.error("[CIOS Decide] AI analysis failed:", err);
-        setError("Decision analysis unavailable. The analysis will appear once the AI service responds.");
+        setError("Decision analysis unavailable. The analysis will appear once the system responds.");
       })
       .finally(() => setLoading(false));
   }, [contextKey, caseId]);

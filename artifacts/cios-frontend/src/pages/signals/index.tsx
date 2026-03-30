@@ -888,7 +888,7 @@ export default function SignalsPage() {
       .catch((err) => {
         if (aiRequestIdRef.current !== requestId) return;
         console.error("[CIOS AI Signals] AI research failed, using template signals:", err);
-        setAiError("AI research unavailable — showing template signals. You can still add signals manually.");
+        setAiError("Signal research unavailable — showing template signals. You can still add signals manually.");
         setIncomingEvents(fallbackEvents);
       })
       .finally(() => {
@@ -1073,7 +1073,7 @@ export default function SignalsPage() {
         scope: "national",
         timing: "current",
         status: "active",
-        sourceLabel: signal.source === "user" ? "User input" : "AI research",
+        sourceLabel: signal.source === "user" ? "User input" : "CIOS research",
         evidenceSnippet: signal.text,
         signalScope: "market",
         observedAt: new Date().toISOString(),
@@ -1862,7 +1862,7 @@ export default function SignalsPage() {
 
               {unclassifiedPending.length > 0 && (
                 <div className="space-y-3">
-                  <h2 className="text-sm font-bold text-foreground">Suggested Signals From AI</h2>
+                  <h2 className="text-sm font-bold text-foreground">Suggested Signals From CIOS</h2>
                   <div className="space-y-3">
                     {unclassifiedPending.map((sig) => (
                       <MinimalSignalCard

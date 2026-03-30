@@ -36,7 +36,7 @@ const SYSTEM_MODULES = [
     section: "Intelligence",
     items: [
       { label: "Signal Review", path: "/review", icon: Eye, description: "Global signal review queue across all cases." },
-      { label: "Signal Detection", path: "/signal-detection", icon: Search, description: "AI-powered signal extraction from source text." },
+      { label: "Signal Detection", path: "/signal-detection", icon: Search, description: "CIOS-powered signal extraction from source text." },
       { label: "Adopter Discovery", path: "/discovery", icon: Users, description: "Discover adoption candidates by geography and specialty." },
       { label: "Event Radar", path: "/event-radar", icon: Radio, description: "Track upcoming events likely to generate signals." },
       { label: "Field Intelligence", path: "/field-intelligence", icon: Layers, description: "Structured field intelligence capture." },
