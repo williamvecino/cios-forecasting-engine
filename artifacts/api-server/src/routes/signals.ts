@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { signalsTable, SIGNAL_TYPES, VALID_TRANSITIONS } from "@workspace/db";
+import { signalsTable, casesTable, SIGNAL_TYPES, VALID_TRANSITIONS } from "@workspace/db";
 import { eq, and, inArray, gte, lte, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { computeLR, type Scope, type Timing } from "@workspace/db";
 import { logAudit } from "../lib/audit-service.js";
+import { isSafetyRiskCase, getProfileForQuestion } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -191,6 +192,35 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     }
   }
 
+  const directionWarnings: Array<{ type: string; message: string }> = [];
+  try {
+    const [caseRecord] = await db.select().from(casesTable)
+      .where(eq(casesTable.caseId, req.params.caseId));
+    if (caseRecord) {
+      const question = (caseRecord as any).strategicQuestion || (caseRecord as any).question || "";
+      if (isSafetyRiskCase(question, (caseRecord as any).caseType)) {
+        const profile = getProfileForQuestion(question, (caseRecord as any).caseType);
+        if (profile.directionValidation?.restrictionOutcome) {
+          const signalType = (body.signalType || "").trim();
+          const direction = body.direction || "";
+          const invertedCats = profile.directionValidation.invertedCategories || {};
+          for (const [cat, reason] of Object.entries(invertedCats)) {
+            const catNorm = cat.trim().toLowerCase();
+            const typeNorm = signalType.toLowerCase();
+            if (typeNorm === catNorm && direction === "Positive") {
+              directionWarnings.push({
+                type: "direction_inversion_warning",
+                message: `${reason}. Signal type "${signalType}" with direction "Positive" may need direction "Negative" for a restriction-outcome question. Review signal direction.`,
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Direction validation check failed (non-blocking):", e);
+  }
+
   const [created] = await db.insert(signalsTable).values({
     id,
     signalId,
@@ -241,11 +271,15 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   });
 
   const response: Record<string, any> = { ...created };
-  if (duplicateWarnings.length > 0) {
-    response._integrityWarnings = {
-      potentialDuplicates: duplicateWarnings,
-      recommendation: "Consider assigning a correlationGroup to correlated signals to prevent LR inflation.",
-    };
+  if (duplicateWarnings.length > 0 || directionWarnings.length > 0) {
+    response._integrityWarnings = {};
+    if (duplicateWarnings.length > 0) {
+      response._integrityWarnings.potentialDuplicates = duplicateWarnings;
+      response._integrityWarnings.recommendation = "Consider assigning a correlationGroup to correlated signals to prevent LR inflation.";
+    }
+    if (directionWarnings.length > 0) {
+      response._integrityWarnings.directionValidation = directionWarnings;
+    }
   }
 
   res.status(201).json(response);

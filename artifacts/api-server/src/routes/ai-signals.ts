@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { researchBrand } from "../lib/web-research";
+import { isSafetyRiskCase } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -271,7 +272,16 @@ Every signal must include applies_to_line_of_therapy, applies_to_stakeholder_gro
 - A strong positive brand development (e.g. positive trial data) should NOT automatically get "High" strength if it doesn't directly drive the specific outcome asked about.
 - If a signal is an upstream positive but has uncertain conversion to the asked outcome, set translation_confidence: "low" or "moderate" and constrain strength accordingly.
 
-Convert relevant verified brand developments into observed signals first, then add derived implications and uncertainties.`;
+Convert relevant verified brand developments into observed signals first, then add derived implications and uncertainties.
+
+${isSafetyRiskCase(body.questionText) ? `SAFETY/RISK CASE RULES:
+- This is a safety/risk case. Safety signals are PRIMARY drivers with highest weight.
+- Media/advocacy signals are INFLUENCE FACTORS only — downweight them relative to clinical evidence and regulatory review.
+- A positive payer/access signal implies access conditions (step therapy, prior authorization), NOT adoption decline.
+- Time constraints modify resolution speed (when the answer arrives), NOT outcome probability.
+- Use "use" instead of "adoption", "continuation" instead of "growth", "clinician" instead of "prescriber".
+- Direction validation: for restriction-outcome questions, a "Positive" access/payer signal should have direction "Negative" (it reduces restriction probability).
+- Feasibility timelines affect how quickly the safety question will be resolved, NOT whether restrictions will happen.` : ""}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",

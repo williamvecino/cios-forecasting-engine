@@ -4,7 +4,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runDependencyAnalysis } from "../lib/signal-dependency-engine.js";
 import { runForecast } from "../lib/forecast-engine.js";
-import { isRegulatoryCase, detectRegulatoryAuthority } from "../lib/case-type-router.js";
+import { isRegulatoryCase, isSafetyRiskCase, detectRegulatoryAuthority } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -298,6 +298,93 @@ const EMA_REGULATORY_SEGMENT_DEFINITIONS: SegmentDefinition[] = [
   },
 ];
 
+const SAFETY_RISK_SEGMENT_DEFINITIONS: SegmentDefinition[] = [
+  {
+    name: "Continue Prescribing (Risk-Benefit)",
+    type: "continue_prescribing",
+    signalWeights: {
+      signalTypes: ["Clinical evidence", "Real-world evidence", "Guideline update", "Safety signal"],
+      directionBias: "positive",
+      accessSensitivity: 0.2,
+      workflowSensitivity: 0.1,
+      evidenceThreshold: 0.5,
+      competitiveSensitivity: 0.3,
+    },
+    baseAdoptionModifier: 1.1,
+    description: "Clinicians who continue prescribing based on established risk-benefit assessment. Require strong safety signal to change behavior.",
+  },
+  {
+    name: "Pause Pending Clarification",
+    type: "pause_pending_clarification",
+    signalWeights: {
+      signalTypes: ["Safety signal", "Regulatory", "Guideline update", "Clinical evidence"],
+      directionBias: "negative",
+      accessSensitivity: 0.3,
+      workflowSensitivity: 0.2,
+      evidenceThreshold: 0.7,
+      competitiveSensitivity: 0.4,
+    },
+    baseAdoptionModifier: 0.75,
+    description: "Clinicians who pause new starts while awaiting regulatory clarification or updated guidelines.",
+  },
+  {
+    name: "Wait for Guideline Direction",
+    type: "wait_for_guideline",
+    signalWeights: {
+      signalTypes: ["Guideline update", "Consensus recommendation", "Clinical evidence", "Expert opinion"],
+      directionBias: "neutral",
+      accessSensitivity: 0.2,
+      workflowSensitivity: 0.2,
+      evidenceThreshold: 0.8,
+      competitiveSensitivity: 0.2,
+    },
+    baseAdoptionModifier: 0.85,
+    description: "Clinicians who defer prescribing decisions to guideline body recommendations. Will not change behavior until authoritative guidance is issued.",
+  },
+  {
+    name: "Switch Immediately",
+    type: "switch_immediately",
+    signalWeights: {
+      signalTypes: ["Safety signal", "Regulatory", "Competitive intelligence", "Real-world evidence"],
+      directionBias: "negative",
+      accessSensitivity: 0.3,
+      workflowSensitivity: 0.4,
+      evidenceThreshold: 0.3,
+      competitiveSensitivity: 0.9,
+    },
+    baseAdoptionModifier: 0.45,
+    description: "Clinicians who switch to alternative therapies at the first credible safety signal. High risk aversion.",
+  },
+  {
+    name: "Risk Gatekeepers",
+    type: "risk_gatekeeper",
+    signalWeights: {
+      signalTypes: ["Safety signal", "Regulatory", "Clinical evidence", "Real-world evidence", "Risk management"],
+      directionBias: "negative",
+      accessSensitivity: 0.3,
+      workflowSensitivity: 0.2,
+      evidenceThreshold: 0.9,
+      competitiveSensitivity: 0.2,
+    },
+    baseAdoptionModifier: 0.50,
+    description: "Institutional risk officers, P&T committee members, and compliance stakeholders. Primary institutional actor in safety cases.",
+  },
+  {
+    name: "Payer Safety Reviewers",
+    type: "payer_reviewer",
+    signalWeights: {
+      signalTypes: ["Safety signal", "Regulatory", "Cost-effectiveness", "Access / commercial", "Real-world evidence"],
+      directionBias: "negative",
+      accessSensitivity: 0.8,
+      workflowSensitivity: 0.2,
+      evidenceThreshold: 0.7,
+      competitiveSensitivity: 0.5,
+    },
+    baseAdoptionModifier: 0.65,
+    description: "Payer organizations reviewing coverage based on safety signal severity. Behavior: impose access conditions, not adoption decline.",
+  },
+];
+
 function computeSegmentAdoption(
   baseProbability: number,
   signals: any[],
@@ -524,9 +611,12 @@ router.post("/cases/:caseId/adoption-segments/generate", async (req, res) => {
   await db.delete(adoptionSegmentsTable).where(eq(adoptionSegmentsTable.caseId, caseId));
 
   const question = caseData.strategicQuestion || caseData.question || "";
-  const useRegulatory = isRegulatoryCase(question);
+  const useSafetyRisk = isSafetyRiskCase(question, caseData.caseType);
+  const useRegulatory = !useSafetyRisk && isRegulatoryCase(question);
   let segmentDefs = SEGMENT_DEFINITIONS;
-  if (useRegulatory) {
+  if (useSafetyRisk) {
+    segmentDefs = SAFETY_RISK_SEGMENT_DEFINITIONS;
+  } else if (useRegulatory) {
     const authority = detectRegulatoryAuthority(question);
     segmentDefs = (authority === "ema" || authority === "mhra")
       ? EMA_REGULATORY_SEGMENT_DEFINITIONS

@@ -5,7 +5,8 @@ export type DecisionType =
   | "Adoption"
   | "CompetitiveDefense"
   | "LifecycleManagement"
-  | "MarketShaping";
+  | "MarketShaping"
+  | "SafetyRisk";
 
 export type ResponseMode =
   | "TrialStrategy"
@@ -14,7 +15,8 @@ export type ResponseMode =
   | "LaunchStrategy"
   | "DefenseStrategy"
   | "LifecycleStrategy"
-  | "ShapingStrategy";
+  | "ShapingStrategy"
+  | "SafetyStrategy";
 
 export interface CaseTypeProfile {
   caseType: string;
@@ -40,6 +42,12 @@ export interface CaseTypeProfile {
   evidenceGateOrder?: string[];
   outcomeStates?: string[];
   simulationEligibility?: string;
+  signalWeightModifiers?: Record<string, number>;
+  directionValidation?: {
+    restrictionOutcome: boolean;
+    invertedCategories?: Record<string, string>;
+  };
+  feasibilityInterpretation?: string;
 }
 
 export interface ActorSegment {
@@ -50,6 +58,7 @@ export interface ActorSegment {
   signalWeights: Record<string, number>;
   relevanceTiming: string;
   activationCondition?: string;
+  reactionTrigger?: string;
 }
 
 type RegulatoryAuthority = "fda" | "ema" | "mhra" | "pmda" | "generic";
@@ -296,6 +305,69 @@ const CLINICAL_OUTCOME_ACTORS: ActorSegment[] = [
     signalWeights: { safety: 0.95, regulatory: 0.8, compliance: 0.9, evidence: 0.7, "risk-management": 0.9 },
     relevanceTiming: "pre-readout",
     activationCondition: "Activated when program-level risk assessment or portfolio review is triggered.",
+  },
+];
+
+const SAFETY_RISK_ACTORS: ActorSegment[] = [
+  {
+    segmentType: "continue_prescribing",
+    segmentName: "Continue Prescribing (Risk-Benefit)",
+    description: "Clinicians who continue prescribing based on established risk-benefit assessment. Require strong safety signal to change behavior. Behavior: maintain current prescribing patterns with enhanced monitoring.",
+    baseModifier: 1.1,
+    signalWeights: { clinical: 0.9, safety: 0.7, "real-world": 0.8, guideline: 0.6, evidence: 0.85 },
+    relevanceTiming: "ongoing",
+    activationCondition: "Always active in safety/risk cases — represents baseline prescribing behavior.",
+    reactionTrigger: "Major guideline revision or class-level safety reclassification",
+  },
+  {
+    segmentType: "pause_pending_clarification",
+    segmentName: "Pause Pending Clarification",
+    description: "Clinicians who pause new starts or reduce prescribing volume while awaiting regulatory clarification, updated guidelines, or additional safety data. Behavior: hold new prescriptions, continue existing patients with monitoring.",
+    baseModifier: 0.75,
+    signalWeights: { safety: 0.9, regulatory: 0.85, guideline: 0.8, clinical: 0.6, media: 0.5 },
+    relevanceTiming: "signal-onset",
+    activationCondition: "Activated when safety signal is flagged but regulatory/guideline position is not yet updated.",
+    reactionTrigger: "Regulatory safety communication or REMS update",
+  },
+  {
+    segmentType: "wait_for_guideline",
+    segmentName: "Wait for Guideline Direction",
+    description: "Clinicians who defer prescribing decisions to guideline body recommendations. Will not change behavior until authoritative guidance is issued. Behavior: follow existing guidelines until formally revised.",
+    baseModifier: 0.85,
+    signalWeights: { guideline: 0.95, consensus: 0.85, evidence: 0.8, clinical: 0.7, safety: 0.6 },
+    relevanceTiming: "post-signal",
+    activationCondition: "Activated when guideline review is pending or professional society statement is anticipated.",
+    reactionTrigger: "Guideline committee convenes or professional society issues position statement",
+  },
+  {
+    segmentType: "switch_immediately",
+    segmentName: "Switch Immediately",
+    description: "Clinicians who switch to alternative therapies at the first credible safety signal. High risk aversion, often in institutional settings with liability concerns. Behavior: switch to alternative anticoagulants or competitor therapies.",
+    baseModifier: 0.45,
+    signalWeights: { safety: 1.0, regulatory: 0.9, liability: 0.95, media: 0.7, competitive: 0.8 },
+    relevanceTiming: "immediate",
+    activationCondition: "Activated when any credible safety signal emerges, regardless of regulatory confirmation.",
+    reactionTrigger: "Any credible safety signal, media report, or institutional risk alert",
+  },
+  {
+    segmentType: "risk_gatekeeper",
+    segmentName: "Risk Gatekeepers",
+    description: "Institutional risk officers, P&T committee members, and compliance stakeholders who evaluate safety, liability, and institutional risk. Their formulary decisions and protocol changes affect all prescribers within the institution. Primary institutional actor in safety cases.",
+    baseModifier: 0.50,
+    signalWeights: { safety: 1.0, regulatory: 0.9, compliance: 0.95, liability: 0.9, evidence: 0.75, "risk-management": 1.0 },
+    relevanceTiming: "pre-decision",
+    activationCondition: "Always active in safety/risk cases — primary institutional actor.",
+    reactionTrigger: "P&T committee review cycle or institutional risk assessment trigger",
+  },
+  {
+    segmentType: "payer_reviewer",
+    segmentName: "Payer Safety Reviewers",
+    description: "Payer organizations reviewing coverage and formulary positioning based on safety signal severity. Behavior: impose access conditions, step therapy requirements, or prior authorization — not adoption decline.",
+    baseModifier: 0.65,
+    signalWeights: { safety: 0.9, regulatory: 0.85, "cost-effectiveness": 0.7, access: 0.8, evidence: 0.7 },
+    relevanceTiming: "post-signal",
+    activationCondition: "Activated when safety signal triggers payer policy review.",
+    reactionTrigger: "Payer policy review cycle — typically 3-6 months after regulatory communication",
   },
 ];
 
@@ -662,6 +734,117 @@ const PROFILES: Record<string, CaseTypeProfile> = {
     ],
     actionConstraints: [],
   },
+  safety_risk: {
+    caseType: "safety_risk",
+    decisionType: "SafetyRisk",
+    responseMode: "SafetyStrategy",
+    label: "Safety / Risk Response",
+    stepNames: {
+      judge: "Judge Restriction Probability",
+      decide: "Decide Risk Mitigation Strategy",
+      respond: "Respond with Safety Action Plan",
+      simulate: "Simulate Stakeholder Risk Response",
+    },
+    allowedVocabulary: [
+      "safety signal", "adverse event", "benefit-risk", "risk management",
+      "REMS", "black box warning", "label update", "safety communication",
+      "pharmacovigilance", "post-marketing", "restriction", "regulatory action",
+      "risk mitigation", "safety review", "signal detection", "causality assessment",
+      "use", "continuation", "discontinuation", "switching",
+      "risk-benefit assessment", "safety monitoring", "clinical practice change",
+      "guideline revision", "access conditions", "prescribing restrictions",
+    ],
+    disallowedVocabulary: [
+      "adoption ceiling", "adoption rate", "growth feasibility",
+      "market readiness", "launch strategy", "commercial execution",
+      "field force", "detailing", "share of voice",
+      "formulary pull-through", "patient starter kits",
+      "physician education materials", "prescriber engagement",
+      "market shaping", "brand awareness", "competitive displacement",
+    ],
+    vocabularyReplacements: {
+      "adoption": "use",
+      "adoption rate": "continuation rate",
+      "adoption ceiling": "use constraint",
+      "growth": "continuation",
+      "growth feasibility": "continuation feasibility",
+      "prescriber": "clinician",
+      "market share": "prescribing share",
+      "launch": "response",
+      "adoption reaction": "risk response",
+      "market readiness": "risk readiness",
+      "decreases probability of regulatory restriction": "reduces likelihood of restrictions",
+      "increases probability of regulatory restriction": "increases likelihood of restrictions",
+    },
+    actorSegments: SAFETY_RISK_ACTORS,
+    visibleModules: [
+      "question", "signals", "forecast", "judge", "decide", "respond", "simulate",
+      "barrier-diagnosis", "competitive-risk", "adoption-segments",
+    ],
+    hiddenModules: [
+      "growth-feasibility", "adoption-segments-commercial", "market-readiness",
+      "readiness-timeline",
+    ],
+    driverCategories: [
+      "safety_signal_severity", "regulatory_response", "clinical_evidence",
+      "guideline_impact", "liability_exposure", "competitive_alternative",
+      "payer_policy_change", "media_sentiment", "real_world_evidence",
+    ],
+    riskFraming: "safety_precedent",
+    successMeasureTypes: [
+      "switch rate monitoring", "adverse event reporting trends",
+      "media sentiment trajectory", "prescribing pattern change",
+      "guideline revision status", "regulatory action timeline",
+      "risk mitigation plan acceptance", "continuation rate",
+    ],
+    actionConstraints: [
+      "safety communication strategy", "risk mitigation plan development",
+      "REMS preparation", "guideline engagement", "pharmacovigilance enhancement",
+      "clinician education on risk-benefit", "payer safety dossier",
+      "label update preparation", "post-marketing study design",
+      "institutional risk protocol update",
+    ],
+    evidenceGateOrder: [
+      "safety_signal_confirmation",
+      "regulatory_review_status",
+      "clinical_evidence_assessment",
+    ],
+    outcomeStates: [
+      "no_action_required",
+      "enhanced_monitoring",
+      "label_update_only",
+      "prescribing_restriction",
+      "rems_imposed",
+      "market_withdrawal",
+      "inconclusive_pending",
+    ],
+    simulationEligibility: "Run when external safety data, regulatory communication, or guideline revision affects the restriction trajectory. Do not simulate internal pharmacovigilance operations.",
+    signalWeightModifiers: {
+      "clinical_efficacy": 1.0,
+      "safety_tolerability": 1.2,
+      "regulatory_procedural": 1.1,
+      "guideline_consensus": 1.0,
+      "competitive_landscape": 0.8,
+      "payer_access": 0.9,
+      "operational_workflow": 0.6,
+      "epidemiological": 0.9,
+      "patient_reported": 0.8,
+      "biomarker": 0.7,
+      "real_world_evidence": 1.1,
+      "media_advocacy": 0.5,
+    },
+    directionValidation: {
+      restrictionOutcome: true,
+      invertedCategories: {
+        "Payer / coverage": "Positive payer signal implies access conditions, not restriction support",
+        "Access / commercial": "Positive access signal reduces restriction likelihood",
+        "Access friction": "Positive access signal reduces restriction likelihood",
+        "PAYER_ACCESS": "Positive payer signal implies access conditions, not restriction support",
+        "ACCESS_COMMERCIAL": "Positive access signal reduces restriction likelihood",
+      },
+    },
+    feasibilityInterpretation: "Time constraints modify resolution speed (how quickly the safety question will be answered), NOT outcome probability. A 6-month timeline means the restriction decision will be made within 6 months, not that restriction becomes more likely over time.",
+  },
 };
 
 const CLASSIFIER_TO_ROUTER: Record<string, string> = {
@@ -672,6 +855,7 @@ const CLASSIFIER_TO_ROUTER: Record<string, string> = {
   clinical_adoption: "clinical_adoption",
   lifecycle_management: "lifecycle_management",
   market_shaping: "market_shaping",
+  safety_risk: "safety_risk",
   unclassified: "clinical_adoption",
 };
 
@@ -688,6 +872,46 @@ const CLINICAL_OUTCOME_PATTERNS = [
   "objective response rate", "complete response rate",
   "durable response", "event-free survival",
 ];
+
+const SAFETY_RISK_PATTERNS = [
+  "safety concern", "safety signal", "safety issue", "safety risk",
+  "adverse event", "adverse reaction", "adverse effect",
+  "black box warning", "boxed warning", "safety warning",
+  "regulatory restriction", "prescribing restriction", "use restriction",
+  "rems", "risk evaluation", "risk management strategy",
+  "gi bleeding", "bleeding risk", "mortality signal", "mortality risk",
+  "hepatotoxicity", "cardiotoxicity", "nephrotoxicity",
+  "drug safety", "pharmacovigilance", "post-marketing safety",
+  "safety review", "safety evaluation", "safety assessment",
+  "label change", "label update", "labeling change",
+  "market withdrawal", "product recall", "product withdrawal",
+  "class effect", "class-wide safety", "class warning",
+  "risk-benefit", "benefit-risk reassessment",
+  "safety restriction", "will safety", "safety lead to",
+  "safety-driven", "safety-related restriction",
+];
+
+export function isSafetyRiskCase(question: string, caseType?: string): boolean {
+  if (caseType === "safety_risk") return true;
+  const q = question.toLowerCase();
+  const safetyScore = SAFETY_RISK_PATTERNS.filter(p => q.includes(p)).length;
+  const clinScore = CLINICAL_OUTCOME_PATTERNS.filter(p => q.includes(p)).length;
+  const approvalPatterns = [
+    "fda approv", "ema approv", "regulatory approv", "approval", "pdufa",
+    "advisory committee", "nda", "bla",
+  ];
+  const regScore = approvalPatterns.filter(p => q.includes(p)).length;
+  const restrictionSignal = q.includes("restriction") || q.includes("restrict") ||
+    q.includes("withdrawal") || q.includes("rems") || q.includes("warning") ||
+    q.includes("contraindication") || q.includes("black box") || q.includes("boxed warning");
+  const safetyContext = q.includes("safety") || q.includes("adverse") || q.includes("risk") ||
+    q.includes("bleeding") || q.includes("toxicity") || q.includes("mortality") ||
+    q.includes("pharmacovigilance") || q.includes("harm");
+  if (safetyScore >= 2 && safetyScore > clinScore && safetyScore > regScore) return true;
+  if (restrictionSignal && safetyContext) return true;
+  if (safetyScore >= 1 && safetyContext && regScore === 0 && clinScore === 0) return true;
+  return false;
+}
 
 export function isClinicalOutcomeCase(question: string, caseType?: string): boolean {
   if (caseType === "clinical_outcome") return true;
@@ -734,6 +958,9 @@ export function getCaseTypeProfile(classifierType: string, question?: string): C
   if (question && isClinicalOutcomeCase(question, classifierType)) {
     return { ...PROFILES.clinical_outcome };
   }
+  if (question && isSafetyRiskCase(question, classifierType)) {
+    return { ...PROFILES.safety_risk };
+  }
   if (question && isRegulatoryCase(question, classifierType)) {
     const profile = { ...PROFILES.regulatory_approval };
     profile.actorSegments = getRegulatoryActors(question);
@@ -746,6 +973,9 @@ export function getCaseTypeProfile(classifierType: string, question?: string): C
 export function getProfileForQuestion(question: string, classifierType?: string): CaseTypeProfile {
   if (isClinicalOutcomeCase(question, classifierType)) {
     return { ...PROFILES.clinical_outcome };
+  }
+  if (isSafetyRiskCase(question, classifierType)) {
+    return { ...PROFILES.safety_risk };
   }
   if (isRegulatoryCase(question, classifierType)) {
     const profile = { ...PROFILES.regulatory_approval };
@@ -776,6 +1006,7 @@ export function getResponseModeLabel(mode: ResponseMode): string {
     DefenseStrategy: "Defense Strategy",
     LifecycleStrategy: "Lifecycle Strategy",
     ShapingStrategy: "Shaping Strategy",
+    SafetyStrategy: "Safety Strategy",
   };
   return labels[mode] || mode;
 }
@@ -819,6 +1050,9 @@ export function buildRiskFramingPrompt(profile: CaseTypeProfile): string {
   if (profile.riskFraming === "regulatory_precedent") {
     return `\nRISK FRAMING: Frame competitive risks as regulatory precedent risks. Use "prior class approval/rejection pattern", "mechanism-specific safety spillover", "comparative review tolerance", "precedent from similar therapies". Do NOT use "fast follower risk", "incumbent defense", "access response", or other commercial risk language.\n`;
   }
+  if (profile.riskFraming === "safety_precedent") {
+    return `\nRISK FRAMING (SAFETY/RISK CASE): Frame risks as safety precedent risks. Use "prior class safety action pattern", "mechanism-specific safety signal history", "regulatory response precedent for similar safety signals", "class-wide restriction pattern". Do NOT use "fast follower risk", "incumbent defense", "adoption response", "market share impact", or other commercial risk language. A payer review implies access conditions (step therapy, prior authorization), NOT adoption decline.\n`;
+  }
   return "";
 }
 
@@ -859,6 +1093,28 @@ RULES:
 - Payer strategy, reimbursement, and market access are NOT clinical trial constructs.
 - Commercial strategy, adoption, and market share are NOT relevant to endpoint success.
 - If downstream concepts are relevant, classify them as "downstream impact" only.
+`;
+  }
+  if (profile.caseType === "safety_risk") {
+    return `
+DECISION LAYER SEPARATION (MANDATORY):
+This case operates in the SAFETY / RISK RESPONSE layer.
+
+Safety / Risk Response Layer (THIS CASE):
+  Determined ONLY by: safety signal severity, regulatory response, clinical evidence reassessment, guideline impact, liability exposure.
+  Decision authority: Regulatory agencies, guideline bodies, institutional risk committees.
+  Outcome: Restriction level (no action, enhanced monitoring, label update, prescribing restriction, REMS, withdrawal).
+
+DOWNSTREAM — do not mix:
+  - Commercial impact (prescribing share change) is a CONSEQUENCE of safety action, not a driver.
+  - Adoption rate is irrelevant — use "continuation rate" or "switching rate" instead.
+  - Market share defense is not a valid safety case objective.
+
+RULES:
+- Time constraints modify resolution speed (when the answer arrives), NOT outcome probability.
+- A payer reviewing safety data implies access conditions, NOT adoption decline.
+- Media/advocacy signals are influence factors with reduced weight, NOT primary drivers.
+- Competitive alternatives affect switching behavior, NOT the safety assessment itself.
 `;
   }
   if (profile.caseType !== "regulatory_approval") return "";
@@ -909,6 +1165,29 @@ INFLUENCE FACTORS (not primary drivers):
   - Patient recruitment challenges — operational, affects timeline not biology
 `;
   }
+  if (profile.caseType === "safety_risk") {
+    return `
+DRIVER CONSTRAINTS (MANDATORY — SAFETY/RISK):
+Primary drivers of restriction/safety action must be limited to:
+  - Safety signal severity and causality strength
+  - Regulatory agency response and communication
+  - Clinical evidence reassessment (benefit-risk update)
+  - Guideline body position and revision
+  - Liability exposure and institutional risk
+  - Competitive alternative availability (affects switching, not safety assessment)
+
+DISALLOWED as drivers (these are outcomes or downstream):
+  - "Regulatory restriction" or "market withdrawal" — these are the OUTCOME, not drivers
+  - "Adoption decline" or "market share loss" — commercial consequences, not safety drivers
+  - "Revenue impact" — downstream financial effect
+
+INFLUENCE FACTORS (reduced weight, not primary drivers):
+  - Media coverage — influence factor, downweighted (0.5x)
+  - Patient advocacy — influence factor, not clinical evidence
+  - Social media sentiment — noise factor, not evidence
+  - Litigation risk — contextual, affects behavior not safety assessment
+`;
+  }
   if (profile.caseType !== "regulatory_approval") return "";
   return `
 DRIVER CONSTRAINTS (MANDATORY):
@@ -954,6 +1233,22 @@ EVIDENCE GATE HIERARCHY (CLINICAL OUTCOME):
 3. Safety Acceptability → HIGH weight (adverse event profile must be manageable for the indication)
 `;
   }
+  if (profile.caseType === "safety_risk") {
+    return `
+SAFETY SIGNAL RULES (SAFETY/RISK CASE):
+- Safety signals are the PRIMARY drivers in this case type — they have the highest weight.
+- Clinical evidence supporting continued use reduces restriction probability; clinical evidence confirming harm increases it.
+- Media/advocacy signals are INFLUENCE FACTORS with reduced weight (0.5x) — they do not constitute clinical evidence.
+- A payer reviewing safety data implies access conditions (step therapy, prior authorization), NOT adoption decline.
+- Direction validation: a "Positive" access/payer signal REDUCES restriction probability (direction should be "Negative" for the restriction outcome).
+- Feasibility timelines modify resolution speed, NOT outcome probability.
+
+EVIDENCE GATE HIERARCHY (SAFETY/RISK):
+1. Safety Signal Confirmation → HIGHEST weight (is the signal causally confirmed?)
+2. Regulatory Review Status → HIGH weight (has the agency acted or communicated?)
+3. Clinical Evidence Assessment → HIGH weight (does updated evidence change the benefit-risk?)
+`;
+  }
   if (profile.caseType !== "regulatory_approval") return "";
   return `
 SAFETY SIGNAL RULES:
@@ -978,6 +1273,9 @@ export function buildEvidenceGatePrompt(profile: CaseTypeProfile): string {
     safety_acceptability_reg: "Safety Acceptability (benefit-risk balance is acceptable to regulators)",
     clinical_evidence_sufficiency: "Clinical Evidence Sufficiency (data package supports the indication)",
     regulatory_compliance: "Regulatory Compliance (submission is complete and meets requirements)",
+    safety_signal_confirmation: "Safety Signal Confirmation (causal relationship between drug and adverse event is established or refuted)",
+    regulatory_review_status: "Regulatory Review Status (agency has acted, communicated, or initiated formal review)",
+    clinical_evidence_assessment: "Clinical Evidence Assessment (updated clinical data changes the benefit-risk balance)",
   };
 
   let prompt = `\nEVIDENCE GATE HIERARCHY (MANDATORY — ${profile.label}):
@@ -1028,6 +1326,13 @@ export function buildOutcomeStatePrompt(profile: CaseTypeProfile): string {
     safety_limited_success: "Primary endpoint met but safety profile raises concerns — benefit-risk balance is uncertain",
     inconclusive: "Results do not clearly support success or failure — additional data or analysis needed",
     definitive_failure: "Primary endpoint clearly missed with no meaningful clinical signal — negative outcome",
+    no_action_required: "Safety signal investigated and determined to be non-causal or within acceptable risk — no regulatory or clinical action needed",
+    enhanced_monitoring: "Safety signal warrants increased surveillance but does not require prescribing changes — enhanced pharmacovigilance imposed",
+    label_update_only: "Safety information added to label (warnings, precautions) but no prescribing restrictions imposed",
+    prescribing_restriction: "Formal prescribing restrictions imposed — limited to specific populations, settings, or conditions",
+    rems_imposed: "Risk Evaluation and Mitigation Strategy required — structured risk management program mandated",
+    market_withdrawal: "Product withdrawn from market due to unacceptable safety profile — most severe outcome",
+    inconclusive_pending: "Safety assessment is ongoing — insufficient data to determine outcome; resolution depends on pending studies or reviews",
   };
 
   let prompt = `\nOUTCOME STATE CLASSIFICATION (MANDATORY — ${profile.label}):
@@ -1041,6 +1346,21 @@ Do NOT use binary success/failure. Classify the projected outcome into one of th
 }
 
 export function buildPropagationPathwayPrompt(profile: CaseTypeProfile): string {
+  if (profile.caseType === "safety_risk") {
+    return `
+PROPAGATION PATHWAY (MANDATORY — SAFETY/RISK):
+For each significant signal or scenario, describe the impact pathway using this format:
+  Event → Immediate Effect → Secondary Effect → System Outcome
+
+Examples:
+  - "GI bleeding signal confirmed → FDA safety communication → guideline committee review → prescribing restriction in high-risk populations"
+  - "Post-marketing study shows mortality signal → REMS evaluation triggered → institutional formulary review → switch to alternative therapies"
+  - "Media amplification of adverse events → clinician concern increases → pause in new starts → continuation rate drops 20%"
+  - "Payer safety review → prior authorization imposed → access conditions tightened → prescribing share shifts to alternatives"
+
+Each pathway must trace from a specific, observable event to its system-level consequence. Do not skip intermediate steps.
+`;
+  }
   if (profile.caseType !== "clinical_outcome" && profile.caseType !== "regulatory_approval") return "";
   return `
 PROPAGATION PATHWAY (MANDATORY):
@@ -1089,4 +1409,4 @@ export const SIGNAL_CLASSIFICATION_TYPES = [
 
 export type SignalClassificationType = typeof SIGNAL_CLASSIFICATION_TYPES[number];
 
-export { PROFILES, REGULATORY_ACTORS, COMMERCIAL_ACTORS, FDA_REGULATORY_ACTORS, EMA_REGULATORY_ACTORS, CLINICAL_OUTCOME_ACTORS };
+export { PROFILES, REGULATORY_ACTORS, COMMERCIAL_ACTORS, FDA_REGULATORY_ACTORS, EMA_REGULATORY_ACTORS, CLINICAL_OUTCOME_ACTORS, SAFETY_RISK_ACTORS };

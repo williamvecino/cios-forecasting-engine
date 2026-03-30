@@ -48,7 +48,7 @@ CIOS is a monorepo built with pnpm workspaces. The frontend uses React, Vite, Ta
 - **Competitive Risk Panel:** Identifies competitive forces across 12 categories.
 - **Growth Feasibility Panel:** Synthesizes forecast probability, adoption segments, barrier diagnosis, readiness timeline, and competitive risk into actionable feasibility outputs with a deterministic scoring engine.
 - **Calibration & Performance Dashboard:** Aggregates Forecast Ledger data into metrics, calibration analysis, and bias detection.
-- **Case-Type-Aware Routing:** Central router (`lib/case-type-router.ts`) maps 7 case types to vocabulary, actor segments, visible/hidden modules, and action constraints, including dynamic regulatory authority detection.
+- **Case-Type-Aware Routing:** Central router (`lib/case-type-router.ts`) maps 8 case types (including Safety/Risk) to vocabulary, actor segments, visible/hidden modules, action constraints, and signal weight modifiers. Includes dynamic regulatory authority detection and safety case detection (runs before regulatory). Safety/Risk cases use dedicated risk-response posture segments, direction validation, media/advocacy signal downweighting, and feasibility timeline interpretation rules.
 - **Safety Signal Forecast Ceiling:** A post-engine guardrail applies probability ceilings in regulatory cases based on unresolved negative safety signals.
 - **Methodology Guidance Panel:** Collapsible guidance component in the workflow sidebar.
 - **Challenge Mode Validation:** Validates forecast outputs against expected probability ranges for challenge cases.
