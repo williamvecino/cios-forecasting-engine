@@ -23,6 +23,7 @@ interface QuestionStructuringOutput {
     reason: string | null;
     suggestion: string | null;
   };
+  improvementExplanation: string | null;
   inputHash: string;
 }
 
@@ -75,7 +76,15 @@ Classify each question archetype:
 - "threshold": crossing a numeric boundary (e.g., "Will adoption exceed 30%?")
 - "timing": when something will happen (e.g., "When will generic entry occur?")
 
-Respond with valid JSON only. No markdown, no explanation.
+IMPORTANT: If you rewrite or restructure the user's question, you MUST explain WHY your version is better. Cover these dimensions:
+- Measurability: Is the outcome now measurable and specific?
+- Time horizon: Is the time frame now explicit and plausible?
+- Observability: Is the event now directly observable and verifiable?
+- Causal modelability: Can the system now trace causal links to estimate probability?
+
+If the question was already well-formed and you did not change it, set improvementExplanation to null.
+
+Respond with valid JSON only. No markdown, no explanation outside the JSON.
 
 Output schema:
 {
@@ -99,7 +108,8 @@ Output schema:
     "rejected": false,
     "reason": null,
     "suggestion": null
-  }
+  },
+  "improvementExplanation": "string or null - why the restructured question is a better forecasting form"
 }`;
 
     const response = await openai.chat.completions.create({
@@ -149,6 +159,7 @@ Output schema:
         reason: parsed.rejection?.reason || null,
         suggestion: parsed.rejection?.suggestion || null,
       },
+      improvementExplanation: typeof parsed.improvementExplanation === "string" ? parsed.improvementExplanation : null,
       inputHash: hashInput(rawInput),
     };
 

@@ -59,6 +59,7 @@ import competitiveRiskRouter from "./competitive-risk.js";
 import growthFeasibilityRouter from "./growth-feasibility.js";
 import simulationEngineRouter from "./simulation-engine.js";
 import workbookImportRouter from "./workbook-import.js";
+import aiRefineQuestionRouter from "./ai-refine-question.js";
 
 const router: IRouter = Router();
 
@@ -122,5 +123,6 @@ router.use(competitiveRiskRouter);
 router.use(growthFeasibilityRouter);
 router.use(simulationEngineRouter);
 router.use(workbookImportRouter);
+router.use(aiRefineQuestionRouter);
 
 export default router;

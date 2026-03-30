@@ -26,6 +26,14 @@ import {
   Clock,
   Archive,
   Trash2,
+  ShieldCheck,
+  ShieldAlert,
+  Lightbulb,
+  ListTree,
+  Edit3,
+  RotateCcw,
+  Check,
+  X,
 } from "lucide-react";
 import ImportProjectDialog from "@/components/question/ImportProjectDialog";
 
@@ -47,7 +55,32 @@ interface QuestionStructuringResult {
     reason: string | null;
     suggestion: string | null;
   };
+  improvementExplanation: string | null;
   inputHash: string;
+}
+
+interface FeasibilityCheck {
+  verdict: "feasible" | "feasible_with_refinement" | "not_feasible";
+  explanation: string;
+  refinedQuestion?: string;
+  checks: {
+    clearOutcome: { pass: boolean; note: string };
+    explicitHorizon: { pass: boolean; note: string };
+    observableEvent: { pass: boolean; note: string };
+    decisionRelevance: { pass: boolean; note: string };
+    modelFeasibility: { pass: boolean; note: string };
+  };
+}
+
+interface OutcomeStructure {
+  recommended: "binary" | "multi_state";
+  explanation: string;
+  states: string[];
+}
+
+interface RefineResult {
+  feasibility: FeasibilityCheck;
+  outcomeStructure: OutcomeStructure;
 }
 
 const EXAMPLE_QUESTIONS = [
@@ -73,7 +106,7 @@ interface Interpretation {
   restatedQuestion: string;
 }
 
-type PageState = "input" | "structuring" | "creating";
+type PageState = "input" | "structuring" | "reviewing" | "refining" | "creating";
 
 export default function QuestionPage() {
   const [, navigate] = useLocation();
@@ -86,6 +119,10 @@ export default function QuestionPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
   const [structuringResult, setStructuringResult] = useState<QuestionStructuringResult | null>(null);
+  const [refineResult, setRefineResult] = useState<RefineResult | null>(null);
+  const [isEditingProposal, setIsEditingProposal] = useState(false);
+  const [editedProposal, setEditedProposal] = useState("");
+  const [outcomeStates, setOutcomeStates] = useState<string[]>([]);
   const [showImportProject, setShowImportProject] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("import") === "file";
@@ -174,11 +211,14 @@ export default function QuestionPage() {
     };
   }
 
-  const handleContinue = useCallback(async () => {
+  const handleStructure = useCallback(async () => {
     const text = rawInput.trim();
     if (!text) return;
     setSubmitError(null);
     setStructuringResult(null);
+    setRefineResult(null);
+    setIsEditingProposal(false);
+    setOutcomeStates([]);
     setPageState("structuring");
 
     let structuredResult: QuestionStructuringResult | null = null;
@@ -205,39 +245,72 @@ export default function QuestionPage() {
       return;
     }
 
-    setPageState("creating");
+    const proposedText = structuredResult?.activeQuestion?.questionText || text;
+    setEditedProposal(proposedText);
+    setPageState("reviewing");
 
-    const questionText = structuredResult?.activeQuestion?.questionText || text;
+    await runFeasibilityCheck(text, proposedText);
+  }, [rawInput]);
+
+  const runFeasibilityCheck = useCallback(async (userDraft: string, proposedQ: string) => {
+    setPageState("refining");
+    try {
+      const res = await fetch(`${API}/api/ai-refine-question`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawInput: userDraft, proposedQuestion: proposedQ }),
+      });
+      if (res.ok) {
+        const data: RefineResult = await res.json();
+        setRefineResult(data);
+        setOutcomeStates(data.outcomeStructure?.states || ["Yes", "No"]);
+      }
+    } catch {}
+    setPageState("reviewing");
+  }, []);
+
+  const handleReRunFeasibility = useCallback(async () => {
+    const text = editedProposal.trim();
+    if (!text) return;
+    setIsEditingProposal(false);
+    await runFeasibilityCheck(rawInput.trim(), text);
+  }, [editedProposal, rawInput, runFeasibilityCheck]);
+
+  const handleAcceptAndContinue = useCallback(async () => {
+    const feasVerdict = refineResult?.feasibility?.verdict;
+    if (feasVerdict === "not_feasible") return;
+
+    const finalQuestion = refineResult?.feasibility?.refinedQuestion || editedProposal.trim() || structuringResult?.activeQuestion?.questionText || rawInput.trim();
+    setPageState("creating");
 
     let interpretation: Interpretation;
     try {
       const res = await fetch(`${API}/api/ai-interpret-question`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawInput: questionText }),
+        body: JSON.stringify({ rawInput: finalQuestion }),
       });
-
-      if (!res.ok) {
-        throw new Error("Interpretation failed");
-      }
-
+      if (!res.ok) throw new Error("Interpretation failed");
       const data = await res.json();
-      if (!data.interpretation || !data.interpretation.restatedQuestion) {
-        throw new Error("Malformed interpretation response");
-      }
+      if (!data.interpretation || !data.interpretation.restatedQuestion) throw new Error("Malformed");
       interpretation = data.interpretation;
     } catch {
-      interpretation = buildLocalFallback(questionText);
+      interpretation = buildLocalFallback(finalQuestion);
     }
 
-    if (structuredResult) {
-      interpretation.questionType = structuredResult.activeQuestion.archetype || interpretation.questionType;
-      interpretation.timeHorizon = structuredResult.activeQuestion.horizon || interpretation.timeHorizon;
+    if (structuringResult) {
+      interpretation.questionType = structuringResult.activeQuestion.archetype || interpretation.questionType;
+      interpretation.timeHorizon = structuringResult.activeQuestion.horizon || interpretation.timeHorizon;
+    }
+
+    if (outcomeStates.length > 0) {
+      interpretation.comparisonGroups = outcomeStates;
+      interpretation.outcomes = outcomeStates;
     }
 
     if (isEditMode && editCaseId) {
       const payload = {
-        text: interpretation.restatedQuestion || questionText,
+        text: interpretation.restatedQuestion || finalQuestion,
         caseId: editCaseId,
         timeHorizon: interpretation.timeHorizon || "12 months",
         questionType: interpretation.questionType || "binary",
@@ -247,13 +320,9 @@ export default function QuestionPage() {
         outcome: interpretation.outcome || undefined,
       };
       updateQuestion(payload);
-
-      if (structuredResult) {
-        try {
-          localStorage.setItem(`cios.questionStructuring:${editCaseId}`, JSON.stringify(structuredResult));
-        } catch {}
+      if (structuringResult) {
+        try { localStorage.setItem(`cios.questionStructuring:${editCaseId}`, JSON.stringify(structuringResult)); } catch {}
       }
-
       navigate("/comparison-groups");
       return;
     }
@@ -261,7 +330,7 @@ export default function QuestionPage() {
     try {
       const dq: DecisionQuestion = {
         id: `DQ-${Date.now()}`,
-        rawInput: text,
+        rawInput: rawInput.trim(),
         questionType: (interpretation.questionType || "binary") as any,
         subject: interpretation.subject || "",
         outcome: interpretation.outcome || "",
@@ -269,31 +338,26 @@ export default function QuestionPage() {
         timeHorizon: interpretation.timeHorizon || "12 months",
         missingFields: [],
         isComplete: true,
-        interpretedQuestion: interpretation.restatedQuestion || questionText,
+        interpretedQuestion: interpretation.restatedQuestion || finalQuestion,
         createdAt: new Date().toISOString(),
       };
       const caseInput = mapDecisionQuestionToCaseInput(dq);
-      const created = await createCaseMutation.mutateAsync({
-        data: caseInput as any,
-      });
+      const created = await createCaseMutation.mutateAsync({ data: caseInput as any });
       const newCaseId = (created as any).caseId || (created as any).id;
       if (!newCaseId) {
         setSubmitError("Case was created but returned no identifier.");
-        setPageState("input");
+        setPageState("reviewing");
         return;
       }
 
       clearCaseState(newCaseId);
-
-      if (structuredResult) {
-        try {
-          localStorage.setItem(`cios.questionStructuring:${newCaseId}`, JSON.stringify(structuredResult));
-        } catch {}
+      if (structuringResult) {
+        try { localStorage.setItem(`cios.questionStructuring:${newCaseId}`, JSON.stringify(structuringResult)); } catch {}
       }
 
       const payload = {
-        text: interpretation.restatedQuestion || questionText,
-        rawInput: text,
+        text: interpretation.restatedQuestion || finalQuestion,
+        rawInput: rawInput.trim(),
         caseId: newCaseId,
         timeHorizon: interpretation.timeHorizon || "12 months",
         questionType: interpretation.questionType || "binary",
@@ -307,9 +371,9 @@ export default function QuestionPage() {
     } catch (err) {
       console.error("Failed to create case:", err);
       setSubmitError("Unable to create a case. Check your connection and try again.");
-      setPageState("input");
+      setPageState("reviewing");
     }
-  }, [rawInput, isEditMode, editCaseId, createCaseMutation, createQuestion, updateQuestion, navigate]);
+  }, [rawInput, editedProposal, structuringResult, refineResult, outcomeStates, isEditMode, editCaseId, createCaseMutation, createQuestion, updateQuestion, navigate]);
 
   const handleImportComplete = async (result: any) => {
     const q = result.question;
