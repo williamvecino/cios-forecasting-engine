@@ -1252,6 +1252,20 @@ export default function SignalsPage() {
   const allSignals = useMemo(() => detectConflicts(signals), [signals]);
   const primaryDrivers = allSignals.filter((s) => s.impact === "High");
   const supportingSignals = allSignals.filter((s) => s.impact !== "High");
+
+  const primaryDriverId = useMemo(() => {
+    const accepted = allSignals.filter((s) => s.accepted && !s.superseded);
+    if (accepted.length === 0) return null;
+    const impactRank: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+    const reliabilityRank: Record<string, number> = { Confirmed: 3, Probable: 2, Speculative: 1 };
+    const strengthRank: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+    const sorted = [...accepted].sort((a, b) => {
+      const aScore = (impactRank[a.impact] || 0) * 9 + (reliabilityRank[a.reliability] || 0) * 3 + (strengthRank[a.strength] || 0);
+      const bScore = (impactRank[b.impact] || 0) * 9 + (reliabilityRank[b.reliability] || 0) * 3 + (strengthRank[b.strength] || 0);
+      return bScore - aScore;
+    });
+    return sorted[0]?.id || null;
+  }, [allSignals]);
   const pending = allSignals.filter((s) => !s.accepted);
   const accepted = allSignals.filter((s) => s.accepted);
   const summary = generateSummary(allSignals, questionType, comparisonGroups.length >= 2 ? comparisonGroups : entities);
@@ -1626,6 +1640,7 @@ export default function SignalsPage() {
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
+                        isPrimaryDriver={sig.id === primaryDriverId}
                       />
                     ))}
                   </div>
@@ -1651,6 +1666,7 @@ export default function SignalsPage() {
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
+                        isPrimaryDriver={sig.id === primaryDriverId}
                       />
                     ))}
                   </div>
@@ -1676,6 +1692,7 @@ export default function SignalsPage() {
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
+                        isPrimaryDriver={sig.id === primaryDriverId}
                       />
                     ))}
                   </div>
@@ -1704,6 +1721,7 @@ export default function SignalsPage() {
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
+                        isPrimaryDriver={sig.id === primaryDriverId}
                       />
                     ))}
                   </div>
@@ -1752,6 +1770,7 @@ export default function SignalsPage() {
                     onUpdate={(u) => updateSignal(sig.id, u)}
                     outcomeLabel={outcome || "outcome"}
                     onShowProvenance={() => setProvenanceSignal(sig)}
+                    isPrimaryDriver={sig.id === primaryDriverId}
                   />
                 ))}
               </div>
@@ -2021,6 +2040,7 @@ function MinimalSignalCard({
   onUpdate,
   outcomeLabel,
   onShowProvenance,
+  isPrimaryDriver,
 }: {
   signal: Signal;
   editing: boolean;
@@ -2030,9 +2050,16 @@ function MinimalSignalCard({
   onUpdate: (u: Partial<Signal>) => void;
   outcomeLabel: string;
   onShowProvenance?: () => void;
+  isPrimaryDriver?: boolean;
 }) {
   return (
-    <div className={`rounded-xl border ${signal.workbook_meta ? "border-violet-500/20" : "border-border"} bg-card p-5 ${signal.superseded ? "opacity-40" : ""}`}>
+    <div className={`rounded-xl border ${isPrimaryDriver ? "border-primary/40 ring-1 ring-primary/20" : signal.workbook_meta ? "border-violet-500/20" : "border-border"} bg-card p-5 ${signal.superseded ? "opacity-40" : ""}`}>
+      {isPrimaryDriver && (
+        <div className="flex items-center gap-1.5 mb-2">
+          <Zap className="w-3.5 h-3.5 text-primary" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Primary Driver</span>
+        </div>
+      )}
       {signal.superseded && (
         <div className="text-xs text-muted-foreground mb-2">Superseded by newer evidence</div>
       )}

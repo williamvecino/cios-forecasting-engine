@@ -57,6 +57,9 @@ export interface JudgmentInput {
   drivers: Driver[];
   analogContext: AnalogContext | null;
   questionText: string;
+  outcomeDefinition?: string;
+  subject?: string;
+  timeHorizon?: string;
 }
 
 type ConfidenceLevel = "High" | "Moderate" | "Low";
@@ -272,17 +275,50 @@ const OUTCOME_TEMPLATES: Record<string, { high: string; mid: string; low: string
 
 type OutcomePolarity = "positive" | "neutral" | "negative";
 
-function inferOutcome(category: string, pct: number, hasHardCap: boolean, upCount: number, downCount: number): { verdict: string; band: string; rule: string; polarity: OutcomePolarity } {
-  const template = OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general;
+function buildAnchoredVerdict(
+  outcomeDefinition: string,
+  subject: string,
+  timeHorizon: string,
+  band: "high" | "mid" | "low"
+): string {
+  const outcomePhrase = outcomeDefinition || "the forecasted outcome";
+  const subjectPhrase = subject ? ` for ${subject}` : "";
+  const horizonPhrase = timeHorizon ? ` within ${timeHorizon}` : " within the forecast window";
+
+  if (band === "high") return `${outcomePhrase}${subjectPhrase} is likely${horizonPhrase}`;
+  if (band === "mid") return `${outcomePhrase}${subjectPhrase} is uncertain${horizonPhrase} — competing scenarios remain plausible`;
+  return `${outcomePhrase}${subjectPhrase} is unlikely${horizonPhrase} given current constraints`;
+}
+
+function inferOutcome(
+  category: string,
+  pct: number,
+  hasHardCap: boolean,
+  upCount: number,
+  downCount: number,
+  outcomeDefinition?: string,
+  subject?: string,
+  timeHorizon?: string
+): { verdict: string; band: string; rule: string; polarity: OutcomePolarity } {
+  const useAnchored = !!(outcomeDefinition || subject);
 
   if (pct >= 60) {
-    return { verdict: template.high, band: ">=60", rule: `${category}_high_band`, polarity: "positive" };
+    const verdict = useAnchored
+      ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "high")
+      : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).high;
+    return { verdict, band: ">=60", rule: `${category}_high_band`, polarity: "positive" };
   }
   if (pct >= 40) {
-    return { verdict: template.mid, band: "40-59", rule: `${category}_mid_band`, polarity: "neutral" };
+    const verdict = useAnchored
+      ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "mid")
+      : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).mid;
+    return { verdict, band: "40-59", rule: `${category}_mid_band`, polarity: "neutral" };
   }
 
-  return { verdict: template.low, band: "<40", rule: `${category}_low_band${hasHardCap && upCount > downCount ? "_gate_constrained" : ""}`, polarity: "negative" };
+  const verdict = useAnchored
+    ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "low")
+    : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).low;
+  return { verdict, band: "<40", rule: `${category}_low_band${hasHardCap && upCount > downCount ? "_gate_constrained" : ""}`, polarity: "negative" };
 }
 
 function computeConfidence(
@@ -534,7 +570,7 @@ function runIntegrityChecks(
     rule: "large_gap_cannot_produce_high_confidence",
     passed: !(confidence === "High" && gap >= 20),
     detail: gap >= 20
-      ? `Execution gap is ${gap} points — confidence cannot be High with this level of constraint`
+      ? `Constraint gap is ${gap} points — confidence cannot be High with this level of constraint`
       : "N/A — gap is small",
   });
 
@@ -733,7 +769,7 @@ function buildConvergenceNote(finalPct: number, analogContext: AnalogContext | n
 }
 
 export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgmentResult {
-  const { priorPct, brandOutlookPct, finalForecastPct, minGateCapPct, executionGapPts, gates, drivers, analogContext, questionText } = input;
+  const { priorPct, brandOutlookPct, finalForecastPct, minGateCapPct, executionGapPts, gates, drivers, analogContext, questionText, outcomeDefinition, subject, timeHorizon } = input;
 
   const upDrivers = drivers.filter(d => d.direction === "Upward");
   const downDrivers = drivers.filter(d => d.direction === "Downward");
@@ -744,7 +780,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
   const questionCategory = categorizeQuestion(questionText);
   const hasHardCap = gates.some(g => g.status === "weak" || g.status === "unresolved");
 
-  const { verdict, band, rule: outcomeRule, polarity } = inferOutcome(questionCategory, finalForecastPct, hasHardCap, upDrivers.length, downDrivers.length);
+  const { verdict, band, rule: outcomeRule, polarity } = inferOutcome(questionCategory, finalForecastPct, hasHardCap, upDrivers.length, downDrivers.length, outcomeDefinition, subject, timeHorizon);
 
   const confidenceAudit = computeConfidence(gates, analogContext, brandOutlookPct, finalForecastPct, drivers);
   const confidence = confidenceAudit.finalLevel;
@@ -764,11 +800,13 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
   const correctedGates = gates.map(g => ({ ...g }));
 
   if (!integrityPassed) {
+    const useAnchored = !!(outcomeDefinition || subject);
     const failedChecks = integrityChecks.filter(c => !c.passed);
     for (const check of failedChecks) {
       if (check.rule === "positive_majority_with_strong_gates_cannot_produce_strongly_negative_outcome") {
-        const template = OUTCOME_TEMPLATES[questionCategory] || OUTCOME_TEMPLATES.general;
-        adjustedOutcome = template.mid;
+        adjustedOutcome = useAnchored
+          ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "mid")
+          : (OUTCOME_TEMPLATES[questionCategory] || OUTCOME_TEMPLATES.general).mid;
         adjustedPolarity = "neutral";
       }
       if (check.rule === "uncertainty_language_cannot_pair_with_high_confidence" || check.rule === "large_gap_cannot_produce_high_confidence") {
@@ -776,8 +814,9 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
       }
       if (check.rule === "strong_gates_with_positive_majority_should_not_produce_sub_30_forecast") {
         adjustedFinalPct = 30;
-        const template = OUTCOME_TEMPLATES[questionCategory] || OUTCOME_TEMPLATES.general;
-        adjustedOutcome = template.low;
+        adjustedOutcome = useAnchored
+          ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "low")
+          : (OUTCOME_TEMPLATES[questionCategory] || OUTCOME_TEMPLATES.general).low;
         adjustedPolarity = "negative";
       }
       if (check.rule === "moderate_gate_cannot_cap_below_50") {

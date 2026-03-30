@@ -370,7 +370,7 @@ export default function DecisionPanels() {
                     <div className="rounded-2xl border border-red-500/20 bg-card p-5">
                       <div className="flex items-center gap-2 mb-4">
                         <ShieldAlert className="w-4 h-4 text-red-400" />
-                        <div className="text-sm font-semibold text-foreground">What Is Blocking Progress</div>
+                        <div className="text-sm font-semibold text-foreground">What is blocking progress</div>
                         <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-derived</span>
                       </div>
                       <div className="space-y-5">

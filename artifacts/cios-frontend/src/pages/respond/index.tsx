@@ -222,7 +222,7 @@ export default function RespondPage() {
               <div className="border-t border-border/40" />
 
               <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Priority Actions</h2>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Prioritize Resources</h2>
                 <ul className="space-y-2">
                   {data.priority_actions.map((action, i) => (
                     <li key={i} className="flex items-start gap-3 text-[15px] text-foreground">
@@ -314,7 +314,7 @@ function formatAsText(data: RespondResult): string {
   lines.push(data.why_this_matters);
   lines.push("");
 
-  lines.push("PRIORITY ACTIONS");
+  lines.push("PRIORITIZE RESOURCES");
   data.priority_actions.forEach(a => lines.push(`• ${a}`));
   lines.push("");
 

@@ -984,6 +984,9 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 drivers,
                 analogContext: analogContext ?? null,
                 questionText: activeQuestion?.text || "",
+                outcomeDefinition: activeQuestion?.outcome ? activeQuestion.outcome.charAt(0).toUpperCase() + activeQuestion.outcome.slice(1) : undefined,
+                subject: activeQuestion?.subject || undefined,
+                timeHorizon: activeQuestion?.timeHorizon || undefined,
               });
 
               try {

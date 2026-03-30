@@ -1,6 +1,17 @@
 import { Target } from "lucide-react";
 import type { ActiveQuestion } from "../lib/workflow";
 
+function buildOutcomeAnchor(q: ActiveQuestion): string {
+  const outcome = q.outcome || "adoption";
+  const subject = q.subject || "";
+  const horizon = q.timeHorizon || "";
+  const outcomeCapitalized = outcome.charAt(0).toUpperCase() + outcome.slice(1);
+  const parts = [outcomeCapitalized];
+  if (subject) parts.push(`of ${subject}`);
+  if (horizon) parts.push(`within ${horizon}`);
+  return parts.join(" ");
+}
+
 interface Props {
   activeQuestion: ActiveQuestion | null;
   draftText?: string;
@@ -9,7 +20,15 @@ interface Props {
 
 export default function ActiveQuestionBanner({ activeQuestion, draftText, onClear }: Props) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="space-y-0">
+      {activeQuestion && (
+        <div className="rounded-t-2xl border border-primary/30 bg-primary/5 px-5 py-3 flex items-center gap-2">
+          <Target className="w-4 h-4 text-primary shrink-0" />
+          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-primary/70">Outcome being forecast:</span>
+          <span className="text-sm font-semibold text-primary">{buildOutcomeAnchor(activeQuestion)}</span>
+        </div>
+      )}
+      <div className={`border border-border bg-card p-5 ${activeQuestion ? "rounded-b-2xl border-t-0" : "rounded-2xl"}`}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -76,6 +95,7 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
             New Forecast
           </button>
         )}
+      </div>
       </div>
     </div>
   );
