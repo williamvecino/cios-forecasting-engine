@@ -923,7 +923,7 @@ export default function QuestionPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {outcomeStates.map((state, i) => (
-                        <div key={i} className="inline-flex items-center gap-1 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5">
+                        <label key={i} className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400/30 transition-colors cursor-text">
                           <input
                             type="text"
                             value={state}
@@ -932,15 +932,15 @@ export default function QuestionPage() {
                               updated[i] = e.target.value;
                               setOutcomeStates(updated);
                             }}
-                            className="bg-transparent text-xs text-foreground border-none outline-none w-auto min-w-[60px]"
-                            style={{ width: `${Math.max(60, state.length * 7)}px` }}
+                            className="bg-transparent text-xs text-foreground border-none outline-none w-auto min-w-[40px] cursor-text"
+                            style={{ width: `${Math.max(40, state.length * 8 + 4)}px` }}
                           />
                           {outcomeStates.length > 2 && (
                             <button type="button" onClick={() => setOutcomeStates(outcomeStates.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-400">
                               <X className="w-3 h-3" />
                             </button>
                           )}
-                        </div>
+                        </label>
                       ))}
                       <button
                         type="button"
