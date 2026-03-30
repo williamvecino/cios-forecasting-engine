@@ -14,12 +14,26 @@ import {
   ArrowDown,
   Minus,
   Star,
+  Check,
+  Paperclip,
+  Users,
+  Zap,
+  Target,
+  Shield,
+  TrendingUp,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Activity,
+  TrendingDown,
+  Newspaper,
+  HelpCircle,
 } from "lucide-react";
 import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
 import { StakeholderReactionPanel } from "@/components/simulate/StakeholderReactionPanel";
 import { MethodologyGuidance } from "@/components/methodology-guidance";
 import { detectCaseType, COMMERCIAL_SEGMENTS, SAFETY_RISK_SEGMENTS, getRegulatorySegments } from "@/lib/case-type-utils";
-import { ChevronDown, ChevronRight, Activity, TrendingDown, Newspaper } from "lucide-react";
 
 interface ArchetypeInfo {
   segment_name: string;
@@ -94,6 +108,70 @@ const FEATURE_LABELS: Record<string, string> = {
   patient_support_adherence: "Patient Support / Adherence",
 };
 
+const SCENARIO_TYPES = [
+  { value: "regulatory_update", label: "Regulatory Update" },
+  { value: "safety_communication", label: "Safety Communication" },
+  { value: "guideline_change", label: "Guideline Change" },
+  { value: "market_restriction", label: "Market Restriction" },
+  { value: "competitor_action", label: "Competitor Action" },
+  { value: "new_evidence", label: "New Clinical Evidence" },
+  { value: "payer_decision", label: "Payer Decision" },
+];
+
+const MESSAGE_SOURCES = [
+  { value: "fda", label: "FDA" },
+  { value: "ema", label: "EMA" },
+  { value: "guideline_committee", label: "Guideline Committee" },
+  { value: "payer", label: "Payer / PBM" },
+  { value: "manufacturer", label: "Manufacturer" },
+  { value: "journal", label: "Published Study" },
+  { value: "media", label: "Media / Press" },
+];
+
+const IMPACT_LEVELS = [
+  { value: "low", label: "Low" },
+  { value: "moderate", label: "Moderate" },
+  { value: "high", label: "High" },
+];
+
+const TIME_FRAMES = [
+  { value: "immediate", label: "Immediate" },
+  { value: "3mo", label: "Within 3 months" },
+  { value: "6mo", label: "Within 6 months" },
+  { value: "12mo", label: "Within 12 months" },
+];
+
+const CONFIDENCE_LEVELS = [
+  { value: "low", label: "Low" },
+  { value: "moderate", label: "Moderate" },
+  { value: "high", label: "High" },
+];
+
+const SEGMENT_META: Record<string, { color: string; behaviorType: string; decisionRole: string; riskPosture: string; icon: typeof TrendingUp }> = {
+  "Early Adopters": { color: "emerald", behaviorType: "Innovation-seeking", decisionRole: "First prescriber", riskPosture: "Risk tolerant", icon: TrendingUp },
+  "Persuadables": { color: "blue", behaviorType: "Evidence-driven", decisionRole: "Fast follower", riskPosture: "Moderate risk", icon: Target },
+  "Late Movers": { color: "amber", behaviorType: "Inertia-bound", decisionRole: "Delayed adopter", riskPosture: "Risk averse", icon: Clock },
+  "Resistant": { color: "rose", behaviorType: "Status-quo defender", decisionRole: "Active holdout", riskPosture: "High risk aversion", icon: Shield },
+  "Risk Gatekeepers": { color: "violet", behaviorType: "Compliance-focused", decisionRole: "Institutional gatekeeper", riskPosture: "Policy-driven", icon: Shield },
+  "Switch Immediately": { color: "emerald", behaviorType: "Rapid responder", decisionRole: "Early mover", riskPosture: "Action-oriented", icon: Zap },
+  "Pause Pending Clarification": { color: "amber", behaviorType: "Evidence-seeker", decisionRole: "Cautious evaluator", riskPosture: "Risk averse", icon: Clock },
+  "Wait for Consensus": { color: "blue", behaviorType: "Guideline follower", decisionRole: "Consensus-driven", riskPosture: "Moderate", icon: Users },
+  "Defend Current Use": { color: "rose", behaviorType: "Loyalty-driven", decisionRole: "Defender", riskPosture: "Inertia-bound", icon: Shield },
+};
+
+function getSegmentMeta(key: string) {
+  return SEGMENT_META[key] || { color: "slate", behaviorType: "General", decisionRole: "Participant", riskPosture: "Neutral", icon: Users };
+}
+
+const SEGMENT_COLOR_MAP: Record<string, { border: string; bg: string; text: string; ring: string; badge: string }> = {
+  emerald: { border: "border-emerald-500/30", bg: "bg-emerald-500/5", text: "text-emerald-400", ring: "ring-emerald-500/40", badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+  blue: { border: "border-blue-500/30", bg: "bg-blue-500/5", text: "text-blue-400", ring: "ring-blue-500/40", badge: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
+  amber: { border: "border-amber-500/30", bg: "bg-amber-500/5", text: "text-amber-400", ring: "ring-amber-500/40", badge: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+  rose: { border: "border-rose-500/30", bg: "bg-rose-500/5", text: "text-rose-400", ring: "ring-rose-500/40", badge: "bg-rose-500/10 text-rose-400 border-rose-500/20" },
+  violet: { border: "border-violet-500/30", bg: "bg-violet-500/5", text: "text-violet-400", ring: "ring-violet-500/40", badge: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
+  slate: { border: "border-slate-500/30", bg: "bg-slate-500/5", text: "text-slate-400", ring: "ring-slate-500/40", badge: "bg-slate-500/10 text-slate-400 border-slate-500/20" },
+};
+
 function getApiBase() {
   if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
     return `https://${window.location.hostname}:443/api`;
@@ -130,15 +208,56 @@ const SAFETY_SUCCESS_MEASURES = [
   { label: "Media Sentiment Trajectory", icon: Newspaper, description: "Monitor professional media, social media, and patient community sentiment about the safety signal. Track narrative shifts that influence prescriber and patient behavior." },
 ];
 
-function AccordionHeader({ title, isOpen, onClick, count }: { title: string; isOpen: boolean; onClick: () => void; count?: number }) {
+function StepIndicator({ current, steps }: { current: number; steps: string[] }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/10 transition text-left">
-      <div className="flex items-center gap-2">
-        {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{title}</span>
-      </div>
-      {count !== undefined && <span className="text-[10px] text-muted-foreground/50">{count} items</span>}
-    </button>
+    <div className="flex items-center gap-0 mb-8">
+      {steps.map((label, i) => {
+        const stepNum = i + 1;
+        const isActive = stepNum === current;
+        const isComplete = stepNum < current;
+        return (
+          <div key={i} className="flex items-center flex-1 last:flex-initial">
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                isComplete ? "bg-primary text-primary-foreground" :
+                isActive ? "bg-primary/20 text-primary border-2 border-primary" :
+                "bg-muted/20 text-muted-foreground border border-border"
+              }`}>
+                {isComplete ? <Check className="w-3.5 h-3.5" /> : stepNum}
+              </div>
+              <span className={`text-xs font-medium whitespace-nowrap ${isActive ? "text-foreground" : isComplete ? "text-primary" : "text-muted-foreground/60"}`}>{label}</span>
+            </div>
+            {i < steps.length - 1 && (
+              <div className={`flex-1 h-px mx-3 ${isComplete ? "bg-primary/40" : "bg-border/40"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DropdownField({ label, value, onChange, options, placeholder }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <label className="block text-[13px] font-medium text-muted-foreground mb-1.5">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm text-foreground appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/50"
+      >
+        <option value="">{placeholder}</option>
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -181,6 +300,18 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
       out = out.replaceAll(from, to);
     }
     return out;
+  }
+
+  function AccordionHeader({ title, isOpen, onClick, count }: { title: string; isOpen: boolean; onClick: () => void; count?: number }) {
+    return (
+      <button onClick={onClick} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/10 transition text-left">
+        <div className="flex items-center gap-2">
+          {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{title}</span>
+        </div>
+        {count !== undefined && <span className="text-[10px] text-muted-foreground/50">{count} items</span>}
+      </button>
+    );
   }
 
   return (
@@ -391,11 +522,24 @@ export default function SimulatePage() {
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [scenarioType, setScenarioType] = useState("");
+  const [messageSource, setMessageSource] = useState("");
+  const [impactLevel, setImpactLevel] = useState("");
+  const [timeFrame, setTimeFrame] = useState("");
+  const [confidenceLevel, setConfidenceLevel] = useState("");
+  const [showUpload, setShowUpload] = useState(false);
+  const [showDecisionSupport, setShowDecisionSupport] = useState(false);
+
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.text || "";
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
-  const hasInput = selectedSegment && (materialText.trim() || file);
+
+  const scenarioDefined = !!(scenarioType && messageSource && impactLevel);
+  const segmentSelected = !!selectedSegment;
+  const canRun = scenarioDefined && segmentSelected;
+
+  const currentStep = result ? 5 : !scenarioDefined ? 1 : !segmentSelected ? 2 : canRun ? 4 : 3;
 
   const recommendedSegmentKey = (() => {
     const entry = RECOMMENDED_SEGMENTS[caseTypeInfo.caseType];
@@ -429,7 +573,7 @@ export default function SimulatePage() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (f) setFile(f);
+    if (f) { setFile(f); setShowUpload(true); }
   }
 
   function clearFile() {
@@ -437,8 +581,23 @@ export default function SimulatePage() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  function buildScenarioLabel() {
+    const type = SCENARIO_TYPES.find(t => t.value === scenarioType)?.label || scenarioType;
+    const source = MESSAGE_SOURCES.find(s => s.value === messageSource)?.label || messageSource;
+    return `${type} from ${source}`;
+  }
+
+  function buildScenarioDesc() {
+    const type = SCENARIO_TYPES.find(t => t.value === scenarioType)?.label || scenarioType;
+    const source = MESSAGE_SOURCES.find(s => s.value === messageSource)?.label || messageSource;
+    const impact = IMPACT_LEVELS.find(l => l.value === impactLevel)?.label || impactLevel;
+    const time = TIME_FRAMES.find(t => t.value === timeFrame)?.label || timeFrame;
+    const conf = CONFIDENCE_LEVELS.find(c => c.value === confidenceLevel)?.label || confidenceLevel;
+    return `${type} scenario from ${source}. Impact: ${impact}. Timeframe: ${time}. Confidence: ${conf}.`;
+  }
+
   async function runSimulation() {
-    if (!activeQuestion || !selectedSegment || !hasInput) return;
+    if (!activeQuestion || !canRun) return;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -491,6 +650,11 @@ export default function SimulatePage() {
         barriers,
         triggers,
         signals,
+        scenarioType,
+        messageSource,
+        impactLevel,
+        timeFrame,
+        confidenceLevel,
       };
 
       let res: Response;
@@ -511,7 +675,7 @@ export default function SimulatePage() {
         res = await fetch(`${getApiBase()}/ai-simulate/reaction`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...contextData, materialText: materialText.trim() }),
+          body: JSON.stringify({ ...contextData, materialText: materialText.trim() || buildScenarioDesc() }),
         });
       }
 
@@ -535,138 +699,216 @@ export default function SimulatePage() {
     setMaterialText("");
     clearFile();
     setError(null);
+    setScenarioType("");
+    setMessageSource("");
+    setImpactLevel("");
+    setTimeFrame("");
+    setConfidenceLevel("");
+    setShowUpload(false);
   }
-
-  const isGatekeeperSegment = (key: string) =>
-    key.toLowerCase().includes("gatekeeper") || key.toLowerCase().includes("reviewer");
 
   return (
     <WorkflowLayout currentStep="simulate" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
       <QuestionGate activeQuestion={activeQuestion}>
-        <div className="flex gap-6">
-          <div className="flex-1 min-w-0 space-y-6" style={{ maxWidth: "65%" }}>
-            <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 6</p>
-              <h1 className="text-xl font-bold text-foreground">{caseTypeInfo.stepNames.simulate}</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Test how a defined segment responds to specific materials under current constraints.
-              </p>
-            </div>
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-8">
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 7</p>
+            <h1 className="text-2xl font-bold text-foreground">{caseTypeInfo.stepNames.simulate}</h1>
+            <p className="text-[15px] text-muted-foreground mt-2 leading-relaxed">
+              Test how a defined segment responds to a specific scenario under current constraints.
+            </p>
+          </div>
 
-            {!result && !loading && (
-              <div className="space-y-6">
+          {!result && !loading && (
+            <>
+              <StepIndicator current={currentStep} steps={["Define Scenario", "Select Segment", "Attach Evidence", "Run Simulation"]} />
+
+              <div className="space-y-8">
                 <section>
-                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Select Segment</h2>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${scenarioDefined ? "bg-primary text-primary-foreground" : "bg-primary/20 text-primary border border-primary"}`}>
+                      {scenarioDefined ? <Check className="w-3 h-3" /> : "1"}
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Simulation Scenario</h2>
+                  </div>
+
+                  {!scenarioDefined && (
+                    <p className="text-[13px] text-muted-foreground/60 mb-4 pl-8">
+                      No scenario defined yet. Start by selecting a scenario type.
+                    </p>
+                  )}
+
+                  <div className="pl-8 grid grid-cols-2 gap-x-4 gap-y-4">
+                    <DropdownField label="Scenario Type" value={scenarioType} onChange={setScenarioType} options={SCENARIO_TYPES} placeholder="Select scenario type..." />
+                    <DropdownField label="Message Source" value={messageSource} onChange={setMessageSource} options={MESSAGE_SOURCES} placeholder="Select source..." />
+                    <DropdownField label="Impact Level" value={impactLevel} onChange={setImpactLevel} options={IMPACT_LEVELS} placeholder="Select impact..." />
+                    <DropdownField label="Time Frame" value={timeFrame} onChange={setTimeFrame} options={TIME_FRAMES} placeholder="Select time frame..." />
+                    <DropdownField label="Confidence Level" value={confidenceLevel} onChange={setConfidenceLevel} options={CONFIDENCE_LEVELS} placeholder="Select confidence..." />
+                  </div>
+
+                  {scenarioDefined && (
+                    <div className="mt-4 pl-8 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                      <p className="text-[13px] font-medium text-foreground">{buildScenarioLabel()}</p>
+                      <p className="text-[12px] text-muted-foreground mt-0.5">{buildScenarioDesc()}</p>
+                    </div>
+                  )}
+                </section>
+
+                <section>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                      segmentSelected ? "bg-primary text-primary-foreground" :
+                      scenarioDefined ? "bg-primary/20 text-primary border border-primary" :
+                      "bg-muted/20 text-muted-foreground border border-border"
+                    }`}>
+                      {segmentSelected ? <Check className="w-3 h-3" /> : "2"}
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Select Segment</h2>
+                  </div>
+
+                  <div className="pl-8 grid grid-cols-2 gap-3">
                     {SEGMENTS.map(seg => {
+                      const meta = getSegmentMeta(seg.key);
+                      const colors = SEGMENT_COLOR_MAP[meta.color] || SEGMENT_COLOR_MAP.slate;
                       const arch = archetypes.find(a => a.segment_name === seg.key);
                       const selected = selectedSegment === seg.key;
                       const isRecommended = seg.key === recommendedSegmentKey;
+                      const SegIcon = meta.icon;
+
                       return (
                         <button
                           key={seg.key}
                           onClick={() => setSelectedSegment(seg.key)}
-                          className={`relative text-left rounded-xl border px-4 py-3 transition ${
+                          className={`relative text-left rounded-xl border px-4 py-3.5 transition-all ${
                             selected
-                              ? "border-primary bg-primary/10"
+                              ? `${colors.border} ${colors.bg} ring-1 ${colors.ring}`
                               : isRecommended
-                              ? "border-primary/50 bg-primary/5 hover:border-primary hover:bg-primary/10"
-                              : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                              ? `${colors.border} ${colors.bg} hover:ring-1 ${colors.ring}`
+                              : "border-border bg-card hover:border-primary/30 hover:bg-primary/5"
                           }`}
                         >
                           {isRecommended && (
-                            <span className="absolute -top-2 right-3 flex items-center gap-1 rounded-full bg-primary/20 border border-primary/30 px-2 py-0.5 text-[9px] font-semibold text-primary uppercase tracking-wider">
+                            <span className={`absolute -top-2 right-3 flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${colors.badge}`}>
                               <Star className="w-2.5 h-2.5" />
                               Recommended
                             </span>
                           )}
-                          <p className={`text-sm font-semibold ${selected ? "text-primary" : "text-foreground"}`}>{seg.key}</p>
-                          {arch && (
-                            <p className="text-[11px] text-violet-400 mt-0.5">{arch.primary_archetype.archetype_name}</p>
-                          )}
-                          {!arch && (
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {isGatekeeperSegment(seg.key) ? "Decision authority role" : "No archetype assigned"}
-                            </p>
-                          )}
+                          <div className="flex items-start gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colors.bg} ${colors.border} border mt-0.5`}>
+                              <SegIcon className={`w-4 h-4 ${colors.text}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[15px] font-semibold ${selected ? colors.text : "text-foreground"}`}>{seg.key}</p>
+                              <div className="mt-1.5 space-y-0.5">
+                                <p className="text-[11px] text-muted-foreground"><span className="text-muted-foreground/60">Behavior:</span> {meta.behaviorType}</p>
+                                <p className="text-[11px] text-muted-foreground"><span className="text-muted-foreground/60">Role:</span> {meta.decisionRole}</p>
+                                <p className="text-[11px] text-muted-foreground"><span className="text-muted-foreground/60">Risk:</span> {meta.riskPosture}</p>
+                              </div>
+                              {arch && (
+                                <p className="text-[11px] text-violet-400 mt-1.5 font-medium">{arch.primary_archetype.archetype_name}</p>
+                              )}
+                            </div>
+                          </div>
                         </button>
                       );
                     })}
                   </div>
+
+                  {selectedSegment && selectedArchetype && (
+                    <div className="mt-4 pl-8 rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">{selectedSegment}</span>
+                          <span className="text-[10px] text-muted-foreground">·</span>
+                          <span className="text-xs font-semibold text-violet-300">{selectedArchetype.primary_archetype.archetype_name}</span>
+                        </div>
+                        {selectedArchetype.secondary_archetype && (
+                          <span className="text-[10px] text-muted-foreground/60">
+                            Also: {selectedArchetype.secondary_archetype.archetype_name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12px] text-muted-foreground leading-relaxed">{selectedArchetype.why_assigned}</p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                        {selectedArchetype.likely_triggers.slice(0, 2).map((t, i) => (
+                          <span key={i} className="text-[11px] text-emerald-400/80">↑ {t}</span>
+                        ))}
+                        {selectedArchetype.likely_barriers.slice(0, 2).map((b, i) => (
+                          <span key={i} className="text-[11px] text-rose-400/80">↓ {b}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </section>
 
-                {selectedSegment && selectedArchetype && (
-                  <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">{selectedSegment}</span>
-                        <span className="text-[10px] text-muted-foreground">·</span>
-                        <span className="text-xs font-semibold text-violet-300">{selectedArchetype.primary_archetype.archetype_name}</span>
-                      </div>
-                      {selectedArchetype.secondary_archetype && (
-                        <span className="text-[10px] text-muted-foreground/60">
-                          Also: {selectedArchetype.secondary_archetype.archetype_name}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[12px] text-muted-foreground leading-relaxed">{selectedArchetype.why_assigned}</p>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                      {selectedArchetype.likely_triggers.slice(0, 2).map((t, i) => (
-                        <span key={i} className="text-[11px] text-emerald-400/80">↑ {t}</span>
-                      ))}
-                      {selectedArchetype.likely_barriers.slice(0, 2).map((b, i) => (
-                        <span key={i} className="text-[11px] text-rose-400/80">↓ {b}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <section>
-                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Upload Material</h2>
-
-                  <MethodologyGuidance questionText={questionText} currentStep="simulate" />
-
-                  <div className="space-y-3 mt-3">
-                    <div
-                      onClick={() => fileRef.current?.click()}
-                      className="rounded-xl border border-dashed border-border bg-card/50 p-6 flex flex-col items-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition"
-                    >
-                      <Upload className="w-5 h-5 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
-                        Drop or click to upload PPT, PDF, image, or document
-                      </p>
-                      <p className="text-[11px] text-muted-foreground/50">
-                        e.g. Safety letter, Guideline update, New study results, Risk mitigation plan
-                      </p>
-                      <input
-                        ref={fileRef}
-                        type="file"
-                        onChange={handleFileChange}
-                        accept=".pptx,.ppt,.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,.jpg,.jpeg,.png,.webp"
-                        className="hidden"
-                      />
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                      (file || materialText.trim()) ? "bg-primary text-primary-foreground" :
+                      segmentSelected ? "bg-primary/20 text-primary border border-primary" :
+                      "bg-muted/20 text-muted-foreground border border-border"
+                    }`}>
+                      {(file || materialText.trim()) ? <Check className="w-3 h-3" /> : "3"}
                     </div>
+                    <h2 className="text-lg font-semibold text-foreground">Attach Supporting Evidence</h2>
+                    <span className="text-[12px] text-muted-foreground/50">(optional)</span>
+                  </div>
 
-                    {file && (
-                      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-                        {file.type.startsWith("image/")
-                          ? <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />
-                          : <FileText className="w-4 h-4 text-blue-400 shrink-0" />
-                        }
-                        <span className="text-sm text-foreground truncate flex-1">{file.name}</span>
-                        <button onClick={clearFile} className="text-muted-foreground hover:text-foreground">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                  <div className="pl-8">
+                    {!showUpload ? (
+                      <button
+                        onClick={() => setShowUpload(true)}
+                        className="flex items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-primary/5 transition"
+                      >
+                        <Paperclip className="w-4 h-4" />
+                        Attach file or paste evidence text
+                      </button>
+                    ) : (
+                      <div className="space-y-3">
+                        <div
+                          onClick={() => fileRef.current?.click()}
+                          className="rounded-lg border border-dashed border-border bg-card/50 p-4 flex items-center gap-3 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition"
+                        >
+                          <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <p className="text-[13px] text-muted-foreground">
+                              Drop or click to upload PPT, PDF, image, or document
+                            </p>
+                            <p className="text-[11px] text-muted-foreground/50 mt-0.5">
+                              e.g. Safety letter, Guideline update, New study results
+                            </p>
+                          </div>
+                          <input
+                            ref={fileRef}
+                            type="file"
+                            onChange={handleFileChange}
+                            accept=".pptx,.ppt,.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,.jpg,.jpeg,.png,.webp"
+                            className="hidden"
+                          />
+                        </div>
+
+                        {file && (
+                          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                            {file.type.startsWith("image/")
+                              ? <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />
+                              : <FileText className="w-4 h-4 text-blue-400 shrink-0" />
+                            }
+                            <span className="text-sm text-foreground truncate flex-1">{file.name}</span>
+                            <button onClick={clearFile} className="text-muted-foreground hover:text-foreground">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+
+                        <textarea
+                          value={materialText}
+                          onChange={e => setMaterialText(e.target.value)}
+                          placeholder="Or paste message text, talking points, or key claims here..."
+                          rows={3}
+                          className="w-full rounded-lg border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
                       </div>
                     )}
-
-                    <textarea
-                      value={materialText}
-                      onChange={e => setMaterialText(e.target.value)}
-                      placeholder="Or paste message text, talking points, or key claims here..."
-                      rows={4}
-                      className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
                   </div>
                 </section>
 
@@ -677,57 +919,90 @@ export default function SimulatePage() {
                   </div>
                 )}
 
-                <button
-                  onClick={runSimulation}
-                  disabled={!hasInput}
-                  className={`w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                    hasInput
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                      : "bg-muted/20 text-muted-foreground cursor-not-allowed"
-                  }`}
-                >
-                  <Play className="w-4 h-4" />
-                  Run Simulation
-                </button>
+                <section>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                      canRun ? "bg-primary/20 text-primary border border-primary" :
+                      "bg-muted/20 text-muted-foreground border border-border"
+                    }`}>
+                      4
+                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">Run Simulation</h2>
+                  </div>
+
+                  <div className="pl-8">
+                    <button
+                      onClick={runSimulation}
+                      disabled={!canRun}
+                      className={`w-full flex items-center justify-center gap-2.5 rounded-xl px-6 py-4 text-[15px] font-semibold transition-all ${
+                        canRun
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
+                          : "bg-muted/20 text-muted-foreground/50 cursor-not-allowed"
+                      }`}
+                    >
+                      <Play className="w-5 h-5" />
+                      Run Simulation
+                    </button>
+                    {!canRun && (
+                      <p className="text-[12px] text-muted-foreground/50 text-center mt-2">
+                        {!scenarioDefined ? "Define a scenario to continue" : "Select a segment to continue"}
+                      </p>
+                    )}
+                  </div>
+                </section>
+
+                <div className="border-t border-border/30 pt-6">
+                  <button
+                    onClick={() => setShowDecisionSupport(!showDecisionSupport)}
+                    className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground hover:text-foreground transition"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                    Decision Support
+                    {showDecisionSupport ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                  {showDecisionSupport && (
+                    <div className="mt-3">
+                      <MethodologyGuidance questionText={questionText} currentStep="simulate" />
+                    </div>
+                  )}
+                </div>
+
+                <ActorSegmentationPanel
+                  question={activeQuestion?.text || ""}
+                  brand={activeQuestion?.subject}
+                  therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
+                  signals={[]}
+                  context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
+                />
+
+                <StakeholderReactionPanel
+                  question={activeQuestion?.text || ""}
+                  brand={activeQuestion?.subject}
+                  therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
+                  context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
+                />
               </div>
-            )}
+            </>
+          )}
 
-            {loading && (
-              <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                <p className="text-sm text-muted-foreground">
-                  Extracting material features and scoring {selectedSegment} reaction...
-                </p>
-              </div>
-            )}
+          {loading && (
+            <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-[15px] text-muted-foreground">
+                Extracting material features and scoring {selectedSegment} reaction...
+              </p>
+            </div>
+          )}
 
-            {result && !loading && (
-              <ResultsAccordion
-                result={result}
-                selectedSegment={selectedSegment}
-                selectedArchetype={selectedArchetype}
-                caseTypeInfo={caseTypeInfo}
-                onReset={reset}
-              />
-            )}
-
-            <ActorSegmentationPanel
-              question={activeQuestion?.text || ""}
-              brand={activeQuestion?.subject}
-              therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
-              signals={[]}
-              context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
+          {result && !loading && (
+            <ResultsAccordion
+              result={result}
+              selectedSegment={selectedSegment}
+              selectedArchetype={selectedArchetype}
+              caseTypeInfo={caseTypeInfo}
+              onReset={reset}
             />
-          </div>
-
-          <div className="space-y-4" style={{ width: "35%", flexShrink: 0 }}>
-            <StakeholderReactionPanel
-              question={activeQuestion?.text || ""}
-              brand={activeQuestion?.subject}
-              therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
-              context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
-            />
-          </div>
+          )}
         </div>
       </QuestionGate>
     </WorkflowLayout>
