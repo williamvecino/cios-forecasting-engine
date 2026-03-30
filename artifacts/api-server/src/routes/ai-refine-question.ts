@@ -45,11 +45,38 @@ router.post("/ai-refine-question", async (req, res) => {
     const questionToEvaluate = (body.proposedQuestion || body.rawInput || "").trim();
     const userDraft = (body.rawInput || "").trim();
 
-    const systemPrompt = `You are a forecast question validation expert for a pharmaceutical intelligence system.
+    const systemPrompt = `You are a forecast question validation expert for a pharmaceutical intelligence system called CIOS.
 
-You receive a question (possibly AI-refined from a user draft) and must:
+You receive a question (possibly refined from a user draft) and must:
 1. Evaluate whether this question is feasible to model as a probabilistic forecast
 2. Recommend whether the outcome should be binary or multi-state
+
+CRITICAL RULE — VAGUE BUT MEANINGFUL STATEMENTS:
+When the user writes a forecasting statement that is contextually meaningful but analytically vague, do NOT dismiss it as not feasible. First, interpret the intended strategic meaning.
+
+Translate vague language into an explicit comparison between two forecastable variables, usually:
+- product/evidence strength vs market/adoption readiness
+
+Allowed readiness dimensions:
+- physician readiness
+- payer/access readiness
+- operational/site readiness
+- market awareness
+- patient demand
+- commercial execution readiness
+
+Rules for vague statements:
+1. Preserve the intended meaning first.
+2. Restate the sentence in plain analytic language.
+3. Convert it into a forecastable gap statement.
+4. Do not invent scales, probabilities, PMIDs, scores, or numbers.
+5. If a number is provided but the scale is undefined, mark it as structurally incomplete rather than false — use verdict "feasible_with_refinement" and provide a refinedQuestion that operationalizes the gap.
+
+Example:
+Input: "There is a 45-point gap between what the product deserves and what the market is ready to deliver."
+Verdict: "feasible_with_refinement"
+refinedQuestion: "Is current market readiness substantially below the product's evidence-supported value, such that adoption is being limited by environmental constraints rather than product weakness?"
+explanation: "The statement describes a meaningful gap between product strength and market readiness. The 45-point scale is undefined, but the strategic intent is clear and forecastable."
 
 FEASIBILITY CRITERIA — evaluate each independently:
 - clearOutcome: Does the question define a specific, measurable outcome? (not vague like "do well" or "succeed")
@@ -60,7 +87,7 @@ FEASIBILITY CRITERIA — evaluate each independently:
 
 VERDICT RULES:
 - "feasible": All 5 criteria pass
-- "feasible_with_refinement": 3-4 criteria pass; provide a refinedQuestion that fixes the gaps
+- "feasible_with_refinement": 3-4 criteria pass; provide a refinedQuestion that fixes the gaps. Also use this for vague-but-meaningful statements that can be operationalized.
 - "not_feasible": Fewer than 3 pass; explain why this cannot be forecast
 
 OUTCOME STRUCTURE RULES:

@@ -108,6 +108,33 @@ router.post("/ai-interpret-question", async (req, res) => {
 
     const systemPrompt = `You are a senior pharmaceutical strategy advisor. A user has typed a question about a pharmaceutical or healthcare decision. Your job is to interpret their question and extract structured information.
 
+CRITICAL RULE — VAGUE BUT MEANINGFUL STATEMENTS:
+When the user writes a forecasting statement that is contextually meaningful but analytically vague, do NOT dismiss it. First, interpret the intended strategic meaning.
+
+Translate vague language into an explicit comparison between two forecastable variables, usually:
+- product/evidence strength vs market/adoption readiness
+
+Allowed readiness dimensions:
+- physician readiness
+- payer/access readiness
+- operational/site readiness
+- market awareness
+- patient demand
+- commercial execution readiness
+
+Rules for vague statements:
+1. Preserve the intended meaning first.
+2. Restate the sentence in plain analytic language.
+3. Convert it into a forecastable gap statement.
+4. Do not invent scales, probabilities, PMIDs, scores, or numbers.
+5. If a number is provided but the scale is undefined, mark it as structurally incomplete rather than false.
+6. In the restatedQuestion, output the operational version — the forecastable restatement.
+
+Example:
+Input: "There is a 45-point gap between what the product deserves and what the market is ready to deliver."
+restatedQuestion: "Is there a substantial gap between product/evidence strength and current market readiness, suggesting adoption is being limited by environmental constraints rather than product weakness?"
+primaryConstraint: "Market readiness gap — scale for 45-point measurement undefined"
+
 From any input — whether it is a clean question, messy notes, bullet points, partial thoughts, or pasted text — you must extract:
 
 1. decisionType: What kind of decision this is (e.g., "Launch timing", "Adoption forecasting", "Market share movement", "Guideline inclusion", "Competitive timing", "Access/coverage", "Regulatory approval")
