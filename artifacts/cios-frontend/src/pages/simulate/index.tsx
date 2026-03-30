@@ -538,7 +538,8 @@ export default function SimulatePage() {
   const segmentSelected = !!selectedSegment;
   const canRun = scenarioDefined && segmentSelected;
 
-  const currentStep = result ? 5 : !scenarioDefined ? 1 : !segmentSelected ? 2 : canRun ? 4 : 3;
+  const hasEvidence = !!(file || materialText.trim());
+  const currentStep = result ? 5 : !scenarioDefined ? 1 : !segmentSelected ? 2 : hasEvidence ? 4 : canRun ? 3 : 3;
 
   const recommendedSegmentKey = (() => {
     const entry = RECOMMENDED_SEGMENTS[caseTypeInfo.caseType];
