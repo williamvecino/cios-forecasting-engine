@@ -63,6 +63,7 @@ interface FeasibilityCheck {
   verdict: "feasible" | "feasible_with_refinement" | "not_feasible";
   explanation: string;
   refinedQuestion?: string;
+  suggestion?: string;
   checks: {
     clearOutcome: { pass: boolean; note: string };
     explicitHorizon: { pass: boolean; note: string };
@@ -272,13 +273,13 @@ export default function QuestionPage() {
         setOutcomeStates(data.outcomeStructure?.states || ["Yes", "No"]);
       } else {
         setRefineResult(null);
-        setOutcomeStates(["Yes", "No"]);
-        setSubmitError("Feasibility check unavailable. You can still continue with the proposed question.");
+        setOutcomeStates([]);
+        setSubmitError("Feasibility validation failed. Please retry or revise your question.");
       }
     } catch {
       setRefineResult(null);
-      setOutcomeStates(["Yes", "No"]);
-      setSubmitError("Feasibility check unavailable. You can still continue with the proposed question.");
+      setOutcomeStates([]);
+      setSubmitError("Feasibility validation is unavailable. Please retry or revise your question.");
     }
     setPageState("reviewing");
   }, []);
@@ -291,7 +292,7 @@ export default function QuestionPage() {
   }, [editedProposal, rawInput, runFeasibilityCheck]);
 
   const handleAcceptAndContinue = useCallback(async () => {
-    if (refineResult?.feasibility?.verdict === "not_feasible") return;
+    if (!refineResult || refineResult.feasibility?.verdict === "not_feasible") return;
 
     const finalQuestion = refineResult?.feasibility?.refinedQuestion || editedProposal.trim() || structuringResult?.activeQuestion?.questionText || rawInput.trim();
     setPageState("creating");
@@ -705,7 +706,7 @@ export default function QuestionPage() {
   };
 
   const feasVerdict = refineResult?.feasibility?.verdict;
-  const canProceed = !refineResult || feasVerdict === "feasible" || feasVerdict === "feasible_with_refinement";
+  const canProceed = !!refineResult && (feasVerdict === "feasible" || feasVerdict === "feasible_with_refinement");
 
   return (
     <WorkflowLayout
@@ -820,6 +821,26 @@ export default function QuestionPage() {
               </div>
             )}
 
+            {!refineResult && pageState === "reviewing" && (
+              <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">Feasibility Validation Required</span>
+                </div>
+                <p className="text-sm text-foreground/80">
+                  The feasibility check could not be completed. A passing feasibility validation is required before you can proceed.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => runFeasibilityCheck(rawInput.trim(), editedProposal.trim())}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-500 inline-flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Retry Feasibility Check
+                </button>
+              </div>
+            )}
+
             {refineResult && (
               <>
                 <div className={`rounded-2xl border p-5 space-y-3 ${
@@ -840,6 +861,13 @@ export default function QuestionPage() {
                     </span>
                   </div>
                   <p className="text-sm text-foreground/80">{refineResult.feasibility.explanation}</p>
+
+                  {refineResult.feasibility.suggestion && feasVerdict === "not_feasible" && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 mt-2">
+                      <div className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1">Suggestion</div>
+                      <div className="text-sm text-foreground/80">{refineResult.feasibility.suggestion}</div>
+                    </div>
+                  )}
 
                   {refineResult.feasibility.refinedQuestion && feasVerdict === "feasible_with_refinement" && (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 mt-2">

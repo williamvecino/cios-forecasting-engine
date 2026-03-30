@@ -12,6 +12,7 @@ interface FeasibilityCheck {
   verdict: "feasible" | "feasible_with_refinement" | "not_feasible";
   explanation: string;
   refinedQuestion?: string;
+  suggestion?: string;
   checks: {
     clearOutcome: { pass: boolean; note: string };
     explicitHorizon: { pass: boolean; note: string };
@@ -80,6 +81,7 @@ Output schema:
     "verdict": "feasible|feasible_with_refinement|not_feasible",
     "explanation": "string - 1-2 sentence summary of the feasibility assessment",
     "refinedQuestion": "string or null - only if verdict is feasible_with_refinement",
+    "suggestion": "string or null - only if verdict is not_feasible: what the user should do instead",
     "checks": {
       "clearOutcome": { "pass": true/false, "note": "string - brief explanation" },
       "explicitHorizon": { "pass": true/false, "note": "string" },
@@ -131,6 +133,7 @@ Output schema:
         verdict: validVerdicts.includes(feas.verdict) ? feas.verdict : "not_feasible",
         explanation: typeof feas.explanation === "string" ? feas.explanation : "Assessment complete.",
         refinedQuestion: typeof feas.refinedQuestion === "string" ? feas.refinedQuestion : undefined,
+        suggestion: typeof feas.suggestion === "string" ? feas.suggestion : undefined,
         checks: {
           clearOutcome: safeCheck(feas.checks?.clearOutcome),
           explicitHorizon: safeCheck(feas.checks?.explicitHorizon),
