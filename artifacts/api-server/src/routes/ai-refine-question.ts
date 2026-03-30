@@ -128,7 +128,7 @@ Output schema:
 
     const result: RefineResponse = {
       feasibility: {
-        verdict: validVerdicts.includes(feas.verdict) ? feas.verdict : "feasible",
+        verdict: validVerdicts.includes(feas.verdict) ? feas.verdict : "not_feasible",
         explanation: typeof feas.explanation === "string" ? feas.explanation : "Assessment complete.",
         refinedQuestion: typeof feas.refinedQuestion === "string" ? feas.refinedQuestion : undefined,
         checks: {

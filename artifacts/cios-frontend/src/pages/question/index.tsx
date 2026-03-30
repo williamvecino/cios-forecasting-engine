@@ -245,7 +245,13 @@ export default function QuestionPage() {
       return;
     }
 
-    const proposedText = structuredResult?.activeQuestion?.questionText || text;
+    if (!structuredResult) {
+      setSubmitError("Could not analyze the question. You can try again or continue with your original wording.");
+      setPageState("input");
+      return;
+    }
+
+    const proposedText = structuredResult.activeQuestion?.questionText || text;
     setEditedProposal(proposedText);
     setPageState("reviewing");
 
@@ -264,8 +270,16 @@ export default function QuestionPage() {
         const data: RefineResult = await res.json();
         setRefineResult(data);
         setOutcomeStates(data.outcomeStructure?.states || ["Yes", "No"]);
+      } else {
+        setRefineResult(null);
+        setOutcomeStates(["Yes", "No"]);
+        setSubmitError("Feasibility check unavailable. You can still continue with the proposed question.");
       }
-    } catch {}
+    } catch {
+      setRefineResult(null);
+      setOutcomeStates(["Yes", "No"]);
+      setSubmitError("Feasibility check unavailable. You can still continue with the proposed question.");
+    }
     setPageState("reviewing");
   }, []);
 
@@ -277,8 +291,7 @@ export default function QuestionPage() {
   }, [editedProposal, rawInput, runFeasibilityCheck]);
 
   const handleAcceptAndContinue = useCallback(async () => {
-    const feasVerdict = refineResult?.feasibility?.verdict;
-    if (feasVerdict === "not_feasible") return;
+    if (refineResult?.feasibility?.verdict === "not_feasible") return;
 
     const finalQuestion = refineResult?.feasibility?.refinedQuestion || editedProposal.trim() || structuringResult?.activeQuestion?.questionText || rawInput.trim();
     setPageState("creating");
@@ -691,6 +704,9 @@ export default function QuestionPage() {
     }
   };
 
+  const feasVerdict = refineResult?.feasibility?.verdict;
+  const canProceed = !refineResult || feasVerdict === "feasible" || feasVerdict === "feasible_with_refinement";
+
   return (
     <WorkflowLayout
       currentStep="question"
@@ -709,29 +725,57 @@ export default function QuestionPage() {
           </div>
         )}
 
-        {(pageState === "structuring" || pageState === "creating") && (
+        {(pageState === "structuring" || pageState === "refining" || pageState === "creating") && (
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
             <div className="flex items-center gap-3">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
               <div>
                 <div className="text-sm font-semibold text-foreground">
-                  {pageState === "structuring" ? "Structuring question..." : "Creating case..."}
+                  {pageState === "structuring" ? "Analyzing your question..." : pageState === "refining" ? "Checking feasibility..." : "Creating case..."}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {pageState === "structuring"
-                    ? "Analyzing boundedness, archetype, and target outcome"
+                    ? "Structuring the question for forecasting"
+                    : pageState === "refining"
+                    ? "Validating outcome clarity, time horizon, and modelability"
                     : "Interpreting and persisting the decision case"}
                 </div>
               </div>
             </div>
-            {structuringResult && (
-              <div className="space-y-3 border-t border-border pt-4">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400/70">
-                  Question Structuring Agent
+          </div>
+        )}
+
+        {pageState === "reviewing" && structuringResult && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">AI Suggested Question</span>
+              </div>
+
+              {isEditingProposal ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={editedProposal}
+                    onChange={(e) => setEditedProposal(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-blue-500/30 bg-background/50 px-4 py-3 text-sm text-foreground resize-none"
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={handleReRunFeasibility} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 inline-flex items-center gap-1.5">
+                      <RotateCcw className="w-3 h-3" />
+                      Re-check Feasibility
+                    </button>
+                    <button type="button" onClick={() => { setIsEditingProposal(false); setEditedProposal(structuringResult.activeQuestion.questionText); }} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
-                  <div className="text-sm font-medium text-foreground">
-                    {structuringResult.activeQuestion.questionText}
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-sm font-medium text-foreground leading-relaxed">
+                    {editedProposal || structuringResult.activeQuestion.questionText}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-flex items-center gap-1 rounded-md bg-muted/30 border border-border px-2 py-1 text-[11px] text-muted-foreground">
@@ -748,45 +792,169 @@ export default function QuestionPage() {
                         Bounded
                       </span>
                     )}
-                    {structuringResult.activeQuestion.boundedness === "needs_splitting" && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1 text-[11px] text-amber-400">
-                        <SplitSquareVertical className="w-3 h-3" />
-                        Split into sub-questions
-                      </span>
-                    )}
-                    {structuringResult.activeQuestion.boundedness === "too_broad" && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-red-500/10 border border-red-500/20 px-2 py-1 text-[11px] text-red-400">
-                        <XCircle className="w-3 h-3" />
-                        Too broad
-                      </span>
-                    )}
                   </div>
-                  {structuringResult.activeQuestion.targetOutcome && (
-                    <div className="text-xs text-muted-foreground">
-                      <span className="text-foreground/60 font-medium">Target: </span>
-                      {structuringResult.activeQuestion.targetOutcome}
+                  <button type="button" onClick={() => setIsEditingProposal(true)} className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
+                    <Edit3 className="w-3 h-3" />
+                    Edit this question
+                  </button>
+                </div>
+              )}
+
+              {structuringResult.activeQuestion.targetOutcome && (
+                <div className="text-xs text-muted-foreground border-t border-blue-500/10 pt-3">
+                  <span className="text-foreground/60 font-medium">Target outcome: </span>
+                  {structuringResult.activeQuestion.targetOutcome}
+                </div>
+              )}
+            </div>
+
+            {structuringResult.improvementExplanation && (
+              <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Why This Is the Right Forecasting Structure</span>
+                </div>
+                <p className="text-sm text-foreground/80 leading-relaxed">
+                  {structuringResult.improvementExplanation}
+                </p>
+              </div>
+            )}
+
+            {refineResult && (
+              <>
+                <div className={`rounded-2xl border p-5 space-y-3 ${
+                  feasVerdict === "feasible" ? "border-emerald-500/20 bg-emerald-500/5" :
+                  feasVerdict === "feasible_with_refinement" ? "border-amber-500/20 bg-amber-500/5" :
+                  "border-red-500/20 bg-red-500/5"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {feasVerdict === "feasible" ? <ShieldCheck className="w-4 h-4 text-emerald-400" /> :
+                     feasVerdict === "feasible_with_refinement" ? <ShieldAlert className="w-4 h-4 text-amber-400" /> :
+                     <XCircle className="w-4 h-4 text-red-400" />}
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                      feasVerdict === "feasible" ? "text-emerald-400" :
+                      feasVerdict === "feasible_with_refinement" ? "text-amber-400" :
+                      "text-red-400"
+                    }`}>
+                      Feasibility Check — {feasVerdict === "feasible" ? "Feasible" : feasVerdict === "feasible_with_refinement" ? "Feasible with Refinement" : "Not Feasible"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground/80">{refineResult.feasibility.explanation}</p>
+
+                  {refineResult.feasibility.refinedQuestion && feasVerdict === "feasible_with_refinement" && (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 mt-2">
+                      <div className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-1">Refined Version</div>
+                      <div className="text-sm text-foreground">{refineResult.feasibility.refinedQuestion}</div>
                     </div>
                   )}
-                </div>
-                {structuringResult.supportingQuestions.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                      Supporting Questions
-                    </div>
-                    {structuringResult.supportingQuestions.map((sq, i) => (
-                      <div key={i} className="rounded-lg border border-border bg-muted/10 p-3">
-                        <div className="text-xs text-foreground/80">{sq.questionText}</div>
-                        <div className="flex gap-2 mt-1.5">
-                          <span className="text-[10px] text-muted-foreground">{sq.archetype}</span>
-                          <span className="text-[10px] text-muted-foreground">·</span>
-                          <span className="text-[10px] text-muted-foreground">{sq.horizon}</span>
+
+                  <div className="grid grid-cols-1 gap-2 mt-2">
+                    {Object.entries(refineResult.feasibility.checks).map(([key, check]) => (
+                      <div key={key} className="flex items-start gap-2">
+                        {check.pass ? <Check className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" /> : <X className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />}
+                        <div>
+                          <span className="text-xs font-medium text-foreground/70">
+                            {key === "clearOutcome" ? "Clear Outcome" :
+                             key === "explicitHorizon" ? "Explicit Horizon" :
+                             key === "observableEvent" ? "Observable Event" :
+                             key === "decisionRelevance" ? "Decision Relevance" :
+                             "Model Feasibility"}
+                          </span>
+                          {check.note && <span className="text-xs text-muted-foreground ml-1.5">— {check.note}</span>}
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
+                </div>
+
+                <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <ListTree className="w-4 h-4 text-purple-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
+                      Outcome Structure — {refineResult.outcomeStructure.recommended === "multi_state" ? "Multi-State" : "Binary"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground/80">{refineResult.outcomeStructure.explanation}</p>
+
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {refineResult.outcomeStructure.recommended === "multi_state" ? "Outcome States" : "Outcome Options"}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {outcomeStates.map((state, i) => (
+                        <div key={i} className="inline-flex items-center gap-1 rounded-lg border border-purple-500/20 bg-purple-500/10 px-3 py-1.5">
+                          <input
+                            type="text"
+                            value={state}
+                            onChange={(e) => {
+                              const updated = [...outcomeStates];
+                              updated[i] = e.target.value;
+                              setOutcomeStates(updated);
+                            }}
+                            className="bg-transparent text-xs text-foreground border-none outline-none w-auto min-w-[60px]"
+                            style={{ width: `${Math.max(60, state.length * 7)}px` }}
+                          />
+                          {outcomeStates.length > 2 && (
+                            <button type="button" onClick={() => setOutcomeStates(outcomeStates.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-400">
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setOutcomeStates([...outcomeStates, ""])}
+                        className="inline-flex items-center gap-1 rounded-lg border border-dashed border-purple-500/20 px-3 py-1.5 text-xs text-purple-400 hover:bg-purple-500/5"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add state
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {structuringResult.supportingQuestions.length > 0 && (
+              <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                  Supporting Questions
+                </div>
+                {structuringResult.supportingQuestions.map((sq, i) => (
+                  <div key={i} className="rounded-lg border border-border bg-muted/10 p-3">
+                    <div className="text-xs text-foreground/80">{sq.questionText}</div>
+                    <div className="flex gap-2 mt-1.5">
+                      <span className="text-[10px] text-muted-foreground">{sq.archetype}</span>
+                      <span className="text-[10px] text-muted-foreground">·</span>
+                      <span className="text-[10px] text-muted-foreground">{sq.horizon}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleAcceptAndContinue}
+                disabled={!canProceed || pageState === "creating"}
+                className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {pageState === "creating" ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Creating case...</>
+                ) : (
+                  <><CheckCircle2 className="w-4 h-4" /> Accept & Continue</>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPageState("input"); setStructuringResult(null); setRefineResult(null); setIsEditingProposal(false); setEditedProposal(""); setOutcomeStates([]); setSubmitError(null); }}
+                className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/10 inline-flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Start over
+              </button>
+            </div>
           </div>
         )}
 
@@ -819,7 +987,7 @@ export default function QuestionPage() {
               </div>
             </div>
           </div>
-        ) : (
+        ) : pageState === "input" ? (
           <>
             {isEditMode && (
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
@@ -897,20 +1065,20 @@ export default function QuestionPage() {
                   What decision are you trying to make?
                 </label>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Type your question in plain language. We will interpret and structure it for you.
+                  Type your question in plain language. AI will structure it, validate feasibility, and recommend an outcome format before you proceed.
                 </p>
                 <textarea
                   value={rawInput}
                   onChange={(e) => setRawInput(e.target.value)}
-                  placeholder="Example: Will Viatris launch the generic aripiprazole vial in 2026 or will manufacturing delays push it to 2027?"
+                  placeholder="Example: Will the FDA implement a safety-related label change for Xarelto within the next 12 months due to GI bleeding risk signals?"
                   rows={4}
                   autoFocus
-                  disabled={pageState === "creating"}
+                  disabled={pageState !== "input"}
                   className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
                       e.preventDefault();
-                      handleContinue();
+                      handleStructure();
                     }
                   }}
                 />
@@ -939,21 +1107,12 @@ export default function QuestionPage() {
                 <div className="mt-4 flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={handleContinue}
-                    disabled={!rawInput.trim() || pageState === "creating"}
+                    onClick={handleStructure}
+                    disabled={!rawInput.trim() || pageState !== "input"}
                     className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
                   >
-                    {pageState === "creating" ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Creating case...
-                      </>
-                    ) : (
-                      <>
-                        Continue
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
+                    <Sparkles className="w-4 h-4" />
+                    Analyze Question
                   </button>
                 </div>
               </div>
@@ -964,7 +1123,7 @@ export default function QuestionPage() {
               setRawInput(text);
             }} />
           </>
-        )}
+        ) : null}
       </div>
     </WorkflowLayout>
   );
