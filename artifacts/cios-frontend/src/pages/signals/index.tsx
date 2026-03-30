@@ -1690,7 +1690,7 @@ export default function SignalsPage() {
 
               {(() => {
                 const rootGroups: Record<string, { texts: string[]; compressions: number[] }> = {};
-                const allSigs = [...internalSignals, ...externalSignals, ...missingSignals];
+                const allSigs = [...internalSignals, ...externalSignals, ...missingSignals].filter(s => s.accepted && !s.superseded);
                 for (const s of allSigs) {
                   const lin = signalLineageMap[`SIG-${s.id}`];
                   if (lin?.rootEvidenceId) {
