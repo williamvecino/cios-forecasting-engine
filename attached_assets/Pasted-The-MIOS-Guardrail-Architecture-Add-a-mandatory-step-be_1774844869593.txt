@@ -1,0 +1,125 @@
+The MIOS Guardrail Architecture
+
+Add a mandatory step between Evidence Retrieval and Evidence Acceptance.
+
+Evidence Verification Layer
+
+Required fields:
+
+Identifier source
+Identifier type
+Verification status
+Registry match
+Timestamp
+
+Decision logic
+
+If identifier exists AND registry match = TRUE
+→ Accept
+
+If identifier exists AND registry match = FALSE
+→ Reject
+
+If identifier missing
+→ Flag as unverified
+
+Example — Safe Workflow
+
+Step 1
+User uploads PDF
+
+Step 2
+System extracts DOI from document text
+
+Step 3
+System queries registry
+
+Result:
+
+DOI found in CrossRef
+Metadata matches title and authors
+
+Status:
+
+Verified
+
+Example — Unsafe Workflow
+
+Model generates:
+
+PMID: 12345678
+
+System accepts without checking
+
+This is the exact failure mode you observed.
+
+Implementation — Minimal Python Validator
+
+This is production-ready logic.
+
+import requests
+
+def verify_pmid(pmid):
+    url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        return "VALID"
+    else:
+        return "NOT FOUND"
+
+def verify_doi(doi):
+    url = f"https://api.crossref.org/works/{doi}"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        return "VALID"
+    else:
+        return "NOT FOUND"
+MIOS Rule to Store (recommended)
+
+Identifier Integrity Rule
+
+The system must not generate PMIDs, DOIs, or registry numbers under any circumstance.
+All identifiers must be extracted from source documents and verified against external registries before acceptance.
+
+Practical Safeguards for Daily Use
+
+You can apply these immediately without code.
+
+1) Require visible identifiers in source
+
+Accept only if:
+
+PMID is printed
+DOI is printed
+Trial number is printed
+
+2) Reject narrative citations
+
+Example:
+
+Smith et al., 2025
+
+This is not sufficient evidence.
+
+3) Verify before using in conversation
+
+Especially critical for:
+
+Physician outreach
+KOL discussions
+Investor or partner conversations
+
+Red Flags That Predict Hallucinated Citations
+
+You already saw them in the Mallia example.
+
+Watch for:
+
+Nonstandard journal names
+Perfectly rounded percentages
+Missing sample size
+No registry number
+No DOI
+No PMID

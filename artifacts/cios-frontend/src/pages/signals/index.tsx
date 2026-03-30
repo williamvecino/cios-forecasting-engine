@@ -54,7 +54,7 @@ import ConflictResolverPanel from "@/components/signals/ConflictResolverPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import MiosBaosPanel from "@/components/signals/MiosBaosPanel";
-import SignalDependencyPanel from "@/components/signals/SignalDependencyPanel";
+import SignalDependencyPanel, { type SignalLineageInfo } from "@/components/signals/SignalDependencyPanel";
 
 function isMiosBaosSignal(s: any): boolean {
   const st = (s.source_type || "").toUpperCase();
@@ -922,6 +922,18 @@ export default function SignalsPage() {
   const [findKeywords, setFindKeywords] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [signalLineageMap, setSignalLineageMap] = useState<Record<string, SignalLineageInfo>>({});
+  const prevCaseRef = useRef(activeQuestion?.caseId);
+  useEffect(() => {
+    if (activeQuestion?.caseId !== prevCaseRef.current) {
+      setSignalLineageMap({});
+      prevCaseRef.current = activeQuestion?.caseId;
+    }
+  }, [activeQuestion?.caseId]);
+
+  const handleDependencyData = useCallback((_data: any, lineageMap: Record<string, SignalLineageInfo>) => {
+    setSignalLineageMap(lineageMap);
+  }, []);
 
   const [newText, setNewText] = useState("");
   const [newDirection, setNewDirection] = useState<Direction>("increases_probability");
@@ -1631,7 +1643,7 @@ export default function SignalsPage() {
           />
 
           {activeQuestion?.caseId && (
-            <SignalDependencyPanel caseId={activeQuestion.caseId} />
+            <SignalDependencyPanel caseId={activeQuestion.caseId} onData={handleDependencyData} />
           )}
 
           <ConflictResolverPanel
@@ -1694,6 +1706,7 @@ export default function SignalsPage() {
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
+                        lineage={signalLineageMap[`SIG-${sig.id}`]}
                       />
                     ))}
                   </div>
@@ -1720,6 +1733,7 @@ export default function SignalsPage() {
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
+                        lineage={signalLineageMap[`SIG-${sig.id}`]}
                       />
                     ))}
                   </div>
@@ -1746,6 +1760,7 @@ export default function SignalsPage() {
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
+                        lineage={signalLineageMap[`SIG-${sig.id}`]}
                       />
                     ))}
                   </div>
@@ -1775,6 +1790,7 @@ export default function SignalsPage() {
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
+                        lineage={signalLineageMap[`SIG-${sig.id}`]}
                       />
                     ))}
                   </div>
@@ -1796,6 +1812,7 @@ export default function SignalsPage() {
                         onUpdate={(u) => updateSignal(sig.id, u)}
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
+                        lineage={signalLineageMap[`SIG-${sig.id}`]}
                       />
                     ))}
                   </div>
@@ -1824,6 +1841,7 @@ export default function SignalsPage() {
                     outcomeLabel={outcome || "outcome"}
                     onShowProvenance={() => setProvenanceSignal(sig)}
                     isPrimaryDriver={sig.id === primaryDriverId}
+                    lineage={signalLineageMap[`SIG-${sig.id}`]}
                   />
                 ))}
               </div>
@@ -2094,6 +2112,7 @@ function MinimalSignalCard({
   outcomeLabel,
   onShowProvenance,
   isPrimaryDriver,
+  lineage,
 }: {
   signal: Signal;
   editing: boolean;
@@ -2104,7 +2123,17 @@ function MinimalSignalCard({
   outcomeLabel: string;
   onShowProvenance?: () => void;
   isPrimaryDriver?: boolean;
+  lineage?: SignalLineageInfo;
 }) {
+  const LINEAGE_ROLE_COLORS: Record<string, string> = {
+    Echo: "bg-slate-700/50 text-slate-400 border-slate-600/30",
+    Translation: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    Independent: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    "Root Evidence": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+    Corroborating: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+    Derivative: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  };
+
   return (
     <div className={`rounded-xl border ${isPrimaryDriver ? "border-primary/40 ring-1 ring-primary/20" : signal.workbook_meta ? "border-violet-500/20" : "border-border"} bg-card p-5 ${signal.superseded ? "opacity-40" : ""}`}>
       {isPrimaryDriver && (
@@ -2195,6 +2224,25 @@ function MinimalSignalCard({
               <div className="text-foreground/90">{getSourceLabel(signal)}</div>
             </div>
           </div>
+          {lineage && (
+            <div className="flex items-center gap-2 flex-wrap mt-1.5">
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${LINEAGE_ROLE_COLORS[lineage.echoVsTranslation] || LINEAGE_ROLE_COLORS[lineage.dependencyRole] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                {lineage.echoVsTranslation}
+              </span>
+              <span className="text-[9px] text-muted-foreground">{lineage.sourceCluster}</span>
+              {lineage.compressionFactor < 1 && (
+                <span className="text-[9px] text-amber-400/70" title={`This signal's weight is reduced to ${Math.round(lineage.compressionFactor * 100)}% because it echoes or derives from an upstream signal`}>
+                  ×{lineage.compressionFactor.toFixed(2)} weight
+                </span>
+              )}
+              {lineage.novelInformationFlag === "No" && (
+                <span className="text-[9px] text-rose-400/60 bg-rose-500/10 rounded-full px-1.5 py-0.5 border border-rose-500/20">No novel info</span>
+              )}
+              {lineage.novelInformationFlag === "Partial" && (
+                <span className="text-[9px] text-amber-400/60 bg-amber-500/10 rounded-full px-1.5 py-0.5 border border-amber-500/20">Partial novelty</span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

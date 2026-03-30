@@ -17,6 +17,7 @@ import { RecalculateForecastButton } from "@/components/recalculate-forecast-but
 import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
 import { IntegrityPanel } from "@/components/forecast/IntegrityPanel";
 import { CalibrationChecksPanel } from "@/components/forecast/CalibrationChecksPanel";
+import EvidenceHealthPanel from "@/components/forecast/EvidenceHealthPanel";
 import {
   ArrowRight,
   BookOpen,
@@ -1022,6 +1023,10 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 <>
                   <ExplainBox judgment={judgmentResult} caseContext={caseCtxForExplain} />
                   <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} />
+
+                  {activeQuestion?.caseId && (
+                    <EvidenceHealthPanel caseId={activeQuestion.caseId} />
+                  )}
 
                   <ForecastComparisonCircles
                     brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}

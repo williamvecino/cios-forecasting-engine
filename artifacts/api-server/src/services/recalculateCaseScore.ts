@@ -144,6 +144,8 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     console.log(`[recalc-dependency] caseId=${caseId} clusters=${dependencyAnalysis.metrics.clusterCount} compressed=${dependencyAnalysis.compressedSignals.filter(c => c.compressionFactor < 1).length} warnings=${dependencyAnalysis.warnings.length} diversity=${dependencyAnalysis.metrics.evidenceDiversityScore} fragility=${dependencyAnalysis.metrics.posteriorFragilityScore}`);
   }
 
+  persistDependencyTagsBackground(dependencyAnalysis);
+
   const corrections = await getLrCorrections();
   const now = Date.now();
   const signalsWithAdjustedLR = signals.map((s) => {
@@ -368,4 +370,66 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
   console.log(`[recalc-perf] computed caseId=${caseId} drivers=${signalsWithAdjustedLR.length} largest_shift=${largestShift.toFixed(4)} final_prob=${finalProbability.toFixed(4)}`);
 
   return recalcResult;
+}
+
+function persistDependencyTagsBackground(
+  analysis: ReturnType<typeof runDependencyAnalysis>
+) {
+  const updates: Array<{ id: string; rootEvidenceId: string; sourceCluster: string; dependencyRole: string; echoVsTranslation: string; novelInformationFlag: string; lineageConfidence: string }> = [];
+
+  for (const cl of analysis.clusters) {
+    updates.push({
+      id: cl.rootSignal.signal.id,
+      rootEvidenceId: cl.rootEvidenceId,
+      sourceCluster: cl.rootSignal.sourceCluster,
+      dependencyRole: cl.rootSignal.dependencyRole,
+      echoVsTranslation: cl.rootSignal.echoVsTranslation,
+      novelInformationFlag: cl.rootSignal.novelInformationFlag,
+      lineageConfidence: cl.rootSignal.lineageConfidence,
+    });
+    for (const d of cl.descendants) {
+      updates.push({
+        id: d.signal.id,
+        rootEvidenceId: cl.rootEvidenceId,
+        sourceCluster: d.sourceCluster,
+        dependencyRole: d.dependencyRole,
+        echoVsTranslation: d.echoVsTranslation,
+        novelInformationFlag: d.novelInformationFlag,
+        lineageConfidence: d.lineageConfidence,
+      });
+    }
+  }
+
+  for (const ind of analysis.independentSignals) {
+    updates.push({
+      id: ind.signal.id,
+      rootEvidenceId: ind.rootEvidenceId,
+      sourceCluster: ind.sourceCluster,
+      dependencyRole: ind.dependencyRole,
+      echoVsTranslation: ind.echoVsTranslation,
+      novelInformationFlag: ind.novelInformationFlag,
+      lineageConfidence: ind.lineageConfidence,
+    });
+  }
+
+  if (updates.length === 0) return;
+
+  (async () => {
+    for (const u of updates) {
+      try {
+        await db.update(signalsTable).set({
+          rootEvidenceId: u.rootEvidenceId,
+          sourceCluster: u.sourceCluster,
+          dependencyRole: u.dependencyRole,
+          echoVsTranslation: u.echoVsTranslation,
+          novelInformationFlag: u.novelInformationFlag,
+          lineageConfidence: u.lineageConfidence,
+          updatedAt: new Date(),
+        }).where(eq(signalsTable.id, u.id));
+      } catch (err) {
+        console.error(`[persist-lineage-bg] Failed to update signal ${u.id}:`, err);
+      }
+    }
+    console.log(`[persist-lineage-bg] Updated ${updates.length} signals with dependency tags`);
+  })().catch(err => console.error("[persist-lineage-bg] Background persist failed:", err));
 }

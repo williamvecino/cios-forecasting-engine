@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   AlertTriangle,
   GitBranch,
@@ -116,7 +116,17 @@ function ceilingColor(level: string) {
   return "text-rose-400";
 }
 
-export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
+export interface SignalLineageInfo {
+  rootEvidenceId: string;
+  sourceCluster: string;
+  dependencyRole: string;
+  echoVsTranslation: string;
+  novelInformationFlag: string;
+  lineageConfidence: string;
+  compressionFactor: number;
+}
+
+export default function SignalDependencyPanel({ caseId, onData }: { caseId: string; onData?: (data: DependencyData | null, lineageMap: Record<string, SignalLineageInfo>) => void }) {
   const [data, setData] = useState<DependencyData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,17 +137,34 @@ export default function SignalDependencyPanel({ caseId }: { caseId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${getApiBase()}/cases/${encodeURIComponent(caseId)}/signal-dependency`);
+      const res = await fetch(`${getApiBase()}/cases/${encodeURIComponent(caseId)}/signal-dependency?persist=true`);
       if (!res.ok) throw new Error(`Failed: ${res.status}`);
       const json = await res.json();
       setData(json);
       setExpanded(true);
+      if (onData) onData(json, json.signalLineageMap ?? {});
     } catch (e: any) {
       setError(e.message ?? "Unknown error");
     } finally {
       setLoading(false);
     }
+  }, [caseId, onData]);
+
+  const prevCaseIdRef = useRef(caseId);
+  useEffect(() => {
+    if (prevCaseIdRef.current !== caseId) {
+      setData(null);
+      setError(null);
+      setExpandedClusters(new Set());
+      prevCaseIdRef.current = caseId;
+    }
   }, [caseId]);
+
+  useEffect(() => {
+    if (!data && !loading) {
+      fetchAnalysis();
+    }
+  }, [caseId, data, loading, fetchAnalysis]);
 
   const toggleCluster = (id: string) => {
     setExpandedClusters((prev) => {
