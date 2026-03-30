@@ -43,6 +43,10 @@ import {
   Info,
   Search,
   FileSpreadsheet,
+  Ruler,
+  Target,
+  TrendingDown,
+  BarChart3,
 } from "lucide-react";
 import DataImportDialog from "@/components/signals/DataImportDialog";
 import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog";
@@ -295,6 +299,98 @@ interface Signal {
   driver_role?: DriverRole;
   mechanism_group?: MechanismGroup;
   causal_aligned?: boolean;
+  measurement_criteria?: MeasurementCriteria;
+  trigger_rules?: TriggerRule[];
+  triggered_flags?: string[];
+}
+
+interface MeasurementCriteria {
+  baseline_value?: string;
+  observed_change?: string;
+  geographic_scope?: string;
+  time_window?: string;
+  evidence_source?: string;
+  confidence_level?: "Confirmed" | "Probable" | "Speculative";
+  derived_metrics?: DerivedMetric[];
+}
+
+interface DerivedMetric {
+  name: string;
+  definition: string;
+  value?: number;
+  unit?: string;
+}
+
+interface TriggerRule {
+  id: string;
+  condition: string;
+  action_impact: Impact;
+  action_message: string;
+  time_window_months?: [number, number];
+  active: boolean;
+}
+
+const DEFAULT_COMPETITOR_TRIGGER: TriggerRule = {
+  id: "trigger-competitor-field-capacity",
+  condition: "Competitor field capacity increases in affected territories within 3–6 months of coverage reduction",
+  action_impact: "High",
+  action_message: "Auto-flagged: Competitor field expansion detected in coverage reduction window",
+  time_window_months: [3, 6],
+  active: true,
+};
+
+function evaluateTriggerRules(signal: Signal, allSignals: Signal[]): string[] {
+  const flags: string[] = [];
+  const rules = signal.trigger_rules || [];
+  for (const rule of rules) {
+    if (!rule.active) continue;
+    const text = signal.text.toLowerCase();
+    const isCompetitorField = text.includes("field force") || text.includes("field capacity") || text.includes("headcount") || text.includes("sales force") || text.includes("coverage");
+    const isCompetitive = signal.mechanism_group === "competitive_threat" || signal.category === "competition";
+    if (isCompetitorField && isCompetitive) {
+      const hasCoverageReduction = allSignals.some(s =>
+        s.id !== signal.id &&
+        s.accepted &&
+        (s.text.toLowerCase().includes("coverage reduction") ||
+         s.text.toLowerCase().includes("formulary exclusion") ||
+         s.text.toLowerCase().includes("market share loss") ||
+         s.text.toLowerCase().includes("access restriction"))
+      );
+      if (hasCoverageReduction) {
+        flags.push(rule.action_message);
+      }
+    }
+  }
+  return flags;
+}
+
+function computeCompetitiveCoverageRatio(signals: Signal[]): DerivedMetric | null {
+  const competitorSignals = signals.filter(s =>
+    s.accepted &&
+    (s.mechanism_group === "competitive_threat" || s.category === "competition")
+  );
+  const brandSignals = signals.filter(s =>
+    s.accepted &&
+    s.mechanism_group !== "competitive_threat" &&
+    s.category !== "competition" &&
+    (s.text.toLowerCase().includes("field") || s.text.toLowerCase().includes("sales force") || s.text.toLowerCase().includes("commercial") || s.text.toLowerCase().includes("capacity"))
+  );
+  if (competitorSignals.length === 0 && brandSignals.length === 0) return null;
+
+  const competitorStrength = competitorSignals.reduce((sum, s) => {
+    return sum + (s.impact === "High" ? 3 : s.impact === "Medium" ? 2 : 1);
+  }, 0);
+  const brandStrength = brandSignals.reduce((sum, s) => {
+    return sum + (s.impact === "High" ? 3 : s.impact === "Medium" ? 2 : 1);
+  }, 0);
+  const ratio = brandStrength > 0 ? competitorStrength / brandStrength : competitorStrength > 0 ? 999 : 0;
+
+  return {
+    name: "Competitive Coverage Ratio",
+    definition: "Competitor field capacity ÷ brand field capacity in affected territories",
+    value: Math.round(ratio * 100) / 100,
+    unit: "ratio",
+  };
 }
 
 function enrichSignalFields(sig: Signal, questionText?: string, outcomeText?: string): Signal {
@@ -307,6 +403,11 @@ function enrichSignalFields(sig: Signal, questionText?: string, outcomeText?: st
   }
   if (questionText) {
     enriched.causal_aligned = checkCausalAlignment(enriched.text, questionText, outcomeText || questionText);
+  }
+  const text = enriched.text.toLowerCase();
+  const isCompetitorField = text.includes("field force") || text.includes("field capacity") || text.includes("headcount") || text.includes("sales force") || text.includes("coverage intensity") || text.includes("competitor") && (text.includes("capacity") || text.includes("coverage"));
+  if (isCompetitorField && !enriched.trigger_rules?.length) {
+    enriched.trigger_rules = [DEFAULT_COMPETITOR_TRIGGER];
   }
   return enriched;
 }
@@ -721,6 +822,31 @@ export default function SignalsPage() {
   const [verifiedFound, setVerifiedFound] = useState(false);
   const aiRequestIdRef = useRef(0);
   const prevCaseKeyRef = useRef(caseKey);
+
+  const triggerHash = useMemo(() => signals.map(s =>
+    `${s.id}|${s.accepted}|${s.text.slice(0, 40)}|${s.mechanism_group}|${s.category}|${(s.trigger_rules || []).length}`
+  ).join(","), [signals]);
+
+  useEffect(() => {
+    setSignals((prev) => {
+      let changed = false;
+      const updated = prev.map(s => {
+        const flags = evaluateTriggerRules(s, prev);
+        const prevFlags = s.triggered_flags || [];
+        const flagsChanged = flags.length !== prevFlags.length || flags.some((f, i) => f !== prevFlags[i]);
+        if (flagsChanged) {
+          changed = true;
+          const updatedSignal = { ...s, triggered_flags: flags };
+          if (flags.length > 0 && s.impact !== "High") {
+            updatedSignal.impact = "High";
+          }
+          return updatedSignal;
+        }
+        return s;
+      });
+      return changed ? updated : prev;
+    });
+  }, [triggerHash]);
 
   useEffect(() => {
     try {
@@ -1475,6 +1601,7 @@ export default function SignalsPage() {
   }
 
   const allSignals = useMemo(() => detectConflicts(signals), [signals]);
+  const competitiveCoverageRatio = useMemo(() => computeCompetitiveCoverageRatio(allSignals.filter(s => !s.superseded)), [allSignals]);
   const primaryDrivers = allSignals.filter((s) => s.impact === "High");
   const supportingSignals = allSignals.filter((s) => s.impact !== "High");
 
@@ -2255,6 +2382,42 @@ export default function SignalsPage() {
             />
           )}
 
+          {!aiLoading && competitiveCoverageRatio && (
+            <div className="rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/5 to-violet-500/5 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 className="w-4 h-4 text-indigo-400" />
+                <h3 className="text-sm font-semibold text-foreground">Derived Metric</h3>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-indigo-300">{competitiveCoverageRatio.name}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{competitiveCoverageRatio.definition}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-2xl font-bold tabular-nums ${
+                    (competitiveCoverageRatio.value || 0) > 1.5 ? "text-red-400" :
+                    (competitiveCoverageRatio.value || 0) > 1.0 ? "text-amber-400" :
+                    (competitiveCoverageRatio.value || 0) > 0.5 ? "text-yellow-400" :
+                    "text-emerald-400"
+                  }`}>
+                    {competitiveCoverageRatio.value?.toFixed(2)}
+                  </span>
+                  <div className="text-[9px] text-muted-foreground">
+                    {(competitiveCoverageRatio.value || 0) > 1.5 ? (
+                      <span className="text-red-400">High competitive pressure</span>
+                    ) : (competitiveCoverageRatio.value || 0) > 1.0 ? (
+                      <span className="text-amber-400">Elevated risk</span>
+                    ) : (competitiveCoverageRatio.value || 0) > 0.5 ? (
+                      <span className="text-yellow-400">Moderate exposure</span>
+                    ) : (
+                      <span className="text-emerald-400">Low competitive pressure</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {!aiLoading && allSignals.length >= 2 && (
             <SignalCompletenessPanel
               signals={allSignals.map((s) => ({ id: s.id, text: s.text }))}
@@ -2603,6 +2766,35 @@ function MinimalSignalCard({
             <SelectField label="Driver Role" value={signal.driver_role || "supporting_driver"} onChange={(v) => onUpdate({ driver_role: v as DriverRole })} options={["primary_driver", "supporting_driver", "counterforce", "context_signal", "noise"]} displayLabels={["Primary Driver", "Supporting Driver", "Counterforce", "Context Signal", "Noise"]} />
             <SelectField label="Mechanism" value={signal.mechanism_group || "execution_change"} onChange={(v) => onUpdate({ mechanism_group: v as MechanismGroup })} options={["economic_pressure", "structural_protection", "competitive_threat", "execution_change"]} displayLabels={["Economic Pressure", "Structural Protection", "Competitive Threat", "Execution Change"]} />
           </div>
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">
+              <Ruler className="w-3 h-3" />
+              Measurement Criteria
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-0.5">Baseline Value</label>
+                <input type="text" value={signal.measurement_criteria?.baseline_value || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, baseline_value: e.target.value } })} placeholder="e.g. 450 reps, 68% coverage" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-0.5">Observed Change</label>
+                <input type="text" value={signal.measurement_criteria?.observed_change || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, observed_change: e.target.value } })} placeholder="e.g. +120 reps, -15% coverage" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-0.5">Geographic Scope</label>
+                <input type="text" value={signal.measurement_criteria?.geographic_scope || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, geographic_scope: e.target.value } })} placeholder="e.g. US Northeast, EU5" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-0.5">Time Window</label>
+                <input type="text" value={signal.measurement_criteria?.time_window || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, time_window: e.target.value } })} placeholder="e.g. Q1 2026, 3–6 months" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-muted-foreground mb-0.5">Evidence Source</label>
+                <input type="text" value={signal.measurement_criteria?.evidence_source || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, evidence_source: e.target.value } })} placeholder="e.g. Internal field report, SEC filing" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
+              </div>
+              <SelectField label="Measurement Confidence" value={signal.measurement_criteria?.confidence_level || "Probable"} onChange={(v) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, confidence_level: v as "Confirmed" | "Probable" | "Speculative" } })} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Confirmed", "Probable", "Speculative"]} />
+            </div>
+          </div>
         </div>
       ) : (
         <div className="mt-3 space-y-2">
@@ -2629,6 +2821,71 @@ function MinimalSignalCard({
               <div className="text-foreground/90">{getSourceLabel(signal)}</div>
             </div>
           </div>
+          {signal.measurement_criteria && (signal.measurement_criteria.baseline_value || signal.measurement_criteria.observed_change || signal.measurement_criteria.geographic_scope || signal.measurement_criteria.time_window || signal.measurement_criteria.evidence_source || signal.measurement_criteria.confidence_level) && (
+            <div className="rounded-lg border border-cyan-500/15 bg-cyan-500/5 p-3 mt-2">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Ruler className="w-3 h-3 text-cyan-400" />
+                <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">Measurement Criteria</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs md:grid-cols-3">
+                {signal.measurement_criteria.baseline_value && (
+                  <div>
+                    <span className="text-[9px] text-muted-foreground uppercase">Baseline:</span>
+                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.baseline_value}</span>
+                  </div>
+                )}
+                {signal.measurement_criteria.observed_change && (
+                  <div>
+                    <span className="text-[9px] text-muted-foreground uppercase">Change:</span>
+                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.observed_change}</span>
+                  </div>
+                )}
+                {signal.measurement_criteria.geographic_scope && (
+                  <div>
+                    <span className="text-[9px] text-muted-foreground uppercase">Scope:</span>
+                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.geographic_scope}</span>
+                  </div>
+                )}
+                {signal.measurement_criteria.time_window && (
+                  <div>
+                    <span className="text-[9px] text-muted-foreground uppercase">Window:</span>
+                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.time_window}</span>
+                  </div>
+                )}
+                {signal.measurement_criteria.evidence_source && (
+                  <div>
+                    <span className="text-[9px] text-muted-foreground uppercase">Evidence:</span>
+                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.evidence_source}</span>
+                  </div>
+                )}
+                {signal.measurement_criteria.confidence_level && (
+                  <div>
+                    <span className="text-[9px] text-muted-foreground uppercase">Confidence:</span>
+                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.confidence_level}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {signal.triggered_flags && signal.triggered_flags.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {signal.triggered_flags.map((flag, i) => (
+                <div key={i} className="flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5">
+                  <Target className="w-3 h-3 text-red-400 shrink-0" />
+                  <span className="text-[10px] font-medium text-red-400">{flag}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {signal.trigger_rules && signal.trigger_rules.length > 0 && (
+            <div className="mt-2 rounded-lg border border-amber-500/15 bg-amber-500/5 p-2">
+              <div className="flex items-center gap-1.5">
+                <Target className="w-2.5 h-2.5 text-amber-400" />
+                <span className="text-[9px] text-amber-400 font-semibold uppercase tracking-wider">Active Trigger Rule</span>
+              </div>
+              <div className="text-[10px] text-amber-400/80 mt-1">{signal.trigger_rules[0].condition}</div>
+            </div>
+          )}
           {signal.verificationStatus && (
             <div className="flex items-center gap-2 flex-wrap mt-1">
               <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
