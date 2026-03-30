@@ -203,6 +203,11 @@ interface Signal {
   superseded_by?: string;
   superseded?: boolean;
   workbook_meta?: WorkbookMeta;
+  verificationStatus?: string;
+  identifierType?: string;
+  identifierValue?: string;
+  registryMatch?: boolean;
+  verificationRedFlags?: string;
 }
 
 interface IncomingEvent {
@@ -2317,6 +2322,36 @@ function MinimalSignalCard({
               <div className="text-foreground/90">{getSourceLabel(signal)}</div>
             </div>
           </div>
+          {signal.verificationStatus && (
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                signal.verificationStatus === "verified" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
+                signal.verificationStatus === "invalid" ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                signal.verificationStatus === "flagged" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
+                "text-slate-400 bg-slate-500/10 border-slate-500/20"
+              }`}>
+                {signal.verificationStatus === "verified" ? "✓ Verified" :
+                 signal.verificationStatus === "invalid" ? "✗ Invalid ID" :
+                 signal.verificationStatus === "flagged" ? "⚠ Flagged" :
+                 "Unverified"}
+              </span>
+              {signal.identifierType && signal.identifierType !== "unknown" && (
+                <span className="text-[9px] text-muted-foreground font-mono">
+                  {signal.identifierType.toUpperCase()}: {signal.identifierValue}
+                </span>
+              )}
+              {signal.verificationRedFlags && (() => {
+                try {
+                  const flags = JSON.parse(signal.verificationRedFlags) as string[];
+                  return flags.map((f, i) => (
+                    <span key={i} className="text-[9px] text-amber-400/80 bg-amber-500/5 rounded px-1.5 py-0.5 border border-amber-500/15">
+                      {f}
+                    </span>
+                  ));
+                } catch { return null; }
+              })()}
+            </div>
+          )}
           {lineage && (
             <div className="space-y-1.5 mt-1.5">
               <div className="flex items-center gap-2 flex-wrap">

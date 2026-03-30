@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { computeLR, type Scope, type Timing } from "@workspace/db";
 import { logAudit } from "../lib/audit-service.js";
 import { isSafetyRiskCase, getProfileForQuestion } from "../lib/case-type-router.js";
+import { verifySignalEvidence } from "../lib/evidence-verification.js";
 
 interface CaseDirectionContext {
   strategicQuestion: string | null;
@@ -274,6 +275,27 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     notes: body.notes || null,
   }).returning();
 
+  if (initialStatus === "active" || initialStatus === "validated") {
+    try {
+      const combinedText = `${body.evidenceSnippet || ""} ${body.sourceLabel || ""} ${body.notes || ""}`;
+      const verifications = await verifySignalEvidence(combinedText, body.sourceLabel);
+      const primary = verifications[0];
+      if (primary) {
+        await db.update(signalsTable).set({
+          identifierType: primary.identifierType,
+          identifierValue: primary.identifierValue,
+          identifierSource: primary.identifierSource,
+          verificationStatus: primary.verificationStatus,
+          registryMatch: primary.registryMatch,
+          verificationTimestamp: new Date(),
+          verificationRedFlags: primary.redFlags.length > 0 ? JSON.stringify(primary.redFlags) : null,
+        }).where(eq(signalsTable.id, id));
+      }
+    } catch (e) {
+      console.error("Evidence verification on creation failed (non-blocking):", e);
+    }
+  }
+
   await logAudit({
     objectType: "signal",
     objectId: signalId,
@@ -335,8 +357,25 @@ router.post("/signals/:signalId/transition", async (req, res) => {
     }
   }
 
+  const updateFields: Record<string, any> = { status: targetStatus, updatedAt: new Date() };
+
+  if ((targetStatus === "validated" || targetStatus === "active") && signal.verificationStatus !== "verified") {
+    const combinedText = `${signal.evidenceSnippet || ""} ${signal.sourceLabel || ""} ${signal.notes || ""}`;
+    const verifications = await verifySignalEvidence(combinedText, signal.sourceLabel ?? undefined);
+    const primary = verifications[0];
+    if (primary) {
+      updateFields.identifierType = primary.identifierType;
+      updateFields.identifierValue = primary.identifierValue;
+      updateFields.identifierSource = primary.identifierSource;
+      updateFields.verificationStatus = primary.verificationStatus;
+      updateFields.registryMatch = primary.registryMatch;
+      updateFields.verificationTimestamp = new Date();
+      updateFields.verificationRedFlags = primary.redFlags.length > 0 ? JSON.stringify(primary.redFlags) : null;
+    }
+  }
+
   const [updated] = await db.update(signalsTable)
-    .set({ status: targetStatus, updatedAt: new Date() })
+    .set(updateFields)
     .where(eq(signalsTable.signalId, req.params.signalId))
     .returning();
 
@@ -466,6 +505,80 @@ router.delete("/signals/:signalId", async (req, res) => {
   });
 
   res.status(204).send();
+});
+
+router.post("/signals/:signalId/verify", async (req, res) => {
+  const { signalId } = req.params;
+  const rows = await db.select().from(signalsTable).where(eq(signalsTable.signalId, signalId)).limit(1);
+  if (rows.length === 0) return res.status(404).json({ error: "Signal not found" });
+
+  const signal = rows[0];
+  const combinedText = `${signal.evidenceSnippet || ""} ${signal.sourceLabel || ""} ${signal.notes || ""}`;
+
+  const results = await verifySignalEvidence(combinedText, signal.sourceLabel ?? undefined);
+
+  const primary = results[0];
+  if (primary) {
+    await db.update(signalsTable).set({
+      identifierType: primary.identifierType,
+      identifierValue: primary.identifierValue,
+      identifierSource: primary.identifierSource,
+      verificationStatus: primary.verificationStatus,
+      registryMatch: primary.registryMatch,
+      verificationTimestamp: new Date(),
+      verificationRedFlags: primary.redFlags.length > 0 ? JSON.stringify(primary.redFlags) : null,
+      updatedAt: new Date(),
+    }).where(eq(signalsTable.signalId, signalId));
+  }
+
+  res.json({ signalId, results });
+});
+
+router.post("/cases/:caseId/signals/verify-all", async (req, res) => {
+  const { caseId } = req.params;
+  const signals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, caseId));
+
+  const results: { signalId: string; verificationStatus: string; redFlags: string[] }[] = [];
+
+  for (const signal of signals) {
+    if (signal.verificationStatus === "verified") {
+      results.push({ signalId: signal.id, verificationStatus: "verified", redFlags: [] });
+      continue;
+    }
+
+    const combinedText = `${signal.evidenceSnippet || ""} ${signal.sourceLabel || ""} ${signal.notes || ""}`;
+    const verifications = await verifySignalEvidence(combinedText, signal.sourceLabel ?? undefined);
+    const primary = verifications[0];
+
+    if (primary) {
+      await db.update(signalsTable).set({
+        identifierType: primary.identifierType,
+        identifierValue: primary.identifierValue,
+        identifierSource: primary.identifierSource,
+        verificationStatus: primary.verificationStatus,
+        registryMatch: primary.registryMatch,
+        verificationTimestamp: new Date(),
+        verificationRedFlags: primary.redFlags.length > 0 ? JSON.stringify(primary.redFlags) : null,
+        updatedAt: new Date(),
+      }).where(eq(signalsTable.id, signal.id));
+
+      results.push({
+        signalId: signal.id,
+        verificationStatus: primary.verificationStatus,
+        redFlags: primary.redFlags,
+      });
+    }
+  }
+
+  res.json({ caseId, total: signals.length, results });
+});
+
+router.post("/signals/check-evidence", async (req, res) => {
+  const { text, sourceLabel } = req.body;
+  if (!text) return res.status(400).json({ error: "text is required" });
+
+  const results = await verifySignalEvidence(text, sourceLabel);
+  res.json({ results });
 });
 
 export default router;

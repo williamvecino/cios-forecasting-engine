@@ -734,6 +734,185 @@ const PROFILES: Record<string, CaseTypeProfile> = {
     ],
     actionConstraints: [],
   },
+  investment_portfolio: {
+    caseType: "investment_portfolio",
+    decisionType: "Adoption" as DecisionType,
+    responseMode: "LaunchStrategy" as ResponseMode,
+    label: "Investment / Portfolio Decision",
+    stepNames: {
+      judge: "Judge Investment Viability",
+      decide: "Decide Portfolio Action",
+      respond: "Respond with Investment Recommendation",
+      simulate: "Simulate Portfolio Impact",
+    },
+    allowedVocabulary: [
+      "probability of technical success", "market opportunity", "development cost",
+      "expected return", "strategic fit", "portfolio priority", "risk tolerance",
+      "capital allocation", "go/no-go", "stage gate", "asset valuation",
+    ],
+    disallowedVocabulary: [
+      "adoption rate", "prescriber engagement", "market share", "formulary",
+      "field force", "detailing", "launch strategy",
+    ],
+    vocabularyReplacements: {
+      "adoption": "investment viability",
+      "market share": "commercial opportunity",
+      "prescriber": "development stakeholder",
+      "launch": "development milestone",
+    },
+    actorSegments: COMMERCIAL_ACTORS,
+    visibleModules: [
+      "question", "signals", "forecast", "judge", "decide", "respond", "simulate",
+      "barrier-diagnosis",
+    ],
+    hiddenModules: [
+      "adoption-segments", "readiness-timeline", "growth-feasibility",
+    ],
+    driverCategories: [
+      "technical_success_probability", "market_size", "development_cost",
+      "expected_return", "strategic_fit", "risk_tolerance",
+    ],
+    riskFraming: "competitive",
+    successMeasureTypes: [
+      "development milestone achieved", "go/no-go decision made",
+      "portfolio alignment confirmed", "risk assessment completed",
+    ],
+    actionConstraints: [],
+  },
+  operational_execution: {
+    caseType: "operational_execution",
+    decisionType: "Adoption" as DecisionType,
+    responseMode: "LaunchStrategy" as ResponseMode,
+    label: "Operational Execution / Supply Risk",
+    stepNames: {
+      judge: "Judge Supply Continuity Risk",
+      decide: "Decide Mitigation Strategy",
+      respond: "Respond with Operational Plan",
+      simulate: "Simulate Supply Disruption Impact",
+    },
+    allowedVocabulary: [
+      "manufacturing continuity", "supply chain", "batch failure", "capacity",
+      "inventory", "quality event", "plant shutdown", "inspection finding",
+      "supplier disruption", "alternative source", "remediation",
+    ],
+    disallowedVocabulary: [
+      "adoption rate", "prescriber engagement", "market share", "guideline",
+      "field force", "clinical superiority", "KOL",
+    ],
+    vocabularyReplacements: {
+      "adoption": "supply availability",
+      "market share": "supply coverage",
+      "launch": "production resumption",
+    },
+    actorSegments: COMMERCIAL_ACTORS,
+    visibleModules: [
+      "question", "signals", "forecast", "judge", "decide", "respond", "simulate",
+      "barrier-diagnosis",
+    ],
+    hiddenModules: [
+      "adoption-segments", "growth-feasibility", "competitive-risk",
+    ],
+    driverCategories: [
+      "manufacturing_continuity", "supply_chain_resilience", "inventory_management",
+      "quality_compliance", "capacity_planning",
+    ],
+    riskFraming: "competitive",
+    successMeasureTypes: [
+      "supply continuity maintained", "inventory levels adequate",
+      "manufacturing capacity restored", "quality issue resolved",
+    ],
+    actionConstraints: [],
+  },
+  strategic_partnership: {
+    caseType: "strategic_partnership",
+    decisionType: "Adoption" as DecisionType,
+    responseMode: "LaunchStrategy" as ResponseMode,
+    label: "Strategic Partnership / M&A",
+    stepNames: {
+      judge: "Judge Deal Probability",
+      decide: "Decide Strategic Position",
+      respond: "Respond with Deal Assessment",
+      simulate: "Simulate Deal Outcome Impact",
+    },
+    allowedVocabulary: [
+      "acquisition", "merger", "licensing", "partnership", "valuation",
+      "pipeline fit", "strategic rationale", "negotiation", "competitive bid",
+      "deal structure", "due diligence", "synergy",
+    ],
+    disallowedVocabulary: [
+      "adoption rate", "prescriber engagement", "field force", "detailing",
+      "formulary", "guideline inclusion", "KOL engagement",
+    ],
+    vocabularyReplacements: {
+      "adoption": "deal completion",
+      "market share": "asset value",
+      "prescriber": "deal stakeholder",
+      "launch": "deal close",
+    },
+    actorSegments: COMMERCIAL_ACTORS,
+    visibleModules: [
+      "question", "signals", "forecast", "judge", "decide", "respond", "simulate",
+      "barrier-diagnosis", "competitive-risk",
+    ],
+    hiddenModules: [
+      "adoption-segments", "readiness-timeline", "growth-feasibility",
+    ],
+    driverCategories: [
+      "valuation", "pipeline_fit", "financial_capacity",
+      "negotiation_progress", "competitive_interest", "strategic_rationale",
+    ],
+    riskFraming: "competitive",
+    successMeasureTypes: [
+      "deal completed", "partnership signed", "licensing agreement executed",
+      "strategic objective achieved",
+    ],
+    actionConstraints: [],
+  },
+  policy_environment: {
+    caseType: "policy_environment",
+    decisionType: "Adoption" as DecisionType,
+    responseMode: "LaunchStrategy" as ResponseMode,
+    label: "Policy / Environment Shift",
+    stepNames: {
+      judge: "Judge Policy Change Probability",
+      decide: "Decide Response Strategy",
+      respond: "Respond with Policy Assessment",
+      simulate: "Simulate Policy Impact",
+    },
+    allowedVocabulary: [
+      "legislation", "rulemaking", "government policy", "budget action",
+      "regulatory reform", "price negotiation", "reimbursement change",
+      "political dynamics", "stakeholder position", "industry response",
+    ],
+    disallowedVocabulary: [
+      "adoption rate", "prescriber engagement", "field force", "detailing",
+      "manufacturing capacity", "supply chain", "KOL engagement",
+    ],
+    vocabularyReplacements: {
+      "adoption": "policy implementation",
+      "market share": "policy impact scope",
+      "prescriber": "policy stakeholder",
+      "launch": "policy effective date",
+    },
+    actorSegments: COMMERCIAL_ACTORS,
+    visibleModules: [
+      "question", "signals", "forecast", "judge", "decide", "respond", "simulate",
+      "barrier-diagnosis",
+    ],
+    hiddenModules: [
+      "adoption-segments", "readiness-timeline", "growth-feasibility",
+    ],
+    driverCategories: [
+      "legislation", "rulemaking", "government_policy",
+      "budget_constraints", "political_pressure", "regulatory_reform",
+    ],
+    riskFraming: "competitive",
+    successMeasureTypes: [
+      "policy enacted", "regulation finalized", "budget allocation confirmed",
+      "environment shift confirmed",
+    ],
+    actionConstraints: [],
+  },
   safety_risk: {
     caseType: "safety_risk",
     decisionType: "SafetyRisk",
@@ -856,6 +1035,10 @@ const CLASSIFIER_TO_ROUTER: Record<string, string> = {
   lifecycle_management: "lifecycle_management",
   market_shaping: "market_shaping",
   safety_risk: "safety_risk",
+  investment_portfolio: "investment_portfolio",
+  operational_execution: "operational_execution",
+  strategic_partnership: "strategic_partnership",
+  policy_environment: "policy_environment",
   unclassified: "clinical_adoption",
 };
 

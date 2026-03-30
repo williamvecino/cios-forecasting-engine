@@ -7,6 +7,10 @@ export type CaseType =
   | "clinical_adoption"
   | "lifecycle_management"
   | "market_shaping"
+  | "investment_portfolio"
+  | "operational_execution"
+  | "strategic_partnership"
+  | "policy_environment"
   | "unclassified";
 
 export interface CaseTypeResult {
@@ -83,6 +87,34 @@ const CASE_TYPE_RULES: {
     contextPatterns: [/market\s+shap/i, /disease\s+aware/i, /unmet\s+need/i, /pre.?commercial/i],
     driverDomains: ["disease_education", "diagnostic_pathway", "referral_network", "patient_advocacy", "epidemiology", "market_research"],
     description: "Pre-commercial market shaping — focuses on disease awareness, diagnosis pathways, and stakeholder education",
+  },
+  {
+    type: "investment_portfolio",
+    keywords: ["invest", "portfolio", "continue funding", "terminate", "go/no-go", "capital allocation", "asset valuation", "pipeline priorit", "phase 2", "phase ii", "discontinue", "divest"],
+    contextPatterns: [/continue\s+(develop|fund)/i, /go.?no.?go/i, /portfolio\s+decision/i, /capital\s+alloc/i, /terminate\s+/i, /discontinue/i, /pipeline\s+priorit/i, /asset\s+valuation/i, /development\s+decision/i],
+    driverDomains: ["technical_success_probability", "market_size", "development_cost", "expected_return", "strategic_fit", "risk_tolerance"],
+    description: "Investment / portfolio decision — capital allocation under uncertainty, continue vs terminate development",
+  },
+  {
+    type: "operational_execution",
+    keywords: ["supply disruption", "manufacturing outage", "supply shortage", "plant shutdown", "batch failure", "capacity constraint", "supply chain", "operational continuity", "drug shortage", "manufacturing issue"],
+    contextPatterns: [/supply\s+(disrupt|shortage)/i, /manufactur.*(outage|issue|failure)/i, /plant\s+shutdown/i, /batch\s+fail/i, /capacity\s+constraint/i, /drug\s+shortage/i, /operational\s+continuity/i],
+    driverDomains: ["manufacturing_continuity", "supply_chain_resilience", "inventory_management", "quality_compliance", "capacity_planning"],
+    description: "Operational execution / supply disruption — manufacturing and supply chain continuity risk",
+  },
+  {
+    type: "strategic_partnership",
+    keywords: ["acqui", "merger", "m&a", "licensing", "partnership", "deal", "joint venture", "collaboration agreement", "strategic alliance", "asset acquisition", "in-licens", "out-licens"],
+    contextPatterns: [/acqui(re|sition)/i, /merg(e|er)/i, /m\s*&\s*a/i, /licens(e|ing)\s+(deal|agreement)/i, /strategic\s+(partner|alliance)/i, /joint\s+venture/i, /in.?licens/i, /out.?licens/i],
+    driverDomains: ["valuation", "pipeline_fit", "financial_capacity", "negotiation_progress", "competitive_interest", "strategic_rationale"],
+    description: "Strategic partnership / M&A — corporate strategy execution, acquisition or licensing decisions",
+  },
+  {
+    type: "policy_environment",
+    keywords: ["policy change", "legislation", "regulatory environment", "reimbursement environment", "government policy", "medicare negotiat", "price negotiat", "drug pricing", "ira", "inflation reduction", "regulatory reform", "rulemaking"],
+    contextPatterns: [/policy\s+change/i, /legislat(ion|ive)/i, /government\s+policy/i, /medicare\s+negotiat/i, /drug\s+pric/i, /inflation\s+reduction/i, /regulatory\s+reform/i, /reimbursement\s+environment/i, /rulemaking/i, /national\s+policy/i],
+    driverDomains: ["legislation", "rulemaking", "government_policy", "budget_constraints", "political_pressure", "regulatory_reform"],
+    description: "Policy / environment shift — system-level regulatory or reimbursement environment changes",
   },
 ];
 

@@ -76,6 +76,14 @@ export const signalsTable = pgTable("signals", {
   echoVsTranslation: text("echo_vs_translation"),
   lineageOverride: boolean("lineage_override").default(false),
 
+  identifierSource: text("identifier_source"),
+  identifierType: text("identifier_type"),
+  identifierValue: text("identifier_value"),
+  verificationStatus: text("verification_status").default("unverified"),
+  registryMatch: boolean("registry_match"),
+  verificationTimestamp: timestamp("verification_timestamp"),
+  verificationRedFlags: text("verification_red_flags"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
