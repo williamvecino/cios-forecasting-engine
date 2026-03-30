@@ -104,6 +104,7 @@ function computeDescriptionSimilarity(a: string, b: string): number {
 }
 
 function deriveDirectionSafeLR(body: Record<string, any>): number {
+  if (body.direction === "Neutral") return 1.0;
   const signalType = body.signalType ?? "";
   const strength = Number(body.strengthScore ?? 3);
   const credibility = Number(body.reliabilityScore ?? 3);

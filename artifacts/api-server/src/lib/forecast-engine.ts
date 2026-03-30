@@ -53,7 +53,7 @@ export interface ActorAggregation {
 export interface SensitivitySignal {
   signalId: string;
   description: string;
-  direction: "Positive" | "Negative";
+  direction: "Positive" | "Negative" | "Neutral";
   absoluteImpact: number;
   likelihoodRatio: number;
   probabilityWithout: number;
@@ -237,7 +237,8 @@ export function runForecastEngine(
   const rawReactionSums: number[] = sortedActors.map(() => 0);
 
   const signalDetails: SignalForecastDetail[] = activeSignals.map((signal) => {
-    const directionSign = signal.direction === "Positive" ? 1 : -1;
+    const isNeutral = signal.direction === "Neutral";
+    const directionSign = isNeutral ? 0 : signal.direction === "Positive" ? 1 : -1;
     const strengthReliabilityNorm =
       ((signal.strengthScore ?? 0) + (signal.reliabilityScore ?? 0)) / 10;
 
@@ -245,6 +246,11 @@ export function runForecastEngine(
     let weightedActorReaction = 0;
 
     sortedActors.forEach((actor, idx) => {
+      if (isNeutral) {
+        actorReactions[actor.actorName] = 0;
+        return;
+      }
+
       const pharmaMultiplier = getPharmaMultiplier(
         signal.signalType ?? "",
         signal.targetPopulation ?? "",
@@ -361,7 +367,7 @@ export function runForecastEngine(
     const entry: SensitivitySignal = {
       signalId: sig.signalId,
       description: sig.description,
-      direction: sig.direction as "Positive" | "Negative",
+      direction: sig.direction as "Positive" | "Negative" | "Neutral",
       absoluteImpact: sig.absoluteImpact,
       likelihoodRatio: sig.likelihoodRatio,
       probabilityWithout: probWithout,

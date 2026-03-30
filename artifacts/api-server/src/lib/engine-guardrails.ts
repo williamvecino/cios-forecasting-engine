@@ -149,7 +149,7 @@ export function validateEngineInputs(
 
   for (const s of signals) {
     if (!s.signalId) errors.push("Signal missing signalId");
-    if (!s.direction || !["Positive", "Negative"].includes(s.direction)) {
+    if (!s.direction || !["Positive", "Negative", "Neutral"].includes(s.direction)) {
       errors.push(`Signal ${s.signalId}: invalid direction "${s.direction}"`);
     }
     if (s.strengthScore == null || isNaN(Number(s.strengthScore))) {
