@@ -1,0 +1,192 @@
+The Cases That Do NOT Fit the Five
+
+These are not edge cases.
+They are different decision mechanics.
+
+6) Investment / Portfolio Decision Archetype
+Example: Continue vs terminate an asset
+Typical question
+
+Should a company continue funding development of a drug after a Phase 2 readout?
+
+Why this doesn't fit the five
+
+This decision is not about:
+
+launch timing
+adoption
+regulation
+access
+competition
+
+It is about:
+
+capital allocation under uncertainty
+
+What drives this case
+probability of technical success
+market size
+cost of development
+expected return
+strategic fit
+risk tolerance
+Real example
+
+Company decides whether to continue development of a new oncology therapy after mixed Phase 2 results.
+
+This is a portfolio decision.
+
+Signals look like
+trial efficacy magnitude
+safety risk
+development cost escalation
+commercial opportunity size
+competitor pipeline progress
+internal portfolio priorities
+Core judgment question
+
+Is continued investment economically justified?
+
+7) Operational Execution / Supply Disruption Archetype
+Example: Manufacturing outage risk
+Typical question
+
+Will supply shortages occur due to manufacturing disruption?
+
+Why this doesn't fit the five
+
+This is not a launch or regulatory question.
+
+It is:
+
+operational continuity risk
+
+What drives this case
+plant shutdown
+inspection finding
+batch failure
+capacity constraint
+supply chain interruption
+Real example
+
+Will a sterile manufacturing issue cause drug shortages in the next 3 months?
+
+Signals look like
+FDA inspection observation
+production delay
+capacity loss
+inventory depletion
+supplier disruption
+Core judgment question
+
+Can supply be maintained?
+
+8) Strategic Partnership / M&A Archetype
+Example: Acquisition or licensing decision
+Typical question
+
+Will Company A acquire Company B or license a specific asset?
+
+Why this doesn't fit the five
+
+This is not a clinical or commercial outcome.
+
+It is:
+
+corporate strategy execution
+
+What drives this case
+valuation
+pipeline fit
+financial capacity
+negotiation progress
+competitive interest
+Real example
+
+Will a large pharmaceutical company acquire a biotech developing a new therapy?
+
+Signals look like
+partnership discussions
+financing activity
+strategic announcements
+board-level decisions
+competitor bids
+Core judgment question
+
+Will the deal happen?
+
+9) Policy / Environment Shift Archetype
+Example: Regulatory or reimbursement environment change
+Typical question
+
+Will a new national policy change reimbursement rules?
+
+Why this doesn't fit the five
+
+This is not product-specific.
+
+It is:
+
+system-level environment change
+
+What drives this case
+legislation
+rulemaking
+government policy
+budget constraints
+political pressure
+Real example
+
+Will Medicare negotiate drug prices under a new rule?
+
+Signals look like
+legislative proposal
+regulatory guidance
+government budget action
+policy announcement
+Core judgment question
+
+Will the environment change?
+
+The Clean Way to Handle This in CIOS
+
+You do not need many more archetypes.
+
+You need a small expansion.
+
+Recommended Extended Archetype Set
+
+Core clinical-commercial:
+
+Launch Timing
+Regulatory Risk
+Physician Adoption
+Competitive Positioning
+Access / Barrier
+
+Enterprise / system-level:
+
+Investment / Portfolio Decision
+Operational Execution / Supply Risk
+Strategic Partnership / M&A
+Policy / Environment Shift
+
+That is the complete practical coverage set.
+
+The Design Rule for Replit
+
+Before generating signals, the system must answer:
+
+Is this decision about:
+
+product readiness
+regulatory action
+physician behavior
+competitive advantage
+payer access
+capital allocation
+operational continuity
+corporate strategy
+policy change
+
+That classification determines signal grammar.

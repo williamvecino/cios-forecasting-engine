@@ -43,6 +43,7 @@ CIOS is a monorepo built with pnpm workspaces. The frontend uses React, Vite, Ta
 - **Adoption Segmentation Panel:** Translates forecast outputs into 8 segment-level adoption maps with drilldowns.
 - **Barrier Diagnosis Panel:** Diagnoses dominant sources of adoption resistance across 10 categories.
 - **Case Feedback Module:** Captures structured test observations per case.
+- **Case Framing Layer:** Mandatory pre-signal-generation step (`lib/case-framing.ts`) that derives structured case metadata from the case-type classifier and router. Produces a `CaseFrame` including: allowed/forbidden signal families, decision grammar (causal chain template), search targets, relevance scoring rules per archetype, and acceptance/rejection rules. 9 archetype frame definitions (clinical_outcome, regulatory_approval, safety_risk, launch_readiness, competitive_defense, access_expansion, clinical_adoption, lifecycle_management, market_shaping). Integrated into `ai-signals.ts`: frame constraints injected into LLM prompts, forbidden-family signals post-filtered, relevance scores computed per signal. Inspection endpoint at `POST /api/ai-signals/frame`.
 - **Case Type Classifier:** Deterministic engine identifying 6 pharma case archetypes.
 - **Readiness Timeline Panel:** Provides a time-ordered readiness view across 10 milestone categories and 6 time windows.
 - **Competitive Risk Panel:** Identifies competitive forces across 12 categories.

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { researchBrand } from "../lib/web-research";
 import { isSafetyRiskCase, isRegulatoryCase } from "../lib/case-type-router.js";
+import { buildCaseFrame, buildFrameConstraintPrompt, filterSignalsByFrame, scoreSignalRelevance, type CaseFrame } from "../lib/case-framing.js";
 
 const router = Router();
 
@@ -62,6 +63,8 @@ router.post("/ai-signals/generate", async (req, res) => {
       : undefined;
 
     const therapeuticArea = detectTherapeuticArea(body.subject, body.questionText);
+
+    const caseFrame = buildCaseFrame(body.questionText, body.subject, therapeuticArea, null);
 
     const research = await researchBrand(body.subject, body.questionText, sanitizedKeywords);
     const hasResearch = research.newsHeadlines.length > 0;
@@ -280,6 +283,8 @@ Every signal must include applies_to_line_of_therapy, applies_to_stakeholder_gro
 
 Convert relevant verified brand developments into observed signals first, then add derived implications and uncertainties.
 
+${buildFrameConstraintPrompt(caseFrame)}
+
 ${isSafetyRiskCase(body.questionText) ? `SAFETY/RISK CASE RULES:
 - This is a safety/risk case. Safety signals are PRIMARY drivers with highest weight.
 - Media/advocacy signals are INFLUENCE FACTORS only — downweight them relative to clinical evidence and regulatory review.
@@ -319,11 +324,11 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
     parsed.verified_developments_found = hasResearch;
     parsed.sources_searched = research.sourcesSearched;
 
-    if (isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) {
-      if (Array.isArray(parsed.signals)) {
-        parsed.signals = parsed.signals.filter(
-          (s: any) => s.signal_family !== "system_operational" && s.signal_domain !== "operational_readiness"
-        );
+    if (Array.isArray(parsed.signals)) {
+      const frameResult = filterSignalsByFrame(parsed.signals, caseFrame);
+      parsed.signals = frameResult.accepted;
+      if (frameResult.rejected.length > 0) {
+        parsed.frame_filtered_count = frameResult.rejected.length;
       }
     }
 
@@ -344,6 +349,11 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
         return s;
       });
 
+      parsed.signals = parsed.signals.map((s: any) => {
+        s.frame_relevance_score = scoreSignalRelevance(s, caseFrame);
+        return s;
+      });
+
       const seen: string[] = [];
       parsed.signals = parsed.signals.filter((s: any) => {
         const tokens = new Set<string>((s.text || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((w: string) => w.length > 3));
@@ -358,10 +368,35 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
       });
     }
 
+    parsed.case_frame = {
+      caseType: caseFrame.caseType,
+      profileCaseType: caseFrame.profileCaseType,
+      primaryDecisionMechanism: caseFrame.primaryDecisionMechanism,
+      decisionGrammar: caseFrame.decisionGrammar,
+      allowedSignalFamilies: caseFrame.allowedSignalFamilies,
+      forbiddenSignalFamilies: caseFrame.forbiddenSignalFamilies,
+      prioritizedFamilies: caseFrame.prioritizedFamilies,
+    };
+
     res.json(parsed);
   } catch (err: any) {
     console.error("AI signal generation error:", err);
     res.status(500).json({ error: "Failed to generate AI signals" });
+  }
+});
+
+router.post("/ai-signals/frame", async (req, res) => {
+  try {
+    const { questionText, subject, therapeuticArea, diseaseState } = req.body;
+    if (!questionText || !subject) {
+      res.status(400).json({ error: "questionText and subject are required" });
+      return;
+    }
+    const frame = buildCaseFrame(questionText, subject, therapeuticArea, diseaseState);
+    res.json(frame);
+  } catch (err: any) {
+    console.error("Case frame error:", err);
+    res.status(500).json({ error: "Failed to build case frame" });
   }
 });
 

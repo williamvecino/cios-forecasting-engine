@@ -904,9 +904,10 @@ export function isSafetyRiskCase(question: string, caseType?: string): boolean {
   const restrictionSignal = q.includes("restriction") || q.includes("restrict") ||
     q.includes("withdrawal") || q.includes("rems") || q.includes("warning") ||
     q.includes("contraindication") || q.includes("black box") || q.includes("boxed warning");
+  const impliedSafety = q.includes("black box") || q.includes("boxed warning") || q.includes("rems");
   const safetyContext = q.includes("safety") || q.includes("adverse") || q.includes("risk") ||
     q.includes("bleeding") || q.includes("toxicity") || q.includes("mortality") ||
-    q.includes("pharmacovigilance") || q.includes("harm");
+    q.includes("pharmacovigilance") || q.includes("harm") || impliedSafety;
   if (safetyScore >= 2 && safetyScore > clinScore && safetyScore > regScore) return true;
   if (restrictionSignal && safetyContext) return true;
   if (safetyScore >= 1 && safetyContext && regScore === 0 && clinScore === 0) return true;
