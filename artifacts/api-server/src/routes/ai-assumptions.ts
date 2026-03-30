@@ -47,6 +47,33 @@ function generateId(): string {
   return `A-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
+const CONDITIONAL_MARKERS = [
+  "will ", "will not ", "won't ", "would ", "would not ", "wouldn't ",
+  "remains ", "remain ", "continues ", "continue ", "persists ", "persist ",
+  "does not ", "doesn't ", "do not ", "don't ",
+  "no new ", "no additional ", "no major ", "no significant ", "no further ",
+  "within ", "before ", "during ", "through ", "by ",
+  "unless ", "until ", "if ", "provided that ",
+  "is expected to ", "are expected to ",
+  "is unlikely to ", "are unlikely to ",
+  "is not expected to ", "are not expected to ",
+];
+
+const OBSERVATIONAL_ONLY_PATTERNS = [
+  /^the .+ (is|are|was|were) /i,
+  /^available .+ (is|are) /i,
+  /^current .+ (is|are) /i,
+  /^existing .+ (is|are) /i,
+  /^(data|evidence|safety|efficacy) .+ (is|are) (sufficient|insufficient|favorable|unfavorable|uncertain|limited)/i,
+];
+
+function isConditionalPhrasing(statement: string): boolean {
+  const s = statement.toLowerCase();
+  if (CONDITIONAL_MARKERS.some(m => s.includes(m))) return true;
+  if (OBSERVATIONAL_ONLY_PATTERNS.some(p => p.test(statement))) return false;
+  return true;
+}
+
 router.get("/assumptions/:caseId", async (req, res) => {
   try {
     const { caseId } = req.params;
@@ -245,6 +272,7 @@ Surface what must be true for this analysis to hold. Be specific to this case.`;
 
     const rawAssumptions = (parsed.assumptions || [])
       .filter((a: any) => a.statement && typeof a.statement === "string" && a.statement.trim().length > 0)
+      .filter((a: any) => isConditionalPhrasing(a.statement.trim()))
       .slice(0, 20);
 
     const existingIds = new Set(existingRows.map(r => r.assumptionId));

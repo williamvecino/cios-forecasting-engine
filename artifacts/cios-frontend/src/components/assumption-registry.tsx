@@ -5,13 +5,9 @@ import {
   RefreshCw,
   Loader2,
   AlertTriangle,
-  ChevronDown,
-  ChevronRight,
   CheckCircle2,
-  AlertCircle,
   XCircle,
   HelpCircle,
-  Clock,
   Zap,
   Link2,
 } from "lucide-react";
@@ -28,23 +24,23 @@ interface AssumptionRegistryProps {
   onClose: () => void;
 }
 
-const CATEGORIES = [
-  { key: "clinical", label: "Clinical", color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
-  { key: "regulatory", label: "Regulatory", color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20" },
-  { key: "payer", label: "Payer", color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/20" },
-  { key: "competitive", label: "Competitive", color: "text-rose-400", bg: "bg-rose-400/10", border: "border-rose-400/20" },
-  { key: "supply", label: "Supply", color: "text-violet-400", bg: "bg-violet-400/10", border: "border-violet-400/20" },
-  { key: "workflow", label: "Workflow", color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
-  { key: "operational", label: "Operational", color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/20" },
-  { key: "timeline", label: "Timeline", color: "text-pink-400", bg: "bg-pink-400/10", border: "border-pink-400/20" },
-];
+const CATEGORY_STYLES: Record<string, { color: string; bg: string; border: string }> = {
+  clinical: { color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+  regulatory: { color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20" },
+  payer: { color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/20" },
+  competitive: { color: "text-rose-400", bg: "bg-rose-400/10", border: "border-rose-400/20" },
+  supply: { color: "text-violet-400", bg: "bg-violet-400/10", border: "border-violet-400/20" },
+  workflow: { color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
+  operational: { color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/20" },
+  timeline: { color: "text-pink-400", bg: "bg-pink-400/10", border: "border-pink-400/20" },
+};
 
 const IMPACT_SORT_ORDER: Record<string, number> = { high: 0, moderate: 1, low: 2 };
 const CONFIDENCE_SORT_ORDER: Record<string, number> = { low: 0, moderate: 1, high: 2 };
 const DEFAULT_VISIBLE_COUNT = 5;
 
 function getCategoryStyle(category: string) {
-  return CATEGORIES.find(c => c.key === category) || CATEGORIES[6];
+  return CATEGORY_STYLES[category] || CATEGORY_STYLES.operational;
 }
 
 function statusIcon(status: string) {
@@ -117,6 +113,10 @@ function sortByImpactAndConfidence(a: Assumption, b: Assumption): number {
   return (CONFIDENCE_SORT_ORDER[a.confidenceLevel] ?? 1) - (CONFIDENCE_SORT_ORDER[b.confidenceLevel] ?? 1);
 }
 
+function categoryLabel(category: string): string {
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
 export default function AssumptionRegistry({
   assumptions,
   loading,
@@ -127,37 +127,18 @@ export default function AssumptionRegistry({
   onUpdateStatus,
   onClose,
 }: AssumptionRegistryProps) {
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(CATEGORIES.map(c => c.key)));
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   const sorted = [...assumptions].sort(sortByImpactAndConfidence);
-
   const filtered = sorted.filter(a => !filterStatus || a.assumptionStatus === filterStatus);
-
   const visible = showAll ? filtered : filtered.slice(0, DEFAULT_VISIBLE_COUNT);
   const hasMore = filtered.length > DEFAULT_VISIBLE_COUNT;
-
-  const grouped = CATEGORIES.reduce<Record<string, Assumption[]>>((acc, cat) => {
-    acc[cat.key] = visible.filter(a => a.assumptionCategory === cat.key);
-    return acc;
-  }, {});
-
-  const nonEmptyCategories = CATEGORIES.filter(c => grouped[c.key].length > 0);
 
   const activeCount = assumptions.filter(a => a.assumptionStatus === "active").length;
   const validatedCount = assumptions.filter(a => a.assumptionStatus === "validated").length;
   const invalidatedCount = assumptions.filter(a => a.assumptionStatus === "invalidated").length;
   const unknownCount = assumptions.filter(a => a.assumptionStatus === "unknown").length;
-
-  function toggleCategory(key: string) {
-    setExpandedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -271,109 +252,90 @@ export default function AssumptionRegistry({
             </div>
           )}
 
-          {nonEmptyCategories.length > 0 && (
-            <div className="space-y-3">
-              {nonEmptyCategories.map(cat => {
-                const style = getCategoryStyle(cat.key);
-                const items = grouped[cat.key];
-                const expanded = expandedCategories.has(cat.key);
-
+          {visible.length > 0 && (
+            <div className="space-y-2">
+              {visible.map((a, idx) => {
+                const gates = parseLinkedGates(a.linkedGates);
+                const catStyle = getCategoryStyle(a.assumptionCategory);
                 return (
-                  <div key={cat.key} className="rounded-xl border border-border/50 overflow-hidden">
-                    <button
-                      onClick={() => toggleCategory(cat.key)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/10 transition"
-                    >
-                      <div className="flex items-center gap-2">
-                        {expanded
-                          ? <ChevronDown className={`w-3.5 h-3.5 ${style.color}`} />
-                          : <ChevronRight className={`w-3.5 h-3.5 ${style.color}`} />
-                        }
-                        <span className={`text-xs font-bold uppercase tracking-widest ${style.color}`}>{cat.label}</span>
-                        <span className="text-[10px] text-muted-foreground/50">({items.length})</span>
+                  <div
+                    key={a.assumptionId}
+                    className={`rounded-lg border px-3 py-2.5 ${
+                      a.assumptionStatus === "invalidated"
+                        ? "border-rose-500/20 bg-rose-500/5 opacity-60"
+                        : a.assumptionStatus === "validated"
+                        ? "border-blue-500/20 bg-blue-500/5"
+                        : a.assumptionStatus === "unknown"
+                        ? "border-muted bg-muted/5"
+                        : "border-border/30 bg-muted/5"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex flex-col items-center gap-1 mt-0.5 shrink-0">
+                        <span className="text-[9px] font-bold text-muted-foreground/30 tabular-nums">
+                          {idx + 1}
+                        </span>
+                        {statusIcon(a.assumptionStatus)}
                       </div>
-                    </button>
-
-                    {expanded && (
-                      <div className="px-3 pb-3 space-y-2">
-                        {items.map(a => {
-                          const gates = parseLinkedGates(a.linkedGates);
-                          return (
-                            <div
-                              key={a.assumptionId}
-                              className={`rounded-lg border px-3 py-2.5 ${
-                                a.assumptionStatus === "invalidated"
-                                  ? "border-rose-500/20 bg-rose-500/5 opacity-60"
-                                  : a.assumptionStatus === "validated"
-                                  ? "border-blue-500/20 bg-blue-500/5"
-                                  : a.assumptionStatus === "unknown"
-                                  ? "border-muted bg-muted/5"
-                                  : "border-border/30 bg-muted/5"
-                              }`}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-[13px] leading-snug ${a.assumptionStatus === "invalidated" ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                          {a.assumptionStatement}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          {impactBadge(a.impactLevel)}
+                          {confidenceBadge(a.confidenceLevel)}
+                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${catStyle.bg} ${catStyle.color}`}>
+                            {categoryLabel(a.assumptionCategory)}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
+                            {sourceLabel(a.sourceType)}
+                          </span>
+                        </div>
+                        {gates.length > 0 && (
+                          <div className="flex items-center gap-1 mt-1.5">
+                            <Link2 className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                            <span className="text-[10px] text-muted-foreground/60">
+                              {gates.slice(0, 3).join(", ")}
+                              {gates.length > 3 && ` +${gates.length - 3} more`}
+                            </span>
+                          </div>
+                        )}
+                        {a.invalidationReason && (
+                          <p className="text-[11px] text-amber-400/80 mt-1.5 italic">
+                            {a.invalidationReason}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-1.5 mt-2">
+                          {a.assumptionStatus !== "validated" && (
+                            <button
+                              onClick={() => onUpdateStatus(a.assumptionId, "validated")}
+                              className="text-[10px] font-medium text-blue-400 hover:text-blue-300 px-1.5 py-0.5 rounded border border-blue-400/20 hover:bg-blue-400/10 transition"
                             >
-                              <div className="flex items-start gap-2">
-                                <div className="mt-0.5 shrink-0">{statusIcon(a.assumptionStatus)}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-[13px] leading-snug ${a.assumptionStatus === "invalidated" ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                                    {a.assumptionStatement}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                    {impactBadge(a.impactLevel)}
-                                    {confidenceBadge(a.confidenceLevel)}
-                                    <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
-                                      {sourceLabel(a.sourceType)}
-                                    </span>
-                                  </div>
-                                  {gates.length > 0 && (
-                                    <div className="flex items-center gap-1 mt-1.5">
-                                      <Link2 className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-                                      <span className="text-[10px] text-muted-foreground/60">
-                                        {gates.slice(0, 3).join(", ")}
-                                        {gates.length > 3 && ` +${gates.length - 3} more`}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {a.invalidationReason && (
-                                    <p className="text-[11px] text-amber-400/80 mt-1.5 italic">
-                                      {a.invalidationReason}
-                                    </p>
-                                  )}
-                                  <div className="flex items-center gap-1.5 mt-2">
-                                    {a.assumptionStatus !== "validated" && (
-                                      <button
-                                        onClick={() => onUpdateStatus(a.assumptionId, "validated")}
-                                        className="text-[10px] font-medium text-blue-400 hover:text-blue-300 px-1.5 py-0.5 rounded border border-blue-400/20 hover:bg-blue-400/10 transition"
-                                      >
-                                        Still holds
-                                      </button>
-                                    )}
-                                    {a.assumptionStatus !== "invalidated" && (
-                                      <button
-                                        onClick={() => {
-                                          const reason = window.prompt("Why is this assumption no longer valid?");
-                                          if (reason) onUpdateStatus(a.assumptionId, "invalidated", reason);
-                                        }}
-                                        className="text-[10px] font-medium text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded border border-rose-400/20 hover:bg-rose-400/10 transition"
-                                      >
-                                        No longer holds
-                                      </button>
-                                    )}
-                                    {a.assumptionStatus !== "active" && (
-                                      <button
-                                        onClick={() => onUpdateStatus(a.assumptionId, "active")}
-                                        className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded border border-border/30 hover:bg-muted/10 transition"
-                                      >
-                                        Reset
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                              Still holds
+                            </button>
+                          )}
+                          {a.assumptionStatus !== "invalidated" && (
+                            <button
+                              onClick={() => {
+                                const reason = window.prompt("Why is this assumption no longer valid?");
+                                if (reason) onUpdateStatus(a.assumptionId, "invalidated", reason);
+                              }}
+                              className="text-[10px] font-medium text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded border border-rose-400/20 hover:bg-rose-400/10 transition"
+                            >
+                              No longer holds
+                            </button>
+                          )}
+                          {a.assumptionStatus !== "active" && (
+                            <button
+                              onClick={() => onUpdateStatus(a.assumptionId, "active")}
+                              className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded border border-border/30 hover:bg-muted/10 transition"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
