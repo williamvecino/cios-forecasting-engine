@@ -1181,3 +1181,211 @@ export async function seedAnalogLibrary(): Promise<void> {
 
   console.log(`[analog-library] Inserted ${toInsert.length} new analog case(s).`);
 }
+
+export async function seedActorsIfEmpty() {
+  const existing = await db.select().from(actorsTable).limit(1);
+  if (existing.length > 0) {
+    console.log("[startup] Actors already present — skipping actor seed.");
+    return;
+  }
+
+  console.log("[startup] No actors found — seeding default actor set...");
+
+  await db.insert(actorsTable).values([
+    {
+      id: randomUUID(),
+      actorName: "Academic KOLs",
+      influenceWeight: 0.2037,
+      positiveResponseFactor: 1.15,
+      negativeResponseFactor: 0.88,
+      outcomeOrientation: 1,
+      roleInSystem: "Cross-specialty scientific validators and early adopters.",
+      baseInfluenceWeight: 0.2,
+      canonicalActor: "Academic KOLs",
+      specialtyProfile: "General",
+      slotIndex: 0,
+      rawWeight: 0.21,
+      basePositiveResponseFactor: 1.15,
+      baseNegativeResponseFactor: 0.88,
+    },
+    {
+      id: randomUUID(),
+      actorName: "Community Physicians",
+      influenceWeight: 0.2211,
+      positiveResponseFactor: 0.9025,
+      negativeResponseFactor: 1.188,
+      outcomeOrientation: 1,
+      roleInSystem: "Broad treating base whose behavior determines real-world conversion.",
+      baseInfluenceWeight: 0.24,
+      canonicalActor: "Community Physicians",
+      specialtyProfile: "General",
+      slotIndex: 1,
+      rawWeight: 0.228,
+      basePositiveResponseFactor: 0.95,
+      baseNegativeResponseFactor: 1.1,
+    },
+    {
+      id: randomUUID(),
+      actorName: "Specialty Extenders / PCPs",
+      influenceWeight: 0.1164,
+      positiveResponseFactor: 0.85,
+      negativeResponseFactor: 1.05,
+      outcomeOrientation: 1,
+      roleInSystem: "Secondary prescribers or extenders who amplify practical uptake.",
+      baseInfluenceWeight: 0.12,
+      canonicalActor: "Health Systems",
+      specialtyProfile: "General",
+      slotIndex: 2,
+      rawWeight: 0.12,
+      basePositiveResponseFactor: 0.85,
+      baseNegativeResponseFactor: 1.05,
+    },
+    {
+      id: randomUUID(),
+      actorName: "Payers / Access",
+      influenceWeight: 0.1833,
+      positiveResponseFactor: 0.8,
+      negativeResponseFactor: 1.2,
+      outcomeOrientation: 1,
+      roleInSystem: "Coverage and reimbursement gatekeepers.",
+      baseInfluenceWeight: 0.18,
+      canonicalActor: "Payers / Access",
+      specialtyProfile: "General",
+      slotIndex: 3,
+      rawWeight: 0.189,
+      basePositiveResponseFactor: 0.8,
+      baseNegativeResponseFactor: 1.2,
+    },
+    {
+      id: randomUUID(),
+      actorName: "Guideline / Society Bodies",
+      influenceWeight: 0.1358,
+      positiveResponseFactor: 1.25,
+      negativeResponseFactor: 0.9,
+      outcomeOrientation: 1,
+      roleInSystem: "Formal recommendation-setting organizations.",
+      baseInfluenceWeight: 0.14,
+      canonicalActor: "Guideline Bodies",
+      specialtyProfile: "General",
+      slotIndex: 4,
+      rawWeight: 0.14,
+      basePositiveResponseFactor: 1.25,
+      baseNegativeResponseFactor: 0.9,
+    },
+    {
+      id: randomUUID(),
+      actorName: "Competitor Counteraction",
+      influenceWeight: 0.1397,
+      positiveResponseFactor: 0.9,
+      negativeResponseFactor: 1.12,
+      outcomeOrientation: -1,
+      roleInSystem: "Counter-detailing, access defense, and class-noise response.",
+      baseInfluenceWeight: 0.12,
+      canonicalActor: "Competitor Counteraction",
+      specialtyProfile: "General",
+      slotIndex: 5,
+      rawWeight: 0.144,
+      basePositiveResponseFactor: 0.9,
+      baseNegativeResponseFactor: 1.12,
+    },
+  ]);
+
+  const specialtyProfiles = [
+    {
+      profile: "General",
+      actors: [
+        { slot: 1, display: "Academic KOLs", canonical: "Academic KOLs", role: "Cross-specialty scientific validators and early adopters.", weight: 0.2, pos: 1.15, neg: 0.88, orient: 1 },
+        { slot: 2, display: "Community Physicians", canonical: "Community Physicians", role: "Broad treating base whose behavior determines real-world conversion.", weight: 0.24, pos: 0.95, neg: 1.1, orient: 1 },
+        { slot: 3, display: "Specialty Extenders / PCPs", canonical: "Health Systems", role: "Secondary prescribers or extenders who amplify practical uptake.", weight: 0.12, pos: 0.85, neg: 1.05, orient: 1 },
+        { slot: 4, display: "Payers / Access", canonical: "Payers / Access", role: "Coverage and reimbursement gatekeepers.", weight: 0.18, pos: 0.8, neg: 1.2, orient: 1 },
+        { slot: 5, display: "Guideline / Society Bodies", canonical: "Guideline Bodies", role: "Formal recommendation-setting organizations.", weight: 0.14, pos: 1.25, neg: 0.9, orient: 1 },
+        { slot: 6, display: "Competitor Counteraction", canonical: "Competitor Counteraction", role: "Counter-detailing, access defense, and class-noise response.", weight: 0.12, pos: 0.9, neg: 1.12, orient: -1 },
+      ],
+    },
+    {
+      profile: "Pulmonology / rare disease",
+      actors: [
+        { slot: 1, display: "Academic Specialists", canonical: "Academic KOLs", role: "Reference-center specialists and rare-disease KOLs shaping clinical standards.", weight: 0.24, pos: 1.2, neg: 0.85, orient: 1 },
+        { slot: 2, display: "Community Specialists", canonical: "Community Physicians", role: "Community and hospital-based specialists who determine real-world prescribing scale.", weight: 0.24, pos: 0.95, neg: 1.08, orient: 1 },
+        { slot: 3, display: "Subspecialty Consultants", canonical: "Guideline Bodies", role: "Subspecialty experts influencing treatment algorithms and referral logic.", weight: 0.12, pos: 1.1, neg: 0.92, orient: 1 },
+        { slot: 4, display: "Payers / Rare Disease Access", canonical: "Payers / Access", role: "Specialty pharmacy and rare-disease access gatekeepers.", weight: 0.18, pos: 0.78, neg: 1.22, orient: 1 },
+        { slot: 5, display: "Guideline / Society Bodies", canonical: "Health Systems", role: "Society bodies shaping clinical practice statements and recommendation tiers.", weight: 0.12, pos: 1.15, neg: 0.9, orient: 1 },
+        { slot: 6, display: "Competitor Counteraction", canonical: "Competitor Counteraction", role: "Competing therapies and alternative treatment approaches in the rare disease space.", weight: 0.1, pos: 0.9, neg: 1.12, orient: -1 },
+      ],
+    },
+    {
+      profile: "Cardiology / mixed specialist",
+      actors: [
+        { slot: 1, display: "Academic Cardiologists", canonical: "Academic KOLs", role: "Trial investigators and congress-visible cardiology KOLs.", weight: 0.2, pos: 1.12, neg: 0.9, orient: 1 },
+        { slot: 2, display: "Community Cardiologists", canonical: "Community Physicians", role: "High-volume community cardiologists driving real-world adoption.", weight: 0.26, pos: 1.0, neg: 1.08, orient: 1 },
+        { slot: 3, display: "Interventional / EP Specialists", canonical: "Academic KOLs", role: "Procedure-performing subspecialists driving device or therapy adoption.", weight: 0.12, pos: 1.08, neg: 0.94, orient: 1 },
+        { slot: 4, display: "Payers / Access", canonical: "Payers / Access", role: "Medicare and commercial access decision-makers.", weight: 0.18, pos: 0.82, neg: 1.18, orient: 1 },
+        { slot: 5, display: "Hospital Systems / Cath Labs", canonical: "Health Systems", role: "Operational implementers, service-line leaders, and site economics owners.", weight: 0.12, pos: 0.88, neg: 1.05, orient: 1 },
+        { slot: 6, display: "Competitor Response", canonical: "Competitor Counteraction", role: "Incumbent therapeutic response and contracting defense.", weight: 0.12, pos: 0.92, neg: 1.12, orient: -1 },
+      ],
+    },
+    {
+      profile: "Oncology / academic-led",
+      actors: [
+        { slot: 1, display: "Academic Oncologists", canonical: "Academic KOLs", role: "Academic investigators and congress-visible opinion leaders.", weight: 0.24, pos: 1.18, neg: 0.86, orient: 1 },
+        { slot: 2, display: "Community Oncologists", canonical: "Community Physicians", role: "Community treatment networks that determine broad penetration.", weight: 0.22, pos: 0.96, neg: 1.08, orient: 1 },
+        { slot: 3, display: "Tumor Boards / Pathway Committees", canonical: "Guideline Bodies", role: "Pathway and protocol setters shaping regimen choice.", weight: 0.15, pos: 1.12, neg: 0.92, orient: 1 },
+        { slot: 4, display: "Payers / Pathways", canonical: "Payers / Access", role: "Access and pathway gatekeepers for line-of-therapy use.", weight: 0.15, pos: 0.82, neg: 1.16, orient: 1 },
+        { slot: 5, display: "Infusion Networks / Health Systems", canonical: "Health Systems", role: "Operational infusion and site-of-care stakeholders.", weight: 0.12, pos: 0.88, neg: 1.06, orient: 1 },
+        { slot: 6, display: "Competitor Counteraction", canonical: "Competitor Counteraction", role: "Class competition, sequencing defense, and trial countermessaging.", weight: 0.12, pos: 0.92, neg: 1.12, orient: -1 },
+      ],
+    },
+    {
+      profile: "Dermatology / community-led",
+      actors: [
+        { slot: 1, display: "Academic Dermatologists", canonical: "Academic KOLs", role: "Derm KOLs and academic protocol setters.", weight: 0.18, pos: 1.1, neg: 0.9, orient: 1 },
+        { slot: 2, display: "Community Dermatologists", canonical: "Community Physicians", role: "High-volume community derm driving the majority of prescriptions.", weight: 0.28, pos: 1.0, neg: 1.1, orient: 1 },
+        { slot: 3, display: "Nurse Practitioners / PAs", canonical: "Health Systems", role: "Extenders with growing prescribing authority in derm.", weight: 0.14, pos: 0.9, neg: 1.05, orient: 1 },
+        { slot: 4, display: "Payers / Step Therapy", canonical: "Payers / Access", role: "Payers enforcing step therapy and prior authorization.", weight: 0.16, pos: 0.8, neg: 1.2, orient: 1 },
+        { slot: 5, display: "Guideline / AAD Bodies", canonical: "Guideline Bodies", role: "AAD and society guideline setters influencing treatment ladders.", weight: 0.12, pos: 1.2, neg: 0.9, orient: 1 },
+        { slot: 6, display: "Biosimilar / Generic Pressure", canonical: "Competitor Counteraction", role: "Biosimilar entrants and class crowding.", weight: 0.12, pos: 0.88, neg: 1.15, orient: -1 },
+      ],
+    },
+    {
+      profile: "Psychiatry / access-sensitive",
+      actors: [
+        { slot: 1, display: "Academic Psychiatrists", canonical: "Academic KOLs", role: "Academic psychiatry opinion leaders and training program directors.", weight: 0.16, pos: 1.1, neg: 0.92, orient: 1 },
+        { slot: 2, display: "Community Psychiatrists", canonical: "Community Physicians", role: "Office-based and community psychiatrists managing broad patient volumes.", weight: 0.22, pos: 0.95, neg: 1.1, orient: 1 },
+        { slot: 3, display: "PCPs / Prescribing NPs", canonical: "Health Systems", role: "Primary care and NPs managing psychiatric conditions with limited specialist access.", weight: 0.2, pos: 0.88, neg: 1.08, orient: 1 },
+        { slot: 4, display: "Payers / Access / PA", canonical: "Payers / Access", role: "Prior authorization and formulary gatekeepers in a restrictive landscape.", weight: 0.2, pos: 0.78, neg: 1.22, orient: 1 },
+        { slot: 5, display: "Advocacy / Patient Groups", canonical: "Guideline Bodies", role: "Patient advocacy groups and mental health societies influencing adoption sentiment.", weight: 0.12, pos: 1.15, neg: 0.95, orient: 1 },
+        { slot: 6, display: "Competitor / Generic Response", canonical: "Competitor Counteraction", role: "Generic entrants, older branded alternatives, and payer-preferred alternatives.", weight: 0.1, pos: 0.88, neg: 1.12, orient: -1 },
+      ],
+    },
+    {
+      profile: "Infectious disease / guideline-led",
+      actors: [
+        { slot: 1, display: "ID Specialists / Consultants", canonical: "Academic KOLs", role: "Infectious disease specialists and guideline committee members.", weight: 0.22, pos: 1.15, neg: 0.88, orient: 1 },
+        { slot: 2, display: "Community Internists / PCPs", canonical: "Community Physicians", role: "Community physicians managing infectious conditions in outpatient settings.", weight: 0.2, pos: 0.92, neg: 1.1, orient: 1 },
+        { slot: 3, display: "Hospital Pharmacists / P&T", canonical: "Health Systems", role: "Formulary decision-makers, P&T committee members, and stewardship program leads.", weight: 0.18, pos: 0.9, neg: 1.08, orient: 1 },
+        { slot: 4, display: "Payers / CMS / Access", canonical: "Payers / Access", role: "Coverage bodies with evolving reimbursement positions on novel agents.", weight: 0.16, pos: 0.82, neg: 1.18, orient: 1 },
+        { slot: 5, display: "Professional Society Bodies", canonical: "Guideline Bodies", role: "Professional society guideline panels with high HCP deference.", weight: 0.16, pos: 1.28, neg: 0.88, orient: 1 },
+        { slot: 6, display: "Generic / Alternative Therapy Pressure", canonical: "Competitor Counteraction", role: "Generic equivalents or standard-of-care alternatives constraining adoption.", weight: 0.08, pos: 0.9, neg: 1.1, orient: -1 },
+      ],
+    },
+  ];
+
+  for (const sp of specialtyProfiles) {
+    for (const actor of sp.actors) {
+      await db.insert(specialtyActorSetsTable).values({
+        id: randomUUID(),
+        primarySpecialtyProfile: sp.profile,
+        actorSlot: actor.slot,
+        displayActor: actor.display,
+        canonicalActor: actor.canonical,
+        roleInSystem: actor.role,
+        baseInfluenceWeight: actor.weight,
+        basePositiveResponseFactor: actor.pos,
+        baseNegativeResponseFactor: actor.neg,
+        outcomeOrientation: actor.orient,
+      });
+    }
+  }
+
+  console.log("[startup] Seeded actors and specialty profiles.");
+}
