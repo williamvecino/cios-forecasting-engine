@@ -9,7 +9,6 @@ import { isSafetyRiskCase, getProfileForQuestion } from "../lib/case-type-router
 
 interface CaseDirectionContext {
   strategicQuestion: string | null;
-  caseType?: string | null;
 }
 
 const router = Router();
