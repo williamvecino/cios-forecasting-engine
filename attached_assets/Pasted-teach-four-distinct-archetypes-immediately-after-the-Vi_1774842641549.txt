@@ -1,0 +1,292 @@
+teach four distinct archetypes immediately after the Viatris timing case, you will give Replit a minimal but complete decision grammar for CIOS. These are designed to be clean, realistic, and reusable as permanent benchmark cases.
+
+Below are the four cases in the same teaching format so you can hand them directly to Replit.
+
+Case 1 — Regulatory Risk Archetype
+Cardiovascular Safety / Label Restriction Risk
+Case name
+
+Xarelto GI Bleeding Regulatory Risk
+
+Company / Product
+Company: Bayer / Johnson & Johnson
+Product: Xarelto
+Class: Direct oral anticoagulant
+Forecast question
+
+Will U.S. regulators impose a new gastrointestinal bleeding warning or label restriction for Xarelto within the next 12 months?
+
+Decision domain
+
+Regulatory safety risk
+
+Time horizon
+
+12 months
+
+Decision archetype
+
+Regulatory risk / pharmacovigilance escalation
+
+What this case is really about
+
+Whether accumulating safety signals and regulatory attention are strong enough to trigger a formal label change or restriction.
+
+This is not about:
+
+physician adoption
+comparative efficacy
+marketing positioning
+
+It is about:
+
+regulatory action probability
+
+Allowed signal families
+FAERS adverse event trend acceleration
+safety signal detection or disproportionality analysis
+FDA safety communication activity
+post-marketing study safety findings
+regulatory inspection or inquiry
+class-wide safety warnings
+risk-benefit reassessment activity
+litigation or pharmacovigilance escalation
+Forbidden signal families
+guideline updates unrelated to safety
+marketing campaigns
+physician preference
+market share changes
+sales growth
+brand perception
+Primary search targets
+Xarelto + GI bleeding + FAERS
+rivaroxaban + safety signal
+FDA + anticoagulant warning
+rivaroxaban + pharmacovigilance
+DOAC + gastrointestinal bleeding risk
+Signal acceptance rule
+
+A signal must increase or decrease the likelihood of regulatory intervention.
+
+Highest-value future signals
+FDA safety communication issued
+label update submission
+post-marketing safety study showing increased risk
+Case 2 — Physician Adoption Archetype
+Specialty Behavior Shift
+Case name
+
+Dupixent COPD Adoption Inflection
+
+Company / Product
+Company: Sanofi / Regeneron Pharmaceuticals
+Product: Dupixent
+Forecast question
+
+Will pulmonologists adopt Dupixent for COPD as routine therapy within 12 months of guideline inclusion?
+
+Decision domain
+
+Physician adoption behavior
+
+Time horizon
+
+12 months
+
+Decision archetype
+
+Clinical adoption / behavior change
+
+What this case is really about
+
+Whether physicians change prescribing behavior after new clinical evidence or guideline updates.
+
+This is not about:
+
+regulatory approval timing
+manufacturing readiness
+pricing negotiations
+
+It is about:
+
+behavior change speed
+
+Allowed signal families
+guideline inclusion or recommendation strength
+clinical trial outcome magnitude
+KOL endorsement
+payer coverage decisions
+specialty society communication
+prescribing trend data
+safety perception among clinicians
+real-world evidence utilization
+Forbidden signal families
+manufacturing capacity
+supply chain readiness
+facility inspection
+packaging logistics
+distribution infrastructure
+Primary search targets
+Dupixent COPD guideline update
+dupilumab COPD trial results
+pulmonologist prescribing patterns
+COPD biologic adoption
+payer coverage for Dupixent COPD
+Signal acceptance rule
+
+A signal must change the probability that physicians prescribe the therapy.
+
+Highest-value future signals
+strong guideline recommendation
+rapid prescription growth
+payer coverage expansion
+Case 3 — Competitive Positioning Archetype
+Relative Advantage vs Competitor
+Case name
+
+Enhertu vs Trodelvy Market Leadership
+
+Company / Products
+Product 1: Enhertu
+Company: AstraZeneca / Daiichi Sankyo
+Product 2: Trodelvy
+Company: Gilead Sciences
+Forecast question
+
+Will Enhertu maintain dominant use over Trodelvy in second-line HER2-low metastatic breast cancer over the next 18 months?
+
+Decision domain
+
+Competitive positioning
+
+Time horizon
+
+18 months
+
+Decision archetype
+
+Relative clinical and commercial advantage
+
+What this case is really about
+
+Which therapy becomes the default standard in a competitive setting.
+
+This is not about:
+
+launch timing
+manufacturing readiness
+regulatory safety risk
+
+It is about:
+
+relative clinical and market dominance
+
+Allowed signal families
+comparative clinical trial outcomes
+guideline positioning vs competitor
+toxicity and tolerability profile
+duration of response
+payer coverage preference
+physician switching behavior
+safety perception differences
+market share trajectory
+Forbidden signal families
+facility inspection readiness
+manufacturing line allocation
+packaging logistics
+supply chain distribution
+Primary search targets
+Enhertu vs Trodelvy trial comparison
+HER2-low treatment guidelines
+oncology prescribing trends
+antibody-drug conjugate adoption
+safety comparison Enhertu Trodelvy
+Signal acceptance rule
+
+A signal must change the relative advantage between the two therapies.
+
+Highest-value future signals
+new head-to-head data
+safety signal difference
+guideline preference change
+Case 4 — Access / Barrier Archetype
+Payer and System Constraints
+Case name
+
+GLP-1 Access Restriction Expansion
+
+Company / Product
+Product: GLP-1 receptor agonist class
+Representative company: Novo Nordisk
+Representative product: Ozempic
+Forecast question
+
+Will major U.S. commercial payers tighten access restrictions for GLP-1 therapies for obesity treatment within the next 12 months?
+
+Decision domain
+
+Market access / payer policy
+
+Time horizon
+
+12 months
+
+Decision archetype
+
+Access constraint / reimbursement barrier
+
+What this case is really about
+
+Whether payers restrict access due to cost pressure or utilization growth.
+
+This is not about:
+
+clinical efficacy
+physician preference
+manufacturing readiness
+
+It is about:
+
+coverage restriction probability
+
+Allowed signal families
+payer policy announcements
+prior authorization changes
+step therapy requirements
+utilization management updates
+formulary tier changes
+cost trend analysis
+budget impact assessments
+employer benefit design changes
+Forbidden signal families
+manufacturing readiness
+supply chain logistics
+clinical trial efficacy
+physician adoption behavior
+Primary search targets
+GLP-1 payer coverage policy
+obesity drug reimbursement
+prior authorization changes GLP-1
+commercial payer formulary updates
+obesity medication utilization trends
+Signal acceptance rule
+
+A signal must change the likelihood of payer restriction.
+
+Highest-value future signals
+national payer policy revision
+formulary exclusion decision
+utilization cost spike
+Why these four cases matter
+
+Together with the Viatris timing case, they create a complete decision archetype set:
+
+Launch timing — Viatris
+Regulatory risk — Xarelto
+Physician adoption — Dupixent
+Competitive positioning — Enhertu vs Trodelvy
+Access / barrier — GLP-1
+
+That is the minimal system training set.
+
+These five cases will define the signal grammar for the entire platform.
