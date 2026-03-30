@@ -138,7 +138,7 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
 
   const apiCaseType = result.case_type;
   const isSafetyFromApi = apiCaseType === "safety_risk";
-  const isRegulatoryFromApi = apiCaseType === "regulatory_approval" || apiCaseType === "clinical_outcome";
+  const isRegulatoryFromApi = apiCaseType === "regulatory_approval";
   const isSafety = isSafetyFromApi || caseTypeInfo.isSafety;
   const isRegulatory = isRegulatoryFromApi || caseTypeInfo.isRegulatory;
 
