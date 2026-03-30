@@ -42,13 +42,44 @@ function getApiBase() {
   return "/api";
 }
 
+const SEMANTIC_COLORS = {
+  constraint: "text-red-400 bg-red-400/10 border-red-400/20",
+  sensitivity: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
+  driver: "text-green-400 bg-green-400/10 border-green-400/20",
+  interaction: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+};
+
 const INTERACTION_COLORS: Record<string, string> = {
   influences: "text-blue-400",
-  blocks: "text-red-400",
-  enables: "text-emerald-400",
-  competes: "text-amber-400",
-  coordinates: "text-violet-400",
+  blocks: "text-blue-300",
+  enables: "text-blue-400",
+  competes: "text-blue-300",
+  coordinates: "text-blue-400",
 };
+
+function buildCausalChains(dynamics: ActorSegmentationResult["systemDynamics"]) {
+  const chains: Array<{ driver: string; constraint: string | null; outcome: string | null }> = [];
+  const minLen = Math.min(
+    dynamics.primaryDrivers.length,
+    dynamics.keyBottlenecks.length,
+    dynamics.cascadeRisks.length
+  );
+  for (let i = 0; i < minLen; i++) {
+    chains.push({
+      driver: dynamics.primaryDrivers[i],
+      constraint: dynamics.keyBottlenecks[i],
+      outcome: dynamics.cascadeRisks[i],
+    });
+  }
+  for (let i = minLen; i < dynamics.primaryDrivers.length; i++) {
+    chains.push({
+      driver: dynamics.primaryDrivers[i],
+      constraint: dynamics.keyBottlenecks[i] || null,
+      outcome: dynamics.cascadeRisks[i] || null,
+    });
+  }
+  return chains;
+}
 
 export function ActorSegmentationPanel({ question, brand, therapeuticArea, signals, context }: {
   question: string;
@@ -80,9 +111,6 @@ export function ActorSegmentationPanel({ question, brand, therapeuticArea, signa
       setLoading(false);
     }
   }
-
-  const sensitivityColor = (s: string) =>
-    s === "high" ? "text-red-400" : s === "moderate" ? "text-amber-400" : "text-slate-400";
 
   return (
     <div className="rounded-xl border border-border bg-card">
@@ -134,47 +162,56 @@ export function ActorSegmentationPanel({ question, brand, therapeuticArea, signa
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {actor.triggers[0] && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded border ${SEMANTIC_COLORS.driver}`}>
+                        {actor.triggers[0]}
+                      </span>
+                    )}
                     <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded border border-border">{actor.timing}</span>
                     {expandedActor === actor.name ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                   </div>
                 </button>
 
                 {expandedActor === actor.name && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Behaviors</div>
-                        <ul className="space-y-0.5">
-                          {actor.behavioralCharacteristics.map((b, i) => (
-                            <li key={i} className="text-xs text-foreground/80">• {b}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-amber-400/70 uppercase tracking-wider mb-1">Constraints</div>
-                        <ul className="space-y-0.5">
-                          {actor.constraints.map((c, i) => (
-                            <li key={i} className="text-xs text-foreground/80">• {c}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-emerald-400/70 uppercase tracking-wider mb-1">Triggers</div>
-                        <ul className="space-y-0.5">
-                          {actor.triggers.map((t, i) => (
-                            <li key={i} className="text-xs text-foreground/80">• {t}</li>
-                          ))}
-                        </ul>
-                      </div>
+                  <div className="px-4 pb-4 space-y-4 border-t border-border pt-3">
+                    <div>
+                      <div className={`text-[10px] uppercase tracking-wider mb-1.5 font-medium ${SEMANTIC_COLORS.driver.split(' ')[0]}`}>Behaviors</div>
+                      <ul className="space-y-1">
+                        {actor.behavioralCharacteristics.map((b, i) => (
+                          <li key={i} className="text-xs text-foreground/80">• {b}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <div className={`text-[10px] uppercase tracking-wider mb-1.5 font-medium ${SEMANTIC_COLORS.constraint.split(' ')[0]}`}>Constraints</div>
+                      <ul className="space-y-1">
+                        {actor.constraints.map((c, i) => (
+                          <li key={i} className="text-xs text-foreground/80">• {c}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <div className={`text-[10px] uppercase tracking-wider mb-1.5 font-medium ${SEMANTIC_COLORS.driver.split(' ')[0]}`}>Triggers</div>
+                      <ul className="space-y-1">
+                        {actor.triggers.map((t, i) => (
+                          <li key={i} className="text-xs text-foreground/80">• {t}</li>
+                        ))}
+                      </ul>
                     </div>
 
                     {actor.signalSensitivity.length > 0 && (
                       <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Signal Sensitivity</div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-1.5 font-medium ${SEMANTIC_COLORS.sensitivity.split(' ')[0]}`}>Signal Sensitivity</div>
                         <div className="space-y-1">
                           {actor.signalSensitivity.map((ss, i) => (
                             <div key={i} className="flex items-center gap-2 text-xs">
-                              <span className={`font-medium w-16 ${sensitivityColor(ss.sensitivity)}`}>{ss.sensitivity}</span>
+                              <span className={`font-medium px-1.5 py-0.5 rounded text-[10px] ${
+                                ss.sensitivity === "high" ? "text-yellow-300 bg-yellow-400/15 border-yellow-400/30 font-bold"
+                                  : ss.sensitivity === "moderate" ? SEMANTIC_COLORS.sensitivity
+                                  : "text-yellow-400/50 bg-yellow-400/5"
+                              }`}>{ss.sensitivity}</span>
                               <span className="text-foreground/70">{ss.signalType}</span>
                               <span className="text-muted-foreground/40">→</span>
                               <span className="text-foreground/50">{ss.expectedReaction}</span>
@@ -186,7 +223,7 @@ export function ActorSegmentationPanel({ question, brand, therapeuticArea, signa
 
                     {actor.interactions.length > 0 && (
                       <div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Interactions</div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-1.5 font-medium ${SEMANTIC_COLORS.interaction.split(' ')[0]}`}>Interactions</div>
                         <div className="space-y-1">
                           {actor.interactions.map((int, i) => (
                             <div key={i} className="flex items-center gap-2 text-xs">
@@ -205,32 +242,31 @@ export function ActorSegmentationPanel({ question, brand, therapeuticArea, signa
           </div>
 
           <div className="rounded-xl bg-slate-800/50 border border-border p-4 space-y-3">
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">System Dynamics</div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <div className="text-[10px] text-emerald-400/70 uppercase tracking-wider mb-1">Drivers</div>
-                <ul className="space-y-0.5">
-                  {result.systemDynamics.primaryDrivers.map((d, i) => (
-                    <li key={i} className="text-xs text-foreground/80">• {d}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <div className="text-[10px] text-amber-400/70 uppercase tracking-wider mb-1">Bottlenecks</div>
-                <ul className="space-y-0.5">
-                  {result.systemDynamics.keyBottlenecks.map((b, i) => (
-                    <li key={i} className="text-xs text-foreground/80">• {b}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <div className="text-[10px] text-red-400/70 uppercase tracking-wider mb-1">Cascade Risks</div>
-                <ul className="space-y-0.5">
-                  {result.systemDynamics.cascadeRisks.map((r, i) => (
-                    <li key={i} className="text-xs text-foreground/80">• {r}</li>
-                  ))}
-                </ul>
-              </div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">System Dynamics — Causal Chains</div>
+            <div className="space-y-2">
+              {buildCausalChains(result.systemDynamics).map((chain, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg bg-muted/5 px-3 py-2.5 text-xs flex-wrap">
+                  <span className={`font-medium px-2 py-0.5 rounded border ${SEMANTIC_COLORS.driver}`}>{chain.driver}</span>
+                  {chain.constraint && (
+                    <>
+                      <span className="text-muted-foreground/60 font-mono">→</span>
+                      <span className={`font-medium px-2 py-0.5 rounded border ${SEMANTIC_COLORS.constraint}`}>{chain.constraint}</span>
+                    </>
+                  )}
+                  {chain.outcome && (
+                    <>
+                      <span className="text-muted-foreground/60 font-mono">→</span>
+                      <span className={`font-medium px-2 py-0.5 rounded border ${SEMANTIC_COLORS.sensitivity}`}>{chain.outcome}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-4 pt-2 border-t border-border/30 text-[9px] text-muted-foreground/60">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400"></span> Driver</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400"></span> Constraint</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400"></span> Outcome / Sensitivity</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400"></span> Interaction</span>
             </div>
           </div>
         </div>

@@ -13,9 +13,11 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
+  Star,
 } from "lucide-react";
 import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
 import { StakeholderReactionPanel } from "@/components/simulate/StakeholderReactionPanel";
+import { MethodologyGuidance } from "@/components/methodology-guidance";
 import { detectCaseType, COMMERCIAL_SEGMENTS, SAFETY_RISK_SEGMENTS, getRegulatorySegments } from "@/lib/case-type-utils";
 import { ChevronDown, ChevronRight, Activity, TrendingDown, Newspaper } from "lucide-react";
 
@@ -63,6 +65,19 @@ interface SimulationResult {
 }
 
 const DEFAULT_SEGMENTS = COMMERCIAL_SEGMENTS;
+
+const RECOMMENDED_SEGMENTS: Record<string, Record<string, string> | string> = {
+  commercial: "Persuadables",
+  safety_risk: "Pause Pending Clarification",
+  regulatory_approval: {
+    fda: "FDA Review Division",
+    ema: "CHMP / Rapporteur Team",
+    mhra: "CHMP / Rapporteur Team",
+    other: "FDA Review Division",
+    default: "FDA Review Division",
+  },
+  clinical_outcome: "Persuadables",
+};
 
 const FEATURE_LABELS: Record<string, string> = {
   efficacy_strength: "Efficacy Strength",
@@ -382,6 +397,14 @@ export default function SimulatePage() {
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
   const hasInput = selectedSegment && (materialText.trim() || file);
 
+  const recommendedSegmentKey = (() => {
+    const entry = RECOMMENDED_SEGMENTS[caseTypeInfo.caseType];
+    if (!entry) return "";
+    if (typeof entry === "string") return entry;
+    const authority = caseTypeInfo.authority || "default";
+    return entry[authority] || entry["default"] || "";
+  })();
+
   useEffect(() => {
     if (!caseId) {
       setArchetypes([]);
@@ -514,175 +537,198 @@ export default function SimulatePage() {
     setError(null);
   }
 
+  const isGatekeeperSegment = (key: string) =>
+    key.toLowerCase().includes("gatekeeper") || key.toLowerCase().includes("reviewer");
+
   return (
     <WorkflowLayout currentStep="simulate" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
       <QuestionGate activeQuestion={activeQuestion}>
-        <div className="max-w-5xl mx-auto space-y-6">
-          <div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 6</p>
-            <h1 className="text-xl font-bold text-foreground">{caseTypeInfo.stepNames.simulate}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Test how a defined segment responds to specific materials under current constraints.
-            </p>
-          </div>
-
-          {!result && !loading && (
-            <div className="space-y-6">
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Select Segment</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  {SEGMENTS.map(seg => {
-                    const arch = archetypes.find(a => a.segment_name === seg.key);
-                    const selected = selectedSegment === seg.key;
-                    return (
-                      <button
-                        key={seg.key}
-                        onClick={() => setSelectedSegment(seg.key)}
-                        className={`text-left rounded-xl border px-4 py-3 transition ${
-                          selected
-                            ? "border-primary bg-primary/10"
-                            : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
-                        }`}
-                      >
-                        <p className={`text-sm font-semibold ${selected ? "text-primary" : "text-foreground"}`}>{seg.key}</p>
-                        {arch && (
-                          <p className="text-[11px] text-violet-400 mt-0.5">{arch.primary_archetype.archetype_name}</p>
-                        )}
-                        {!arch && (
-                          <p className="text-[11px] text-muted-foreground mt-0.5">No archetype assigned</p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              {selectedSegment && selectedArchetype && (
-                <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">{selectedSegment}</span>
-                      <span className="text-[10px] text-muted-foreground">·</span>
-                      <span className="text-xs font-semibold text-violet-300">{selectedArchetype.primary_archetype.archetype_name}</span>
-                    </div>
-                    {selectedArchetype.secondary_archetype && (
-                      <span className="text-[10px] text-muted-foreground/60">
-                        Also: {selectedArchetype.secondary_archetype.archetype_name}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[12px] text-muted-foreground leading-relaxed">{selectedArchetype.why_assigned}</p>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                    {selectedArchetype.likely_triggers.slice(0, 2).map((t, i) => (
-                      <span key={i} className="text-[11px] text-emerald-400/80">↑ {t}</span>
-                    ))}
-                    {selectedArchetype.likely_barriers.slice(0, 2).map((b, i) => (
-                      <span key={i} className="text-[11px] text-rose-400/80">↓ {b}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Upload Material</h2>
-
-                <div className="space-y-3">
-                  <div
-                    onClick={() => fileRef.current?.click()}
-                    className="rounded-xl border border-dashed border-border bg-card/50 p-6 flex flex-col items-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition"
-                  >
-                    <Upload className="w-5 h-5 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Drop or click to upload PPT, PDF, image, or document
-                    </p>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      onChange={handleFileChange}
-                      accept=".pptx,.ppt,.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,.jpg,.jpeg,.png,.webp"
-                      className="hidden"
-                    />
-                  </div>
-
-                  {file && (
-                    <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-                      {file.type.startsWith("image/")
-                        ? <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />
-                        : <FileText className="w-4 h-4 text-blue-400 shrink-0" />
-                      }
-                      <span className="text-sm text-foreground truncate flex-1">{file.name}</span>
-                      <button onClick={clearFile} className="text-muted-foreground hover:text-foreground">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-
-                  <textarea
-                    value={materialText}
-                    onChange={e => setMaterialText(e.target.value)}
-                    placeholder="Or paste message text, talking points, or key claims here..."
-                    rows={4}
-                    className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                </div>
-              </section>
-
-              {error && (
-                <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                  <p className="text-sm text-rose-400">{error}</p>
-                </div>
-              )}
-
-              <button
-                onClick={runSimulation}
-                disabled={!hasInput}
-                className={`w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                  hasInput
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "bg-muted/20 text-muted-foreground cursor-not-allowed"
-                }`}
-              >
-                <Play className="w-4 h-4" />
-                Run Simulation
-              </button>
-            </div>
-          )}
-
-          {loading && (
-            <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">
-                Extracting material features and scoring {selectedSegment} reaction...
+        <div className="flex gap-6">
+          <div className="flex-1 min-w-0 space-y-6" style={{ maxWidth: "65%" }}>
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 6</p>
+              <h1 className="text-xl font-bold text-foreground">{caseTypeInfo.stepNames.simulate}</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Test how a defined segment responds to specific materials under current constraints.
               </p>
             </div>
-          )}
 
-          {result && !loading && (
-            <ResultsAccordion
-              result={result}
-              selectedSegment={selectedSegment}
-              selectedArchetype={selectedArchetype}
-              caseTypeInfo={caseTypeInfo}
-              onReset={reset}
+            {!result && !loading && (
+              <div className="space-y-6">
+                <section>
+                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Select Segment</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {SEGMENTS.map(seg => {
+                      const arch = archetypes.find(a => a.segment_name === seg.key);
+                      const selected = selectedSegment === seg.key;
+                      const isRecommended = seg.key === recommendedSegmentKey;
+                      return (
+                        <button
+                          key={seg.key}
+                          onClick={() => setSelectedSegment(seg.key)}
+                          className={`relative text-left rounded-xl border px-4 py-3 transition ${
+                            selected
+                              ? "border-primary bg-primary/10"
+                              : isRecommended
+                              ? "border-primary/50 bg-primary/5 hover:border-primary hover:bg-primary/10"
+                              : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                          }`}
+                        >
+                          {isRecommended && (
+                            <span className="absolute -top-2 right-3 flex items-center gap-1 rounded-full bg-primary/20 border border-primary/30 px-2 py-0.5 text-[9px] font-semibold text-primary uppercase tracking-wider">
+                              <Star className="w-2.5 h-2.5" />
+                              Recommended
+                            </span>
+                          )}
+                          <p className={`text-sm font-semibold ${selected ? "text-primary" : "text-foreground"}`}>{seg.key}</p>
+                          {arch && (
+                            <p className="text-[11px] text-violet-400 mt-0.5">{arch.primary_archetype.archetype_name}</p>
+                          )}
+                          {!arch && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {isGatekeeperSegment(seg.key) ? "Decision authority role" : "No archetype assigned"}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                {selectedSegment && selectedArchetype && (
+                  <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">{selectedSegment}</span>
+                        <span className="text-[10px] text-muted-foreground">·</span>
+                        <span className="text-xs font-semibold text-violet-300">{selectedArchetype.primary_archetype.archetype_name}</span>
+                      </div>
+                      {selectedArchetype.secondary_archetype && (
+                        <span className="text-[10px] text-muted-foreground/60">
+                          Also: {selectedArchetype.secondary_archetype.archetype_name}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-muted-foreground leading-relaxed">{selectedArchetype.why_assigned}</p>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                      {selectedArchetype.likely_triggers.slice(0, 2).map((t, i) => (
+                        <span key={i} className="text-[11px] text-emerald-400/80">↑ {t}</span>
+                      ))}
+                      {selectedArchetype.likely_barriers.slice(0, 2).map((b, i) => (
+                        <span key={i} className="text-[11px] text-rose-400/80">↓ {b}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <section>
+                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Upload Material</h2>
+
+                  <MethodologyGuidance questionText={questionText} currentStep="simulate" />
+
+                  <div className="space-y-3 mt-3">
+                    <div
+                      onClick={() => fileRef.current?.click()}
+                      className="rounded-xl border border-dashed border-border bg-card/50 p-6 flex flex-col items-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition"
+                    >
+                      <Upload className="w-5 h-5 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        Drop or click to upload PPT, PDF, image, or document
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/50">
+                        e.g. Safety letter, Guideline update, New study results, Risk mitigation plan
+                      </p>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        onChange={handleFileChange}
+                        accept=".pptx,.ppt,.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,.jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                      />
+                    </div>
+
+                    {file && (
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                        {file.type.startsWith("image/")
+                          ? <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />
+                          : <FileText className="w-4 h-4 text-blue-400 shrink-0" />
+                        }
+                        <span className="text-sm text-foreground truncate flex-1">{file.name}</span>
+                        <button onClick={clearFile} className="text-muted-foreground hover:text-foreground">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    <textarea
+                      value={materialText}
+                      onChange={e => setMaterialText(e.target.value)}
+                      placeholder="Or paste message text, talking points, or key claims here..."
+                      rows={4}
+                      className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    />
+                  </div>
+                </section>
+
+                {error && (
+                  <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    <p className="text-sm text-rose-400">{error}</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={runSimulation}
+                  disabled={!hasInput}
+                  className={`w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                    hasInput
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "bg-muted/20 text-muted-foreground cursor-not-allowed"
+                  }`}
+                >
+                  <Play className="w-4 h-4" />
+                  Run Simulation
+                </button>
+              </div>
+            )}
+
+            {loading && (
+              <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <p className="text-sm text-muted-foreground">
+                  Extracting material features and scoring {selectedSegment} reaction...
+                </p>
+              </div>
+            )}
+
+            {result && !loading && (
+              <ResultsAccordion
+                result={result}
+                selectedSegment={selectedSegment}
+                selectedArchetype={selectedArchetype}
+                caseTypeInfo={caseTypeInfo}
+                onReset={reset}
+              />
+            )}
+
+            <ActorSegmentationPanel
+              question={activeQuestion?.text || ""}
+              brand={activeQuestion?.subject}
+              therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
+              signals={[]}
+              context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
             />
-          )}
+          </div>
+
+          <div className="space-y-4" style={{ width: "35%", flexShrink: 0 }}>
+            <StakeholderReactionPanel
+              question={activeQuestion?.text || ""}
+              brand={activeQuestion?.subject}
+              therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
+              context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
+            />
+          </div>
         </div>
-
-        <ActorSegmentationPanel
-          question={activeQuestion?.text || ""}
-          brand={activeQuestion?.subject}
-          therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
-          signals={[]}
-          context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
-        />
-
-        <StakeholderReactionPanel
-          question={activeQuestion?.text || ""}
-          brand={activeQuestion?.subject}
-          therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
-          context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
-        />
       </QuestionGate>
     </WorkflowLayout>
   );
