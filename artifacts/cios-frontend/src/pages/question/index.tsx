@@ -45,6 +45,7 @@ interface StructuredQuestion {
   horizon: string;
   targetOutcome: string;
   boundedness: "bounded" | "needs_splitting" | "too_broad";
+  questionType?: "strategic" | "competitive" | "financial" | "operational" | "diagnostic";
 }
 
 interface QuestionStructuringResult {
@@ -57,7 +58,11 @@ interface QuestionStructuringResult {
   };
   improvementExplanation: string | null;
   inputHash: string;
+  driftDetected?: boolean;
+  driftWarning?: string | null;
 }
+
+type SupportingQuestionStatus = "analyze_tandem" | "saved" | "promoted" | "discarded";
 
 interface FeasibilityCheck {
   verdict: "feasible" | "feasible_with_refinement" | "not_feasible";
@@ -118,6 +123,7 @@ export default function QuestionPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
   const [structuringResult, setStructuringResult] = useState<QuestionStructuringResult | null>(null);
+  const [supportingStatuses, setSupportingStatuses] = useState<Record<number, SupportingQuestionStatus>>({});
   const [refineResult, setRefineResult] = useState<RefineResult | null>(null);
   const [isEditingProposal, setIsEditingProposal] = useState(false);
   const [editedProposal, setEditedProposal] = useState("");
@@ -958,21 +964,93 @@ export default function QuestionPage() {
               </>
             )}
 
+            {structuringResult.driftDetected && structuringResult.driftWarning && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-semibold text-amber-300">Question Drift Detected</div>
+                  <div className="text-[11px] text-amber-200/70 mt-1">{structuringResult.driftWarning}</div>
+                  <div className="text-[10px] text-slate-400 mt-1.5">The strategic-risk version has been selected as the primary question. The financial version is available below as a supporting question.</div>
+                </div>
+              </div>
+            )}
+
             {structuringResult.supportingQuestions.length > 0 && (
               <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                   Supporting Questions
                 </div>
-                {structuringResult.supportingQuestions.map((sq, i) => (
-                  <div key={i} className="rounded-lg border border-border bg-muted/10 p-3">
-                    <div className="text-xs text-foreground/80">{sq.questionText}</div>
-                    <div className="flex gap-2 mt-1.5">
-                      <span className="text-[10px] text-muted-foreground">{sq.archetype}</span>
-                      <span className="text-[10px] text-muted-foreground">·</span>
-                      <span className="text-[10px] text-muted-foreground">{sq.horizon}</span>
+                {structuringResult.supportingQuestions.map((sq, i) => {
+                  const status = supportingStatuses[i];
+                  if (status === "discarded") return null;
+                  return (
+                    <div key={i} className={`rounded-lg border p-3 ${status === "analyze_tandem" ? "border-blue-500/30 bg-blue-500/5" : status === "promoted" ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-muted/10"}`}>
+                      <div className="text-xs text-foreground/80">{sq.questionText}</div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] text-muted-foreground">{sq.archetype}</span>
+                        <span className="text-[10px] text-muted-foreground">·</span>
+                        <span className="text-[10px] text-muted-foreground">{sq.horizon}</span>
+                        {sq.questionType && (
+                          <>
+                            <span className="text-[10px] text-muted-foreground">·</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${sq.questionType === "strategic" ? "bg-blue-500/10 text-blue-400" : sq.questionType === "financial" ? "bg-amber-500/10 text-amber-400" : sq.questionType === "competitive" ? "bg-purple-500/10 text-purple-400" : "bg-slate-500/10 text-slate-400"}`}>
+                              {sq.questionType}
+                            </span>
+                          </>
+                        )}
+                        {status && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ml-auto ${status === "analyze_tandem" ? "bg-blue-500/20 text-blue-300" : status === "saved" ? "bg-slate-500/20 text-slate-300" : "bg-emerald-500/20 text-emerald-300"}`}>
+                            {status === "analyze_tandem" ? "Analyzing" : status === "saved" ? "Saved" : "Promoted"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setSupportingStatuses(prev => ({ ...prev, [i]: "analyze_tandem" }))}
+                          className={`text-[10px] px-2 py-1 rounded border ${status === "analyze_tandem" ? "border-blue-500/40 bg-blue-500/10 text-blue-300" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/10"}`}
+                        >
+                          Analyze in tandem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSupportingStatuses(prev => ({ ...prev, [i]: "saved" }))}
+                          className={`text-[10px] px-2 py-1 rounded border ${status === "saved" ? "border-slate-500/40 bg-slate-500/10 text-slate-300" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/10"}`}
+                        >
+                          Save for later
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (structuringResult) {
+                              const promoted = sq;
+                              const newActive = { ...promoted };
+                              const newSupporting = structuringResult.supportingQuestions.map((s, j) =>
+                                j === i ? { ...structuringResult.activeQuestion } : s
+                              );
+                              setStructuringResult({
+                                ...structuringResult,
+                                activeQuestion: newActive,
+                                supportingQuestions: newSupporting,
+                              });
+                              setSupportingStatuses({});
+                            }
+                          }}
+                          className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/5"
+                        >
+                          Promote to primary
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSupportingStatuses(prev => ({ ...prev, [i]: "discarded" }))}
+                          className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5"
+                        >
+                          Discard
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

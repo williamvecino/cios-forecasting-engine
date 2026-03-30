@@ -61,6 +61,7 @@ import simulationEngineRouter from "./simulation-engine.js";
 import workbookImportRouter from "./workbook-import.js";
 import aiRefineQuestionRouter from "./ai-refine-question.js";
 import validationPackRouter from "./validation-pack.js";
+import questionRepositoryRouter from "./question-repository.js";
 
 const router: IRouter = Router();
 
@@ -126,5 +127,6 @@ router.use(simulationEngineRouter);
 router.use(workbookImportRouter);
 router.use(aiRefineQuestionRouter);
 router.use(validationPackRouter);
+router.use(questionRepositoryRouter);
 
 export default router;

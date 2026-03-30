@@ -30,3 +30,4 @@ export * from "./readiness-timeline";
 export * from "./competitive-risk";
 export * from "./growth-feasibility";
 export * from "./simulation-scenarios";
+export * from "./question-repository";

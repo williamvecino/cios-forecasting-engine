@@ -26,6 +26,16 @@ export interface RelevanceScoringRule {
 
 export type ArchetypeCategory = "core_clinical_commercial" | "enterprise_system";
 
+export interface StandardizedOutputRequirements {
+  topDrivers: string;
+  constraints: string;
+  contradictions: string;
+  probability: string;
+  confidence: string;
+  fragility: string;
+  keyMonitor: string;
+}
+
 export interface CaseFrame {
   caseType: CaseType;
   profileCaseType: string;
@@ -45,6 +55,7 @@ export interface CaseFrame {
   acceptanceRules: string[];
   rejectionRules: string[];
   framingNotes: string;
+  standardizedOutputRequirements: StandardizedOutputRequirements;
 }
 
 interface ArchetypeFrameDefinition {
@@ -64,6 +75,7 @@ interface ArchetypeFrameDefinition {
   acceptanceRules: string[];
   rejectionRules: string[];
   framingNotes: string;
+  standardizedOutputRequirements: StandardizedOutputRequirements;
 }
 
 const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
@@ -123,6 +135,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal uses 'adoption', 'launch', or 'market readiness' language",
     ],
     framingNotes: "Clinical outcome cases operate in Layer 0. Regulatory, reimbursement, and commercial outcomes are all downstream and must not be mixed as drivers.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 signals most likely to move the endpoint outcome, ranked by causal proximity to trial success/failure",
+      constraints: "Binding constraints that limit probability movement (e.g., enrollment shortfall, statistical plan rigidity, safety signal severity)",
+      contradictions: "Signals that conflict with each other (e.g., positive interim vs emerging safety signal)",
+      probability: "Point estimate (0-100%) that the primary endpoint will be met",
+      confidence: "Maximum justified confidence given evidence coverage and signal independence",
+      fragility: "Which single signal reversal would most change the probability estimate",
+      keyMonitor: "The single most important upcoming data point or event to watch",
+    },
   },
 
   regulatory_approval: {
@@ -181,6 +202,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes manufacturing or supply chain — operational",
     ],
     framingNotes: "Regulatory cases operate in Layer 1. Cost-effectiveness, market access, and commercial execution belong to downstream layers.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 signals most likely to determine approval/rejection, ranked by regulatory decision weight",
+      constraints: "Binding constraints limiting probability (e.g., unresolved safety signal, incomplete submission, precedent rejection)",
+      contradictions: "Signals that conflict (e.g., strong efficacy vs unresolved safety concern, positive advisory vote vs agency hesitation)",
+      probability: "Point estimate (0-100%) that regulatory approval will be granted within the specified horizon",
+      confidence: "Maximum justified confidence given evidence completeness and regulatory precedent clarity",
+      fragility: "Which single signal reversal would most change the approval probability",
+      keyMonitor: "The single most important upcoming regulatory milestone or agency action to watch",
+    },
   },
 
   safety_risk: {
@@ -243,6 +273,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal frames media/advocacy as primary evidence — these are influence factors only",
     ],
     framingNotes: "Safety cases frame the outcome as restriction level, not adoption. Positive access signals reduce restriction probability. Media/advocacy signals are influence factors with reduced weight (0.5x).",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 signals most likely to escalate or de-escalate regulatory restriction, ranked by severity and causality",
+      constraints: "Binding constraints (e.g., confirmed causal mechanism, regulatory precedent for class action, litigation exposure)",
+      contradictions: "Signals that conflict (e.g., isolated adverse event vs class-level safety data, agency communication vs post-marketing evidence)",
+      probability: "Point estimate (0-100%) that new regulatory restrictions will be imposed within the specified horizon",
+      confidence: "Maximum justified confidence given pharmacovigilance data completeness and regulatory precedent clarity",
+      fragility: "Which single signal reversal would most change the restriction probability",
+      keyMonitor: "The single most important upcoming safety data release, regulatory meeting, or agency communication to watch",
+    },
   },
 
   launch_readiness: {
@@ -307,6 +346,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes long-term lifecycle management — premature for launch timing",
     ],
     framingNotes: "Launch Timing focuses on operational readiness gates. The question is 'will it launch by date X?' not 'how well will it be adopted'. Prioritize legal entry, regulatory clearance, manufacturing, and supply over behavioral or commercial signals.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 operational readiness gates most likely to determine launch timing, ranked by gating severity",
+      constraints: "Binding constraints (e.g., patent settlement timeline, manufacturing validation incomplete, regulatory submission delay)",
+      contradictions: "Signals that conflict (e.g., regulatory approval expected vs manufacturing not ready, legal entry clear vs supply chain gap)",
+      probability: "Point estimate (0-100%) that launch will occur by the target date",
+      confidence: "Maximum justified confidence given operational readiness gate coverage",
+      fragility: "Which single readiness gate failure would most delay or prevent launch",
+      keyMonitor: "The single most important upcoming operational milestone or gate decision to watch",
+    },
   },
 
   competitive_defense: {
@@ -368,6 +416,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes manufacturing or supply chain — not a competitive differentiator",
     ],
     framingNotes: "Competitive defense cases center on the competitor, not the incumbent brand. The causal chain starts with competitor action and traces to incumbent share impact.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 competitive dynamics most likely to determine share retention/erosion, ranked by switching impact",
+      constraints: "Binding constraints (e.g., competitor clinical superiority confirmed, payer preference shift locked in, no differentiation data available)",
+      contradictions: "Signals that conflict (e.g., strong clinical differentiation vs payer cost-preference for competitor, physician loyalty vs formulary restriction)",
+      probability: "Point estimate (0-100%) that the incumbent will retain its target market share position",
+      confidence: "Maximum justified confidence given competitive intelligence completeness and switching behavior data",
+      fragility: "Which single competitive event would most accelerate share erosion",
+      keyMonitor: "The single most important upcoming competitive event or payer decision to watch",
+    },
   },
 
   access_expansion: {
@@ -427,6 +484,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes physician prescribing preference without payer context",
     ],
     framingNotes: "Access/Barrier cases focus on payer behavior and policy dynamics. The key question is whether access restrictions will tighten or loosen. Clinical signals are relevant only when they support or undermine value arguments.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 payer dynamics most likely to determine coverage outcome, ranked by coverage decision impact",
+      constraints: "Binding constraints (e.g., budget impact threshold exceeded, competing therapy price advantage, lack of cost-effectiveness data)",
+      contradictions: "Signals that conflict (e.g., strong clinical value vs high budget impact, payer willingness vs employer pushback)",
+      probability: "Point estimate (0-100%) that access will expand (or restrictions will loosen) within the specified horizon",
+      confidence: "Maximum justified confidence given payer landscape coverage and value evidence completeness",
+      fragility: "Which single payer action or policy change would most restrict access",
+      keyMonitor: "The single most important upcoming payer review, formulary decision, or policy change to watch",
+    },
   },
 
   clinical_adoption: {
@@ -487,6 +553,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes facility capacity or production validation — operational",
     ],
     framingNotes: "Physician Adoption cases focus on the evidence-to-behavior causal chain. The key question is whether clinical evidence is sufficient to change physician practice. Primary barrier is often coverage restrictions rather than clinical doubt.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 evidence-to-behavior signals most likely to drive practice change, ranked by influence on physician decision-making",
+      constraints: "Binding constraints (e.g., access barriers preventing prescribing, insufficient evidence quality, guideline inertia)",
+      contradictions: "Signals that conflict (e.g., strong trial data vs restrictive guidelines, KOL endorsement vs payer restriction)",
+      probability: "Point estimate (0-100%) that target adoption level will be reached within the specified horizon",
+      confidence: "Maximum justified confidence given evidence quality and practice pattern data completeness",
+      fragility: "Which single signal reversal would most slow or reverse adoption trajectory",
+      keyMonitor: "The single most important upcoming evidence publication, guideline review, or coverage decision to watch",
+    },
   },
 
   lifecycle_management: {
@@ -541,6 +616,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes pre-approval regulatory milestones — already established",
     ],
     framingNotes: "Lifecycle cases manage mature products. All 6 families may be relevant but the focus shifts to patient-level and practice-level dynamics rather than gating conditions.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 lifecycle dynamics most likely to sustain or erode product value, ranked by volume impact",
+      constraints: "Binding constraints (e.g., genericization timeline, adherence ceiling, patient pool saturation)",
+      contradictions: "Signals that conflict (e.g., growing patient base vs declining adherence, label expansion potential vs competitor erosion)",
+      probability: "Point estimate (0-100%) that the product will meet its lifecycle performance target",
+      confidence: "Maximum justified confidence given lifecycle data maturity and market dynamics coverage",
+      fragility: "Which single lifecycle event would most accelerate value erosion",
+      keyMonitor: "The single most important upcoming lifecycle milestone or competitive event to watch",
+    },
   },
 
   market_shaping: {
@@ -596,6 +680,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes market share or competitive displacement — no product in market yet",
     ],
     framingNotes: "Market shaping cases are pre-commercial. The product may not yet exist. Focus is on creating the conditions for future market entry, not on commercial execution.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 market-shaping activities most likely to create favorable conditions for future entry, ranked by stakeholder readiness impact",
+      constraints: "Binding constraints (e.g., low disease awareness baseline, fragmented referral networks, competing disease narratives)",
+      contradictions: "Signals that conflict (e.g., increasing disease awareness vs insufficient diagnostic pathway, advocacy alignment vs clinical skepticism)",
+      probability: "Point estimate (0-100%) that market conditions will be favorable for product entry by the target date",
+      confidence: "Maximum justified confidence given pre-commercial data availability and stakeholder engagement coverage",
+      fragility: "Which single market-shaping failure would most reduce launch readiness conditions",
+      keyMonitor: "The single most important upcoming disease awareness milestone, diagnostic pathway event, or advocacy action to watch",
+    },
   },
 
   investment_portfolio: {
@@ -654,6 +747,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes supply chain logistics — operational, not strategic",
     ],
     framingNotes: "Investment/portfolio decisions evaluate whether to continue funding development. The question is 'should we invest?' not 'will it succeed commercially'. Focus on probability of technical success, market size, and expected return.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 investment signals most likely to determine continue/terminate decision, ranked by expected value impact",
+      constraints: "Binding constraints (e.g., insufficient technical probability, prohibitive development cost, competitor first-mover advantage)",
+      contradictions: "Signals that conflict (e.g., strong clinical data vs saturated competitive landscape, high unmet need vs poor expected return)",
+      probability: "Point estimate (0-100%) that continued investment is justified (expected return exceeds cost of capital)",
+      confidence: "Maximum justified confidence given technical data maturity and market size estimate reliability",
+      fragility: "Which single data point or event would most change the investment recommendation",
+      keyMonitor: "The single most important upcoming clinical readout, competitive event, or portfolio review to watch",
+    },
   },
 
   operational_execution: {
@@ -713,6 +815,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes guideline recommendations — not relevant to supply",
     ],
     framingNotes: "Operational execution cases focus on 'can supply be maintained?' not 'will physicians prescribe it'. Prioritize manufacturing, quality, and supply chain signals above all others.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 operational factors most likely to determine supply continuity, ranked by disruption severity",
+      constraints: "Binding constraints (e.g., single-source manufacturing, FDA consent decree, inventory below safety stock)",
+      contradictions: "Signals that conflict (e.g., capacity restoration timeline vs continued quality findings, alternative source qualified vs regulatory delay)",
+      probability: "Point estimate (0-100%) that supply continuity will be maintained (or disruption will be resolved) within the specified horizon",
+      confidence: "Maximum justified confidence given manufacturing data coverage and supply chain visibility",
+      fragility: "Which single operational failure would most severely disrupt supply",
+      keyMonitor: "The single most important upcoming manufacturing milestone, inspection result, or inventory threshold to watch",
+    },
   },
 
   strategic_partnership: {
@@ -771,6 +882,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes manufacturing logistics — operational, not strategic",
     ],
     framingNotes: "Strategic partnership/M&A cases focus on 'will the deal happen?' not 'will the product succeed'. Prioritize corporate strategy, valuation, competitive dynamics, and deal progress signals.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 deal dynamics most likely to determine deal completion, ranked by deal-execution impact",
+      constraints: "Binding constraints (e.g., valuation gap, antitrust scrutiny, competing bidder, board opposition)",
+      contradictions: "Signals that conflict (e.g., strategic fit confirmed vs valuation disagreement, negotiation progress vs regulatory concern)",
+      probability: "Point estimate (0-100%) that the deal will close within the specified horizon",
+      confidence: "Maximum justified confidence given deal progress visibility and competitive bidding intelligence",
+      fragility: "Which single deal event would most likely prevent completion",
+      keyMonitor: "The single most important upcoming deal milestone, regulatory filing, or board decision to watch",
+    },
   },
 
   policy_environment: {
@@ -829,6 +949,15 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Signal describes manufacturing or supply chain — operational, not policy",
     ],
     framingNotes: "Policy/environment cases focus on 'will the system-level rules change?' not 'will a specific product succeed'. These are not product-specific — they affect entire therapeutic areas, drug classes, or the industry. Prioritize legislative, regulatory, and political signals.",
+    standardizedOutputRequirements: {
+      topDrivers: "Top 3 policy dynamics most likely to determine environment change, ranked by legislative/regulatory momentum",
+      constraints: "Binding constraints (e.g., political opposition, industry lobbying effectiveness, rulemaking timeline constraints)",
+      contradictions: "Signals that conflict (e.g., legislative momentum vs industry pushback, regulatory proposal vs political opposition)",
+      probability: "Point estimate (0-100%) that the policy/environment change will occur within the specified horizon",
+      confidence: "Maximum justified confidence given political visibility and regulatory process clarity",
+      fragility: "Which single political or regulatory event would most change the policy outcome probability",
+      keyMonitor: "The single most important upcoming legislative vote, regulatory comment period, or political event to watch",
+    },
   },
 };
 
@@ -900,6 +1029,7 @@ export function buildCaseFrame(
     acceptanceRules: frameDef.acceptanceRules,
     rejectionRules: frameDef.rejectionRules,
     framingNotes: frameDef.framingNotes,
+    standardizedOutputRequirements: frameDef.standardizedOutputRequirements,
   };
 }
 
@@ -974,6 +1104,16 @@ JUDGMENT QUESTIONS (the system must answer):`;
   if (frame.framingNotes) {
     prompt += `\n\nFRAMING NOTES: ${frame.framingNotes}`;
   }
+
+  const sor = frame.standardizedOutputRequirements;
+  prompt += `\n\nSTANDARDIZED OUTPUT REQUIREMENTS (every assessment MUST include):`;
+  prompt += `\n1. TOP DRIVERS: ${sor.topDrivers}`;
+  prompt += `\n2. CONSTRAINTS: ${sor.constraints}`;
+  prompt += `\n3. CONTRADICTIONS: ${sor.contradictions}`;
+  prompt += `\n4. PROBABILITY: ${sor.probability}`;
+  prompt += `\n5. CONFIDENCE: ${sor.confidence}`;
+  prompt += `\n6. FRAGILITY: ${sor.fragility}`;
+  prompt += `\n7. KEY MONITOR: ${sor.keyMonitor}`;
 
   return prompt;
 }
