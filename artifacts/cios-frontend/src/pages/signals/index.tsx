@@ -294,7 +294,17 @@ function generateContextualSuggestions(ctx: QuestionContext): Signal[] {
   const isRegOrSafetyCase = /\b(black.?box|boxed.?warning|rems|label.?change|label.?update|fda.?(warn|restrict|withdraw|safety|review)|ema.?(warn|restrict|withdraw|safety)|pharmacovigilance|safety.?signal|adverse.?event|contraindication|class.?warning|benefit.?risk|safety.?review|mortality.?signal|bleeding.?risk|hepatotoxic|nephrotoxic)\b/i.test(q);
   const raw: Omit<Signal, "impact">[] = [];
 
-  if (q.includes("payer") || q.includes("prior auth") || q.includes("coverage") || q.includes("restrict")) {
+  if (isRegOrSafetyCase) {
+    raw.push(
+      { id: "sys-rs1", text: `Comparative safety data showing elevated risk profile for ${subjectLabel} relative to therapeutic alternatives`, caveat: "Head-to-head or indirect comparison evidence directly influences regulatory risk assessment", direction: "negative", strength: "High", reliability: "Probable", category: "evidence", source: "system", accepted: false },
+      { id: "sys-rs2", text: `Increase in adverse event reports for ${subjectLabel} in pharmacovigilance databases (FAERS/EudraVigilance)`, caveat: "Rising signal volume in post-marketing surveillance is a key regulatory trigger", direction: "negative", strength: "High", reliability: "Probable", category: "evidence", source: "system", accepted: false },
+      { id: "sys-rs3", text: `FDA or EMA initiates formal safety review or signal assessment for ${subjectLabel}`, caveat: "Formal regulatory safety review is the most direct precursor to label action", direction: "negative", strength: "High", reliability: "Probable", category: "guideline", source: "system", accepted: false },
+      { id: "sys-rs4", text: `Active or pending litigation citing safety complications related to ${subjectLabel}`, caveat: "Litigation clusters increase regulatory and public pressure for label action", direction: "negative", strength: "Medium", reliability: "Probable", category: "evidence", source: "system", accepted: false },
+      { id: "sys-rs5", text: `Conflicting or unresolved post-marketing safety evidence for ${subjectLabel}`, caveat: "Unresolved safety uncertainty maintains regulatory risk and may trigger additional review", direction: "neutral", strength: "High", reliability: "Probable", category: "evidence", source: "system", accepted: false },
+    );
+    if (q.includes("bleed") || q.includes("gi") || q.includes("hemorrhag") || q.includes("gastrointestin"))
+      raw.push({ id: "sys-rs6", text: `Published real-world evidence on bleeding event rates for ${subjectLabel} across clinical settings`, caveat: "Real-world bleeding data strengthens or weakens the regulatory safety signal", direction: "neutral", strength: "High", reliability: "Confirmed", category: "evidence", source: "system", accepted: false });
+  } else if (q.includes("payer") || q.includes("prior auth") || q.includes("coverage") || q.includes("restrict")) {
     raw.push(
       { id: "sys-pa1", text: `Payer advisory boards actively reviewing ${subjectLabel} coverage criteria`, caveat: "", direction: "negative", strength: "High", reliability: "Probable", category: "access", source: "system", accepted: false },
       { id: "sys-pa2", text: `Prior authorization step-therapy requirements being implemented in key plans`, caveat: "", direction: "negative", strength: "High", reliability: "Confirmed", category: "access", source: "system", accepted: false },
