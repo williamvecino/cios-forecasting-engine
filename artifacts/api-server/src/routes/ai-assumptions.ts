@@ -71,6 +71,7 @@ function isConditionalPhrasing(statement: string): boolean {
   const s = statement.toLowerCase();
   if (CONDITIONAL_MARKERS.some(m => s.includes(m))) return true;
   if (OBSERVATIONAL_ONLY_PATTERNS.some(p => p.test(statement))) return false;
+  if (s.length < 20) return false;
   return true;
 }
 

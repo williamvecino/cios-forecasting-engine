@@ -86,7 +86,7 @@ export default function WorkflowStepsSidebar({
         <button
           key="forecast-assumptions"
           onClick={onOpenAssumptions}
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition w-full text-muted-foreground hover:bg-muted/20 hover:text-foreground border border-transparent ml-3"
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition w-full text-muted-foreground hover:bg-muted/20 hover:text-foreground border border-transparent"
         >
           <Shield className="w-4 h-4 text-primary/60" />
           <span className="flex-1 text-left">Forecast Assumptions</span>
