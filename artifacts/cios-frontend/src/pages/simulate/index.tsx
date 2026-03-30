@@ -31,7 +31,6 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
-import { StakeholderReactionPanel } from "@/components/simulate/StakeholderReactionPanel";
 import { MethodologyGuidance } from "@/components/methodology-guidance";
 import { detectCaseType, COMMERCIAL_SEGMENTS, SAFETY_RISK_SEGMENTS, getRegulatorySegments } from "@/lib/case-type-utils";
 
@@ -535,7 +534,7 @@ export default function SimulatePage() {
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
 
-  const scenarioDefined = !!(scenarioType && messageSource && impactLevel);
+  const scenarioDefined = !!(scenarioType && messageSource && impactLevel && timeFrame && confidenceLevel);
   const segmentSelected = !!selectedSegment;
   const canRun = scenarioDefined && segmentSelected;
 
@@ -713,7 +712,7 @@ export default function SimulatePage() {
         <div className="max-w-3xl mx-auto">
           <div className="mb-8">
             <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 7</p>
-            <h1 className="text-2xl font-bold text-foreground">{caseTypeInfo.stepNames.simulate}</h1>
+            <h1 className="text-2xl font-bold text-foreground">Simulate Stakeholder Response</h1>
             <p className="text-[15px] text-muted-foreground mt-2 leading-relaxed">
               Test how a defined segment responds to a specific scenario under current constraints.
             </p>
@@ -975,12 +974,6 @@ export default function SimulatePage() {
                   context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
                 />
 
-                <StakeholderReactionPanel
-                  question={activeQuestion?.text || ""}
-                  brand={activeQuestion?.subject}
-                  therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
-                  context={`Case: ${caseId}. Simulating material impact on ${selectedSegment || "all segments"}.`}
-                />
               </div>
             </>
           )}
