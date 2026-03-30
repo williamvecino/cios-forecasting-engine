@@ -7,6 +7,11 @@ import { computeLR, type Scope, type Timing } from "@workspace/db";
 import { logAudit } from "../lib/audit-service.js";
 import { isSafetyRiskCase, getProfileForQuestion } from "../lib/case-type-router.js";
 
+interface CaseDirectionContext {
+  strategicQuestion: string | null;
+  caseType?: string | null;
+}
+
 const router = Router();
 
 const VALID_SIGNAL_TYPES = new Set<string>(SIGNAL_TYPES);
@@ -192,14 +197,17 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     }
   }
 
-  const directionWarnings: Array<{ type: string; message: string }> = [];
   try {
-    const [caseRecord] = await db.select().from(casesTable)
-      .where(eq(casesTable.caseId, req.params.caseId));
+    const [caseRecord] = await db.select({
+      strategicQuestion: casesTable.strategicQuestion,
+    }).from(casesTable).where(eq(casesTable.caseId, req.params.caseId));
     if (caseRecord) {
-      const question = (caseRecord as any).strategicQuestion || (caseRecord as any).question || "";
-      if (isSafetyRiskCase(question, (caseRecord as any).caseType)) {
-        const profile = getProfileForQuestion(question, (caseRecord as any).caseType);
+      const caseCtx: CaseDirectionContext = {
+        strategicQuestion: caseRecord.strategicQuestion,
+      };
+      const question = caseCtx.strategicQuestion || "";
+      if (isSafetyRiskCase(question)) {
+        const profile = getProfileForQuestion(question);
         if (profile.directionValidation?.restrictionOutcome) {
           const signalType = (body.signalType || "").trim();
           const direction = body.direction || "";
@@ -208,9 +216,14 @@ router.post("/cases/:caseId/signals", async (req, res) => {
             const catNorm = cat.trim().toLowerCase();
             const typeNorm = signalType.toLowerCase();
             if (typeNorm === catNorm && direction === "Positive") {
-              directionWarnings.push({
-                type: "direction_inversion_warning",
-                message: `${reason}. Signal type "${signalType}" with direction "Positive" may need direction "Negative" for a restriction-outcome question. Review signal direction.`,
+              return res.status(400).json({
+                error: "Direction validation failed",
+                violations: [{
+                  field: "direction",
+                  message: `${reason}. Signal type "${signalType}" with direction "Positive" is inverted for a safety/restriction-outcome case. Use direction "Negative" to indicate this signal reduces restriction probability, or change the signal type.`,
+                }],
+                rule: "Safety/risk cases enforce directional coherence: positive access/payer signals must have direction 'Negative' when the outcome is restriction.",
+                suggestion: { direction: "Negative" },
               });
             }
           }
@@ -271,15 +284,11 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   });
 
   const response: Record<string, any> = { ...created };
-  if (duplicateWarnings.length > 0 || directionWarnings.length > 0) {
-    response._integrityWarnings = {};
-    if (duplicateWarnings.length > 0) {
-      response._integrityWarnings.potentialDuplicates = duplicateWarnings;
-      response._integrityWarnings.recommendation = "Consider assigning a correlationGroup to correlated signals to prevent LR inflation.";
-    }
-    if (directionWarnings.length > 0) {
-      response._integrityWarnings.directionValidation = directionWarnings;
-    }
+  if (duplicateWarnings.length > 0) {
+    response._integrityWarnings = {
+      potentialDuplicates: duplicateWarnings,
+      recommendation: "Consider assigning a correlationGroup to correlated signals to prevent LR inflation.",
+    };
   }
 
   res.status(201).json(response);
