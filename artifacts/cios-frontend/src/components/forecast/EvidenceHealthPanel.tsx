@@ -95,7 +95,7 @@ export default function EvidenceHealthPanel({ caseId }: { caseId: string }) {
           </div>
           <div>
             <h2 className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Evidence Health</h2>
-            <p className="text-[10px] text-slate-500 mt-0.5">How diverse and independent is the evidence base</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">How reliable and complete is the evidence base</p>
           </div>
         </div>
         <button onClick={fetchData} className="text-slate-500 hover:text-indigo-400 transition" title="Refresh">
@@ -108,23 +108,23 @@ export default function EvidenceHealthPanel({ caseId }: { caseId: string }) {
           <div className={cn("text-lg font-bold", scoreColor(m.evidenceDiversityScore))}>
             {Math.round(m.evidenceDiversityScore * 100)}%
           </div>
-          <div className="text-[10px] text-slate-500 mt-1" title="How many different types of evidence sources are represented">Evidence Diversity</div>
+          <div className="text-[10px] text-slate-500 mt-1" title="Measures how many different kinds of evidence are present compared to what would normally be expected for this decision. Low values indicate blind spots.">Coverage of Evidence Types</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
           <div className={cn("text-lg font-bold", scoreColor(m.posteriorFragilityScore, true))}>
             {Math.round(m.posteriorFragilityScore * 100)}%
           </div>
-          <div className="text-[10px] text-slate-500 mt-1" title="How much of the probability shift depends on a single evidence cluster">Fragility</div>
+          <div className="text-[10px] text-slate-500 mt-1" title="Measures how much the forecast depends on a small number of signals. High values indicate the result could change quickly if one signal is wrong.">Dependency Risk</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
           <div className="text-lg font-bold text-white">{m.independentEvidenceFamilies}</div>
-          <div className="text-[10px] text-slate-500 mt-1" title="How many truly different reasons support the forecast">Independent Families</div>
+          <div className="text-[10px] text-slate-500 mt-1" title="Counts how many separate root events are supporting the forecast. More sources increase reliability.">Independent Evidence Sources</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
           <div className={cn("text-lg font-bold", scoreColor(m.noveltyScore))}>
             {Math.round(m.noveltyScore * 100)}%
           </div>
-          <div className="text-[10px] text-slate-500 mt-1" title="What percentage of signals contain genuinely new information">Novelty</div>
+          <div className="text-[10px] text-slate-500 mt-1" title="Measures how much of the evidence represents new developments rather than repeated information.">New Information Rate</div>
         </div>
       </div>
 
@@ -138,9 +138,9 @@ export default function EvidenceHealthPanel({ caseId }: { caseId: string }) {
           <ShieldAlert className={cn("w-4 h-4 shrink-0 mt-0.5", ceilingColor(c.diversityLevel))} />
           <div>
             <div className={cn("text-xs font-semibold", ceilingColor(c.diversityLevel))}>
-              Confidence Ceiling: {Math.round(c.maxAllowedProbability * 100)}%
+              Maximum Justified Confidence: {Math.round(c.maxAllowedProbability * 100)}%
             </div>
-            <div className="text-[10px] text-slate-400 mt-1">{c.reason}</div>
+            <div className="text-[10px] text-slate-400 mt-1" title="The highest confidence level the system allows based on the strength and independence of the evidence.">{c.reason}</div>
           </div>
         </div>
       )}
@@ -187,6 +187,18 @@ export default function EvidenceHealthPanel({ caseId }: { caseId: string }) {
           </span>
         </div>
       )}
+
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+        <p className="text-[10px] text-slate-400 italic">
+          {m.evidenceDiversityScore < 0.4 && m.posteriorFragilityScore < 0.3
+            ? "The evidence base is limited in scope but internally consistent. Confidence is constrained primarily by missing evidence types rather than conflicting signals."
+            : m.posteriorFragilityScore >= 0.5
+            ? "The forecast is heavily dependent on a small number of signals. Confidence is constrained by concentration risk — additional independent sources would strengthen reliability."
+            : m.evidenceDiversityScore >= 0.7 && m.posteriorFragilityScore < 0.3
+            ? "The evidence base is well-distributed across multiple types and sources. Confidence reflects broad evidentiary support."
+            : "The evidence base has moderate coverage. Expanding the range of evidence types would improve forecast reliability."}
+        </p>
+      </div>
     </div>
   );
 }
