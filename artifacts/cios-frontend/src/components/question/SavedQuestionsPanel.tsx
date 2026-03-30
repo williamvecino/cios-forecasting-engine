@@ -54,7 +54,7 @@ export default function SavedQuestionsPanel({ caseId }: { caseId: string }) {
     if (!caseId) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/cases/${caseId}/questions`);
+      const res = await fetch(`${API}/api/cases/${caseId}/question-repository`);
       if (res.ok) {
         const data = await res.json();
         setQuestions(Array.isArray(data) ? data : []);
@@ -72,7 +72,7 @@ export default function SavedQuestionsPanel({ caseId }: { caseId: string }) {
 
   const updateStatus = async (questionId: string, status: string) => {
     try {
-      await fetch(`${API}/api/cases/${caseId}/questions/${questionId}`, {
+      await fetch(`${API}/api/cases/${caseId}/question-repository/${questionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),

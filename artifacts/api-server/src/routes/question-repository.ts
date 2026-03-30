@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 
 const router = Router();
 
-router.get("/cases/:caseId/questions", async (req, res) => {
+router.get("/cases/:caseId/question-repository", async (req, res) => {
   const questions = await db
     .select()
     .from(questionRepositoryTable)
@@ -15,7 +15,7 @@ router.get("/cases/:caseId/questions", async (req, res) => {
   res.json(questions);
 });
 
-router.post("/cases/:caseId/questions", async (req, res) => {
+router.post("/cases/:caseId/question-repository", async (req, res) => {
   const { questions } = req.body;
 
   if (!Array.isArray(questions) || questions.length === 0) {
@@ -64,7 +64,7 @@ router.post("/cases/:caseId/questions", async (req, res) => {
   res.json({ inserted: inserted.length, questions: inserted });
 });
 
-router.patch("/cases/:caseId/questions/:questionId", async (req, res) => {
+router.patch("/cases/:caseId/question-repository/:questionId", async (req, res) => {
   const { status, questionRole, priorityRank, notes } = req.body;
   const updates: Record<string, any> = { updatedAt: new Date() };
 
@@ -86,7 +86,7 @@ router.patch("/cases/:caseId/questions/:questionId", async (req, res) => {
   res.json({ success: true });
 });
 
-router.delete("/cases/:caseId/questions/:questionId", async (req, res) => {
+router.delete("/cases/:caseId/question-repository/:questionId", async (req, res) => {
   await db
     .delete(questionRepositoryTable)
     .where(

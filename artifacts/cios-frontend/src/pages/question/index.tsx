@@ -341,7 +341,7 @@ export default function QuestionPage() {
     });
 
     try {
-      await fetch(`${API}/api/cases/${caseId}/questions`, {
+      await fetch(`${API}/api/cases/${caseId}/question-repository`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ questions }),
