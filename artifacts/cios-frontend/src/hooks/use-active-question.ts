@@ -18,6 +18,8 @@ export interface CreateQuestionInput {
   comparisonGroups?: string[];
   subject?: string;
   outcome?: string;
+  outcomeDimensions?: import("../lib/workflow").OutcomeDimension[];
+  compositeScenarios?: import("../lib/workflow").CompositeScenario[];
 }
 
 export function useActiveQuestion() {
@@ -50,6 +52,8 @@ export function useActiveQuestion() {
       comparisonGroups: input.comparisonGroups || undefined,
       subject: input.subject || undefined,
       outcome: input.outcome || undefined,
+      outcomeDimensions: input.outcomeDimensions || undefined,
+      compositeScenarios: input.compositeScenarios || undefined,
     };
 
     storeActiveQuestion(next);
@@ -71,6 +75,8 @@ export function useActiveQuestion() {
       comparisonGroups: input.comparisonGroups || prev?.comparisonGroups || undefined,
       subject: input.subject || undefined,
       outcome: input.outcome || undefined,
+      outcomeDimensions: input.outcomeDimensions || prev?.outcomeDimensions || undefined,
+      compositeScenarios: input.compositeScenarios || prev?.compositeScenarios || undefined,
     };
     storeActiveQuestion(updated);
     setActiveQuestion(updated);

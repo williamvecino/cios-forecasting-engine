@@ -47,6 +47,12 @@ interface AnalogContext {
   };
 }
 
+export interface CompositeScenarioInput {
+  id: string;
+  label: string;
+  dimensions: Record<string, string>;
+}
+
 export interface JudgmentInput {
   priorPct: number;
   brandOutlookPct: number;
@@ -60,6 +66,7 @@ export interface JudgmentInput {
   outcomeDefinition?: string;
   subject?: string;
   timeHorizon?: string;
+  compositeScenarios?: CompositeScenarioInput[];
 }
 
 type ConfidenceLevel = "High" | "Moderate" | "Low";
@@ -176,6 +183,16 @@ export interface PrimaryConstraint {
   lever: string;
 }
 
+export interface CompositeScenarioResult {
+  id: string;
+  label: string;
+  dimensions: Record<string, string>;
+  probability: number;
+  rank: number;
+  isSelected: boolean;
+  rationale: string;
+}
+
 export interface ExecutiveJudgmentResult {
   mostLikelyOutcome: string;
   probability: number;
@@ -194,6 +211,7 @@ export interface ExecutiveJudgmentResult {
   monitorList: MonitorItem[];
   nextBestQuestion: string;
   caseType: string;
+  compositeScenarios?: CompositeScenarioResult[];
   _audit: JudgmentAudit;
 }
 
@@ -768,8 +786,89 @@ function buildConvergenceNote(finalPct: number, analogContext: AnalogContext | n
   return `The current outlook (${finalPct}%) is below what prior cases delivered (${analogBasePct}%) by ${diff} points. Historically, similar situations performed better — the gap may close as conditions resolve.`;
 }
 
+function scoreCompositeScenarios(
+  scenarios: CompositeScenarioInput[],
+  baseProbability: number,
+  drivers: Driver[],
+  gates: EventGate[],
+  caseType: string,
+): CompositeScenarioResult[] {
+  if (!scenarios || scenarios.length === 0) return [];
+
+  const upDrivers = drivers.filter(d => d.direction === "Upward");
+  const downDrivers = drivers.filter(d => d.direction === "Downward");
+  const upStrength = upDrivers.reduce((s, d) => s + d.contributionPoints, 0);
+  const downStrength = downDrivers.reduce((s, d) => s + Math.abs(d.contributionPoints), 0);
+  const netDirection = upStrength - downStrength;
+  const unresolvedGateRatio = gates.filter(g => g.status === "weak" || g.status === "unresolved").length / Math.max(gates.length, 1);
+
+  const POSITIVE_KEYWORDS = ["strong", "high", "significant", "rapid", "major", "substantial", "no loss", "no share loss", "growth", "gain", "improvement"];
+  const NEGATIVE_KEYWORDS = ["minimal", "low", "limited", "slow", "moderate loss", "significant loss", "decline", "erosion", "weak"];
+  const MODERATE_KEYWORDS = ["moderate", "balanced", "mixed", "partial", "some"];
+
+  const scored = scenarios.map(scenario => {
+    const label = scenario.label.toLowerCase();
+    let score = baseProbability;
+
+    let positiveCount = 0;
+    let negativeCount = 0;
+    let moderateCount = 0;
+
+    for (const kw of POSITIVE_KEYWORDS) {
+      if (label.includes(kw)) positiveCount++;
+    }
+    for (const kw of NEGATIVE_KEYWORDS) {
+      if (label.includes(kw)) negativeCount++;
+    }
+    for (const kw of MODERATE_KEYWORDS) {
+      if (label.includes(kw)) moderateCount++;
+    }
+
+    if (netDirection > 0) {
+      score += positiveCount * 5 - negativeCount * 8 + moderateCount * 1;
+    } else if (netDirection < 0) {
+      score += negativeCount * 5 - positiveCount * 8 + moderateCount * 2;
+    } else {
+      score += moderateCount * 4 - Math.abs(positiveCount - negativeCount) * 3;
+    }
+
+    score -= unresolvedGateRatio * (positiveCount > negativeCount ? 12 : 3);
+
+    score = Math.max(2, Math.min(95, score));
+
+    return { ...scenario, rawScore: score, positiveCount, negativeCount, moderateCount };
+  });
+
+  const totalRaw = scored.reduce((s, sc) => s + sc.rawScore, 0);
+  const normalized = scored.map(sc => ({
+    ...sc,
+    probability: Math.round((sc.rawScore / totalRaw) * 100),
+  }));
+
+  const remainder = 100 - normalized.reduce((s, sc) => s + sc.probability, 0);
+  if (normalized.length > 0) {
+    normalized[0].probability += remainder;
+  }
+
+  const sorted = [...normalized].sort((a, b) => b.probability - a.probability);
+
+  return sorted.map((sc, i) => ({
+    id: sc.id,
+    label: sc.label,
+    dimensions: sc.dimensions,
+    probability: sc.probability,
+    rank: i + 1,
+    isSelected: i === 0,
+    rationale: i === 0
+      ? `Most consistent with current evidence direction and gate resolution (${100 - Math.round(unresolvedGateRatio * 100)}% gates resolved)`
+      : sc.probability > 20
+      ? "Plausible alternative given current signal mix"
+      : "Less likely given current evidence balance",
+  }));
+}
+
 export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgmentResult {
-  const { priorPct, brandOutlookPct, finalForecastPct, minGateCapPct, executionGapPts, gates, drivers, analogContext, questionText, outcomeDefinition, subject, timeHorizon } = input;
+  const { priorPct, brandOutlookPct, finalForecastPct, minGateCapPct, executionGapPts, gates, drivers, analogContext, questionText, outcomeDefinition, subject, timeHorizon, compositeScenarios: inputScenarios } = input;
 
   const upDrivers = drivers.filter(d => d.direction === "Upward");
   const downDrivers = drivers.filter(d => d.direction === "Downward");
@@ -885,8 +984,16 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     signalImbalance,
   };
 
+  const compositeResults = inputScenarios && inputScenarios.length > 0
+    ? scoreCompositeScenarios(inputScenarios, adjustedFinalPct, drivers, correctedGates, caseType)
+    : undefined;
+
+  const finalOutcome = compositeResults && compositeResults.length > 0
+    ? compositeResults[0].label
+    : adjustedOutcome;
+
   return {
-    mostLikelyOutcome: adjustedOutcome,
+    mostLikelyOutcome: finalOutcome,
     probability: adjustedFinalPct,
     confidence: adjustedConfidence,
     reasoning,
@@ -903,6 +1010,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     monitorList,
     nextBestQuestion,
     caseType,
+    compositeScenarios: compositeResults,
     _audit: audit,
   };
 }

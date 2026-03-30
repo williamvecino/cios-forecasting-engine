@@ -995,6 +995,11 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 outcomeDefinition: activeQuestion?.outcome ? activeQuestion.outcome.charAt(0).toUpperCase() + activeQuestion.outcome.slice(1) : undefined,
                 subject: activeQuestion?.subject || undefined,
                 timeHorizon: activeQuestion?.timeHorizon || undefined,
+                compositeScenarios: activeQuestion?.compositeScenarios?.map(s => ({
+                  id: s.id,
+                  label: s.label,
+                  dimensions: s.dimensions,
+                })),
               });
 
               try {

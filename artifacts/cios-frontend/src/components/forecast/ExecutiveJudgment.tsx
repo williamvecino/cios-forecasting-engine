@@ -178,6 +178,65 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
         </div>
       </div>
 
+      {judgment.compositeScenarios && judgment.compositeScenarios.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-teal-400" />
+            <h3 className="text-[10px] font-bold text-teal-300 uppercase tracking-wider">Scenario Outcomes</h3>
+          </div>
+          <div className="space-y-2">
+            {judgment.compositeScenarios.map((scenario) => (
+              <div
+                key={scenario.id}
+                className={`rounded-2xl border p-4 transition ${
+                  scenario.isSelected
+                    ? `${config.border} ${config.bg} ring-1 ${config.ring}`
+                    : "border-white/10 bg-white/[0.02]"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className={`text-xs font-bold tabular-nums ${scenario.isSelected ? config.color : "text-slate-500"}`}>
+                      #{scenario.rank}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-semibold ${scenario.isSelected ? "text-white" : "text-slate-300"}`}>
+                        {scenario.label}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{scenario.rationale}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className={`rounded-full px-3 py-1 text-xs font-bold tabular-nums ${
+                      scenario.probability >= 30 ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" :
+                      scenario.probability >= 15 ? "bg-amber-500/15 text-amber-300 border border-amber-500/20" :
+                      "bg-slate-500/15 text-slate-400 border border-slate-500/20"
+                    }`}>
+                      {scenario.probability}%
+                    </div>
+                    {scenario.isSelected && (
+                      <span className="rounded-full bg-teal-500/15 text-teal-300 border border-teal-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {scenario.isSelected && Object.keys(scenario.dimensions).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/5">
+                    {Object.entries(scenario.dimensions).map(([dim, level]) => (
+                      <span key={dim} className="inline-flex items-center gap-1 rounded-full border border-teal-500/20 bg-teal-500/5 px-2.5 py-0.5 text-[10px]">
+                        <span className="text-slate-400">{dim}:</span>
+                        <span className="text-teal-300 font-medium">{level}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl bg-indigo-500/8 border border-indigo-500/20 p-4">
         <div className="flex items-center gap-2 mb-2">
           <Compass className="w-4 h-4 text-indigo-400" />

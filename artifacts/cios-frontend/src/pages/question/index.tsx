@@ -10,6 +10,7 @@ import {
 } from "@/lib/question-definition";
 import type { DecisionQuestion } from "@/lib/question-definition";
 import { clearCaseState } from "@/lib/workflow";
+import type { OutcomeDimension, CompositeScenario } from "@/lib/workflow";
 import {
   AlertTriangle,
   Loader2,
@@ -89,6 +90,50 @@ interface RefineResult {
   outcomeStructure: OutcomeStructure;
 }
 
+const DEFAULT_OUTCOME_DIMENSIONS: OutcomeDimension[] = [
+  { name: "Competitive share change", levels: ["No share loss", "Minimal share loss", "Moderate share loss", "Significant share loss"] },
+  { name: "Portfolio growth", levels: ["Strong growth", "Moderate growth", "Minimal growth"] },
+  { name: "Operational stability", levels: ["Stable", "Some disruption", "Significant disruption"] },
+];
+
+function generateScenariosFromDimensions(dims: OutcomeDimension[]): CompositeScenario[] {
+  if (dims.length === 0) return [];
+
+  const MAX_SCENARIOS = 6;
+  const scenarios: CompositeScenario[] = [];
+
+  if (dims.length >= 2) {
+    const primary = dims[0];
+    const secondary = dims[1];
+
+    for (const pLevel of primary.levels) {
+      for (const sLevel of secondary.levels) {
+        if (scenarios.length >= MAX_SCENARIOS) break;
+        const dimensionMap: Record<string, string> = { [primary.name]: pLevel, [secondary.name]: sLevel };
+        for (let k = 2; k < dims.length; k++) {
+          dimensionMap[dims[k].name] = dims[k].levels[Math.floor(dims[k].levels.length / 2)] || dims[k].levels[0];
+        }
+        scenarios.push({
+          id: `scenario-${scenarios.length + 1}`,
+          label: `${pLevel} with ${sLevel.toLowerCase()}`,
+          dimensions: dimensionMap,
+        });
+      }
+      if (scenarios.length >= MAX_SCENARIOS) break;
+    }
+  } else {
+    for (const level of dims[0].levels) {
+      scenarios.push({
+        id: `scenario-${scenarios.length + 1}`,
+        label: level,
+        dimensions: { [dims[0].name]: level },
+      });
+    }
+  }
+
+  return scenarios.slice(0, MAX_SCENARIOS);
+}
+
 const EXAMPLE_QUESTIONS = [
   "Will the FDA approve a supplemental indication for Keytruda in adjuvant melanoma within 12 months?",
   "Will Humira biosimilar uptake exceed 40% formulary share among commercial payers by Q4 2026?",
@@ -129,6 +174,8 @@ export default function QuestionPage() {
   const [editedProposal, setEditedProposal] = useState("");
   const [lastValidatedProposal, setLastValidatedProposal] = useState("");
   const [outcomeStates, setOutcomeStates] = useState<string[]>([]);
+  const [outcomeDimensions, setOutcomeDimensions] = useState<OutcomeDimension[]>([]);
+  const [compositeScenarios, setCompositeScenarios] = useState<CompositeScenario[]>([]);
   const [showImportProject, setShowImportProject] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("import") === "file";
@@ -392,6 +439,8 @@ export default function QuestionPage() {
         comparisonGroups: interpretation.comparisonGroups || [],
         subject: interpretation.subject || undefined,
         outcome: interpretation.outcome || undefined,
+        outcomeDimensions: outcomeDimensions.length > 0 ? outcomeDimensions : undefined,
+        compositeScenarios: compositeScenarios.length > 0 ? compositeScenarios : undefined,
       };
       updateQuestion(payload);
       if (structuringResult) {
@@ -441,6 +490,8 @@ export default function QuestionPage() {
         comparisonGroups: interpretation.comparisonGroups || [],
         subject: interpretation.subject || undefined,
         outcome: interpretation.outcome || undefined,
+        outcomeDimensions: outcomeDimensions.length > 0 ? outcomeDimensions : undefined,
+        compositeScenarios: compositeScenarios.length > 0 ? compositeScenarios : undefined,
       };
       createQuestion(payload);
       navigate("/comparison-groups");
@@ -1012,6 +1063,145 @@ export default function QuestionPage() {
                       </button>
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <SplitSquareVertical className="w-4 h-4 text-teal-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-teal-400">
+                        Composite Outcome Structure
+                      </span>
+                    </div>
+                    {outcomeDimensions.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOutcomeDimensions(DEFAULT_OUTCOME_DIMENSIONS);
+                          setCompositeScenarios(generateScenariosFromDimensions(DEFAULT_OUTCOME_DIMENSIONS));
+                        }}
+                        className="text-[10px] text-teal-400 hover:text-teal-300 border border-teal-500/30 rounded-lg px-3 py-1 hover:bg-teal-500/10 transition cursor-pointer"
+                      >
+                        Enable Composite Outcomes
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Define multiple outcome dimensions to evaluate scenarios combining competitive share, portfolio growth, and operational stability.
+                  </p>
+
+                  {outcomeDimensions.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Outcome Dimensions</div>
+                      {outcomeDimensions.map((dim, di) => (
+                        <div key={di} className="rounded-lg border border-teal-500/15 bg-teal-500/5 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={dim.name}
+                              onChange={(e) => {
+                                const updated = [...outcomeDimensions];
+                                updated[di] = { ...updated[di], name: e.target.value };
+                                setOutcomeDimensions(updated);
+                              }}
+                              className="bg-transparent text-xs font-semibold text-teal-300 border-none outline-none flex-1"
+                              placeholder="Dimension name"
+                            />
+                            {outcomeDimensions.length > 1 && (
+                              <button type="button" onClick={() => {
+                                const updated = outcomeDimensions.filter((_, j) => j !== di);
+                                setOutcomeDimensions(updated);
+                                setCompositeScenarios(generateScenariosFromDimensions(updated));
+                              }} className="text-muted-foreground hover:text-red-400">
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {dim.levels.map((level, li) => (
+                              <label key={li} className="inline-flex items-center gap-1 rounded-lg border border-teal-500/20 bg-teal-500/10 px-2 py-1 cursor-text">
+                                <input
+                                  type="text"
+                                  value={level}
+                                  onChange={(e) => {
+                                    const updated = [...outcomeDimensions];
+                                    const newLevels = [...updated[di].levels];
+                                    newLevels[li] = e.target.value;
+                                    updated[di] = { ...updated[di], levels: newLevels };
+                                    setOutcomeDimensions(updated);
+                                  }}
+                                  className="bg-transparent text-[11px] text-foreground border-none outline-none w-auto min-w-[30px]"
+                                  style={{ width: `${Math.max(30, level.length * 7 + 4)}px` }}
+                                />
+                                {dim.levels.length > 2 && (
+                                  <button type="button" onClick={() => {
+                                    const updated = [...outcomeDimensions];
+                                    updated[di] = { ...updated[di], levels: updated[di].levels.filter((_, j) => j !== li) };
+                                    setOutcomeDimensions(updated);
+                                  }} className="text-muted-foreground hover:text-red-400">
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
+                              </label>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...outcomeDimensions];
+                                updated[di] = { ...updated[di], levels: [...updated[di].levels, ""] };
+                                setOutcomeDimensions(updated);
+                              }}
+                              className="text-[10px] text-teal-400/70 hover:text-teal-300 px-2 py-0.5 border border-dashed border-teal-500/15 rounded-lg"
+                            >
+                              <Plus className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setOutcomeDimensions([...outcomeDimensions, { name: "", levels: ["High", "Low"] }])}
+                        className="text-[10px] text-teal-400 hover:text-teal-300 border border-dashed border-teal-500/20 rounded-lg px-3 py-1.5 w-full hover:bg-teal-500/5 transition cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3 inline mr-1" /> Add Dimension
+                      </button>
+
+                      <div className="pt-2 border-t border-teal-500/10">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Generated Scenarios</span>
+                          <button
+                            type="button"
+                            onClick={() => setCompositeScenarios(generateScenariosFromDimensions(outcomeDimensions))}
+                            className="text-[10px] text-teal-400 hover:text-teal-300 border border-teal-500/30 rounded-lg px-2 py-0.5 hover:bg-teal-500/10 transition cursor-pointer"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
+                        <div className="space-y-1.5">
+                          {compositeScenarios.map((scenario, si) => (
+                            <div key={scenario.id} className="flex items-center gap-2 rounded-lg border border-teal-500/15 bg-teal-500/5 px-3 py-2">
+                              <span className="text-[10px] font-bold text-teal-400 tabular-nums w-5">{si + 1}</span>
+                              <input
+                                type="text"
+                                value={scenario.label}
+                                onChange={(e) => {
+                                  const updated = [...compositeScenarios];
+                                  updated[si] = { ...updated[si], label: e.target.value };
+                                  setCompositeScenarios(updated);
+                                }}
+                                className="bg-transparent text-xs text-foreground border-none outline-none flex-1"
+                              />
+                              {compositeScenarios.length > 2 && (
+                                <button type="button" onClick={() => setCompositeScenarios(compositeScenarios.filter((_, j) => j !== si))} className="text-muted-foreground hover:text-red-400">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}

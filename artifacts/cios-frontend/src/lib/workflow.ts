@@ -1,5 +1,18 @@
 export type WorkflowStep = "question" | "comparison-groups" | "signals" | "forecast" | "decide" | "respond" | "simulate";
 
+export interface OutcomeDimension {
+  name: string;
+  levels: string[];
+}
+
+export interface CompositeScenario {
+  id: string;
+  label: string;
+  dimensions: Record<string, string>;
+  probability?: number;
+  isSelected?: boolean;
+}
+
 export interface ActiveQuestion {
   id: string;
   text: string;
@@ -12,6 +25,8 @@ export interface ActiveQuestion {
   comparisonGroups?: string[];
   subject?: string;
   outcome?: string;
+  outcomeDimensions?: OutcomeDimension[];
+  compositeScenarios?: CompositeScenario[];
 }
 
 const ACTIVE_QUESTION_STORAGE_KEY = "cios.activeQuestion";
