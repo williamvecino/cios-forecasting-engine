@@ -1,0 +1,133 @@
+Give Replit this:
+
+Feedback: the Simulate workflow needs a required Scenario Name field and a few additional structural fields to make simulations traceable, reusable, and decision-grade.
+
+Right now Step 1 only captures scenario attributes:
+
+Scenario Type
+Message Source
+Impact Level
+Time Frame
+Confidence Level
+
+That is not enough. Those are parameters, not the scenario itself. We need a true scenario definition layer.
+
+Required additions
+1) Scenario Name — required
+
+Add a required text field at the top of Simulation Scenario.
+
+Label: Scenario Name
+Purpose: identifies the event being simulated
+Examples:
+
+FDA initiates formal safety review of rivaroxaban GI bleeding risk
+FDA issues safety communication on GI bleeding risk
+NCCN updates anticoagulation guidance
+New head-to-head study shows higher GI bleeding vs apixaban
+
+This field should appear before Scenario Type.
+
+2) Scenario Description — optional but strongly recommended
+
+Add a short free-text field under Scenario Name.
+
+Label: Scenario Description
+Purpose: lets the user clarify what exactly is changing and why it matters
+
+Example:
+“FDA publicly announces formal review of post-marketing GI bleeding signals for rivaroxaban, increasing regulatory scrutiny and institutional caution.”
+
+3) Expected Direction of Effect
+
+Add a required structured field.
+
+Label: Expected Effect on Forecast
+Options:
+
+Increases probability
+Decreases probability
+Mixed / uncertain
+
+This helps the simulation stay aligned with the case question and improves auditability.
+
+4) Target Actor / Authority Type
+
+The segment is helpful, but we also need clarity on what kind of actor the scenario primarily influences.
+
+Label: Primary Target of Scenario
+Options:
+
+Regulators
+Guideline bodies
+Payers
+Prescribers
+Institutions / formulary committees
+Patients / advocacy groups
+Competitors
+
+This improves scenario realism and simulation routing.
+
+5) Evidence Basis / Evidence Type
+
+If simulation is driven by a study, regulatory notice, legal event, or media wave, the system should know that.
+
+Label: Evidence Basis
+Options:
+
+Regulatory communication
+Peer-reviewed study
+Observational / real-world data
+Legal / litigation event
+Guideline update
+Media / public pressure
+Internal hypothesis / scenario assumption
+
+This will also help later with simulation confidence scoring.
+
+6) Trigger Threshold / Resolution Event
+
+Add an optional field to define what would make the scenario “real.”
+
+Label: Trigger Event or Threshold
+Example:
+“FDA formally opens safety review”
+“New comparative study published in peer-reviewed journal”
+“NCCN updates recommendation language”
+
+This is important for traceability and future scenario libraries.
+
+Recommended order for the Simulation Scenario section
+Scenario Name
+Scenario Description
+Scenario Type
+Message Source
+Evidence Basis
+Primary Target of Scenario
+Expected Effect on Forecast
+Impact Level
+Time Frame
+Confidence Level
+Trigger Event or Threshold
+Why this is needed
+
+Without Scenario Name and the other missing fields, the system only captures parameter settings, not an actual scenario object. That creates several problems:
+
+simulations cannot be clearly labeled
+results are hard to compare later
+scenario libraries cannot be built cleanly
+governance / audit trail is weak
+users cannot tell exactly what event was simulated
+simulation outputs feel less trustworthy
+Product principle
+
+A simulation should have:
+
+identity — what event is being simulated
+parameters — how strong / credible / near-term it is
+target — who it primarily affects
+expected direction — how it should move the forecast
+
+Right now the workflow mostly has #2 only. It needs the full structure.
+
+If you want, I can also turn this into a shorter “paste to Replit” version with no explanations.

@@ -146,6 +146,32 @@ const CONFIDENCE_LEVELS = [
   { value: "high", label: "High" },
 ];
 
+const EXPECTED_EFFECTS = [
+  { value: "increases", label: "Increases probability" },
+  { value: "decreases", label: "Decreases probability" },
+  { value: "mixed", label: "Mixed / uncertain" },
+];
+
+const PRIMARY_TARGETS = [
+  { value: "regulators", label: "Regulators" },
+  { value: "guideline_bodies", label: "Guideline bodies" },
+  { value: "payers", label: "Payers" },
+  { value: "prescribers", label: "Prescribers" },
+  { value: "institutions", label: "Institutions / formulary committees" },
+  { value: "patients", label: "Patients / advocacy groups" },
+  { value: "competitors", label: "Competitors" },
+];
+
+const EVIDENCE_BASIS_OPTIONS = [
+  { value: "regulatory_communication", label: "Regulatory communication" },
+  { value: "peer_reviewed_study", label: "Peer-reviewed study" },
+  { value: "observational_rwd", label: "Observational / real-world data" },
+  { value: "legal_litigation", label: "Legal / litigation event" },
+  { value: "guideline_update", label: "Guideline update" },
+  { value: "media_pressure", label: "Media / public pressure" },
+  { value: "internal_hypothesis", label: "Internal hypothesis / scenario assumption" },
+];
+
 const SEGMENT_META: Record<string, { color: string; behaviorType: string; decisionRole: string; riskPosture: string; icon: typeof TrendingUp }> = {
   "Early Adopters": { color: "emerald", behaviorType: "Innovation-seeking", decisionRole: "First prescriber", riskPosture: "Risk tolerant", icon: TrendingUp },
   "Persuadables": { color: "blue", behaviorType: "Evidence-driven", decisionRole: "Fast follower", riskPosture: "Moderate risk", icon: Target },
@@ -521,11 +547,17 @@ export default function SimulatePage() {
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [scenarioName, setScenarioName] = useState("");
+  const [scenarioDescription, setScenarioDescription] = useState("");
   const [scenarioType, setScenarioType] = useState("");
   const [messageSource, setMessageSource] = useState("");
+  const [evidenceBasis, setEvidenceBasis] = useState("");
+  const [primaryTarget, setPrimaryTarget] = useState("");
+  const [expectedEffect, setExpectedEffect] = useState("");
   const [impactLevel, setImpactLevel] = useState("");
   const [timeFrame, setTimeFrame] = useState("");
   const [confidenceLevel, setConfidenceLevel] = useState("");
+  const [triggerThreshold, setTriggerThreshold] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [showDecisionSupport, setShowDecisionSupport] = useState(false);
 
@@ -534,7 +566,7 @@ export default function SimulatePage() {
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
 
-  const scenarioDefined = !!(scenarioType && messageSource && impactLevel && timeFrame && confidenceLevel);
+  const scenarioDefined = !!(scenarioName.trim() && scenarioType && messageSource && expectedEffect && impactLevel && timeFrame && confidenceLevel);
   const segmentSelected = !!selectedSegment;
   const canRun = scenarioDefined && segmentSelected;
 
@@ -581,18 +613,28 @@ export default function SimulatePage() {
   }
 
   function buildScenarioLabel() {
-    const type = SCENARIO_TYPES.find(t => t.value === scenarioType)?.label || scenarioType;
-    const source = MESSAGE_SOURCES.find(s => s.value === messageSource)?.label || messageSource;
-    return `${type} from ${source}`;
+    return scenarioName.trim();
   }
 
   function buildScenarioDesc() {
     const type = SCENARIO_TYPES.find(t => t.value === scenarioType)?.label || scenarioType;
     const source = MESSAGE_SOURCES.find(s => s.value === messageSource)?.label || messageSource;
+    const effect = EXPECTED_EFFECTS.find(e => e.value === expectedEffect)?.label || expectedEffect;
+    const target = PRIMARY_TARGETS.find(t => t.value === primaryTarget)?.label || "";
+    const evidence = EVIDENCE_BASIS_OPTIONS.find(e => e.value === evidenceBasis)?.label || "";
     const impact = IMPACT_LEVELS.find(l => l.value === impactLevel)?.label || impactLevel;
     const time = TIME_FRAMES.find(t => t.value === timeFrame)?.label || timeFrame;
     const conf = CONFIDENCE_LEVELS.find(c => c.value === confidenceLevel)?.label || confidenceLevel;
-    return `${type} scenario from ${source}. Impact: ${impact}. Timeframe: ${time}. Confidence: ${conf}.`;
+    const parts = [
+      `${type} from ${source}.`,
+      effect ? `Effect: ${effect}.` : "",
+      target ? `Target: ${target}.` : "",
+      evidence ? `Evidence: ${evidence}.` : "",
+      `Impact: ${impact}. Timeframe: ${time}. Confidence: ${conf}.`,
+      scenarioDescription.trim() ? `Description: ${scenarioDescription.trim()}` : "",
+      triggerThreshold.trim() ? `Trigger: ${triggerThreshold.trim()}` : "",
+    ].filter(Boolean);
+    return parts.join(" ");
   }
 
   async function runSimulation() {
@@ -649,11 +691,17 @@ export default function SimulatePage() {
         barriers,
         triggers,
         signals,
+        scenarioName: scenarioName.trim(),
+        scenarioDescription: scenarioDescription.trim() || undefined,
         scenarioType,
         messageSource,
+        evidenceBasis: evidenceBasis || undefined,
+        primaryTarget: primaryTarget || undefined,
+        expectedEffect,
         impactLevel,
         timeFrame,
         confidenceLevel,
+        triggerThreshold: triggerThreshold.trim() || undefined,
       };
 
       let res: Response;
@@ -698,11 +746,17 @@ export default function SimulatePage() {
     setMaterialText("");
     clearFile();
     setError(null);
+    setScenarioName("");
+    setScenarioDescription("");
     setScenarioType("");
     setMessageSource("");
+    setEvidenceBasis("");
+    setPrimaryTarget("");
+    setExpectedEffect("");
     setImpactLevel("");
     setTimeFrame("");
     setConfidenceLevel("");
+    setTriggerThreshold("");
     setShowUpload(false);
   }
 
@@ -731,24 +785,68 @@ export default function SimulatePage() {
                     <h2 className="text-lg font-semibold text-foreground">Simulation Scenario</h2>
                   </div>
 
-                  {!scenarioDefined && (
+                  {!scenarioName.trim() && (
                     <p className="text-[13px] text-muted-foreground/60 mb-4 pl-8">
-                      No scenario defined yet. Start by selecting a scenario type.
+                      Name and define the scenario you want to simulate.
                     </p>
                   )}
 
-                  <div className="pl-8 grid grid-cols-2 gap-x-4 gap-y-4">
-                    <DropdownField label="Scenario Type" value={scenarioType} onChange={setScenarioType} options={SCENARIO_TYPES} placeholder="Select scenario type..." />
-                    <DropdownField label="Message Source" value={messageSource} onChange={setMessageSource} options={MESSAGE_SOURCES} placeholder="Select source..." />
-                    <DropdownField label="Impact Level" value={impactLevel} onChange={setImpactLevel} options={IMPACT_LEVELS} placeholder="Select impact..." />
-                    <DropdownField label="Time Frame" value={timeFrame} onChange={setTimeFrame} options={TIME_FRAMES} placeholder="Select time frame..." />
-                    <DropdownField label="Confidence Level" value={confidenceLevel} onChange={setConfidenceLevel} options={CONFIDENCE_LEVELS} placeholder="Select confidence..." />
+                  <div className="pl-8 space-y-4">
+                    <div>
+                      <label className="block text-[13px] font-medium text-muted-foreground mb-1.5">
+                        Scenario Name <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={scenarioName}
+                        onChange={e => setScenarioName(e.target.value)}
+                        placeholder="e.g. FDA initiates formal safety review of rivaroxaban GI bleeding risk"
+                        className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[13px] font-medium text-muted-foreground mb-1.5">
+                        Scenario Description <span className="text-muted-foreground/40 text-[11px]">(recommended)</span>
+                      </label>
+                      <textarea
+                        value={scenarioDescription}
+                        onChange={e => setScenarioDescription(e.target.value)}
+                        placeholder="Clarify what exactly is changing and why it matters..."
+                        rows={2}
+                        className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                      <DropdownField label="Scenario Type" value={scenarioType} onChange={setScenarioType} options={SCENARIO_TYPES} placeholder="Select scenario type..." />
+                      <DropdownField label="Message Source" value={messageSource} onChange={setMessageSource} options={MESSAGE_SOURCES} placeholder="Select source..." />
+                      <DropdownField label="Evidence Basis" value={evidenceBasis} onChange={setEvidenceBasis} options={EVIDENCE_BASIS_OPTIONS} placeholder="Select evidence type..." />
+                      <DropdownField label="Primary Target of Scenario" value={primaryTarget} onChange={setPrimaryTarget} options={PRIMARY_TARGETS} placeholder="Select primary target..." />
+                      <DropdownField label="Expected Effect on Forecast" value={expectedEffect} onChange={setExpectedEffect} options={EXPECTED_EFFECTS} placeholder="Select expected effect..." />
+                      <DropdownField label="Impact Level" value={impactLevel} onChange={setImpactLevel} options={IMPACT_LEVELS} placeholder="Select impact..." />
+                      <DropdownField label="Time Frame" value={timeFrame} onChange={setTimeFrame} options={TIME_FRAMES} placeholder="Select time frame..." />
+                      <DropdownField label="Confidence Level" value={confidenceLevel} onChange={setConfidenceLevel} options={CONFIDENCE_LEVELS} placeholder="Select confidence..." />
+                    </div>
+
+                    <div>
+                      <label className="block text-[13px] font-medium text-muted-foreground mb-1.5">
+                        Trigger Event or Threshold <span className="text-muted-foreground/40 text-[11px]">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={triggerThreshold}
+                        onChange={e => setTriggerThreshold(e.target.value)}
+                        placeholder="e.g. FDA formally opens safety review, NCCN updates recommendation language"
+                        className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    </div>
                   </div>
 
                   {scenarioDefined && (
                     <div className="mt-4 pl-8 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                      <p className="text-[13px] font-medium text-foreground">{buildScenarioLabel()}</p>
-                      <p className="text-[12px] text-muted-foreground mt-0.5">{buildScenarioDesc()}</p>
+                      <p className="text-[14px] font-semibold text-foreground">{buildScenarioLabel()}</p>
+                      <p className="text-[12px] text-muted-foreground mt-1 leading-relaxed">{buildScenarioDesc()}</p>
                     </div>
                   )}
                 </section>

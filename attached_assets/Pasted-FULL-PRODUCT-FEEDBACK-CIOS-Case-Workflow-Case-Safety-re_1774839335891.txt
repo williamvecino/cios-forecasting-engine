@@ -1,0 +1,519 @@
+FULL PRODUCT FEEDBACK — CIOS Case Workflow
+
+Case: Safety-related label change risk for Xarelto within 12 months
+Domain: Regulatory / Pharmacovigilance / Market Access
+Objective: Improve decision-grade forecasting, simulation, and traceability
+
+1) Simulation Workflow — Missing Core Scenario Definition
+Problem
+
+The system defines scenario parameters but not the scenario itself.
+
+Current inputs:
+
+Scenario Type
+Message Source
+Impact Level
+Time Frame
+Confidence Level
+
+These are attributes.
+They do not define the event being simulated.
+
+This creates traceability and governance risk.
+
+Required Additions — Simulation Scenario Section
+Add Field — Scenario Name (required)
+
+Place at the top of Step 1.
+
+Field:
+
+Scenario Name
+
+Purpose:
+
+Defines the event being simulated.
+
+Examples:
+
+FDA initiates formal safety review of rivaroxaban GI bleeding risk
+FDA issues safety communication
+NCCN updates anticoagulation guidance
+New comparative study shows higher GI bleeding vs apixaban
+Payer implements step therapy restriction
+Add Field — Scenario Description (optional)
+
+Purpose:
+
+Clarifies mechanism and context.
+
+Example:
+
+FDA publicly announces formal review of post-marketing GI bleeding signals, increasing regulatory scrutiny and institutional caution.
+
+Add Field — Expected Effect on Forecast (required)
+
+Options:
+
+Increases probability
+Decreases probability
+Mixed / uncertain
+
+This aligns simulation logic with decision direction.
+
+Add Field — Primary Target of Scenario
+
+Options:
+
+Regulators
+Guideline bodies
+Payers
+Prescribers
+Institutions
+Competitors
+Patients
+
+This improves behavioral modeling.
+
+Add Field — Evidence Basis
+
+Options:
+
+Regulatory communication
+Peer-reviewed study
+Observational data
+Pharmacovigilance signal
+Litigation / legal action
+Guideline update
+Media pressure
+Internal scenario assumption
+
+This supports confidence scoring.
+
+Add Field — Trigger Event or Threshold
+
+Purpose:
+
+Defines what makes the scenario real.
+
+Examples:
+
+FDA formally opens safety review
+New study published
+Guideline update issued
+Label change announced
+
+This enables scenario validation.
+
+Recommended Simulation Field Order
+
+1 Scenario Name
+2 Scenario Description
+3 Scenario Type
+4 Message Source
+5 Evidence Basis
+6 Primary Target
+7 Expected Effect
+8 Impact Level
+9 Time Frame
+10 Confidence Level
+11 Trigger Event
+
+2) Signals — Deduplication and Direction Logic Issues
+Problem
+
+The system allowed redundant signals and incorrect direction assignments.
+
+Examples observed:
+
+Duplicate signals:
+
+Increase in GI bleeding adverse event reports in FAERS
+Increase in GI bleeding adverse event reports in pharmacovigilance database
+
+Same signal.
+
+Should not both exist.
+
+Required Fix — Signal Deduplication
+
+System should automatically detect:
+
+semantic duplicates
+near-duplicate phrasing
+same signal from different wording
+
+Rule:
+
+One signal
+One object
+
+Required Fix — Direction Validation
+
+Example error:
+
+FDA initiates safety review
+was marked:
+
+Supports label change
+
+This is not always correct.
+
+Correct logic:
+
+Safety review initiation increases probability of regulatory action
+but direction depends on outcome.
+
+Add Signal Direction Options
+
+Instead of binary:
+
+Supports label change
+Slows label change
+Neutral
+
+Use:
+
+Increases probability
+Decreases probability
+Signals uncertainty
+Signals risk escalation
+Operational readiness
+Market response
+
+3) Signal Quality — Filtering Needed
+Problem
+
+Operational signals entered safety decision layer.
+
+Examples:
+
+Manufacturing slot scheduling
+Inventory build progress
+Packaging readiness
+
+These are:
+
+Operational readiness signals
+not regulatory decision signals
+
+Required Fix — Signal Domain Classification
+
+Add required field:
+
+Signal Domain
+
+Options:
+
+Clinical evidence
+Safety / pharmacovigilance
+Regulatory activity
+Guideline activity
+Market access
+Operational readiness
+Competitive dynamics
+Legal / litigation
+
+Add Filter Rule
+
+If decision domain:
+
+Regulatory safety
+
+Exclude:
+
+Manufacturing
+Supply chain
+Inventory
+Commercial operations
+
+Unless:
+
+They directly affect regulatory action timing.
+
+4) Decision Layer — Correct but Needs Structural Reinforcement
+Strength Observed
+
+The system correctly identified:
+
+Feasibility Within Horizon
+as the limiting gate.
+
+This is accurate.
+
+Required Enhancement — Gate Transparency
+
+Each gate should show:
+
+Inputs
+Threshold
+Current value
+Limiting variable
+
+Example:
+
+Feasibility Within Horizon
+
+Inputs:
+
+Regulatory review status
+Evidence strength
+Guideline response timing
+
+Threshold:
+
+Regulatory decision possible within 12 months
+
+Current state:
+
+Moderate
+
+Limiting variable:
+
+Unresolved regulatory confirmation
+
+5) Segment Logic — Mostly Correct but Needs Trigger Alignment
+
+Segments behaved logically:
+
+Early adopters move first
+Guideline followers wait
+Risk-averse switch early
+
+However:
+
+Triggers were not clearly tied to regulatory events.
+
+Required Fix — Segment Trigger Definition
+
+Each segment must have:
+
+Primary trigger
+Secondary trigger
+Blocking condition
+
+Example
+
+Guideline Followers
+
+Primary trigger:
+
+Formal guideline update
+
+Secondary trigger:
+
+FDA safety communication
+
+Block:
+
+No institutional policy change
+
+6) Simulation — Behavioral Logic Improvement
+Problem
+
+Simulation produced reaction probability but lacked causal clarity.
+
+Example:
+
+65% safety impact likelihood
+
+But:
+
+No explicit driver linkage.
+
+Required Fix — Driver Traceability
+
+Simulation output should show:
+
+Drivers
+Weight
+Direction
+
+Example
+
+Drivers:
+
+Regulatory review initiation
+Comparative safety data
+Stakeholder pressure
+
+Weights:
+
+0.35
+0.30
+0.20
+
+Remaining uncertainty:
+
+0.15
+
+7) Forecast Output — Good but Needs Probability Framing
+
+Current output:
+
+Label change likely within 12 months
+
+Better:
+
+Provide calibrated probability.
+
+Required Fix — Probability Banding
+
+Use:
+
+Low: <30%
+Moderate: 30–60%
+High: 60–80%
+Very High: >80%
+
+Example:
+
+Probability of label change within 12 months:
+
+75%
+
+Confidence:
+
+Moderate
+
+8) Launch Strategy — Good but Missing Regulatory Sequencing
+
+Current recommendations were operational.
+
+Needed addition:
+
+Regulatory timeline sequencing.
+
+Add Section — Regulatory Action Pathway
+
+Example
+
+Expected sequence:
+
+Safety signal detection
+Regulatory review initiation
+Safety communication
+Label update
+Guideline revision
+
+9) Simulation — Missing Negative Scenario Capability
+
+The system currently assumes escalation.
+
+It needs symmetry.
+
+Add Required Scenario Types
+
+Positive scenario
+Negative scenario
+Neutral scenario
+Delay scenario
+Reversal scenario
+
+Examples
+
+FDA concludes no causal relationship
+Guideline maintains current recommendation
+New evidence reduces risk signal
+
+10) Case Setup — Definitions Need Clarification
+Therapy Field
+
+Current confusion:
+
+Therapy vs drug.
+
+Fix
+
+Therapy = therapeutic class
+
+Example:
+
+Direct Oral Anticoagulant
+
+Not:
+
+Rivaroxaban
+
+Decision Domain Field
+
+Needs explicit definition.
+
+Add Help Text
+
+Decision Domain:
+
+Defines the type of decision being forecast.
+
+Examples:
+
+Regulatory
+Market access
+Guideline adoption
+Commercial uptake
+Safety signal escalation
+
+11) Required Global Feature — Scenario Library
+
+The system needs reusable scenario tracking.
+
+Add
+
+Scenario ID
+Scenario Name
+Date created
+Case linkage
+Outcome result
+
+This enables:
+
+Learning
+Calibration
+Governance
+
+12) Critical Design Principle Identified
+
+The system must model:
+
+Events
+not
+settings.
+
+Current behavior:
+
+parameter-driven simulation
+
+Required behavior:
+
+event-driven simulation
+
+Highest Priority Changes
+
+1 Add required Scenario Name field
+2 Add Signal Deduplication
+3 Add Signal Domain classification
+4 Add Expected Effect field
+5 Add Driver transparency in simulation
+6 Add Regulatory timeline sequencing
+
+Bottom Line
+
+The system logic is strong.
+The workflow is coherent.
+The modeling approach is sound.
+
+The gaps are structural:
+
+Scenario identity
+Signal validation
+Driver transparency
+Traceability
+
+Fixing these will move the system from:
+
+decision support
+
+to
+
+decision-grade forecasting
