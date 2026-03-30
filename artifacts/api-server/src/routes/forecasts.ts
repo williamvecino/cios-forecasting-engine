@@ -210,18 +210,11 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   const eligibleSignals = filterEligibleSignals(preResult.signals, caseTargetContext);
   const signals = applyEventFamilyGuardrail(eligibleSignals);
 
-  // ── Normalize neutral signals (LR=1.0, no directional impact) ────────────
-  const normalizedSignals = signals.map((s) => {
-    if (s.direction === "Neutral") {
-      return { ...s, likelihoodRatio: 1.0 };
-    }
-    return s;
-  });
-
   // ── Apply LR corrections and freshness decay ─────────────────────────────
+  // Neutral signals are forced to LR=1.0 (no directional impact); skip corrections/decay
   const corrections = await getLrCorrections();
   const now = Date.now();
-  const signalsWithAdjustedLR = normalizedSignals.map((s) => {
+  const signalsWithAdjustedLR = signals.map((s) => {
     if (s.direction === "Neutral") {
       return { ...s, likelihoodRatio: 1.0 };
     }
