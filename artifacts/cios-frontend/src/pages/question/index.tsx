@@ -296,7 +296,7 @@ export default function QuestionPage() {
   const handleAcceptAndContinue = useCallback(async () => {
     if (!refineResult || refineResult.feasibility?.verdict === "not_feasible") return;
 
-    const finalQuestion = refineResult?.feasibility?.refinedQuestion || editedProposal.trim() || structuringResult?.activeQuestion?.questionText || rawInput.trim();
+    const finalQuestion = editedProposal.trim() || structuringResult?.activeQuestion?.questionText || rawInput.trim();
     setPageState("creating");
 
     let interpretation: Interpretation;
