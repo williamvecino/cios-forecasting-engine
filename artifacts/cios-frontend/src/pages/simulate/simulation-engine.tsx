@@ -320,7 +320,7 @@ export default function SimulationEnginePage() {
   return (
     <WorkflowLayout currentStep="simulate" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
       <QuestionGate activeQuestion={activeQuestion}>
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Simulation Engine</p>

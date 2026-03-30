@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { ActorSegmentationPanel } from "@/components/simulate/ActorSegmentationPanel";
 import { StakeholderReactionPanel } from "@/components/simulate/StakeholderReactionPanel";
-import { detectCaseType, REGULATORY_SEGMENTS, COMMERCIAL_SEGMENTS, getRegulatorySegments } from "@/lib/case-type-utils";
+import { detectCaseType, COMMERCIAL_SEGMENTS, SAFETY_RISK_SEGMENTS, getRegulatorySegments } from "@/lib/case-type-utils";
+import { ChevronDown, ChevronRight, Activity, TrendingDown, Newspaper } from "lucide-react";
 
 interface ArchetypeInfo {
   segment_name: string;
@@ -104,6 +105,248 @@ function strengthBadge(strength: string) {
   );
 }
 
+type AccordionSection = "reaction" | "features" | "propagation" | "sensitivity" | "classifications" | "safety_measures" | null;
+
+const SAFETY_SUCCESS_MEASURES = [
+  { label: "Switch Rate Monitoring", icon: Activity, description: "Track prescriber movement between behavioral segments (continue, pause, wait, switch) over time. Measure velocity and volume of switches to alternative therapies." },
+  { label: "Adverse Event Reporting Trends", icon: TrendingDown, description: "Monitor frequency, severity, and case seriousness trends in spontaneous and solicited adverse event reports. Track reporting rate changes relative to prescription volume." },
+  { label: "Media Sentiment Trajectory", icon: Newspaper, description: "Monitor professional media, social media, and patient community sentiment about the safety signal. Track narrative shifts that influence prescriber and patient behavior." },
+];
+
+function AccordionHeader({ title, isOpen, onClick, count }: { title: string; isOpen: boolean; onClick: () => void; count?: number }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/10 transition text-left">
+      <div className="flex items-center gap-2">
+        {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{title}</span>
+      </div>
+      {count !== undefined && <span className="text-[10px] text-muted-foreground/50">{count} items</span>}
+    </button>
+  );
+}
+
+function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseTypeInfo, onReset }: {
+  result: SimulationResult;
+  selectedSegment: string | null;
+  selectedArchetype: ArchetypeInfo | undefined;
+  caseTypeInfo: { isSafety: boolean; isRegulatory: boolean; stepNames: { simulate: string } };
+  onReset: () => void;
+}) {
+  const [activeSection, setActiveSection] = useState<AccordionSection>("reaction");
+
+  function toggle(section: AccordionSection) {
+    setActiveSection(prev => prev === section ? null : section);
+  }
+
+  function likelihoodColor(value: number): string {
+    if (value >= 65) return "text-emerald-400";
+    if (value >= 40) return "text-amber-400";
+    return "text-rose-400";
+  }
+
+  function confidenceColor(level: string): string {
+    if (level === "High") return "text-emerald-400 bg-emerald-400/10 border-emerald-400/30";
+    if (level === "Moderate") return "text-amber-400 bg-amber-400/10 border-amber-400/30";
+    return "text-rose-400 bg-rose-400/10 border-rose-400/30";
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Segment:</span>
+          <span className="text-sm font-semibold text-foreground">{selectedSegment}</span>
+          {selectedArchetype && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="text-xs font-semibold text-violet-400">{selectedArchetype.primary_archetype.archetype_name}</span>
+            </>
+          )}
+        </div>
+        <button
+          onClick={onReset}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition"
+        >
+          New Simulation
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              {caseTypeInfo.isSafety ? "Safety Impact Likelihood" : caseTypeInfo.isRegulatory ? "Regulatory Adoption Likelihood" : "Adoption Likelihood"}
+            </p>
+            <p className={`text-4xl font-bold mt-1 ${likelihoodColor(result.adoption_likelihood)}`}>
+              {result.adoption_likelihood}%
+            </p>
+          </div>
+          <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${confidenceColor(result.confidence)}`}>
+            {result.confidence} Confidence
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Primary Reaction</p>
+          <p className="text-[15px] text-foreground leading-relaxed">{result.primary_reaction}</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border/30">
+        <div>
+          <AccordionHeader title="Impact Analysis" isOpen={activeSection === "reaction"} onClick={() => toggle("reaction")} />
+          {activeSection === "reaction" && (
+            <div className="px-5 pb-5 space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">What This Changes</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_changes}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-2">What This Does Not Change</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_does_not_change}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Primary Remaining Barrier</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{result.primary_remaining_barrier}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Strongest Trigger for Movement</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{result.strongest_trigger_for_movement}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Material Effectiveness</p>
+                <p className="text-[13px] text-foreground leading-relaxed">{result.material_effectiveness}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {result.material_features?.length > 0 && (
+          <div>
+            <AccordionHeader
+              title="Extracted Material Features"
+              isOpen={activeSection === "features"}
+              onClick={() => toggle("features")}
+              count={result.material_features.filter(f => f.strength !== "absent").length}
+            />
+            {activeSection === "features" && (
+              <div className="px-5 pb-4 space-y-1.5">
+                {result.material_features
+                  .sort((a, b) => {
+                    const order = { strong: 0, moderate: 1, weak: 2, absent: 3 };
+                    return (order[a.strength] ?? 4) - (order[b.strength] ?? 4);
+                  })
+                  .map(f => (
+                    <div
+                      key={f.feature}
+                      className={`flex items-start gap-2.5 rounded-lg px-3 py-2 ${f.strength === "absent" ? "opacity-40" : ""}`}
+                    >
+                      <div className="mt-0.5 shrink-0">{strengthIcon(f.strength)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-medium text-foreground">
+                            {FEATURE_LABELS[f.feature] || f.feature}
+                          </span>
+                          {strengthBadge(f.strength)}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{f.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {result.propagation_pathway && result.propagation_pathway.length > 0 && (
+          <div>
+            <AccordionHeader title="Propagation Pathway" isOpen={activeSection === "propagation"} onClick={() => toggle("propagation")} />
+            {activeSection === "propagation" && (
+              <div className="px-5 pb-4 space-y-2">
+                {result.propagation_pathway.map((pathway, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="text-[11px] text-primary/60 font-mono mt-0.5 shrink-0">{i + 1}.</span>
+                    <p className="text-[13px] text-foreground leading-relaxed font-mono">{pathway}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {result.decision_sensitivity && result.decision_sensitivity.length > 0 && (
+          <div>
+            <AccordionHeader title="Decision Sensitivity" isOpen={activeSection === "sensitivity"} onClick={() => toggle("sensitivity")} />
+            {activeSection === "sensitivity" && (
+              <div className="px-5 pb-4 space-y-2">
+                {result.decision_sensitivity.map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-2 bg-muted/5">
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                      item.sensitivity === "HIGH"
+                        ? "text-rose-400 bg-rose-400/10 border-rose-400/30"
+                        : item.sensitivity === "MODERATE"
+                        ? "text-amber-400 bg-amber-400/10 border-amber-400/30"
+                        : "text-emerald-400 bg-emerald-400/10 border-emerald-400/30"
+                    }`}>
+                      {item.sensitivity}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-foreground">{item.factor}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{item.impact_estimate}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {result.signal_classifications && result.signal_classifications.length > 0 && (
+          <div>
+            <AccordionHeader title="Signal Classifications" isOpen={activeSection === "classifications"} onClick={() => toggle("classifications")} />
+            {activeSection === "classifications" && (
+              <div className="px-5 pb-4 flex flex-wrap gap-2">
+                {result.signal_classifications.map((sc, i) => (
+                  <div key={i} className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2 max-w-xs">
+                    <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">{sc.type.replace(/_/g, " ")}</span>
+                    <p className="text-[11px] text-foreground/80 mt-0.5 leading-relaxed">{sc.signal}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {caseTypeInfo.isSafety && (
+          <div>
+            <AccordionHeader title="Safety-Specific Success Measures" isOpen={activeSection === "safety_measures"} onClick={() => toggle("safety_measures")} />
+            {activeSection === "safety_measures" && (
+              <div className="px-5 pb-4 space-y-3">
+                {SAFETY_SUCCESS_MEASURES.map((measure) => {
+                  const Icon = measure.icon;
+                  return (
+                    <div key={measure.label} className="flex items-start gap-3 rounded-lg border border-rose-500/10 bg-rose-500/5 px-4 py-3">
+                      <Icon className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-foreground">{measure.label}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{measure.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SimulatePage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
@@ -113,13 +356,12 @@ export default function SimulatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
-  const [showFeatures, setShowFeatures] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.text || "";
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
-  const SEGMENTS = caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
+  const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
   const hasInput = selectedSegment && (materialText.trim() || file);
 
   useEffect(() => {
@@ -252,25 +494,12 @@ export default function SimulatePage() {
     setMaterialText("");
     clearFile();
     setError(null);
-    setShowFeatures(true);
-  }
-
-  function likelihoodColor(value: number): string {
-    if (value >= 65) return "text-emerald-400";
-    if (value >= 40) return "text-amber-400";
-    return "text-rose-400";
-  }
-
-  function confidenceColor(level: string): string {
-    if (level === "High") return "text-emerald-400 bg-emerald-400/10 border-emerald-400/30";
-    if (level === "Moderate") return "text-amber-400 bg-amber-400/10 border-amber-400/30";
-    return "text-rose-400 bg-rose-400/10 border-rose-400/30";
   }
 
   return (
     <WorkflowLayout currentStep="simulate" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
       <QuestionGate activeQuestion={activeQuestion}>
-        <div className="max-w-3xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
           <div>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 6</p>
             <h1 className="text-xl font-bold text-foreground">{caseTypeInfo.stepNames.simulate}</h1>
@@ -412,178 +641,13 @@ export default function SimulatePage() {
           )}
 
           {result && !loading && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Segment:</span>
-                  <span className="text-sm font-semibold text-foreground">{selectedSegment}</span>
-                  {selectedArchetype && (
-                    <>
-                      <span className="text-muted-foreground/40">·</span>
-                      <span className="text-xs font-semibold text-violet-400">{selectedArchetype.primary_archetype.archetype_name}</span>
-                    </>
-                  )}
-                </div>
-                <button
-                  onClick={reset}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition"
-                >
-                  New Simulation
-                </button>
-              </div>
-
-              {result.material_features?.length > 0 && (
-                <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-                  <button
-                    onClick={() => setShowFeatures(!showFeatures)}
-                    className="w-full flex items-center justify-between px-5 py-3 hover:bg-muted/10 transition"
-                  >
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                      Extracted Material Features
-                    </span>
-                    <span className="text-[10px] text-muted-foreground/50">
-                      {result.material_features.filter(f => f.strength !== "absent").length} present · {result.material_features.filter(f => f.strength === "absent").length} absent
-                    </span>
-                  </button>
-                  {showFeatures && (
-                    <div className="px-5 pb-4 space-y-1.5">
-                      {result.material_features
-                        .sort((a, b) => {
-                          const order = { strong: 0, moderate: 1, weak: 2, absent: 3 };
-                          return (order[a.strength] ?? 4) - (order[b.strength] ?? 4);
-                        })
-                        .map(f => (
-                          <div
-                            key={f.feature}
-                            className={`flex items-start gap-2.5 rounded-lg px-3 py-2 ${
-                              f.strength === "absent" ? "opacity-40" : ""
-                            }`}
-                          >
-                            <div className="mt-0.5 shrink-0">{strengthIcon(f.strength)}</div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[13px] font-medium text-foreground">
-                                  {FEATURE_LABELS[f.feature] || f.feature}
-                                </span>
-                                {strengthBadge(f.strength)}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{f.detail}</p>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="rounded-xl border border-border bg-card p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Adoption Likelihood</p>
-                    <p className={`text-4xl font-bold mt-1 ${likelihoodColor(result.adoption_likelihood)}`}>
-                      {result.adoption_likelihood}%
-                    </p>
-                  </div>
-                  <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${confidenceColor(result.confidence)}`}>
-                    {result.confidence} Confidence
-                  </div>
-                </div>
-
-                <div className="space-y-5">
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Primary Reaction</p>
-                    <p className="text-[15px] text-foreground leading-relaxed">{result.primary_reaction}</p>
-                  </div>
-
-                  <div className="border-t border-border/40" />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">What This Changes</p>
-                      <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_changes}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-2">What This Does Not Change</p>
-                      <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_does_not_change}</p>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-border/40" />
-
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Primary Remaining Barrier</p>
-                    <p className="text-[15px] text-foreground leading-relaxed">{result.primary_remaining_barrier}</p>
-                  </div>
-
-                  <div className="border-t border-border/40" />
-
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Strongest Trigger for Movement</p>
-                    <p className="text-[15px] text-foreground leading-relaxed">{result.strongest_trigger_for_movement}</p>
-                  </div>
-
-                  <div className="border-t border-border/40" />
-
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Material Effectiveness</p>
-                    <p className="text-[15px] text-foreground leading-relaxed">{result.material_effectiveness}</p>
-                  </div>
-                </div>
-              </div>
-
-              {result.propagation_pathway && result.propagation_pathway.length > 0 && (
-                <div className="rounded-xl border border-border bg-card p-6">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Propagation Pathway</p>
-                  <div className="space-y-2">
-                    {result.propagation_pathway.map((pathway, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <span className="text-[11px] text-primary/60 font-mono mt-0.5 shrink-0">{i + 1}.</span>
-                        <p className="text-[13px] text-foreground leading-relaxed font-mono">{pathway}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {result.decision_sensitivity && result.decision_sensitivity.length > 0 && (
-                <div className="rounded-xl border border-border bg-card p-6">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Decision Sensitivity</p>
-                  <div className="space-y-2">
-                    {result.decision_sensitivity.map((item, i) => (
-                      <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-2 bg-muted/5">
-                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
-                          item.sensitivity === "HIGH"
-                            ? "text-rose-400 bg-rose-400/10 border-rose-400/30"
-                            : item.sensitivity === "MODERATE"
-                            ? "text-amber-400 bg-amber-400/10 border-amber-400/30"
-                            : "text-emerald-400 bg-emerald-400/10 border-emerald-400/30"
-                        }`}>
-                          {item.sensitivity}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium text-foreground">{item.factor}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{item.impact_estimate}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {result.signal_classifications && result.signal_classifications.length > 0 && (
-                <div className="rounded-xl border border-border bg-card p-6">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Signal Classifications</p>
-                  <div className="flex flex-wrap gap-2">
-                    {result.signal_classifications.map((sc, i) => (
-                      <div key={i} className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2 max-w-xs">
-                        <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">{sc.type.replace(/_/g, " ")}</span>
-                        <p className="text-[11px] text-foreground/80 mt-0.5 leading-relaxed">{sc.signal}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <ResultsAccordion
+              result={result}
+              selectedSegment={selectedSegment}
+              selectedArchetype={selectedArchetype}
+              caseTypeInfo={caseTypeInfo}
+              onReset={reset}
+            />
           )}
         </div>
 

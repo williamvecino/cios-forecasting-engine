@@ -5,6 +5,7 @@ export type RegulatoryAuthority = "fda" | "ema" | "mhra" | "other";
 export interface CaseTypeInfo {
   caseType: string;
   isRegulatory: boolean;
+  isSafety: boolean;
   authority: RegulatoryAuthority | null;
   stepNames: {
     judge: string;
@@ -42,6 +43,17 @@ const REGULATORY_PATTERNS = [
   "mhra", "pmda", "tga", "anvisa", "nmpa",
   "marketing authoriz", "market authoris",
   "chmp", "chmp opinion",
+];
+
+const SAFETY_RISK_PATTERNS = [
+  "safety signal", "safety risk", "adverse event", "adverse reaction",
+  "safety concern", "safety profile change", "black box warning",
+  "boxed warning", "rems", "risk evaluation", "drug safety",
+  "pharmacovigilance", "safety withdrawal", "safety review",
+  "safety communication", "dear doctor", "dear healthcare",
+  "label change", "label update", "contraindication",
+  "class effect", "class-wide", "post-marketing safety",
+  "switch rate", "prescribing decline", "safety-driven",
 ];
 
 const COMMERCIAL_PATTERNS = [
@@ -83,12 +95,14 @@ export function detectCaseType(question: string): CaseTypeInfo {
   const q = question.toLowerCase();
   const clinScore = CLINICAL_OUTCOME_PATTERNS.filter(p => q.includes(p)).length;
   const regScore = REGULATORY_PATTERNS.filter(p => q.includes(p)).length;
+  const safetyScore = SAFETY_RISK_PATTERNS.filter(p => q.includes(p)).length;
   const comScore = COMMERCIAL_PATTERNS.filter(p => q.includes(p)).length;
 
-  if (clinScore >= 2 && clinScore > regScore && clinScore > comScore) {
+  if (clinScore >= 2 && clinScore > regScore && clinScore > safetyScore && clinScore > comScore) {
     return {
       caseType: "clinical_outcome",
       isRegulatory: false,
+      isSafety: false,
       authority: null,
       stepNames: {
         judge: "Judge Endpoint Success Probability",
@@ -100,6 +114,22 @@ export function detectCaseType(question: string): CaseTypeInfo {
     };
   }
 
+  if (safetyScore >= 2 && safetyScore > regScore && safetyScore > comScore) {
+    return {
+      caseType: "safety_risk",
+      isRegulatory: false,
+      isSafety: true,
+      authority: null,
+      stepNames: {
+        judge: "Judge Safety Impact Probability",
+        decide: "Decide Risk Mitigation Strategy",
+        respond: "Respond with Safety Strategy",
+        simulate: "Simulate Safety Impact",
+      },
+      hiddenModules: [],
+    };
+  }
+
   const isRegulatory = regScore >= 2 && regScore > comScore;
 
   if (isRegulatory) {
@@ -107,6 +137,7 @@ export function detectCaseType(question: string): CaseTypeInfo {
     return {
       caseType: "regulatory_approval",
       isRegulatory: true,
+      isSafety: false,
       authority,
       stepNames: {
         judge: "Judge Approval Probability",
@@ -121,6 +152,7 @@ export function detectCaseType(question: string): CaseTypeInfo {
   return {
     caseType: "commercial",
     isRegulatory: false,
+    isSafety: false,
     authority: null,
     stepNames: {
       judge: "Judge Adoption Probability",
@@ -131,6 +163,15 @@ export function detectCaseType(question: string): CaseTypeInfo {
     hiddenModules: [],
   };
 }
+
+export const SAFETY_RISK_SEGMENTS = [
+  { key: "Continue Prescribing (Risk-Benefit)", color: "emerald" },
+  { key: "Pause Pending Clarification", color: "amber" },
+  { key: "Wait for Guideline Direction", color: "blue" },
+  { key: "Switch Immediately", color: "rose" },
+  { key: "Risk Gatekeepers", color: "slate" },
+  { key: "Payer Safety Reviewers", color: "violet" },
+];
 
 export const FDA_REGULATORY_SEGMENTS = [
   { key: "FDA Review Division", color: "blue" },
