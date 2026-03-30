@@ -164,10 +164,10 @@ export default function SignalDependencyPanel({ caseId, onData, refreshKey }: { 
   }, [caseId, refreshKey]);
 
   useEffect(() => {
-    if (!data && !loading) {
+    if (!data && !loading && !error) {
       fetchAnalysis();
     }
-  }, [caseId, data, loading, fetchAnalysis]);
+  }, [caseId, data, loading, error, fetchAnalysis]);
 
   const toggleCluster = (id: string) => {
     setExpandedClusters((prev) => {
