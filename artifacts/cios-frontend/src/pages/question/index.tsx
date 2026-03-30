@@ -132,6 +132,10 @@ export default function QuestionPage() {
   const [userCleared, setUserCleared] = useState(false);
 
   useEffect(() => {
+    const draft = localStorage.getItem("cios.questionDraft");
+    if (draft && !rawInput) {
+      setRawInput(draft);
+    }
     localStorage.removeItem("cios.questionDraft");
   }, []);
 
