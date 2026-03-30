@@ -12,6 +12,7 @@ import {
   FlaskConical,
 } from "lucide-react";
 import { Link } from "wouter";
+import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 interface RespondResult {
   strategic_recommendation: string;
@@ -154,6 +155,7 @@ export default function RespondPage() {
     <WorkflowLayout currentStep="respond" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
       <QuestionGate activeQuestion={activeQuestion}>
         <div className="max-w-3xl mx-auto space-y-6">
+          {caseId && <SavedQuestionsPanel caseId={caseId} />}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-foreground">{caseTypeInfo.stepNames.respond}</h1>

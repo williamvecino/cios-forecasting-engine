@@ -25,15 +25,23 @@ router.post("/cases/:caseId/questions", async (req, res) => {
 
   const caseId = req.params.caseId;
   const now = new Date();
+
+  await db
+    .delete(questionRepositoryTable)
+    .where(eq(questionRepositoryTable.caseId, caseId));
+
   const inserted = [];
+
+  const primaryQid = `Q-${caseId}-primary`;
 
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
+    const isPrimary = q.questionRole === "primary";
     const row = {
       id: randomUUID(),
       caseId,
-      questionId: q.questionId || `Q-${caseId}-${Date.now()}-${i}`,
-      parentQuestionId: q.parentQuestionId || null,
+      questionId: isPrimary ? primaryQid : (q.questionId || `Q-${caseId}-s-${i}`),
+      parentQuestionId: isPrimary ? null : (q.parentQuestionId || primaryQid),
       questionText: q.questionText,
       questionRole: q.questionRole || "secondary",
       questionType: q.questionType || "strategic",

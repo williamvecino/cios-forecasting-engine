@@ -65,6 +65,7 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Negative Scenario Types:** Expanded scenario polarity (positive/negative/neutral/delay/reversal) and expected effects.
 - **Canonical 5-Case Validation Pack:** Benchmark suite of 5 curated cases for validation.
 - **AI-Structured Question Definition Workflow:** Multi-step question input flow where AI structures the question, performs feasibility checks, and proposes outcome states.
+- **Question Repository with Cross-Step Persistence:** Saved questions (primary + secondary) persist to a PostgreSQL-backed repository (`questionRepositoryTable`) via CRUD API at `/api/cases/:caseId/questions`. A `SavedQuestionsPanel` component displays saved questions with status management (Analyze/Save/Defer/Discard) on all downstream workflow pages (Comparison Groups, Add Information, Judge, Decide, Respond). Repository writes are idempotent (clear-and-reinsert per case). Parent-child linkage uses deterministic `Q-{caseId}-primary` identifiers.
 
 **Bounded Agent Architecture:** The system employs 15 bounded, deterministic, single-purpose AI agents (e.g., Decision Gating, Question Structuring, External Signal Scout, MIOS, BAOS) with fixed I/O schemas, all enforcing a `ProgramID` scope constraint.
 

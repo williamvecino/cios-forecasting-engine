@@ -55,6 +55,7 @@ import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import MiosBaosPanel from "@/components/signals/MiosBaosPanel";
 import SignalDependencyPanel, { type SignalLineageInfo } from "@/components/signals/SignalDependencyPanel";
+import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 function isMiosBaosSignal(s: any): boolean {
   const st = (s.source_type || "").toUpperCase();
@@ -1417,6 +1418,10 @@ export default function SignalsPage() {
               What new information do we have?
             </h1>
           </div>
+
+          {activeQuestion?.caseId && (
+            <SavedQuestionsPanel caseId={activeQuestion.caseId} />
+          )}
 
           {isComparative && (
             <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/5 via-card to-card p-4">

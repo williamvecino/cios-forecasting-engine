@@ -12,6 +12,7 @@ import {
   PenLine,
   Check,
 } from "lucide-react";
+import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 const DEFAULT_GROUPS: Record<string, string[]> = {
   "launch timing": ["Early launch", "Delayed launch"],
@@ -126,6 +127,10 @@ export default function ComparisonGroupsPage() {
               {questionText}
             </div>
           </div>
+
+          {activeQuestion?.caseId && (
+            <SavedQuestionsPanel caseId={activeQuestion.caseId} />
+          )}
 
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
             <div className="flex items-center gap-2">

@@ -38,6 +38,7 @@ import {
   enforceDriverLimit,
   logForecastRun,
 } from "@/lib/forecast-performance";
+import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 type Tab = "forecast" | "scenarios" | "drivers" | "library";
 type Strength = "Low" | "Medium" | "High";
@@ -122,6 +123,12 @@ export default function ForecastPage() {
               Review the executive judgment, understand what is driving the call,
               see the closest historical analog, and identify what would change this outcome.
             </p>
+
+            {activeQuestion?.caseId && (
+              <div className="mt-4">
+                <SavedQuestionsPanel caseId={activeQuestion.caseId} />
+              </div>
+            )}
 
             <div className="mt-5 border-b border-white/10">
               <div className="flex flex-wrap gap-6">

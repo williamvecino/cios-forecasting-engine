@@ -301,6 +301,56 @@ export default function QuestionPage() {
     await runFeasibilityCheck(rawInput.trim(), text);
   }, [editedProposal, rawInput, runFeasibilityCheck]);
 
+  const saveQuestionsToRepository = useCallback(async (caseId: string, activeQ: StructuredQuestion, supportingQs: StructuredQuestion[], statuses: Record<number, SupportingQuestionStatus>) => {
+    const questions: any[] = [];
+
+    questions.push({
+      questionText: activeQ.questionText,
+      questionRole: "primary",
+      questionType: activeQ.questionType || "strategic",
+      timeHorizon: activeQ.horizon,
+      outcomeStructure: activeQ.targetOutcome,
+      priorityRank: 0,
+      status: "active",
+      source: "system",
+    });
+
+    supportingQs.forEach((sq, i) => {
+      const status = statuses[i];
+
+      let repoStatus = "saved";
+      let role = "secondary";
+      if (status === "analyze_tandem") {
+        repoStatus = "active";
+      } else if (status === "promoted") {
+        repoStatus = "promoted";
+      } else if (status === "discarded") {
+        repoStatus = "discarded";
+      }
+
+      questions.push({
+        questionText: sq.questionText,
+        questionRole: role,
+        questionType: sq.questionType || "strategic",
+        timeHorizon: sq.horizon,
+        outcomeStructure: sq.targetOutcome,
+        priorityRank: i + 1,
+        status: repoStatus,
+        source: "system",
+      });
+    });
+
+    try {
+      await fetch(`${API}/api/cases/${caseId}/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questions }),
+      });
+    } catch (e) {
+      console.error("Failed to save questions to repository:", e);
+    }
+  }, []);
+
   const handleAcceptAndContinue = useCallback(async () => {
     if (!refineResult || refineResult.feasibility?.verdict === "not_feasible") return;
 
@@ -346,6 +396,7 @@ export default function QuestionPage() {
       updateQuestion(payload);
       if (structuringResult) {
         try { localStorage.setItem(`cios.questionStructuring:${editCaseId}`, JSON.stringify(structuringResult)); } catch {}
+        saveQuestionsToRepository(editCaseId, structuringResult.activeQuestion, structuringResult.supportingQuestions, supportingStatuses);
       }
       navigate("/comparison-groups");
       return;
@@ -377,6 +428,7 @@ export default function QuestionPage() {
       clearCaseState(newCaseId);
       if (structuringResult) {
         try { localStorage.setItem(`cios.questionStructuring:${newCaseId}`, JSON.stringify(structuringResult)); } catch {}
+        saveQuestionsToRepository(newCaseId, structuringResult.activeQuestion, structuringResult.supportingQuestions, supportingStatuses);
       }
 
       const payload = {
@@ -397,7 +449,7 @@ export default function QuestionPage() {
       setSubmitError("Unable to create a case. Check your connection and try again.");
       setPageState("reviewing");
     }
-  }, [rawInput, editedProposal, structuringResult, refineResult, outcomeStates, isEditMode, editCaseId, createCaseMutation, createQuestion, updateQuestion, navigate]);
+  }, [rawInput, editedProposal, structuringResult, refineResult, outcomeStates, isEditMode, editCaseId, createCaseMutation, createQuestion, updateQuestion, navigate, supportingStatuses, saveQuestionsToRepository]);
 
   const handleImportComplete = async (result: any) => {
     const q = result.question;

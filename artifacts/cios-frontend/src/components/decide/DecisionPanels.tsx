@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { exportToExcel, exportToPDF, exportToJSON } from "@/lib/forecast-export";
 import { PrioritizationPanel } from "@/components/decide/PrioritizationPanel";
+import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 interface SegmentGroup {
   segments: string[];
@@ -281,6 +282,11 @@ export default function DecisionPanels() {
                 ? "Decision layer — every barrier, action, and segment is derived from the forecast gates."
                 : "Commercial decision layer — segmentation, progress blockers, readiness, competitive risk, and feasibility assessment."}
             </p>
+            {caseId && (
+              <div className="mt-3">
+                <SavedQuestionsPanel caseId={caseId} />
+              </div>
+            )}
             <div className="mt-3 flex items-center justify-between">
               {isForecastDerived && fc ? (
                 <div className="flex items-center gap-4 text-xs text-slate-400">
