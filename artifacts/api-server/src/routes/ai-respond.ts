@@ -111,18 +111,18 @@ STRUCTURE — return valid JSON with exactly these 5 keys:
 {
   "strategic_recommendation": "Two to three sentences. The core strategic call — what is likely to happen AND WHY the probability is what it is. Name the specific evidence or conditions that led to this number. Be specific to the case, not generic. MUST align with the computed probability.",
   "why_this_matters": "Two to three sentences. Name the specific limiting factors or driving forces AND explain why each one matters in plain terms. Do NOT list drivers and risks separately — weave them into a single narrative paragraph that connects each factor to its real-world consequence.",
-  "priority_actions": ["Action + because [reason]", "Action + because [reason]", "Action + because [reason]"],
-  "success_measures": ["Observable milestone — why it indicates progress", "Observable milestone — why it indicates progress", "Observable milestone — why it indicates progress"],
-  "execution_focus": "One to two sentences. Where to prioritize resources and attention first, WHY that area matters most, and what can wait until later."
+  "priority_actions": ["Specific action most likely to change forecast probability + because [reason]", "Second action + because [reason]", "Third action + because [reason]"],
+  "success_measures": ["First observable, measurable event that indicates strategy is working", "Second measurable signal", "Third measurable signal"],
+  "execution_focus": "The single constraint most likely to block progress. One item only."
 }
 
 CRITICAL RULES:
 - TRANSPARENCY IS MANDATORY. Every statement must explain WHY. Never state a conclusion without saying what evidence or reasoning led to it. The reader should never have to guess where a number or recommendation came from.
 - strategic_recommendation: State the expected ${isClinical ? "endpoint" : isRegulatory ? "approval" : "outcome"} trajectory AND its primary constraint. Explain WHY the probability is at this level — name the specific signals or conditions. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome.
 - why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks AND explain in plain terms why each one matters for the decision. Connect each factor to what it means practically.
-- priority_actions: 3-5 actions. Each action MUST include a brief "because" clause explaining why it is prioritized. Example: ${actionExample}${isRegulatory ? " Actions must be pre-approval and regulatory in scope — no post-approval commercialization tasks like physician education or market rollout." : ""}
-- success_measures: 3-5 observable milestones. Each must briefly state why it indicates progress. Example: ${successExample}${isRegulatory ? " Success measures must be regulatory milestones only — no launch readiness, rollout, or market-share markers." : ""}
-- execution_focus: ONE to TWO sentences. Where resources go first AND why that area matters most, framed as what to prioritize over what.`;
+- priority_actions: EXACTLY 3 actions. These are the top 3 actions most likely to change the forecast probability within the defined time horizon. Each action MUST include a "because" clause. Must be action-oriented and testable — not generic planning language or strategy themes. Example: ${actionExample}${isRegulatory ? " Actions must be pre-approval and regulatory in scope — no post-approval commercialization tasks like physician education or market rollout." : ""}
+- success_measures: EXACTLY 3 items. These are the first observable signals that indicate the strategy is working. Each must be a measurable event — not a description or aspiration. Example: ${successExample}${isRegulatory ? " Success measures must be regulatory milestones only — no launch readiness, rollout, or market-share markers." : ""}
+- execution_focus: ONE sentence identifying the SINGLE constraint most likely to block progress. Only one item is allowed. Do not list multiple priorities. Do not describe strategy themes. Name the specific blocker.`;
 
     const decisionContext = buildDecisionContext(body);
 
@@ -164,15 +164,27 @@ Translate this into a brief. Do not reanalyze — summarize what the evidence sa
         ? parsed.why_this_matters
         : parsed.why_this_matters?.summary || parsed.why_this_matters?.text || "",
       priority_actions: Array.isArray(parsed.priority_actions)
-        ? parsed.priority_actions.map((a: any) => typeof a === "string" ? a : a.action || a.text || "")
+        ? parsed.priority_actions.map((a: any) => typeof a === "string" ? a : a.action || a.text || "").filter(Boolean).slice(0, 3)
         : [],
       success_measures: Array.isArray(parsed.success_measures)
-        ? parsed.success_measures.map((m: any) => typeof m === "string" ? m : m.metric || m.text || "")
+        ? parsed.success_measures.map((m: any) => typeof m === "string" ? m : m.metric || m.text || "").filter(Boolean).slice(0, 3)
         : [],
       execution_focus: typeof parsed.execution_focus === "string"
         ? parsed.execution_focus
         : parsed.execution_focus?.primary_focus || parsed.execution_focus?.text || "",
     };
+
+    if (validated.priority_actions.length < 3) {
+      while (validated.priority_actions.length < 3) validated.priority_actions.push("Action pending — insufficient context to specify");
+    }
+    if (validated.success_measures.length < 3) {
+      while (validated.success_measures.length < 3) validated.success_measures.push("Measure pending — insufficient context to specify");
+    }
+
+    const focusSentences = validated.execution_focus.split(/\.\s+/).filter(Boolean);
+    if (focusSentences.length > 1) {
+      validated.execution_focus = focusSentences[0] + (focusSentences[0].endsWith(".") ? "" : ".");
+    }
 
     res.json(validated);
   } catch (err: any) {
