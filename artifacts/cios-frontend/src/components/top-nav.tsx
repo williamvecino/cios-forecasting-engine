@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Home, BarChart3, BookOpen, Settings, Sparkles } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Home", path: "/", icon: Home },
+  { label: "Home", path: "/question", icon: Home },
   { label: "Forecasts", path: "/forecasts", icon: BarChart3 },
   { label: "Library", path: "/library", icon: BookOpen },
   { label: "System", path: "/system", icon: Settings },
