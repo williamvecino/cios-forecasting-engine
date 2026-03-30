@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { researchBrand } from "../lib/web-research";
-import { isSafetyRiskCase } from "../lib/case-type-router.js";
+import { isSafetyRiskCase, isRegulatoryCase } from "../lib/case-type-router.js";
 
 const router = Router();
 
@@ -281,7 +281,15 @@ ${isSafetyRiskCase(body.questionText) ? `SAFETY/RISK CASE RULES:
 - Time constraints modify resolution speed (when the answer arrives), NOT outcome probability.
 - Use "use" instead of "adoption", "continuation" instead of "growth", "clinician" instead of "prescriber".
 - Direction validation: for restriction-outcome questions, a "Positive" access/payer signal should have direction "Negative" (it reduces restriction probability).
-- Feasibility timelines affect how quickly the safety question will be resolved, NOT whether restrictions will happen.` : ""}`;
+- Feasibility timelines affect how quickly the safety question will be resolved, NOT whether restrictions will happen.` : ""}
+${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ? `REGULATORY/SAFETY CASE DOMAIN RULES:
+- This is a regulatory/safety-risk case about label changes, black box warnings, REMS, safety signals, or FDA/EMA safety actions.
+- ALLOWED signal domains: safety evidence, regulatory activity, pharmacovigilance data, legal developments (lawsuits, settlements, DOJ actions), clinical guideline changes, and safety warnings.
+- EXCLUDED signal domains: Do NOT generate system_operational signals (manufacturing, supply chain, inventory, packaging, launch readiness, production capacity, commercial inventory). These are irrelevant to regulatory safety outcomes.
+- Signal families to prioritize: brand_clinical_regulatory (safety data, regulatory filings, label history), patient_demand (adverse event reports, patient safety complaints), competitor (competitor safety comparisons).
+- De-prioritize: provider_behavioral (unless about prescribing behavior changes DUE TO safety concerns), payer_access (unless about formulary restrictions DUE TO safety concerns).
+- Use "label change" instead of "adoption", "regulatory action" instead of "launch", "safety profile" instead of "market positioning".
+- Every signal must be evaluated for its causal impact on the REGULATORY OUTCOME (e.g., probability of FDA label change, black box warning, or REMS requirement within the time horizon).` : ""}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -304,6 +312,15 @@ ${isSafetyRiskCase(body.questionText) ? `SAFETY/RISK CASE RULES:
     parsed.brand_check_performed = true;
     parsed.verified_developments_found = hasResearch;
     parsed.sources_searched = research.sourcesSearched;
+
+    if (isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) {
+      if (Array.isArray(parsed.signals)) {
+        parsed.signals = parsed.signals.filter(
+          (s: any) => s.signal_family !== "system_operational"
+        );
+      }
+    }
+
     res.json(parsed);
   } catch (err: any) {
     console.error("AI signal generation error:", err);

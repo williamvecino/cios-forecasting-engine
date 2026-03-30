@@ -291,6 +291,7 @@ function generateContextualSuggestions(ctx: QuestionContext): Signal[] {
   const subjectLabel = ctx.subject || "this therapy";
   const outcomeLabel = ctx.outcome || "adoption";
   const timeLabel = ctx.timeHorizon || "the forecast window";
+  const isRegOrSafetyCase = /\b(black.?box|boxed.?warning|rems|label.?change|label.?update|fda.?(warn|restrict|withdraw|safety|review)|ema.?(warn|restrict|withdraw|safety)|pharmacovigilance|safety.?signal|adverse.?event|contraindication|class.?warning|benefit.?risk|safety.?review|mortality.?signal|bleeding.?risk|hepatotoxic|nephrotoxic)\b/i.test(q);
   const raw: Omit<Signal, "impact">[] = [];
 
   if (q.includes("payer") || q.includes("prior auth") || q.includes("coverage") || q.includes("restrict")) {
@@ -343,11 +344,11 @@ function generateContextualSuggestions(ctx: QuestionContext): Signal[] {
       raw.push({ id: "sys-5", text: `Early adopter segment showing interest in ${subjectLabel} after recent conference data`, caveat: "", direction: "positive", strength: "Medium", reliability: "Probable", category: "adoption", source: "system", accepted: false });
     if (q.includes("prescri"))
       raw.push({ id: "sys-8", text: `KOL prescribing pattern shifting toward ${subjectLabel} in target population`, caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "guideline", source: "system", accepted: false });
-    if (q.includes("launch") || q.includes("segment"))
+    if (!isRegOrSafetyCase && q.includes("segment"))
       raw.push({ id: "sys-9", text: `Launch readiness assessments underway for ${subjectLabel} in priority markets`, caveat: "", direction: "positive", strength: "Medium", reliability: "Confirmed", category: "timing", source: "system", accepted: false });
   }
 
-  if (q.includes("launch") || q.includes("manufact") || q.includes("supply") || q.includes("produc") || q.includes("capacity") || q.includes("timing")) {
+  if (!isRegOrSafetyCase && (q.includes("launch") || q.includes("manufact") || q.includes("supply") || q.includes("produc") || q.includes("capacity") || q.includes("timing"))) {
     const supplySignals: Omit<Signal, "impact">[] = [
       { id: "sys-mfg1", text: `Manufacturing slot scheduling status for ${subjectLabel} — slot allocation confirmed or pending`, caveat: "Critical determinant of launch readiness timeline", direction: "neutral", strength: "High", reliability: "Probable", category: "timing", source: "system", accepted: false },
       { id: "sys-mfg2", text: `Production capacity allocation for ${subjectLabel} at designated manufacturing sites`, caveat: "Capacity constraints can delay launch by 6-12 months", direction: "neutral", strength: "High", reliability: "Probable", category: "timing", source: "system", accepted: false },
