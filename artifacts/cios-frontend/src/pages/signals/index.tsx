@@ -221,12 +221,22 @@ const DRIVER_COVERAGE_CATEGORIES: Record<string, { label: string; keywords: stri
   execution: { label: "Execution capacity", keywords: ["supply", "manufacturing", "distribution", "sales force", "launch readiness", "field", "commercial", "capacity", "infrastructure", "training", "operational", "execution"] },
 };
 
+const STRUCTURAL_TRIGGER_KEYWORDS = [
+  "part d", "redesign", "ira ", "inflation reduction", "coverage reduction",
+  "manufacturer liability", "catastrophic", "formulary exclusion",
+  "step therapy", "prior authorization mandate", "rebate rule",
+  "340b", "price negotiation", "out-of-pocket cap",
+];
+
 function assignDriverRole(signal: { text: string; direction: Direction; strength: Strength; impact: Impact; category: Category }): DriverRole {
   const text = signal.text.toLowerCase();
   const isNegative = signal.direction === "decreases_probability" || signal.direction === "negative" || signal.direction === "signals_risk_escalation";
   if (isNegative && (signal.strength === "High" || signal.impact === "High")) return "counterforce";
   if (signal.impact === "High" && signal.strength === "High") return "primary_driver";
+  const isStructuralTrigger = STRUCTURAL_TRIGGER_KEYWORDS.some(kw => text.includes(kw));
+  if (isStructuralTrigger && (signal.impact === "High" || signal.strength === "High" || signal.category === "access")) return "primary_driver";
   if (signal.impact === "High" || signal.strength === "High") return "supporting_driver";
+  if (isStructuralTrigger) return "supporting_driver";
   if (signal.impact === "Low" && signal.strength === "Low") return "noise";
   if (signal.direction === "neutral" || signal.direction === "signals_uncertainty") return "context_signal";
   return "supporting_driver";
