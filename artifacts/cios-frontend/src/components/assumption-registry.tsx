@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Clock,
   Zap,
+  Link2,
 } from "lucide-react";
 import type { Assumption } from "../hooks/use-assumptions";
 
@@ -37,6 +38,10 @@ const CATEGORIES = [
   { key: "operational", label: "Operational", color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/20" },
   { key: "timeline", label: "Timeline", color: "text-pink-400", bg: "bg-pink-400/10", border: "border-pink-400/20" },
 ];
+
+const IMPACT_SORT_ORDER: Record<string, number> = { high: 0, moderate: 1, low: 2 };
+const CONFIDENCE_SORT_ORDER: Record<string, number> = { low: 0, moderate: 1, high: 2 };
+const DEFAULT_VISIBLE_COUNT = 5;
 
 function getCategoryStyle(category: string) {
   return CATEGORIES.find(c => c.key === category) || CATEGORIES[6];
@@ -106,6 +111,12 @@ function parseLinkedGates(raw: string | null): string[] {
   }
 }
 
+function sortByImpactAndConfidence(a: Assumption, b: Assumption): number {
+  const impactDiff = (IMPACT_SORT_ORDER[a.impactLevel] ?? 1) - (IMPACT_SORT_ORDER[b.impactLevel] ?? 1);
+  if (impactDiff !== 0) return impactDiff;
+  return (CONFIDENCE_SORT_ORDER[a.confidenceLevel] ?? 1) - (CONFIDENCE_SORT_ORDER[b.confidenceLevel] ?? 1);
+}
+
 export default function AssumptionRegistry({
   assumptions,
   loading,
@@ -118,12 +129,17 @@ export default function AssumptionRegistry({
 }: AssumptionRegistryProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(CATEGORIES.map(c => c.key)));
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const sorted = [...assumptions].sort(sortByImpactAndConfidence);
+
+  const filtered = sorted.filter(a => !filterStatus || a.assumptionStatus === filterStatus);
+
+  const visible = showAll ? filtered : filtered.slice(0, DEFAULT_VISIBLE_COUNT);
+  const hasMore = filtered.length > DEFAULT_VISIBLE_COUNT;
 
   const grouped = CATEGORIES.reduce<Record<string, Assumption[]>>((acc, cat) => {
-    acc[cat.key] = assumptions.filter(a =>
-      a.assumptionCategory === cat.key &&
-      (!filterStatus || a.assumptionStatus === filterStatus)
-    );
+    acc[cat.key] = visible.filter(a => a.assumptionCategory === cat.key);
     return acc;
   }, {});
 
@@ -151,9 +167,9 @@ export default function AssumptionRegistry({
           <div className="flex items-center gap-2.5">
             <Shield className="w-4.5 h-4.5 text-primary" />
             <div>
-              <h2 className="text-sm font-bold text-foreground">Assumptions Behind This Decision</h2>
+              <h2 className="text-sm font-bold text-foreground">Forecast Assumptions</h2>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                What must be true for this decision to hold
+                What must remain true for the forecast to hold
               </p>
             </div>
           </div>
@@ -164,7 +180,7 @@ export default function AssumptionRegistry({
               className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              {loading ? "Extracting..." : "Refresh"}
+              {loading ? "Extracting..." : "Recalculate"}
             </button>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
               <X className="w-4 h-4" />
@@ -307,12 +323,16 @@ export default function AssumptionRegistry({
                                     <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
                                       {sourceLabel(a.sourceType)}
                                     </span>
-                                    {gates.length > 0 && (
-                                      <span className="text-[9px] text-muted-foreground/40">
-                                        → {gates.slice(0, 2).join(", ")}
-                                      </span>
-                                    )}
                                   </div>
+                                  {gates.length > 0 && (
+                                    <div className="flex items-center gap-1 mt-1.5">
+                                      <Link2 className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                                      <span className="text-[10px] text-muted-foreground/60">
+                                        {gates.slice(0, 3).join(", ")}
+                                        {gates.length > 3 && ` +${gates.length - 3} more`}
+                                      </span>
+                                    </div>
+                                  )}
                                   {a.invalidationReason && (
                                     <p className="text-[11px] text-amber-400/80 mt-1.5 italic">
                                       {a.invalidationReason}
@@ -324,7 +344,7 @@ export default function AssumptionRegistry({
                                         onClick={() => onUpdateStatus(a.assumptionId, "validated")}
                                         className="text-[10px] font-medium text-blue-400 hover:text-blue-300 px-1.5 py-0.5 rounded border border-blue-400/20 hover:bg-blue-400/10 transition"
                                       >
-                                        Validate
+                                        Still holds
                                       </button>
                                     )}
                                     {a.assumptionStatus !== "invalidated" && (
@@ -335,7 +355,7 @@ export default function AssumptionRegistry({
                                         }}
                                         className="text-[10px] font-medium text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded border border-rose-400/20 hover:bg-rose-400/10 transition"
                                       >
-                                        Invalidate
+                                        No longer holds
                                       </button>
                                     )}
                                     {a.assumptionStatus !== "active" && (
@@ -357,6 +377,15 @@ export default function AssumptionRegistry({
                   </div>
                 );
               })}
+
+              {hasMore && (
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="w-full text-center py-2 text-[11px] font-medium text-primary hover:text-primary/80 transition"
+                >
+                  {showAll ? `Show top ${DEFAULT_VISIBLE_COUNT} only` : `Show all ${filtered.length} assumptions`}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -372,4 +401,3 @@ export default function AssumptionRegistry({
     </div>
   );
 }
-

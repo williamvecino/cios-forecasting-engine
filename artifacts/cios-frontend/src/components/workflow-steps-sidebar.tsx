@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Check, Shield, Activity } from "lucide-react";
+import { Check, Shield } from "lucide-react";
 import type { WorkflowStep } from "../lib/workflow";
 
 const STEPS = [
@@ -81,34 +81,26 @@ export default function WorkflowStepsSidebar({
           );
         })}
 
-        {showDiagnostics && (
-          <>
-            <div className="pt-3 pb-1 px-3">
-              <div className="flex items-center gap-1.5">
-                <Activity className="w-3 h-3 text-muted-foreground/40" />
-                <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Diagnostics</span>
-              </div>
-            </div>
-            {onOpenAssumptions && (
-              <button
-                onClick={onOpenAssumptions}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition w-full text-muted-foreground hover:bg-muted/20 hover:text-foreground border border-transparent"
-              >
-                <Shield className="w-4 h-4 text-muted-foreground/60" />
-                <span className="flex-1 text-left">Assumptions</span>
-                {assumptionCount > 0 && (
-                  <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-bold">
-                    {assumptionCount}
-                  </span>
-                )}
-                {hasInvalidatedAssumptions && (
-                  <span className="rounded-full bg-rose-400/10 text-rose-400 px-1.5 py-0.5 text-[10px] font-bold">
-                    !
-                  </span>
-                )}
-              </button>
-            )}
-          </>
+        {showDiagnostics && onOpenAssumptions && (
+          <div className="pt-2 mt-1 border-t border-border/30">
+            <button
+              onClick={onOpenAssumptions}
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition w-full text-muted-foreground hover:bg-muted/20 hover:text-foreground border border-transparent"
+            >
+              <Shield className="w-4 h-4 text-primary/60" />
+              <span className="flex-1 text-left">Forecast Assumptions</span>
+              {assumptionCount > 0 && (
+                <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-bold">
+                  {assumptionCount}
+                </span>
+              )}
+              {hasInvalidatedAssumptions && (
+                <span className="rounded-full bg-rose-400/10 text-rose-400 px-1.5 py-0.5 text-[10px] font-bold">
+                  !
+                </span>
+              )}
+            </button>
+          </div>
         )}
       </div>
     </aside>

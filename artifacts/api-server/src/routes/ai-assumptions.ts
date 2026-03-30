@@ -178,6 +178,21 @@ RULES:
 - STRICT DEDUPLICATION: if multiple constraints, barriers, or signals imply the same underlying assumption (e.g., "payer coverage pending" and "coverage unresolved" and "payer decision not final"), you MUST merge them into ONE normalized assumption. Never create multiple assumptions that describe the same condition from different angles. When in doubt, merge.
 - Link each assumption to gate labels from context when relevant
 - If existing assumptions are provided, preserve their IDs. Update status to "validated" if confirmed, "invalidated" if contradicted. Add new ones as needed.
+
+CONDITIONAL PHRASING (MANDATORY):
+Every assumption MUST be phrased as a conditional dependency — a testable condition with a temporal or causal scope. Use this structure: "[Condition] will/will not [occur/change/hold] within [timeframe or trigger]."
+
+CORRECT examples:
+- "No new comparative safety data will emerge within 12 months"
+- "FDA will not issue a CRL for the pending NDA before the PDUFA date"
+- "Guideline committees will not revise their position before Q3 2026"
+- "Payer coverage decisions will remain unchanged through the forecast horizon"
+
+INCORRECT examples (DO NOT USE — these are observations, not conditional dependencies):
+- "Available comparative safety data are insufficient" (observation, not conditional)
+- "The FDA review is ongoing" (status report, not testable assumption)
+- "Payer coverage is uncertain" (vague, not time-bounded)
+- "Safety profile is favorable" (assertion, not falsifiable condition)
 ${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${existingContext}
 
 OUTPUT FORMAT — return valid JSON:
