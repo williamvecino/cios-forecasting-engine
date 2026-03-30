@@ -1689,16 +1689,17 @@ export default function SignalsPage() {
               })()}
 
               {(() => {
-                const rootGroups: Record<string, string[]> = {};
+                const rootGroups: Record<string, { texts: string[]; compressions: number[] }> = {};
                 const allSigs = [...internalSignals, ...externalSignals, ...missingSignals];
                 for (const s of allSigs) {
                   const lin = signalLineageMap[`SIG-${s.id}`];
                   if (lin?.rootEvidenceId) {
-                    if (!rootGroups[lin.rootEvidenceId]) rootGroups[lin.rootEvidenceId] = [];
-                    rootGroups[lin.rootEvidenceId].push(s.text.slice(0, 60));
+                    if (!rootGroups[lin.rootEvidenceId]) rootGroups[lin.rootEvidenceId] = { texts: [], compressions: [] };
+                    rootGroups[lin.rootEvidenceId].texts.push(s.text.slice(0, 60));
+                    rootGroups[lin.rootEvidenceId].compressions.push(lin.compressionFactor);
                   }
                 }
-                const shared = Object.entries(rootGroups).filter(([, v]) => v.length > 1);
+                const shared = Object.entries(rootGroups).filter(([, v]) => v.texts.length > 1);
                 if (shared.length === 0) return null;
                 return (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
@@ -1710,12 +1711,22 @@ export default function SignalsPage() {
                       {shared.length} root event{shared.length > 1 ? "s" : ""} each drive multiple signals. These signals may be counted redundantly — consider editing lineage or consolidating.
                     </div>
                     <div className="space-y-1">
-                      {shared.map(([rootId, texts]) => (
-                        <div key={rootId} className="text-[10px] text-foreground/70">
-                          <span className="font-mono text-amber-400/70">{rootId}</span>
-                          <span className="text-muted-foreground"> — {texts.length} signals</span>
-                        </div>
-                      ))}
+                      {shared.map(([rootId, group]) => {
+                        const compressed = group.compressions.filter(c => c < 1);
+                        const minC = compressed.length > 0 ? Math.min(...compressed) : 1;
+                        const maxC = compressed.length > 0 ? Math.max(...compressed) : 1;
+                        return (
+                          <div key={rootId} className="text-[10px] text-foreground/70">
+                            <span className="font-mono text-amber-400/70">{rootId}</span>
+                            <span className="text-muted-foreground"> — {group.texts.length} signals</span>
+                            {compressed.length > 0 && (
+                              <span className="text-amber-400/60 ml-1">
+                                ({compressed.length} compressed: {minC === maxC ? `×${minC.toFixed(2)}` : `×${minC.toFixed(2)}–${maxC.toFixed(2)}`} weight)
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
