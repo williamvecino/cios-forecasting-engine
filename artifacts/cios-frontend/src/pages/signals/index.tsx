@@ -576,6 +576,11 @@ export default function SignalsPage() {
   });
   const [incomingEvents, setIncomingEvents] = useState<IncomingEvent[]>(fallbackEvents);
   const [aiLoading, setAiLoading] = useState(false);
+  const [processingPhase, setProcessingPhase] = useState<"searching" | "processing" | "ready" | null>(null);
+  const [processingCounts, setProcessingCounts] = useState({ found: 0, normalized: 0, validated: 0 });
+  const [showReadyBanner, setShowReadyBanner] = useState(false);
+  const readyBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSucceededRef = useRef(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
   const [translationSummary, setTranslationSummary] = useState<string | null>(null);
@@ -714,6 +719,14 @@ export default function SignalsPage() {
     const requestId = ++aiRequestIdRef.current;
 
     setAiLoading(true);
+    setProcessingPhase("searching");
+    setProcessingCounts({ found: 0, normalized: 0, validated: 0 });
+    setShowReadyBanner(false);
+    searchSucceededRef.current = false;
+    if (readyBannerTimerRef.current) {
+      clearTimeout(readyBannerTimerRef.current);
+      readyBannerTimerRef.current = null;
+    }
     setAiError(null);
     setMarketSummary(null);
     setTranslationSummary(null);
@@ -756,7 +769,10 @@ export default function SignalsPage() {
       .then((data) => {
         if (aiRequestIdRef.current !== requestId) return;
 
+        setProcessingPhase("processing");
+
         if (data.signals && Array.isArray(data.signals)) {
+          setProcessingCounts(prev => ({ ...prev, found: data.signals.length }));
           const VALID_SIGNAL_CLASSES = new Set(["observed", "derived", "uncertainty"]);
           const VALID_SIGNAL_FAMILIES = new Set(ALL_SIGNAL_FAMILIES);
           const mapped: Signal[] = data.signals.map((s: any, i: number) => {
@@ -805,12 +821,14 @@ export default function SignalsPage() {
               is_locked: false,
             };
           });
+          setProcessingCounts(prev => ({ ...prev, normalized: mapped.length }));
           setSignals((prev) => {
             const keepSignals = prev.filter((s) => s.is_locked || s.source === "user" || s.accepted);
             const keepTexts = new Set(keepSignals.map(s => s.text.toLowerCase().trim()));
             const newAi = mapped.filter(s => !keepTexts.has(s.text.toLowerCase().trim()));
             const merged = [...newAi, ...keepSignals];
             persistSignals(merged);
+            setProcessingCounts(p => ({ ...p, validated: merged.length }));
             return merged;
           });
         }
@@ -885,6 +903,8 @@ export default function SignalsPage() {
         if (data.therapeutic_area) {
           localStorage.setItem("cios.therapeuticArea", data.therapeutic_area);
         }
+
+        searchSucceededRef.current = true;
       })
       .catch((err) => {
         if (aiRequestIdRef.current !== requestId) return;
@@ -895,6 +915,16 @@ export default function SignalsPage() {
       .finally(() => {
         if (aiRequestIdRef.current === requestId) {
           setAiLoading(false);
+          if (searchSucceededRef.current) {
+            setProcessingPhase("ready");
+            setShowReadyBanner(true);
+            readyBannerTimerRef.current = setTimeout(() => {
+              setShowReadyBanner(false);
+              readyBannerTimerRef.current = null;
+            }, 8000);
+          } else {
+            setProcessingPhase(null);
+          }
         }
       });
   }, [subject, questionText, outcome, questionType, timeHorizon, entities, caseKey, fallbackEvents, fallbackSuggestions]);
@@ -934,6 +964,13 @@ export default function SignalsPage() {
   useEffect(() => {
     if (activeQuestion?.caseId !== prevCaseRef.current) {
       setSignalLineageMap({});
+      setProcessingPhase(null);
+      setProcessingCounts({ found: 0, normalized: 0, validated: 0 });
+      setShowReadyBanner(false);
+      if (readyBannerTimerRef.current) {
+        clearTimeout(readyBannerTimerRef.current);
+        readyBannerTimerRef.current = null;
+      }
       prevCaseRef.current = activeQuestion?.caseId;
     }
   }, [activeQuestion?.caseId]);
@@ -1535,16 +1572,72 @@ export default function SignalsPage() {
             </div>
           )}
 
-          {aiLoading && (
-            <div className="rounded-2xl border border-border bg-card p-5">
+          {aiLoading && processingPhase === "searching" && (
+            <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-card p-5">
               <div className="flex items-center gap-3">
-                <Sparkles className="w-5 h-5 text-muted-foreground animate-pulse" />
+                <div className="relative">
+                  <Search className="w-5 h-5 text-blue-400" />
+                  <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+                </div>
                 <div className="flex-1">
-                  <div className="text-sm text-foreground">Researching signals for {subject}...</div>
-                  <div className="mt-2 h-1 w-full rounded-full bg-muted/30 overflow-hidden">
-                    <div className="h-full rounded-full bg-primary/40 animate-[loading_2s_ease-in-out_infinite]" style={{ width: "60%" }} />
+                  <div className="text-sm font-semibold text-foreground">Searching for signals</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Scanning sources and collecting candidates</div>
+                  <div className="mt-3 h-1.5 w-full rounded-full bg-blue-500/10 overflow-hidden">
+                    <div className="h-full rounded-full bg-blue-500/60 animate-[searchPulse_2.5s_ease-in-out_infinite]" style={{ width: "40%" }} />
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {aiLoading && processingPhase === "processing" && (
+            <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-card p-5">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Activity className="w-5 h-5 text-amber-400 animate-pulse" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-foreground">Processing signals</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Deduplicating, normalizing, and assessing quality</div>
+                  <div className="mt-3 h-1.5 w-full rounded-full bg-amber-500/10 overflow-hidden">
+                    <div className="h-full rounded-full bg-amber-500/60 transition-all duration-700" style={{ width: processingCounts.validated > 0 ? "95%" : processingCounts.normalized > 0 ? "70%" : "40%" }} />
+                  </div>
+                  <div className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${processingCounts.found > 0 ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
+                      <span className="text-[10px] text-muted-foreground">Signals found: <span className="text-foreground font-medium">{processingCounts.found}</span></span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${processingCounts.normalized > 0 ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
+                      <span className="text-[10px] text-muted-foreground">Normalized: <span className="text-foreground font-medium">{processingCounts.normalized}</span></span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${processingCounts.validated > 0 ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
+                      <span className="text-[10px] text-muted-foreground">Validated: <span className="text-foreground font-medium">{processingCounts.validated}</span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showReadyBanner && !aiLoading && (
+            <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-card p-5 transition-all duration-500">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-emerald-500/20 p-1.5">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-emerald-300">Signals ready for review</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">You can now edit or accept signals</div>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <span>Found: <span className="text-foreground font-medium">{processingCounts.found}</span></span>
+                  <span>Validated: <span className="text-foreground font-medium">{processingCounts.validated}</span></span>
+                </div>
+                <button type="button" onClick={() => setShowReadyBanner(false)} className="text-muted-foreground hover:text-foreground ml-1">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           )}
