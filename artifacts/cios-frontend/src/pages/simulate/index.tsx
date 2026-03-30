@@ -46,6 +46,8 @@ interface DecisionSensitivityItem {
 }
 
 interface SimulationResult {
+  case_type?: string;
+  vocabulary_replacements?: Record<string, string>;
   adoption_likelihood: number;
   confidence: string;
   primary_reaction: string;
@@ -134,6 +136,12 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
 }) {
   const [activeSection, setActiveSection] = useState<AccordionSection>("reaction");
 
+  const apiCaseType = result.case_type;
+  const isSafetyFromApi = apiCaseType === "safety_risk";
+  const isRegulatoryFromApi = apiCaseType === "regulatory_approval" || apiCaseType === "clinical_outcome";
+  const isSafety = isSafetyFromApi || caseTypeInfo.isSafety;
+  const isRegulatory = isRegulatoryFromApi || caseTypeInfo.isRegulatory;
+
   function toggle(section: AccordionSection) {
     setActiveSection(prev => prev === section ? null : section);
   }
@@ -148,6 +156,16 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
     if (level === "High") return "text-emerald-400 bg-emerald-400/10 border-emerald-400/30";
     if (level === "Moderate") return "text-amber-400 bg-amber-400/10 border-amber-400/30";
     return "text-rose-400 bg-rose-400/10 border-rose-400/30";
+  }
+
+  function applyVocab(text: string): string {
+    const replacements = result.vocabulary_replacements;
+    if (!replacements || Object.keys(replacements).length === 0) return text;
+    let out = text;
+    for (const [from, to] of Object.entries(replacements)) {
+      out = out.replaceAll(from, to);
+    }
+    return out;
   }
 
   return (
@@ -175,7 +193,7 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-              {caseTypeInfo.isSafety ? "Safety Impact Likelihood" : caseTypeInfo.isRegulatory ? "Regulatory Adoption Likelihood" : "Adoption Likelihood"}
+              {isSafety ? "Safety Impact Likelihood" : isRegulatory ? "Regulatory Adoption Likelihood" : "Adoption Likelihood"}
             </p>
             <p className={`text-4xl font-bold mt-1 ${likelihoodColor(result.adoption_likelihood)}`}>
               {result.adoption_likelihood}%
@@ -188,7 +206,7 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
 
         <div>
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Primary Reaction</p>
-          <p className="text-[15px] text-foreground leading-relaxed">{result.primary_reaction}</p>
+          <p className="text-[15px] text-foreground leading-relaxed">{applyVocab(result.primary_reaction)}</p>
         </div>
       </div>
 
@@ -200,26 +218,26 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">What This Changes</p>
-                  <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_changes}</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{applyVocab(result.what_this_changes)}</p>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-2">What This Does Not Change</p>
-                  <p className="text-[13px] text-foreground leading-relaxed">{result.what_this_does_not_change}</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{applyVocab(result.what_this_does_not_change)}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Primary Remaining Barrier</p>
-                  <p className="text-[13px] text-foreground leading-relaxed">{result.primary_remaining_barrier}</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{applyVocab(result.primary_remaining_barrier)}</p>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Strongest Trigger for Movement</p>
-                  <p className="text-[13px] text-foreground leading-relaxed">{result.strongest_trigger_for_movement}</p>
+                  <p className="text-[13px] text-foreground leading-relaxed">{applyVocab(result.strongest_trigger_for_movement)}</p>
                 </div>
               </div>
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Material Effectiveness</p>
-                <p className="text-[13px] text-foreground leading-relaxed">{result.material_effectiveness}</p>
+                <p className="text-[13px] text-foreground leading-relaxed">{applyVocab(result.material_effectiveness)}</p>
               </div>
             </div>
           )}
@@ -321,7 +339,7 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
           </div>
         )}
 
-        {caseTypeInfo.isSafety && (
+        {isSafety && (
           <div>
             <AccordionHeader title="Safety-Specific Success Measures" isOpen={activeSection === "safety_measures"} onClick={() => toggle("safety_measures")} />
             {activeSection === "safety_measures" && (

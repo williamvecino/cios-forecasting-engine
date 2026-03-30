@@ -386,6 +386,8 @@ Score how the ${body.segment} segment will react given these features and curren
     }
 
     const validated = {
+      case_type: caseTypeProfile.caseType,
+      vocabulary_replacements: caseTypeProfile.vocabularyReplacements,
       adoption_likelihood: rawLikelihood,
       confidence: ["High", "Moderate", "Low"].includes(parsed.confidence) ? parsed.confidence : "Moderate",
       primary_reaction: parsed.primary_reaction || "",
