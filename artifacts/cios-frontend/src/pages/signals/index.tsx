@@ -923,6 +923,7 @@ export default function SignalsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [signalLineageMap, setSignalLineageMap] = useState<Record<string, SignalLineageInfo>>({});
+  const [lineageRefreshKey, setLineageRefreshKey] = useState(0);
   const prevCaseRef = useRef(activeQuestion?.caseId);
   useEffect(() => {
     if (activeQuestion?.caseId !== prevCaseRef.current) {
@@ -933,6 +934,11 @@ export default function SignalsPage() {
 
   const handleDependencyData = useCallback((_data: any, lineageMap: Record<string, SignalLineageInfo>) => {
     setSignalLineageMap(lineageMap);
+  }, []);
+
+  const handleLineageUpdated = useCallback(() => {
+    setSignalLineageMap({});
+    setLineageRefreshKey(k => k + 1);
   }, []);
 
   const [newText, setNewText] = useState("");
@@ -1643,7 +1649,7 @@ export default function SignalsPage() {
           />
 
           {activeQuestion?.caseId && (
-            <SignalDependencyPanel caseId={activeQuestion.caseId} onData={handleDependencyData} />
+            <SignalDependencyPanel caseId={activeQuestion.caseId} onData={handleDependencyData} refreshKey={lineageRefreshKey} />
           )}
 
           <ConflictResolverPanel
@@ -1682,6 +1688,39 @@ export default function SignalsPage() {
                 ) : null;
               })()}
 
+              {(() => {
+                const rootGroups: Record<string, string[]> = {};
+                const allSigs = [...internalSignals, ...externalSignals, ...missingSignals];
+                for (const s of allSigs) {
+                  const lin = signalLineageMap[`SIG-${s.id}`];
+                  if (lin?.rootEvidenceId) {
+                    if (!rootGroups[lin.rootEvidenceId]) rootGroups[lin.rootEvidenceId] = [];
+                    rootGroups[lin.rootEvidenceId].push(s.text.slice(0, 60));
+                  }
+                }
+                const shared = Object.entries(rootGroups).filter(([, v]) => v.length > 1);
+                if (shared.length === 0) return null;
+                return (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-400 text-xs font-semibold">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Shared Root Evidence Detected
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {shared.length} root event{shared.length > 1 ? "s" : ""} each drive multiple signals. These signals may be counted redundantly — consider editing lineage or consolidating.
+                    </div>
+                    <div className="space-y-1">
+                      {shared.map(([rootId, texts]) => (
+                        <div key={rootId} className="text-[10px] text-foreground/70">
+                          <span className="font-mono text-amber-400/70">{rootId}</span>
+                          <span className="text-muted-foreground"> — {texts.length} signals</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
@@ -1707,6 +1746,8 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        caseId={activeQuestion?.caseId}
+                        onLineageUpdated={handleLineageUpdated}
                       />
                     ))}
                   </div>
@@ -1734,6 +1775,8 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        caseId={activeQuestion?.caseId}
+                        onLineageUpdated={handleLineageUpdated}
                       />
                     ))}
                   </div>
@@ -1761,6 +1804,8 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        caseId={activeQuestion?.caseId}
+                        onLineageUpdated={handleLineageUpdated}
                       />
                     ))}
                   </div>
@@ -1791,6 +1836,8 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        caseId={activeQuestion?.caseId}
+                        onLineageUpdated={handleLineageUpdated}
                       />
                     ))}
                   </div>
@@ -1813,6 +1860,8 @@ export default function SignalsPage() {
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        caseId={activeQuestion?.caseId}
+                        onLineageUpdated={handleLineageUpdated}
                       />
                     ))}
                   </div>
@@ -1842,6 +1891,8 @@ export default function SignalsPage() {
                     onShowProvenance={() => setProvenanceSignal(sig)}
                     isPrimaryDriver={sig.id === primaryDriverId}
                     lineage={signalLineageMap[`SIG-${sig.id}`]}
+                    caseId={activeQuestion?.caseId}
+                    onLineageUpdated={handleLineageUpdated}
                   />
                 ))}
               </div>
@@ -2113,6 +2164,8 @@ function MinimalSignalCard({
   onShowProvenance,
   isPrimaryDriver,
   lineage,
+  caseId,
+  onLineageUpdated,
 }: {
   signal: Signal;
   editing: boolean;
@@ -2124,7 +2177,12 @@ function MinimalSignalCard({
   onShowProvenance?: () => void;
   isPrimaryDriver?: boolean;
   lineage?: SignalLineageInfo;
+  caseId?: string;
+  onLineageUpdated?: () => void;
 }) {
+  const [editingLineage, setEditingLineage] = useState(false);
+  const [lineageForm, setLineageForm] = useState({ dependencyRole: "", rootEvidenceId: "" });
+
   const LINEAGE_ROLE_COLORS: Record<string, string> = {
     Echo: "bg-slate-700/50 text-slate-400 border-slate-600/30",
     Translation: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -2132,6 +2190,26 @@ function MinimalSignalCard({
     "Root Evidence": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     Corroborating: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
     Derivative: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  };
+
+  const DEPENDENCY_ROLES = ["Root Evidence", "Corroborating", "Derivative", "Independent"];
+  const ECHO_TYPES = ["Echo", "Translation", "Independent"];
+
+  const handleOverrideSave = async () => {
+    if (!caseId) return;
+    const API = import.meta.env.VITE_API_URL || "";
+    try {
+      await fetch(`${API}/api/cases/${encodeURIComponent(caseId)}/signals/SIG-${signal.id}/lineage`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dependencyRole: lineageForm.dependencyRole || undefined,
+          rootEvidenceId: lineageForm.rootEvidenceId || undefined,
+        }),
+      });
+      setEditingLineage(false);
+      if (onLineageUpdated) onLineageUpdated();
+    } catch {}
   };
 
   return (
@@ -2225,21 +2303,73 @@ function MinimalSignalCard({
             </div>
           </div>
           {lineage && (
-            <div className="flex items-center gap-2 flex-wrap mt-1.5">
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${LINEAGE_ROLE_COLORS[lineage.echoVsTranslation] || LINEAGE_ROLE_COLORS[lineage.dependencyRole] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
-                {lineage.echoVsTranslation}
-              </span>
-              <span className="text-[9px] text-muted-foreground">{lineage.sourceCluster}</span>
-              {lineage.compressionFactor < 1 && (
-                <span className="text-[9px] text-amber-400/70" title={`This signal's weight is reduced to ${Math.round(lineage.compressionFactor * 100)}% because it echoes or derives from an upstream signal`}>
-                  ×{lineage.compressionFactor.toFixed(2)} weight
+            <div className="space-y-1.5 mt-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${LINEAGE_ROLE_COLORS[lineage.echoVsTranslation] || LINEAGE_ROLE_COLORS[lineage.dependencyRole] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                  {lineage.echoVsTranslation}
                 </span>
-              )}
-              {lineage.novelInformationFlag === "No" && (
-                <span className="text-[9px] text-rose-400/60 bg-rose-500/10 rounded-full px-1.5 py-0.5 border border-rose-500/20">No novel info</span>
-              )}
-              {lineage.novelInformationFlag === "Partial" && (
-                <span className="text-[9px] text-amber-400/60 bg-amber-500/10 rounded-full px-1.5 py-0.5 border border-amber-500/20">Partial novelty</span>
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-medium ${LINEAGE_ROLE_COLORS[lineage.dependencyRole] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                  {lineage.dependencyRole}
+                </span>
+                <span className="text-[9px] text-muted-foreground">{lineage.sourceCluster}</span>
+                {lineage.compressionFactor < 1 && (
+                  <span className="text-[9px] text-amber-400/70" title={`This signal's weight is reduced to ${Math.round(lineage.compressionFactor * 100)}% because it echoes or derives from an upstream signal`}>
+                    ×{lineage.compressionFactor.toFixed(2)} weight
+                  </span>
+                )}
+                {lineage.novelInformationFlag === "No" && (
+                  <span className="text-[9px] text-rose-400/60 bg-rose-500/10 rounded-full px-1.5 py-0.5 border border-rose-500/20">No novel info</span>
+                )}
+                {lineage.novelInformationFlag === "Partial" && (
+                  <span className="text-[9px] text-amber-400/60 bg-amber-500/10 rounded-full px-1.5 py-0.5 border border-amber-500/20">Partial novelty</span>
+                )}
+                {lineage.lineageOverride && (
+                  <span className="text-[9px] text-violet-400/70 bg-violet-500/10 rounded-full px-1.5 py-0.5 border border-violet-500/20">Manual override</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-[9px]">
+                <span className="text-muted-foreground">Root: <span className="text-foreground/70 font-mono">{lineage.rootEvidenceId}</span></span>
+                {caseId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLineageForm({ dependencyRole: lineage.dependencyRole, rootEvidenceId: lineage.rootEvidenceId });
+                      setEditingLineage(!editingLineage);
+                    }}
+                    className="text-indigo-400 hover:text-indigo-300 transition cursor-pointer underline"
+                  >
+                    {editingLineage ? "Cancel" : "Edit lineage"}
+                  </button>
+                )}
+              </div>
+              {editingLineage && (
+                <div className="mt-2 p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-muted-foreground mb-1">Dependency Role</label>
+                      <select
+                        value={lineageForm.dependencyRole}
+                        onChange={(e) => setLineageForm(f => ({ ...f, dependencyRole: e.target.value }))}
+                        className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-xs text-foreground"
+                      >
+                        {DEPENDENCY_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-muted-foreground mb-1">Root Evidence ID</label>
+                      <input
+                        type="text"
+                        value={lineageForm.rootEvidenceId}
+                        onChange={(e) => setLineageForm(f => ({ ...f, rootEvidenceId: e.target.value }))}
+                        className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-xs text-foreground font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setEditingLineage(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1 rounded-lg border border-border transition cursor-pointer">Cancel</button>
+                    <button type="button" onClick={handleOverrideSave} className="text-xs text-indigo-400 hover:text-indigo-300 px-3 py-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 transition cursor-pointer">Save Override</button>
+                  </div>
+                </div>
               )}
             </div>
           )}

@@ -28,6 +28,8 @@ router.get("/cases/:caseId/signal-dependency", async (req, res) => {
       await persistDependencyTags(analysis, signals);
     }
 
+    const overrideMap = new Map(signals.map(s => [s.signalId, s.lineageOverride === true]));
+
     const signalLineageMap: Record<string, {
       rootEvidenceId: string;
       sourceCluster: string;
@@ -36,41 +38,51 @@ router.get("/cases/:caseId/signal-dependency", async (req, res) => {
       novelInformationFlag: string;
       lineageConfidence: string;
       compressionFactor: number;
+      lineageOverride: boolean;
     }> = {};
 
     for (const cl of analysis.clusters) {
-      signalLineageMap[cl.rootSignal.signal.signalId] = {
-        rootEvidenceId: cl.rootEvidenceId,
-        sourceCluster: cl.rootSignal.sourceCluster,
-        dependencyRole: cl.rootSignal.dependencyRole,
-        echoVsTranslation: cl.rootSignal.echoVsTranslation,
-        novelInformationFlag: cl.rootSignal.novelInformationFlag,
-        lineageConfidence: cl.rootSignal.lineageConfidence,
+      const rootSigId = cl.rootSignal.signal.signalId;
+      const isOverridden = overrideMap.get(rootSigId) ?? false;
+      signalLineageMap[rootSigId] = {
+        rootEvidenceId: isOverridden ? (cl.rootSignal.signal.rootEvidenceId ?? cl.rootEvidenceId) : cl.rootEvidenceId,
+        sourceCluster: isOverridden ? (cl.rootSignal.signal.sourceCluster ?? cl.rootSignal.sourceCluster) : cl.rootSignal.sourceCluster,
+        dependencyRole: isOverridden ? (cl.rootSignal.signal.dependencyRole ?? cl.rootSignal.dependencyRole) : cl.rootSignal.dependencyRole,
+        echoVsTranslation: isOverridden ? (cl.rootSignal.signal.echoVsTranslation ?? cl.rootSignal.echoVsTranslation) : cl.rootSignal.echoVsTranslation,
+        novelInformationFlag: isOverridden ? (cl.rootSignal.signal.novelInformationFlag ?? cl.rootSignal.novelInformationFlag) : cl.rootSignal.novelInformationFlag,
+        lineageConfidence: isOverridden ? (cl.rootSignal.signal.lineageConfidence ?? cl.rootSignal.lineageConfidence) : cl.rootSignal.lineageConfidence,
         compressionFactor: 1,
+        lineageOverride: isOverridden,
       };
       for (const d of cl.descendants) {
         const compressed = analysis.compressedSignals.find(c => c.originalSignalId === d.signal.id);
-        signalLineageMap[d.signal.signalId] = {
-          rootEvidenceId: cl.rootEvidenceId,
-          sourceCluster: d.sourceCluster,
-          dependencyRole: d.dependencyRole,
-          echoVsTranslation: d.echoVsTranslation,
-          novelInformationFlag: d.novelInformationFlag,
-          lineageConfidence: d.lineageConfidence,
+        const dSigId = d.signal.signalId;
+        const dOverridden = overrideMap.get(dSigId) ?? false;
+        signalLineageMap[dSigId] = {
+          rootEvidenceId: dOverridden ? (d.signal.rootEvidenceId ?? cl.rootEvidenceId) : cl.rootEvidenceId,
+          sourceCluster: dOverridden ? (d.signal.sourceCluster ?? d.sourceCluster) : d.sourceCluster,
+          dependencyRole: dOverridden ? (d.signal.dependencyRole ?? d.dependencyRole) : d.dependencyRole,
+          echoVsTranslation: dOverridden ? (d.signal.echoVsTranslation ?? d.echoVsTranslation) : d.echoVsTranslation,
+          novelInformationFlag: dOverridden ? (d.signal.novelInformationFlag ?? d.novelInformationFlag) : d.novelInformationFlag,
+          lineageConfidence: dOverridden ? (d.signal.lineageConfidence ?? d.lineageConfidence) : d.lineageConfidence,
           compressionFactor: compressed?.compressionFactor ?? 1,
+          lineageOverride: dOverridden,
         };
       }
     }
 
     for (const ind of analysis.independentSignals) {
-      signalLineageMap[ind.signal.signalId] = {
-        rootEvidenceId: ind.rootEvidenceId,
-        sourceCluster: ind.sourceCluster,
-        dependencyRole: ind.dependencyRole,
-        echoVsTranslation: ind.echoVsTranslation,
-        novelInformationFlag: ind.novelInformationFlag,
-        lineageConfidence: ind.lineageConfidence,
+      const indSigId = ind.signal.signalId;
+      const indOverridden = overrideMap.get(indSigId) ?? false;
+      signalLineageMap[indSigId] = {
+        rootEvidenceId: indOverridden ? (ind.signal.rootEvidenceId ?? ind.rootEvidenceId) : ind.rootEvidenceId,
+        sourceCluster: indOverridden ? (ind.signal.sourceCluster ?? ind.sourceCluster) : ind.sourceCluster,
+        dependencyRole: indOverridden ? (ind.signal.dependencyRole ?? ind.dependencyRole) : ind.dependencyRole,
+        echoVsTranslation: indOverridden ? (ind.signal.echoVsTranslation ?? ind.echoVsTranslation) : ind.echoVsTranslation,
+        novelInformationFlag: indOverridden ? (ind.signal.novelInformationFlag ?? ind.novelInformationFlag) : ind.novelInformationFlag,
+        lineageConfidence: indOverridden ? (ind.signal.lineageConfidence ?? ind.lineageConfidence) : ind.lineageConfidence,
         compressionFactor: 1,
+        lineageOverride: indOverridden,
       };
     }
 
@@ -144,7 +156,7 @@ router.patch("/cases/:caseId/signals/:signalId/lineage", async (req, res) => {
       return;
     }
 
-    const updates: Record<string, any> = { updatedAt: new Date() };
+    const updates: Record<string, any> = { updatedAt: new Date(), lineageOverride: true };
     if (rootEvidenceId !== undefined) updates.rootEvidenceId = rootEvidenceId;
     if (dependencyRole !== undefined) updates.dependencyRole = dependencyRole;
     if (sourceCluster !== undefined) updates.sourceCluster = sourceCluster;
@@ -202,7 +214,12 @@ async function persistDependencyTags(
     });
   }
 
+  const overriddenIds = new Set(
+    _signals.filter(s => s.lineageOverride === true).map(s => s.id)
+  );
+
   for (const u of updates) {
+    if (overriddenIds.has(u.id)) continue;
     try {
       await db.update(signalsTable).set({
         rootEvidenceId: u.rootEvidenceId,

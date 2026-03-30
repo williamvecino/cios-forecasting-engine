@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, text, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, real, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -74,6 +74,7 @@ export const signalsTable = pgTable("signals", {
   lineageConfidence: text("lineage_confidence"),
   novelInformationFlag: text("novel_information_flag"),
   echoVsTranslation: text("echo_vs_translation"),
+  lineageOverride: boolean("lineage_override").default(false),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

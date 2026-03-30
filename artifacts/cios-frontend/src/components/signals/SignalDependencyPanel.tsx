@@ -124,9 +124,10 @@ export interface SignalLineageInfo {
   novelInformationFlag: string;
   lineageConfidence: string;
   compressionFactor: number;
+  lineageOverride?: boolean;
 }
 
-export default function SignalDependencyPanel({ caseId, onData }: { caseId: string; onData?: (data: DependencyData | null, lineageMap: Record<string, SignalLineageInfo>) => void }) {
+export default function SignalDependencyPanel({ caseId, onData, refreshKey }: { caseId: string; onData?: (data: DependencyData | null, lineageMap: Record<string, SignalLineageInfo>) => void; refreshKey?: number }) {
   const [data, setData] = useState<DependencyData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,14 +152,16 @@ export default function SignalDependencyPanel({ caseId, onData }: { caseId: stri
   }, [caseId, onData]);
 
   const prevCaseIdRef = useRef(caseId);
+  const prevRefreshKeyRef = useRef(refreshKey);
   useEffect(() => {
-    if (prevCaseIdRef.current !== caseId) {
+    if (prevCaseIdRef.current !== caseId || prevRefreshKeyRef.current !== refreshKey) {
       setData(null);
       setError(null);
       setExpandedClusters(new Set());
       prevCaseIdRef.current = caseId;
+      prevRefreshKeyRef.current = refreshKey;
     }
-  }, [caseId]);
+  }, [caseId, refreshKey]);
 
   useEffect(() => {
     if (!data && !loading) {
