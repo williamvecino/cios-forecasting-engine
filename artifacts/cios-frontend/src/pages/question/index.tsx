@@ -123,6 +123,7 @@ export default function QuestionPage() {
   const [refineResult, setRefineResult] = useState<RefineResult | null>(null);
   const [isEditingProposal, setIsEditingProposal] = useState(false);
   const [editedProposal, setEditedProposal] = useState("");
+  const [lastValidatedProposal, setLastValidatedProposal] = useState("");
   const [outcomeStates, setOutcomeStates] = useState<string[]>([]);
   const [showImportProject, setShowImportProject] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -270,6 +271,7 @@ export default function QuestionPage() {
       if (res.ok) {
         const data: RefineResult = await res.json();
         setRefineResult(data);
+        setLastValidatedProposal(proposedQ);
         setOutcomeStates(data.outcomeStructure?.states || ["Yes", "No"]);
       } else {
         setRefineResult(null);
@@ -706,7 +708,8 @@ export default function QuestionPage() {
   };
 
   const feasVerdict = refineResult?.feasibility?.verdict;
-  const canProceed = !!refineResult && (feasVerdict === "feasible" || feasVerdict === "feasible_with_refinement");
+  const proposalMatchesValidated = editedProposal.trim() === lastValidatedProposal.trim();
+  const canProceed = !!refineResult && proposalMatchesValidated && !isEditingProposal && (feasVerdict === "feasible" || feasVerdict === "feasible_with_refinement");
 
   return (
     <WorkflowLayout
@@ -876,7 +879,7 @@ export default function QuestionPage() {
                       {editedProposal !== refineResult.feasibility.refinedQuestion && (
                         <button
                           type="button"
-                          onClick={() => setEditedProposal(refineResult.feasibility.refinedQuestion!)}
+                          onClick={() => { setEditedProposal(refineResult.feasibility.refinedQuestion!); setLastValidatedProposal(refineResult.feasibility.refinedQuestion!); }}
                           className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/10"
                         >
                           <Check className="w-3 h-3" />
@@ -986,7 +989,7 @@ export default function QuestionPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setPageState("input"); setStructuringResult(null); setRefineResult(null); setIsEditingProposal(false); setEditedProposal(""); setOutcomeStates([]); setSubmitError(null); }}
+                onClick={() => { setPageState("input"); setStructuringResult(null); setRefineResult(null); setIsEditingProposal(false); setEditedProposal(""); setLastValidatedProposal(""); setOutcomeStates([]); setSubmitError(null); }}
                 className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/10 inline-flex items-center gap-1.5"
               >
                 <RotateCcw className="w-3.5 h-3.5" />

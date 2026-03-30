@@ -1,0 +1,253 @@
+Diagnosis — What Drifted
+
+Your case is clearly defined:
+
+Decision Domain: Regulatory
+Outcome: FDA safety-related label change
+Driver: GI bleeding safety risk
+Time Horizon: 12 months
+
+But the system is now proposing signals from:
+
+adoption / workflow friction
+manufacturing readiness
+portfolio prioritization
+inventory logistics
+supply chain readiness
+
+Those belong to:
+
+Operations / Commercial / Launch / Adoption
+
+—not—
+
+Regulatory Safety
+
+This is a domain routing failure.
+
+Immediate Rule — Enforce This Going Forward
+
+Every signal must pass this test:
+
+Can this signal plausibly change the probability of an FDA label change within 12 months?
+
+If the answer is no, it must be rejected automatically.
+
+Evaluation of the Current Suggested Signals
+Phase 3 tolerability profile
+
+Verdict: Reject
+
+Reason:
+
+historical baseline evidence
+already embedded in the approved label
+does not trigger new regulatory action
+Monitoring requirements create workflow friction
+
+Verdict: Reject
+
+Reason:
+
+affects prescriber behavior
+does not affect FDA safety labeling
+KOL endorsements citing manageable safety
+
+Verdict: Reject
+
+Reason:
+
+opinion signal
+not regulatory evidence
+Post-marketing surveillance plan may reassure prescribers
+
+Verdict: Reject
+
+Reason:
+
+adoption signal
+not regulatory trigger
+Manufacturing slot scheduling
+
+Verdict: Reject
+
+Reason:
+
+operational signal
+irrelevant to safety labeling
+Production capacity allocation
+
+Verdict: Reject
+
+Same reason.
+
+Portfolio priority ranking
+
+Verdict: Reject
+
+Strategic planning signal
+Not regulatory safety signal
+
+Commercial inventory build progress
+
+Verdict: Reject
+
+Supply readiness signal
+Not regulatory safety signal
+
+Pre-launch supply readiness
+
+Verdict: Reject
+
+Logistics signal
+Not regulatory safety signal
+
+Bottom Line
+
+This entire set should be rejected.
+
+Not modified.
+
+Rejected.
+
+Why This Keeps Happening
+
+The system is not locking signal generation to the Decision Domain.
+
+Instead it is:
+
+Switching templates based on generic product lifecycle patterns.
+
+That is why it suddenly produces:
+
+Launch readiness
+Supply chain
+Adoption signals
+
+even though the case is regulatory safety.
+
+Guardrail That Must Be Implemented
+
+Tell Replit to enforce this:
+
+Domain Lock Rule
+
+When:
+
+Decision Domain = Regulatory
+
+Allow only signals from these categories:
+
+Safety evidence
+Regulatory actions
+Pharmacovigilance
+Legal activity
+Guideline or safety warnings
+Comparative safety data
+
+Block:
+
+Operations
+Manufacturing
+Adoption
+Commercial
+Supply chain
+Marketing
+
+Correct Signals for This Case — Continue the Core Case
+
+Use these as the validated signal set.
+
+Signal 1
+
+Comparative study shows higher GI bleeding risk with rivaroxaban vs apixaban
+
+Impact:
+
+Increase probability of label change
+
+Importance:
+
+High
+
+Confidence:
+
+Strong
+
+Signal 2
+
+Increase in GI bleeding adverse event reports in pharmacovigilance database
+
+Impact:
+
+Increase probability
+
+Importance:
+
+High
+
+Confidence:
+
+Moderate
+
+Signal 3
+
+FDA initiates formal safety review of rivaroxaban bleeding risk
+
+Impact:
+
+Strong increase probability
+
+Importance:
+
+Very High
+
+Confidence:
+
+Strong
+
+Signal 4
+
+Cluster of litigation cases citing GI bleeding complications
+
+Impact:
+
+Moderate increase probability
+
+Importance:
+
+Medium
+
+Confidence:
+
+Moderate
+
+Signal 5
+
+Conflicting post-marketing safety evidence remains unresolved
+
+Impact:
+
+Maintains regulatory uncertainty
+
+Importance:
+
+High
+
+Confidence:
+
+Moderate
+
+Decision — Can We Continue the Case?
+
+Yes.
+
+The case itself is still valid.
+
+But the signal generator must be constrained before proceeding.
+
+What To Do Right Now
+Reject all newly suggested signals
+Keep your original safety and legal signals
+Add at least one regulatory trigger signal
+Continue the case workflow
