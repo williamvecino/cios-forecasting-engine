@@ -376,11 +376,11 @@ export function runForecastEngine(
 
     if (sig.direction === "Positive") {
       upwardSignals.push(entry);
-    } else {
+    } else if (sig.direction === "Negative") {
       downwardSignals.push(entry);
     }
 
-    if (deltaIfReversed > bestSwing) {
+    if (sig.direction !== "Neutral" && deltaIfReversed > bestSwing) {
       bestSwing = deltaIfReversed;
       const isPositive = sig.direction === "Positive";
       swingFactor = {
