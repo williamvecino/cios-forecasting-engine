@@ -415,7 +415,14 @@ function persistDependencyTagsBackground(
   if (updates.length === 0) return;
 
   (async () => {
+    const overriddenRows = await db.select({ id: signalsTable.id })
+      .from(signalsTable)
+      .where(eq(signalsTable.lineageOverride, true));
+    const overriddenIds = new Set(overriddenRows.map(r => r.id));
+
+    let updated = 0;
     for (const u of updates) {
+      if (overriddenIds.has(u.id)) continue;
       try {
         await db.update(signalsTable).set({
           rootEvidenceId: u.rootEvidenceId,
@@ -426,10 +433,11 @@ function persistDependencyTagsBackground(
           lineageConfidence: u.lineageConfidence,
           updatedAt: new Date(),
         }).where(eq(signalsTable.id, u.id));
+        updated++;
       } catch (err) {
         console.error(`[persist-lineage-bg] Failed to update signal ${u.id}:`, err);
       }
     }
-    console.log(`[persist-lineage-bg] Updated ${updates.length} signals with dependency tags`);
+    console.log(`[persist-lineage-bg] Updated ${updated}/${updates.length} signals (${overriddenIds.size} overrides preserved)`);
   })().catch(err => console.error("[persist-lineage-bg] Background persist failed:", err));
 }

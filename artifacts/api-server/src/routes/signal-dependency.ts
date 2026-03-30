@@ -156,7 +156,7 @@ router.patch("/cases/:caseId/signals/:signalId/lineage", async (req, res) => {
       return;
     }
 
-    const updates: Record<string, any> = { updatedAt: new Date(), lineageOverride: true };
+    const updates: Partial<typeof signalsTable.$inferInsert> & { updatedAt: Date } = { updatedAt: new Date(), lineageOverride: true };
     if (rootEvidenceId !== undefined) updates.rootEvidenceId = rootEvidenceId;
     if (dependencyRole !== undefined) updates.dependencyRole = dependencyRole;
     if (sourceCluster !== undefined) updates.sourceCluster = sourceCluster;
