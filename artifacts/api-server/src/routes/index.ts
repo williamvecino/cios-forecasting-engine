@@ -60,6 +60,7 @@ import growthFeasibilityRouter from "./growth-feasibility.js";
 import simulationEngineRouter from "./simulation-engine.js";
 import workbookImportRouter from "./workbook-import.js";
 import aiRefineQuestionRouter from "./ai-refine-question.js";
+import validationPackRouter from "./validation-pack.js";
 
 const router: IRouter = Router();
 
@@ -124,5 +125,6 @@ router.use(growthFeasibilityRouter);
 router.use(simulationEngineRouter);
 router.use(workbookImportRouter);
 router.use(aiRefineQuestionRouter);
+router.use(validationPackRouter);
 
 export default router;

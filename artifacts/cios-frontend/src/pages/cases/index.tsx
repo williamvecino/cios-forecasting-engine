@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Link, useSearch, useLocation } from "wouter";
-import { Plus, FlaskConical, ArrowRight, ChevronRight, Layers, MoreHorizontal, Eye, Edit3, Radio, ClipboardCheck, Zap, RefreshCw, Radar, ShieldCheck, MessageSquare, BookOpen, FileText } from "lucide-react";
+import { Plus, FlaskConical, ArrowRight, ChevronRight, Layers, MoreHorizontal, Eye, Edit3, Radio, ClipboardCheck, Zap, RefreshCw, Radar, ShieldCheck, MessageSquare, BookOpen, FileText, PackageCheck, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActorEnvironmentSection } from "@/components/actor-environment-panel";
 import WorkflowIndicator from "@/components/workflow-indicator";
@@ -60,6 +60,156 @@ const caseSchema = z.object({
 });
 
 type CaseFormValues = z.infer<typeof caseSchema>;
+
+const ARCHETYPE_COLORS: Record<string, string> = {
+  "Regulatory": "blue",
+  "Launch / Generic Entry": "green",
+  "Physician Adoption": "violet",
+  "Competitive Positioning": "orange",
+  "Barrier / Access Friction": "red",
+};
+
+interface VPCase {
+  caseId: string;
+  assetName: string;
+  therapeuticArea: string;
+  archetype: string;
+  seeded: boolean;
+  signalCount: number;
+}
+
+interface VPStatus {
+  total: number;
+  seeded: number;
+  cases: VPCase[];
+}
+
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
+
+function ValidationPackSection({ onSeeded }: { onSeeded: () => void }) {
+  const [status, setStatus] = useState<VPStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/validation-pack/status`);
+      if (!res.ok) throw new Error("Failed to fetch status");
+      setStatus(await res.json());
+    } catch {
+      setError("Could not load validation pack status");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchStatus(); }, []);
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/validation-pack/seed`, { method: "POST" });
+      if (!res.ok) throw new Error("Seed failed");
+      await fetchStatus();
+      onSeeded();
+    } catch {
+      setError("Failed to seed validation pack");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  if (loading) return null;
+
+  if (error && !status) {
+    return (
+      <Card className="border-destructive/20 bg-card/50">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-destructive/10">
+            <AlertTriangle className="w-5 h-5 text-destructive" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Validation Pack</h3>
+            <p className="text-xs text-destructive mt-0.5">{error}</p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!status) return null;
+
+  const allSeeded = status.seeded === status.total;
+
+  return (
+    <Card className="border-primary/20 bg-card/50">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <PackageCheck className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Validation Pack</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              5 benchmark cases across regulatory, launch, adoption, competitive, and access archetypes — each with curated signals.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {allSeeded ? (
+            <Badge variant="success">
+              <CheckCircle2 className="w-3 h-3 mr-1" />
+              {status.seeded}/{status.total} seeded
+            </Badge>
+          ) : (
+            <>
+              <Badge variant="default">
+                {status.seeded}/{status.total} seeded
+              </Badge>
+              <Button size="sm" onClick={handleSeed} disabled={seeding} className="gap-1.5">
+                {seeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PackageCheck className="w-3.5 h-3.5" />}
+                {seeding ? "Seeding…" : "Seed All"}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-destructive">
+          <AlertTriangle className="w-3.5 h-3.5" />
+          {error}
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-5 gap-2">
+        {status.cases.map((c) => (
+          <div
+            key={c.caseId}
+            className={`rounded-lg border px-3 py-2 text-xs ${
+              c.seeded
+                ? "border-primary/30 bg-primary/5"
+                : "border-border bg-muted/30"
+            }`}
+          >
+            <div className="font-medium truncate" title={c.assetName}>{c.assetName}</div>
+            <div className="text-muted-foreground mt-0.5">{c.archetype}</div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-muted-foreground">{c.signalCount} signals</span>
+              {c.seeded ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+              ) : (
+                <span className="text-muted-foreground/50">—</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 const CONFIDENCE_COLOR: Record<string, string> = {
   High: "success",
@@ -255,6 +405,8 @@ export default function CasesList() {
           input={moduleMeta.questions.input}
           output={moduleMeta.questions.output}
         />
+
+        <ValidationPackSection onSeeded={() => queryClient.invalidateQueries({ queryKey: ["/api/cases"] })} />
 
         {/* Creation Form */}
         {isCreating && (
