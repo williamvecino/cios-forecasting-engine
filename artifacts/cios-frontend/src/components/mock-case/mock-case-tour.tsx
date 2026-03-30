@@ -115,7 +115,7 @@ export default function MockCaseTour({ open, onClose }: Props) {
               <MockBlock title="Adoption Segment">
                 {MOCK_CASE.decision.adoptionSegment}
               </MockBlock>
-              <MockBlock title="Barrier Diagnosis">
+              <MockBlock title="What Is Blocking Progress">
                 {MOCK_CASE.decision.barrier}
               </MockBlock>
               <MockBlock title="Readiness Timeline">
@@ -125,7 +125,7 @@ export default function MockCaseTour({ open, onClose }: Props) {
                 {MOCK_CASE.decision.competitiveRisk}
               </MockBlock>
               <div className="md:col-span-2">
-                <MockBlock title="Growth Feasibility">
+                <MockBlock title="Feasibility Assessment">
                   {MOCK_CASE.decision.growthFeasibility}
                 </MockBlock>
               </div>

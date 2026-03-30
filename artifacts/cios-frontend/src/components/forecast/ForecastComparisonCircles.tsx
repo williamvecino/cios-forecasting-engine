@@ -111,7 +111,7 @@ function ExecutionGapIndicator({ brandPct, finalPct }: { brandPct: number; final
   return (
     <div className="flex flex-col items-center justify-center px-4 py-3">
       <div className={`rounded-2xl border px-5 py-4 text-center space-y-2 min-w-[140px] ${severityStyles[severity]}`}>
-        <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">Execution Gap</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">Constraint Gap</div>
         <div className={`text-2xl font-bold ${arrowColor[severity]}`}>
           {isNegative ? "+" : ""}{absGap}
           <span className="text-sm font-normal ml-1">pts</span>

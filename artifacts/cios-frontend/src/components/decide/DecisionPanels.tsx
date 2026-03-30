@@ -279,7 +279,7 @@ export default function DecisionPanels() {
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
               {isForecastDerived
                 ? "Decision layer — every barrier, action, and segment is derived from the forecast gates."
-                : "Commercial decision layer — segmentation, barriers, readiness, competitive risk, and growth feasibility."}
+                : "Commercial decision layer — segmentation, progress blockers, readiness, competitive risk, and feasibility assessment."}
             </p>
             <div className="mt-3 flex items-center justify-between">
               {isForecastDerived && fc ? (
@@ -370,7 +370,7 @@ export default function DecisionPanels() {
                     <div className="rounded-2xl border border-red-500/20 bg-card p-5">
                       <div className="flex items-center gap-2 mb-4">
                         <ShieldAlert className="w-4 h-4 text-red-400" />
-                        <div className="text-sm font-semibold text-foreground">Barrier Decomposition</div>
+                        <div className="text-sm font-semibold text-foreground">What Is Blocking Progress</div>
                         <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-derived</span>
                       </div>
                       <div className="space-y-5">
@@ -739,7 +739,7 @@ function GrowthFeasibilityPanel({ data }: { data: NonNullable<DecideResponse["gr
     <div className="rounded-2xl border border-border bg-card p-5">
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp className="w-4 h-4 text-emerald-400" />
-        <div className="text-sm font-semibold text-foreground">Growth Feasibility</div>
+        <div className="text-sm font-semibold text-foreground">Feasibility Assessment</div>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-border/50 bg-muted/5 p-3 text-center">

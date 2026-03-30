@@ -50,7 +50,8 @@ const TERM_DEFINITIONS: Record<string, string> = {
   "regulatory readiness": "Label clarity, post-marketing requirements, REMS programs, and compliance monitoring.",
   "guideline endorsement": "Positioning in clinical guidelines, committee receptivity, and evidence threshold for inclusion.",
   "confidence": "A composite measure reflecting how well-supported the forecast is by evidence, gate resolution, and analogue alignment.",
-  "execution gap": "The difference between what the evidence outlook suggests and what real-world barriers allow — the larger the gap, the more constraints are holding back the outcome.",
+  "constraint gap": "The gap between what the evidence outlook suggests and what real-world barriers allow — the larger the gap, the more constraints are holding back the outcome.",
+  "execution gap": "The gap between what the evidence outlook suggests and what real-world barriers allow — the larger the gap, the more constraints are holding back the outcome.",
   "probability": "The system's estimated likelihood of the forecasted outcome occurring, based on evidence, constraints, and historical precedent.",
   "forecast": "The system's best estimate of the most likely outcome, derived from signals, gate constraints, and calibration.",
   "gate": "An execution prerequisite that must be resolved before adoption can proceed. Gates can be strong (cleared), moderate (partially resolved), or weak (unresolved).",
@@ -170,7 +171,7 @@ function handleExplanation(question: string, judgment: ExecutiveJudgmentResult, 
 
   if (lower.match(/why is the forecast|why is the probability|why is it \d|why .+ this (value|number|level|percentage)/)) {
     const gapText = audit.inputs.executionGapPts > 0
-      ? `There is a ${audit.inputs.executionGapPts}-point execution gap between the evidence outlook (${audit.inputs.brandOutlookPct}%) and the gate-constrained forecast (${audit.inputs.finalForecastPct}%).`
+      ? `There is a ${audit.inputs.executionGapPts}-point constraint gap between the evidence outlook (${audit.inputs.brandOutlookPct}%) and the gate-constrained forecast (${audit.inputs.finalForecastPct}%).`
       : "";
     const constraintText = judgment.primaryConstraints.length > 0
       ? `Active constraints: ${judgment.primaryConstraints.map(pc => `${pc.label} (${pc.status})`).join(", ")}.`
@@ -233,7 +234,7 @@ function handleExplanation(question: string, judgment: ExecutiveJudgmentResult, 
     const ca = audit.confidenceAudit;
     const penalties: string[] = [];
     if (ca.conflictPenalty > 0) penalties.push(`Signal conflict penalty: −${ca.conflictPenalty}`);
-    if (ca.gapPenalty > 0) penalties.push(`Execution gap penalty: −${ca.gapPenalty}`);
+    if (ca.gapPenalty > 0) penalties.push(`Constraint gap penalty: −${ca.gapPenalty}`);
 
     return {
       category: "explanation",

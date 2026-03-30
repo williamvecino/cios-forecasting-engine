@@ -1056,7 +1056,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Execution Gap</div>
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Constraint Gap</div>
                           <div className="text-base font-bold text-red-300">{audit.inputs.executionGapPts} pts</div>
                         </div>
                         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
@@ -1809,7 +1809,7 @@ function BottomLinks({ forecastData }: { forecastData?: any }) {
           who to target, what blocks movement, when to act, and what competitive risks to watch.
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {["Adoption Segmentation", "Barrier Diagnosis", "Readiness Timeline", "Competitive Risk", "Growth Feasibility"].map((item) => (
+          {["Adoption Segmentation", "Progress Blockers", "Readiness Timeline", "Competitive Risk", "Feasibility Assessment"].map((item) => (
             <span key={item} className="rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-400">{item}</span>
           ))}
         </div>
@@ -1825,7 +1825,7 @@ function BottomLinks({ forecastData }: { forecastData?: any }) {
           <Link href="/reference-cases" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Reference Cases</Link>
           <Link href="/calibration" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Calibration</Link>
           <Link href="/adoption-segments" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Adoption Segments</Link>
-          <Link href="/barrier-diagnosis" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Barrier Diagnosis</Link>
+          <Link href="/barrier-diagnosis" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Progress Blockers</Link>
           <Link href="/case-feedback" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Case Feedback</Link>
           <Link href="/readiness-timeline" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Readiness Timeline</Link>
           <Link href="/workbench" className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-slate-200 hover:bg-white/[0.05]">Workbench</Link>

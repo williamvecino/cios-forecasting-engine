@@ -113,7 +113,7 @@ STRUCTURE — return valid JSON with exactly these 5 keys:
   "why_this_matters": "Two to three sentences. Name the specific limiting factors or driving forces AND explain why each one matters in plain terms. Do NOT list drivers and risks separately — weave them into a single narrative paragraph that connects each factor to its real-world consequence.",
   "priority_actions": ["Action + because [reason]", "Action + because [reason]", "Action + because [reason]"],
   "success_measures": ["Observable milestone — why it indicates progress", "Observable milestone — why it indicates progress", "Observable milestone — why it indicates progress"],
-  "execution_focus": "One to two sentences. Where resources and attention should go first, WHY that area matters most, and what NOT to focus on yet."
+  "execution_focus": "One to two sentences. Where to prioritize resources and attention first, WHY that area matters most, and what can wait until later."
 }
 
 CRITICAL RULES:

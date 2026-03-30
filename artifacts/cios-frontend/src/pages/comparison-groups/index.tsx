@@ -130,7 +130,7 @@ export default function ComparisonGroupsPage() {
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
             <div className="flex items-center gap-2">
               <GitCompareArrows className="w-5 h-5 text-violet-400" />
-              <h2 className="text-sm font-semibold text-foreground">Scenario Comparison Groups</h2>
+              <h2 className="text-sm font-semibold text-foreground">Possible Outcomes</h2>
             </div>
 
             <p className="text-xs text-muted-foreground">

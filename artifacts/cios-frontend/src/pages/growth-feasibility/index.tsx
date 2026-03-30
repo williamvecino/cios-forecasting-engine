@@ -190,7 +190,7 @@ export default function GrowthFeasibilityPage() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
             <Link href="/" className="text-xs text-muted-foreground hover:text-foreground mb-1 inline-block">← Back</Link>
-            <h1 className="text-xl font-bold">Growth Feasibility</h1>
+            <h1 className="text-xl font-bold">Feasibility Assessment</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Where is realistic growth most achievable under current constraints?
             </p>
@@ -241,7 +241,7 @@ export default function GrowthFeasibilityPage() {
             <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Overall Growth Feasibility</div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Overall Feasibility Assessment</div>
                   <div className="flex items-center gap-3">
                     <span className="text-3xl font-bold" style={{ color: TIER_COLORS[overall.feasibilityTier] }}>
                       {(overall.feasibilityScore * 100).toFixed(0)}%

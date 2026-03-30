@@ -1582,6 +1582,27 @@ export default function SignalsPage() {
 
           {!aiLoading && hasSourceClassification && (
             <>
+              {(() => {
+                const topDriver = allSignals
+                  .filter((s) => s.accepted && s.impact === "High")
+                  .sort((a, b) => {
+                    const order: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+                    return (order[a.strength] ?? 1) - (order[b.strength] ?? 1);
+                  })[0];
+                return topDriver ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Primary Driver</span>
+                      <p className="text-sm font-medium text-foreground mt-0.5">{topDriver.text}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 uppercase">
+                      {topDriver.direction === "positive" ? "Supporting" : topDriver.direction === "negative" ? "Opposing" : "Neutral"}
+                    </span>
+                  </div>
+                ) : null;
+              })()}
+
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />

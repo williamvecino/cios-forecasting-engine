@@ -257,7 +257,7 @@ export default function BarrierDiagnosisPage() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <ShieldAlert className="w-6 h-6 text-rose-400" />
-          <h1 className="text-2xl font-bold tracking-tight">Barrier Diagnosis Panel</h1>
+          <h1 className="text-2xl font-bold tracking-tight">What Is Blocking Progress</h1>
         </div>
         <p className="text-slate-400 text-sm -mt-2 ml-11">
           Diagnose dominant sources of resistance by category, segment, and priority. Identify where intervention would have the highest impact.

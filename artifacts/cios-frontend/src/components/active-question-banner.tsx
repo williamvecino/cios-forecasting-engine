@@ -1,3 +1,4 @@
+import { Target } from "lucide-react";
 import type { ActiveQuestion } from "../lib/workflow";
 
 interface Props {
@@ -10,7 +11,7 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             Active Question
           </div>
@@ -20,6 +21,13 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
               <div className="mt-2 text-lg font-semibold text-foreground">
                 {activeQuestion.text}
               </div>
+              {activeQuestion.outcome && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5">
+                  <Target className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span className="text-xs font-semibold text-primary/80 uppercase tracking-wider">Outcome being forecast:</span>
+                  <span className="text-xs font-medium text-foreground">{activeQuestion.outcome}</span>
+                </div>
+              )}
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span className="rounded-full bg-muted/30 px-3 py-1">
                   ID: {activeQuestion.id}
