@@ -200,6 +200,18 @@ const SEGMENT_META: Record<string, { color: string; behaviorType: string; decisi
   "Pause Pending Clarification": { color: "amber", behaviorType: "Evidence-seeker", decisionRole: "Cautious evaluator", riskPosture: "Risk averse", icon: Clock },
   "Wait for Consensus": { color: "blue", behaviorType: "Guideline follower", decisionRole: "Consensus-driven", riskPosture: "Moderate", icon: Users },
   "Defend Current Use": { color: "rose", behaviorType: "Loyalty-driven", decisionRole: "Defender", riskPosture: "Inertia-bound", icon: Shield },
+  "FDA Review Division": { color: "blue", behaviorType: "Evidence-evaluating", decisionRole: "Primary reviewer", riskPosture: "Benefit-risk focused", icon: Shield },
+  "Advisory Committee Members": { color: "violet", behaviorType: "Consensus-building", decisionRole: "External advisor", riskPosture: "Risk-conscious", icon: Users },
+  "Sponsor Regulatory Team": { color: "emerald", behaviorType: "Strategy-driven", decisionRole: "Submission owner", riskPosture: "Outcome-oriented", icon: Target },
+  "Safety Reviewers": { color: "rose", behaviorType: "Signal-monitoring", decisionRole: "Safety evaluator", riskPosture: "Precautionary", icon: Shield },
+  "Patient Advocacy Groups": { color: "amber", behaviorType: "Access-focused", decisionRole: "External stakeholder", riskPosture: "Benefit-driven", icon: Users },
+  "CHMP / Rapporteur Team": { color: "blue", behaviorType: "Scientific assessment", decisionRole: "Lead evaluator", riskPosture: "Benefit-risk focused", icon: Shield },
+  "PRAC Safety Reviewers": { color: "rose", behaviorType: "Pharmacovigilance-focused", decisionRole: "Risk assessor", riskPosture: "Precautionary", icon: Shield },
+  "Marketing Authorization Holder (MAH)": { color: "emerald", behaviorType: "Compliance-driven", decisionRole: "Authorization holder", riskPosture: "Regulatory-aligned", icon: Target },
+  "Scientific Advisory Group": { color: "violet", behaviorType: "Expert-consulting", decisionRole: "Scientific advisor", riskPosture: "Evidence-driven", icon: Users },
+  "Continue Prescribing (Risk-Benefit)": { color: "emerald", behaviorType: "Risk-tolerant", decisionRole: "Active prescriber", riskPosture: "Benefit outweighs risk", icon: TrendingUp },
+  "Wait for Guideline Direction": { color: "blue", behaviorType: "Guideline-dependent", decisionRole: "Consensus follower", riskPosture: "Cautious", icon: Clock },
+  "Payer Safety Reviewers": { color: "violet", behaviorType: "Coverage-evaluating", decisionRole: "Formulary reviewer", riskPosture: "Policy-driven", icon: Shield },
 };
 
 function getSegmentMeta(key: string) {

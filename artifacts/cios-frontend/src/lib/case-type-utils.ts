@@ -32,13 +32,13 @@ const CLINICAL_OUTCOME_PATTERNS = [
 
 const REGULATORY_PATTERNS = [
   "fda approv", "ema approv", "regulatory approv",
-  "approval", "approve", "approved",
+  "gain approval", "receive approval", "obtain approval", "win approval", "secure approval",
   "advisory committee", "adcom", "pdufa",
-  "complete response", "crl", "nda", "bla",
+  "complete response letter", "crl", "nda submission", "bla submission",
   "breakthrough therapy", "accelerated approval",
   "priority review", "fast track",
   "regulatory decision", "regulatory outcome",
-  "regulators", "regulator ",
+  "regulatory pathway", "regulatory filing",
   "european regulat", "health authority", "health authorities",
   "mhra", "pmda", "tga", "anvisa", "nmpa",
   "marketing authoriz", "market authoris",
@@ -58,7 +58,9 @@ const SAFETY_RISK_PATTERNS = [
 
 const COMMERCIAL_PATTERNS = [
   "adoption", "market share", "prescriber", "formulary",
-  "launch", "commercial", "sales",
+  "launch", "commercial", "sales", "uptake", "penetration",
+  "switching", "prescribing", "market access", "payer",
+  "reimbursement", "coverage", "share of voice",
 ];
 
 const EMA_PATTERNS = [
