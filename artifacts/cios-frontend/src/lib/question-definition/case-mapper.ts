@@ -1,6 +1,6 @@
 import { DecisionQuestion } from "./types";
 
-export function mapDecisionQuestionToCaseInput(q: DecisionQuestion) {
+export function mapDecisionQuestionToCaseInput(q: DecisionQuestion & { priorArchetype?: string; priorRationale?: string }) {
   return {
     assetName: q.subject || "Unknown Asset",
     assetType: "Medication",
@@ -11,5 +11,7 @@ export function mapDecisionQuestionToCaseInput(q: DecisionQuestion) {
     primaryBrand: q.subject || "Unknown Asset",
     comparator: q.comparator,
     questionType: q.questionType,
+    priorArchetype: q.priorArchetype || null,
+    priorRationale: q.priorRationale || null,
   };
 }

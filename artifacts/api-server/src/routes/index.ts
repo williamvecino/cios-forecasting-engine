@@ -64,6 +64,9 @@ import validationPackRouter from "./validation-pack.js";
 import questionRepositoryRouter from "./question-repository.js";
 import agentDecisionClassificationRouter from "./agent-decision-classification.js";
 import agentSignalInterpretationRouter from "./agent-signal-interpretation.js";
+import priorTemplatesRouter from "./prior-templates.js";
+import explanationGeneratorRouter from "./explanation-generator.js";
+import goldSetRouter from "./gold-set.js";
 
 const router: IRouter = Router();
 
@@ -132,5 +135,8 @@ router.use(validationPackRouter);
 router.use(questionRepositoryRouter);
 router.use(agentDecisionClassificationRouter);
 router.use(agentSignalInterpretationRouter);
+router.use(priorTemplatesRouter);
+router.use(explanationGeneratorRouter);
+router.use(goldSetRouter);
 
 export default router;

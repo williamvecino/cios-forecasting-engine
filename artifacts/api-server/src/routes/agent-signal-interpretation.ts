@@ -118,6 +118,24 @@ For EACH fact provided, produce an interpretation object with these fields:
 14. suggestedReliability: integer 1-5
     - 5 = peer-reviewed/regulatory, 4 = established source, 3 = credible report, 2 = unverified, 1 = rumor/speculation
 
+15. signalFamily: One of: "Clinical Efficacy", "Safety / Tolerability", "Regulatory Status", "Manufacturing / Readiness", "Access / Payer", "Guideline / KOL", "Field Adoption Behavior", "Competitive Moves", "Operational Execution", "Message / Perception"
+    - The primary evidence family this fact belongs to. Must be one of the fixed values above.
+
+16. lineageType: One of: "Root", "Direct Derivative", "Second-Order Derivative", "Duplicate", "Independent Parallel Evidence", "Unclear"
+    - "Root": This is an original primary source (trial result, regulatory filing, etc.)
+    - "Direct Derivative": Directly derived from a root event (e.g., press release about trial results)
+    - "Second-Order Derivative": Derived from a derivative (e.g., KOL commentary about press release about trial)
+    - "Duplicate": Restates information already in another fact with no new content
+    - "Independent Parallel Evidence": Unrelated source providing genuinely separate evidence
+    - "Unclear": Lineage cannot be determined
+
+17. sourceCluster: One of: "Trial Result", "Press Release", "Congress Presentation", "KOL Commentary", "Payer Action", "Regulatory Filing", "Company Guidance", "Field Intelligence", "Media / Trade Press"
+    - The category of the original source for this fact.
+
+18. noveltyFlag: true | false
+    - true = this fact provides materially new information not captured by other facts in this set
+    - false = this fact does not add materially new information (restatement, echo, or derivative)
+
 ═══ INTERPRETATION RULES ═══
 - Be conservative. Most facts should NOT become signals. Over-signaling leads to noisy forecasts.
 - A fact is NOT a signal if it merely restates the question or decision.
@@ -148,7 +166,11 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
       "recommendationReason": "string",
       "suggestedSignalType": "Phase III clinical",
       "suggestedStrength": 3,
-      "suggestedReliability": 3
+      "suggestedReliability": 3,
+      "signalFamily": "Clinical Efficacy",
+      "lineageType": "Root",
+      "sourceCluster": "Trial Result",
+      "noveltyFlag": true
     }
   ],
   "summary": {
@@ -216,6 +238,9 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
     const validIndependence = ["independent", "partially_dependent", "dependent", "redundant"];
     const validConfidence = ["high", "moderate", "low"];
     const validSignalTypes = ["Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Payer / coverage", "Market adoption / utilization", "Capacity / infrastructure", "Competitor countermove"];
+    const validSignalFamilies = ["Clinical Efficacy", "Safety / Tolerability", "Regulatory Status", "Manufacturing / Readiness", "Access / Payer", "Guideline / KOL", "Field Adoption Behavior", "Competitive Moves", "Operational Execution", "Message / Perception"];
+    const validLineageTypes = ["Root", "Direct Derivative", "Second-Order Derivative", "Duplicate", "Independent Parallel Evidence", "Unclear"];
+    const validSourceClusters = ["Trial Result", "Press Release", "Congress Presentation", "KOL Commentary", "Payer Action", "Regulatory Filing", "Company Guidance", "Field Intelligence", "Media / Trade Press"];
 
     const batchId = `SI-${Date.now()}`;
 
@@ -253,6 +278,10 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
             suggestedSignalType: validSignalTypes.includes(interp.suggestedSignalType) ? interp.suggestedSignalType : "Field intelligence",
             suggestedStrength: Math.max(1, Math.min(5, Math.round(Number(interp.suggestedStrength) || 3))),
             suggestedReliability: Math.max(1, Math.min(5, Math.round(Number(interp.suggestedReliability) || 3))),
+            signalFamily: validSignalFamilies.includes(interp.signalFamily) ? interp.signalFamily : "Operational Execution",
+            lineageType: validLineageTypes.includes(interp.lineageType) ? interp.lineageType : "Unclear",
+            sourceCluster: validSourceClusters.includes(interp.sourceCluster) ? interp.sourceCluster : "Field Intelligence",
+            noveltyFlag: typeof interp.noveltyFlag === "boolean" ? interp.noveltyFlag : true,
           };
         })
       : [];
@@ -283,6 +312,10 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
         suggestedSignalType: interp.suggestedSignalType,
         suggestedStrength: interp.suggestedStrength,
         suggestedReliability: interp.suggestedReliability,
+        signalFamily: interp.signalFamily,
+        lineageType: interp.lineageType,
+        sourceCluster: interp.sourceCluster,
+        noveltyFlag: interp.noveltyFlag,
         decisionContextQuestion: body.decisionContext.questionText,
         decisionContextDomain: body.decisionContext.domain,
         decisionContextArchetype: body.decisionContext.decisionArchetype,

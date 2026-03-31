@@ -158,7 +158,7 @@ IMPORTANCE CALIBRATION RULES — apply these strictly:
 
 For each signal, provide:
 - **text**: A specific analytical driver statement. For observed signals, cite the specific development.
-- **signal_family**: one of "brand_clinical_regulatory", "payer_access", "competitor", "patient_demand", "provider_behavioral", "system_operational"
+- **signal_family**: one of "Clinical Efficacy", "Safety / Tolerability", "Regulatory Status", "Manufacturing / Readiness", "Access / Payer", "Guideline / KOL", "Field Adoption Behavior", "Competitive Moves", "Operational Execution", "Message / Perception"
 - **signal_class**: "observed" | "derived" | "uncertainty"
 - **signal_source**: "internal" | "external" | "missing"
 - **category**: one of "evidence", "access", "competition", "guideline", "timing", "adoption"

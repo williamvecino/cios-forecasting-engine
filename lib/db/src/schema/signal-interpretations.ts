@@ -28,6 +28,10 @@ export const signalInterpretationsTable = pgTable("signal_interpretations", {
   suggestedSignalType: text("suggested_signal_type"),
   suggestedStrength: real("suggested_strength"),
   suggestedReliability: real("suggested_reliability"),
+  signalFamily: text("signal_family"),
+  lineageType: text("lineage_type"),
+  sourceCluster: text("source_cluster"),
+  noveltyFlag: boolean("novelty_flag").default(true),
 
   reviewerStatus: text("reviewer_status").notNull().default("Pending"),
   userOverride: boolean("user_override").default(false),

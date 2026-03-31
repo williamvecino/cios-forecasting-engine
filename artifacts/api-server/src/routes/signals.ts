@@ -275,6 +275,10 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     notes: body.notes || null,
     interpretationId: body.interpretationId || null,
     rootEvidenceId: body.rootEvidenceId || null,
+    signalFamily: body.signalFamily || null,
+    lineageType: body.lineageType || null,
+    sourceCluster: body.sourceCluster || null,
+    noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
   }).returning();
 
   if (initialStatus === "active" || initialStatus === "validated") {

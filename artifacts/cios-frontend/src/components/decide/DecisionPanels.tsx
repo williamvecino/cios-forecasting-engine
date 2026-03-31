@@ -27,6 +27,7 @@ import {
 import { exportToExcel, exportToPDF, exportToJSON } from "@/lib/forecast-export";
 import { PrioritizationPanel } from "@/components/decide/PrioritizationPanel";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
+import ExplanationPanel from "@/components/explanation-panel";
 
 interface SegmentGroup {
   segments: string[];
@@ -285,6 +286,11 @@ export default function DecisionPanels() {
             {caseId && (
               <div className="mt-3">
                 <SavedQuestionsPanel caseId={caseId} />
+              </div>
+            )}
+            {caseId && (
+              <div className="mt-4">
+                <ExplanationPanel caseId={caseId} />
               </div>
             )}
             <div className="mt-3 flex items-center justify-between">

@@ -42,6 +42,8 @@ router.post("/cases", async (req, res) => {
     adoptionPhase: body.adoptionPhase || "early_adoption",
     forecastHorizonMonths: body.forecastHorizonMonths != null ? Number(body.forecastHorizonMonths) : 12,
     isDemo: body.isDemo || "false",
+    priorArchetype: body.priorArchetype || null,
+    priorRationale: body.priorRationale || null,
   }).returning();
   res.status(201).json(mapCase(created));
 });
@@ -204,6 +206,8 @@ function mapCase(c: typeof casesTable.$inferSelect) {
     subspecialty: c.subspecialty,
     institutionName: c.institutionName,
     isDemo: c.isDemo,
+    priorArchetype: c.priorArchetype,
+    priorRationale: c.priorRationale,
     lastUpdate: c.lastUpdate,
     signalCount: 0,
   };

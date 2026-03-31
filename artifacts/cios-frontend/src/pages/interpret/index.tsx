@@ -70,6 +70,10 @@ interface Interpretation {
   suggestedSignalType: string;
   suggestedStrength: number;
   suggestedReliability: number;
+  signalFamily: string;
+  lineageType: string;
+  sourceCluster: string;
+  noveltyFlag: boolean;
 }
 
 interface InterpretationResult {
@@ -91,7 +95,7 @@ interface InterpretationResult {
 }
 
 type Phase = "interpreting" | "review" | "creating";
-type SortField = "recommended" | "confidence" | "relevance" | "impact" | "direction" | "independence" | "type" | "strength" | "reliability";
+type SortField = "recommended" | "confidence" | "relevance" | "impact" | "direction" | "independence" | "type" | "family" | "lineage" | "strength" | "reliability";
 
 function DotBar({ value, max = 5 }: { value: number; max?: number }) {
   return (
@@ -224,6 +228,8 @@ export default function InterpretPage() {
         case "direction": cmp = (DIRECTION_ORDER[a.direction] ?? 9) - (DIRECTION_ORDER[b.direction] ?? 9); break;
         case "independence": cmp = (INDEPENDENCE_ORDER[a.independenceClassification] ?? 9) - (INDEPENDENCE_ORDER[b.independenceClassification] ?? 9); break;
         case "type": cmp = (a.suggestedSignalType || "").localeCompare(b.suggestedSignalType || ""); break;
+        case "family": cmp = (a.signalFamily || "").localeCompare(b.signalFamily || ""); break;
+        case "lineage": cmp = (a.lineageType || "").localeCompare(b.lineageType || ""); break;
         case "strength": cmp = b.suggestedStrength - a.suggestedStrength; break;
         case "reliability": cmp = b.suggestedReliability - a.suggestedReliability; break;
         default: cmp = a.factIndex - b.factIndex;
@@ -266,6 +272,10 @@ export default function InterpretPage() {
             sourceLabel: "Document Ingestion",
             rootEvidenceId: interp.rootEvidenceId,
             interpretationId: interp.interpretationId,
+            signalFamily: interp.signalFamily,
+            lineageType: interp.lineageType,
+            sourceCluster: interp.sourceCluster,
+            noveltyFlag: interp.noveltyFlag,
           }),
         });
 
@@ -499,6 +509,8 @@ export default function InterpretPage() {
                       <th className="px-3 py-3 text-left"><SortHeader field="confidence" label="Conf." /></th>
                       <th className="px-3 py-3 text-left"><SortHeader field="recommended" label="Rec." /></th>
                       <th className="px-3 py-3 text-left"><SortHeader field="type" label="Signal Type" /></th>
+                      <th className="px-3 py-3 text-left"><SortHeader field="family" label="Family" /></th>
+                      <th className="px-3 py-3 text-left"><SortHeader field="lineage" label="Lineage" /></th>
                       <th className="px-3 py-3 text-center"><SortHeader field="strength" label="Str" /></th>
                       <th className="px-3 py-3 text-center"><SortHeader field="reliability" label="Rel" /></th>
                       <th className="px-3 py-3 text-left">
@@ -572,6 +584,21 @@ export default function InterpretPage() {
 
                           <td className="px-3 py-2.5">
                             <span className="text-[11px] text-slate-300">{interp.suggestedSignalType}</span>
+                          </td>
+
+                          <td className="px-3 py-2.5">
+                            <span className="text-[11px] text-cyan-300">{interp.signalFamily || "—"}</span>
+                          </td>
+
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className={`text-[11px] ${interp.lineageType === "Duplicate" ? "text-red-400 font-semibold" : interp.lineageType === "Direct Derivative" || interp.lineageType === "Second-Order Derivative" ? "text-amber-400" : "text-slate-300"}`}>
+                                {interp.lineageType || "—"}
+                              </span>
+                              {interp.noveltyFlag === false && (
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/20 text-red-400 w-fit">Echo</span>
+                              )}
+                            </div>
                           </td>
 
                           <td className="px-3 py-2.5 text-center"><DotBar value={interp.suggestedStrength} /></td>

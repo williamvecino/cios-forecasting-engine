@@ -159,3 +159,40 @@ export function computeLR(
 
   return Number(lr.toFixed(3));
 }
+
+export const SIGNAL_FAMILIES = [
+  "Clinical Efficacy",
+  "Safety / Tolerability",
+  "Regulatory Status",
+  "Manufacturing / Readiness",
+  "Access / Payer",
+  "Guideline / KOL",
+  "Field Adoption Behavior",
+  "Competitive Moves",
+  "Operational Execution",
+  "Message / Perception",
+] as const;
+export type SignalFamily = (typeof SIGNAL_FAMILIES)[number];
+
+export const LINEAGE_TYPES = [
+  "Root",
+  "Direct Derivative",
+  "Second-Order Derivative",
+  "Duplicate",
+  "Independent Parallel Evidence",
+  "Unclear",
+] as const;
+export type LineageType = (typeof LINEAGE_TYPES)[number];
+
+export const SOURCE_CLUSTERS = [
+  "Trial Result",
+  "Press Release",
+  "Congress Presentation",
+  "KOL Commentary",
+  "Payer Action",
+  "Regulatory Filing",
+  "Company Guidance",
+  "Field Intelligence",
+  "Media / Trade Press",
+] as const;
+export type SourceClusterType = (typeof SOURCE_CLUSTERS)[number];

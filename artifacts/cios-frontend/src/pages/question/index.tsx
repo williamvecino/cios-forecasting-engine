@@ -182,6 +182,16 @@ export default function QuestionPage() {
     const params = new URLSearchParams(window.location.search);
     return params.get("import") === "file";
   });
+  const [priorTemplates, setPriorTemplates] = useState<any[]>([]);
+  const [selectedArchetype, setSelectedArchetype] = useState<string>("");
+  const [archetypeRationale, setArchetypeRationale] = useState<string>("");
+
+  useEffect(() => {
+    fetch(`${API}/api/prior-templates`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setPriorTemplates(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [syncedCaseId, setSyncedCaseId] = useState<string | null>(activeQuestion?.caseId ?? null);
   const [userCleared, setUserCleared] = useState(false);
@@ -467,7 +477,11 @@ export default function QuestionPage() {
         interpretedQuestion: interpretation.restatedQuestion || finalQuestion,
         createdAt: new Date().toISOString(),
       };
-      const caseInput = mapDecisionQuestionToCaseInput(dq);
+      const caseInput = mapDecisionQuestionToCaseInput({
+        ...dq,
+        priorArchetype: selectedArchetype || undefined,
+        priorRationale: archetypeRationale || undefined,
+      });
       const created = await createCaseMutation.mutateAsync({ data: caseInput as any });
       const newCaseId = (created as any).caseId || (created as any).id;
       if (!newCaseId) {
@@ -934,6 +948,55 @@ export default function QuestionPage() {
                 <p className="text-sm text-foreground/80 leading-relaxed">
                   {structuringResult.improvementExplanation}
                 </p>
+              </div>
+            )}
+
+            {pageState === "reviewing" && priorTemplates.length > 0 && (
+              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-cyan-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Case Archetype (Optional)</span>
+                </div>
+                <p className="text-xs text-foreground/60">Select an archetype to preload a calibrated starting probability and rationale. This does not lock the forecast — it sets a defensible starting point.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {priorTemplates.map((t: any) => {
+                    const isSelected = selectedArchetype === t.archetypeName;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedArchetype("");
+                            setArchetypeRationale("");
+                          } else {
+                            setSelectedArchetype(t.archetypeName);
+                            setArchetypeRationale(t.priorRationale);
+                          }
+                        }}
+                        className={`text-left rounded-xl border p-3 transition ${isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-border hover:border-slate-600 bg-card/50"}`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-foreground">{t.archetypeName}</span>
+                          <span className="text-[10px] font-mono text-cyan-400">{Math.round(t.defaultPriorProbability * 100)}%</span>
+                        </div>
+                        <p className="text-[10px] text-foreground/50 line-clamp-2">{t.priorRationale}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedArchetype && (
+                  <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-3 mt-1">
+                    <div className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider mb-1">Selected Rationale</div>
+                    <p className="text-xs text-foreground/70">{archetypeRationale}</p>
+                    {(() => { const t = priorTemplates.find((pt: any) => pt.archetypeName === selectedArchetype); return t?.commonTraps ? (
+                      <div className="mt-2">
+                        <div className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-0.5">Common Trap</div>
+                        <p className="text-[10px] text-foreground/50">{t.commonTraps}</p>
+                      </div>
+                    ) : null; })()}
+                  </div>
+                )}
               </div>
             )}
 

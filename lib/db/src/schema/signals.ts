@@ -85,6 +85,10 @@ export const signalsTable = pgTable("signals", {
   verificationTimestamp: timestamp("verification_timestamp"),
   verificationRedFlags: text("verification_red_flags"),
 
+  signalFamily: text("signal_family"),
+  lineageType: text("lineage_type"),
+  noveltyFlag: boolean("novelty_flag").default(true),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

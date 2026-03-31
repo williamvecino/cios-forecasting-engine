@@ -50,6 +50,9 @@ export const casesTable = pgTable("cases", {
   // Backward-compat alias kept for codegen consumers
   primaryBrand: text("primary_brand"),
 
+  priorArchetype: text("prior_archetype"),
+  priorRationale: text("prior_rationale"),
+
   lastUpdate: timestamp("last_update").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   isDemo: text("is_demo").default("false"),
