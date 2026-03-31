@@ -273,6 +273,8 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     evidenceSnippet: body.evidenceSnippet || null,
     observedAt: body.observedAt ? new Date(body.observedAt) : null,
     notes: body.notes || null,
+    interpretationId: body.interpretationId || null,
+    rootEvidenceId: body.rootEvidenceId || null,
   }).returning();
 
   if (initialStatus === "active" || initialStatus === "validated") {

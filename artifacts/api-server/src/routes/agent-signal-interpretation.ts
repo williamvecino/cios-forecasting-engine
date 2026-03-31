@@ -222,7 +222,7 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
             recommendedSignal: recommended,
             recommendationReason: interp.recommendationReason || (recommended ? "Meets all signal criteria" : "Does not meet signal criteria"),
             rejectionReason: !recommended ? (interp.recommendationReason || interp.rejectionReason || "Does not meet signal criteria") : null,
-            suggestedSignalType: validSignalTypes.includes(interp.suggestedSignalType) ? interp.suggestedSignalType : "Intelligence",
+            suggestedSignalType: validSignalTypes.includes(interp.suggestedSignalType) ? interp.suggestedSignalType : "Field intelligence",
             suggestedStrength: Math.max(1, Math.min(5, Math.round(Number(interp.suggestedStrength) || 3))),
             suggestedReliability: Math.max(1, Math.min(5, Math.round(Number(interp.suggestedReliability) || 3))),
           };
@@ -230,10 +230,13 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
       : [];
 
     try {
-      const dbRows = interpretations.map((interp: any) => ({
+      const dbRows = interpretations.map((interp: any, idx: number) => ({
         interpretationId: interp.interpretationId,
         caseId: body.caseId,
         classificationId: body.classificationId || null,
+        sourceDocumentId: body.facts[idx]?.sourceDocumentId || null,
+        sourceSpan: body.facts[idx]?.sourceSpan || null,
+        sourceType: body.facts[idx]?.source || null,
         factIndex: interp.factIndex,
         factText: interp.factText,
         factSource: interp.factSource,
@@ -310,13 +313,32 @@ router.get("/signal-interpretations/:caseId", async (req, res) => {
 router.patch("/signal-interpretations/:interpretationId", async (req, res) => {
   try {
     const { interpretationId } = req.params;
-    const { userAccepted, userOverride, linkedSignalId, status } = req.body;
+    const { userOverride, linkedSignalId, status, reviewerStatus } = req.body;
+
+    const validReviewerStatuses = ["Pending", "Accepted", "Rejected"];
+    const validStatuses = ["pending", "accepted", "rejected", "skipped"];
+
+    if (reviewerStatus && !validReviewerStatuses.includes(reviewerStatus)) {
+      res.status(400).json({ error: `Invalid reviewerStatus. Must be one of: ${validReviewerStatuses.join(", ")}` });
+      return;
+    }
+    if (status && !validStatuses.includes(status)) {
+      res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+      return;
+    }
+    if (reviewerStatus === "Accepted" && !linkedSignalId) {
+      const existing = await db.select({ linkedSignalId: signalInterpretationsTable.linkedSignalId }).from(signalInterpretationsTable).where(eq(signalInterpretationsTable.interpretationId, interpretationId)).limit(1);
+      if (existing.length > 0 && !existing[0].linkedSignalId) {
+        res.status(400).json({ error: "Cannot set reviewerStatus to Accepted without a linkedSignalId" });
+        return;
+      }
+    }
 
     const updates: Record<string, any> = { updatedAt: new Date() };
-    if (typeof userAccepted === "boolean") updates.userAccepted = userAccepted;
     if (typeof userOverride === "boolean") updates.userOverride = userOverride;
     if (linkedSignalId) updates.linkedSignalId = linkedSignalId;
     if (status) updates.status = status;
+    if (reviewerStatus) updates.reviewerStatus = reviewerStatus;
 
     const rows = await db
       .update(signalInterpretationsTable)

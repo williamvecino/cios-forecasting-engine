@@ -4,6 +4,9 @@ export const signalInterpretationsTable = pgTable("signal_interpretations", {
   interpretationId: text("interpretation_id").primaryKey(),
   caseId: text("case_id").notNull(),
   classificationId: text("classification_id"),
+  sourceDocumentId: text("source_document_id"),
+  sourceSpan: text("source_span"),
+  sourceType: text("source_type"),
   factIndex: integer("fact_index").notNull(),
   factText: text("fact_text").notNull(),
   factSource: text("fact_source"),
@@ -26,8 +29,8 @@ export const signalInterpretationsTable = pgTable("signal_interpretations", {
   suggestedStrength: real("suggested_strength"),
   suggestedReliability: real("suggested_reliability"),
 
+  reviewerStatus: text("reviewer_status").notNull().default("Pending"),
   userOverride: boolean("user_override").default(false),
-  userAccepted: boolean("user_accepted").default(false),
   linkedSignalId: text("linked_signal_id"),
 
   decisionContextQuestion: text("decision_context_question"),
