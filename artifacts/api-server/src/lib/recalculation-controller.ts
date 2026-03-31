@@ -1,5 +1,6 @@
 import type { ForecastCaseInput, ForecastOutput } from "./types";
 import { runCoreForecast } from "./core-forecast-engine";
+import { runDependencyAnalysis, applyCompressionToSignals } from "./signal-dependency-engine";
 
 export interface ForecastRunState {
   status: "idle" | "dirty" | "running" | "ready" | "error";
@@ -30,7 +31,21 @@ export async function recalculateForecast(
   input: ForecastCaseInput
 ): Promise<ForecastRunState> {
   try {
-    const output = runCoreForecast(input);
+    const analysis = runDependencyAnalysis(input.signals as any);
+    const compressedSignals = applyCompressionToSignals(input.signals as any, analysis);
+    const compressedInput = { ...input, signals: compressedSignals as any };
+    const output = runCoreForecast(compressedInput);
+
+    if (analysis.confidenceCeiling && analysis.confidenceCeiling.maxAllowedProbability < 1.0) {
+      const cap = analysis.confidenceCeiling.maxAllowedProbability;
+      if (output.posterior > cap) {
+        output.posterior = cap;
+      }
+      if (output.posterior < 1 - cap) {
+        output.posterior = 1 - cap;
+      }
+    }
+
     return {
       status: "ready",
       lastOutput: output,
