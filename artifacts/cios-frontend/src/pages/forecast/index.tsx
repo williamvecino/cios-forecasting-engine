@@ -42,6 +42,133 @@ import {
 } from "@/lib/forecast-performance";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
+interface IntegrityData {
+  runId: string;
+  passed: number;
+  failed: number;
+  totalTests: number;
+  coreFailures: string[];
+  stabilityWarning: boolean;
+  unreliableFlag: boolean;
+  results: Array<{ invariantName: string; passed: boolean; expectedBehavior: string; actualBehavior: string }>;
+}
+
+function IntegrityBadge({ integrity }: { integrity?: IntegrityData | null }) {
+  const [open, setOpen] = useState(false);
+
+  if (!integrity) return <div />;
+
+  const status = integrity.unreliableFlag
+    ? "Unreliable"
+    : integrity.stabilityWarning
+      ? "Warning"
+      : "Stable";
+
+  const color = status === "Stable"
+    ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20"
+    : status === "Warning"
+      ? "text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20"
+      : "text-red-400 border-red-500/30 bg-red-500/10 hover:bg-red-500/20";
+
+  const panelColor = status === "Stable"
+    ? "border-emerald-500/20"
+    : status === "Warning"
+      ? "border-amber-500/20"
+      : "border-red-500/20";
+
+  const Icon = status === "Stable" ? CheckCircle2 : status === "Warning" ? AlertTriangle : ShieldAlert;
+
+  const tooltip = status === "Stable"
+    ? "Core logic checks passed"
+    : status === "Warning"
+      ? "One important logic check failed"
+      : "Multiple core logic checks failed";
+
+  let runTimestamp = "";
+  const tsMatch = integrity.runId?.match(/INTEG-(\d+)/);
+  if (tsMatch) {
+    const d = new Date(Number(tsMatch[1]));
+    runTimestamp = d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  return (
+    <div>
+      <div className="relative group inline-block">
+        <button
+          onClick={() => setOpen(!open)}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${color}`}
+        >
+          <Icon className="w-3.5 h-3.5" />
+          <span>Integrity: {integrity.passed}/{integrity.totalTests} passed</span>
+          <span className="opacity-60">·</span>
+          <span>{status}</span>
+        </button>
+        <div className="absolute left-0 top-full mt-1.5 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <div className="rounded-md bg-slate-800 border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 whitespace-nowrap shadow-lg">
+            {tooltip}
+          </div>
+        </div>
+      </div>
+
+      {open && (
+        <div className={`mt-3 rounded-xl border ${panelColor} bg-slate-900/80 backdrop-blur-sm p-4 space-y-3`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icon className={`w-4 h-4 ${status === "Stable" ? "text-emerald-400" : status === "Warning" ? "text-amber-400" : "text-red-400"}`} />
+              <span className="text-sm font-semibold text-slate-100">Forecast Integrity</span>
+            </div>
+            <button onClick={() => setOpen(false)} className="text-slate-500 hover:text-slate-300 text-xs cursor-pointer">Close</button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Status</div>
+              <div className={`text-sm font-semibold ${status === "Stable" ? "text-emerald-400" : status === "Warning" ? "text-amber-400" : "text-red-400"}`}>
+                {status}
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Checks Passed</div>
+              <div className="text-sm font-semibold text-slate-100">
+                {integrity.passed} of {integrity.totalTests}
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Last Run</div>
+              <div className="text-sm font-semibold text-slate-100">{runTimestamp || "—"}</div>
+            </div>
+          </div>
+
+          {integrity.coreFailures.length > 0 && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-red-400/70 mb-1">Core Check Issues</div>
+              <div className="text-xs text-red-300">
+                {integrity.coreFailures.length === 1
+                  ? "One core logic check did not pass. The forecast may not fully reflect the underlying evidence."
+                  : `${integrity.coreFailures.length} core logic checks did not pass. Treat this forecast with caution until issues are resolved.`}
+              </div>
+            </div>
+          )}
+
+          {integrity.failed > 0 && integrity.coreFailures.length === 0 && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+              <div className="text-xs text-amber-300/80">
+                {integrity.failed} supplementary {integrity.failed === 1 ? "check" : "checks"} flagged — these do not affect forecast reliability but may indicate areas for review.
+              </div>
+            </div>
+          )}
+
+          {integrity.failed === 0 && (
+            <div className="text-xs text-emerald-400/70">
+              All logic checks passed. The forecast is internally consistent and responsive to evidence changes.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Tab = "forecast" | "scenarios" | "drivers" | "library";
 type Strength = "Low" | "Medium" | "High";
 type Direction = "Upward" | "Downward";
@@ -1007,29 +1134,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   return (
     <>
       <div className="flex items-center justify-between gap-2">
-        {(() => {
-          const integrity = f?._integrity;
-          if (!integrity) return <div />;
-          const status = integrity.unreliableFlag
-            ? "Unreliable"
-            : integrity.stabilityWarning
-              ? "Warning"
-              : "Stable";
-          const color = status === "Stable"
-            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
-            : status === "Warning"
-              ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
-              : "text-red-400 border-red-500/30 bg-red-500/10";
-          const Icon = status === "Stable" ? CheckCircle2 : status === "Warning" ? AlertTriangle : ShieldAlert;
-          return (
-            <div className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${color}`}>
-              <Icon className="w-3.5 h-3.5" />
-              <span>Integrity: {integrity.passed}/{integrity.totalTests} passed</span>
-              <span className="opacity-60">·</span>
-              <span>{status}</span>
-            </div>
-          );
-        })()}
+        <IntegrityBadge integrity={f?._integrity} />
         <div className="flex items-center gap-2">
           <RecalculateForecastButton
             caseId={caseId}
