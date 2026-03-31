@@ -355,22 +355,44 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       constrains_probability_to: g.constrains_probability_to ?? g.constrainsProbabilityTo ?? 0.5,
     }));
 
-  const distributionResult = computeDistributionForecast(
-    environmentAdjustedProbability,
-    result.confidenceLevel,
-    signalsWithAdjustedLR.length,
-    diversityScore,
-    distributionGates,
-    caseData.outcomeThreshold,
-  );
+  let distributionResult: ReturnType<typeof computeDistributionForecast> | null = null;
+  let distributionComputed = false;
+  try {
+    distributionResult = computeDistributionForecast(
+      environmentAdjustedProbability,
+      result.confidenceLevel,
+      signalsWithAdjustedLR.length,
+      diversityScore,
+      distributionGates,
+      caseData.outcomeThreshold,
+    );
+    distributionComputed = true;
+  } catch (err) {
+    console.error("[forecast] Distribution computation failed:", err);
+    distributionComputed = false;
+  }
 
-  const distributionProbability = distributionResult.thresholdProbability;
-  const thresholdSensitivity = computeThresholdSensitivity(
-    distributionResult.constrained,
-    distributionResult.outcomeThreshold,
-  );
+  const distributionProbability = distributionResult?.thresholdProbability ?? null;
+  const thresholdSensitivity = distributionResult
+    ? computeThresholdSensitivity(distributionResult.constrained, distributionResult.outcomeThreshold)
+    : null;
 
-  const finalProbability = distributionProbability;
+  const posteriorProbability = environmentAdjustedProbability;
+  const finalProbability = distributionProbability ?? posteriorProbability;
+
+  const metricsIdentical = distributionComputed && distributionProbability != null
+    && Math.abs(posteriorProbability - distributionProbability) < 0.001;
+  const probabilityDiagnostic = {
+    posteriorProbability: Number(posteriorProbability.toFixed(6)),
+    thresholdProbability: distributionProbability != null ? Number(distributionProbability.toFixed(6)) : null,
+    distributionComputed,
+    metricsIdentical,
+    separation: distributionProbability != null
+      ? Number(Math.abs(posteriorProbability - distributionProbability).toFixed(6))
+      : null,
+    posteriorDefinition: "How strong the therapy looks based on all signals and environment factors",
+    thresholdDefinition: "Probability of meeting the defined outcome threshold after gate constraints",
+  };
 
   function interpretFinalProbability(prob: number, prior: number): string {
     const delta = prob - prior;
@@ -400,8 +422,12 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       primaryStatement: interpretFinalProbability(finalProbability, caseData.priorProbability),
     },
     rawProbability,
-    brandOutlookProbability: environmentAdjustedProbability,
-    distributionForecast: {
+    posteriorProbability,
+    thresholdProbability: distributionProbability,
+    brandOutlookProbability: posteriorProbability,
+    distributionComputed,
+    probabilityDiagnostic,
+    distributionForecast: distributionResult ? {
       unconstrained: distributionResult.unconstrained,
       constrained: distributionResult.constrained,
       outcomeThreshold: distributionResult.outcomeThreshold,
@@ -411,7 +437,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       readinessScore: distributionResult.readinessScore,
       achievableCeiling: distributionResult.achievableCeiling,
       gateDomination: distributionResult.gateDomination,
-    },
+    } : null,
     bucketCorrectionApplied: hierarchicalCalibration.correctionAppliedPp !== 0
       ? { bucket, correctionPp: hierarchicalCalibration.correctionAppliedPp }
       : null,
@@ -470,6 +496,39 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     predictedProbability: finalProbability,
     snapshotJson: JSON.stringify(finalResult),
   }).onConflictDoNothing();
+
+  let consecutiveEqualityWarning: string | null = null;
+  try {
+    const recentLogs = await db.select({ snapshotJson: calibrationLogTable.snapshotJson })
+      .from(calibrationLogTable)
+      .where(eq(calibrationLogTable.caseId, req.params.caseId))
+      .orderBy(desc(calibrationLogTable.createdAt))
+      .limit(4);
+
+    if (recentLogs.length >= 3) {
+      let consecutiveEqual = 0;
+      for (const log of recentLogs.slice(0, 3)) {
+        try {
+          const snap = typeof log.snapshotJson === "string" ? JSON.parse(log.snapshotJson) : log.snapshotJson;
+          const diagPost = snap?.probabilityDiagnostic?.posteriorProbability ?? snap?.posteriorProbability;
+          const diagThresh = snap?.probabilityDiagnostic?.thresholdProbability ?? snap?.distributionForecast?.thresholdProbability;
+          if (diagPost != null && diagThresh != null && Math.abs(diagPost - diagThresh) < 0.001) {
+            consecutiveEqual++;
+          } else {
+            break;
+          }
+        } catch { break; }
+      }
+      if (consecutiveEqual >= 3) {
+        consecutiveEqualityWarning = `DIAGNOSTIC ALERT: PosteriorProbability and ThresholdProbability have been identical (within 0.1%) for ${consecutiveEqual} consecutive runs. This indicates the distribution model may not be producing meaningful separation. Review gate constraints and outcome threshold.`;
+        console.warn(`[forecast][${req.params.caseId}] ${consecutiveEqualityWarning}`);
+      }
+    }
+  } catch (diagErr) {
+    console.warn("[forecast] Diagnostic equality check error:", diagErr);
+  }
+
+  (finalResult as any).consecutiveEqualityWarning = consecutiveEqualityWarning;
 
   try {
     const currentCaseId = req.params.caseId;

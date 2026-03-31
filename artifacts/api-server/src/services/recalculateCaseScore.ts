@@ -343,8 +343,17 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     ? Math.max(...signalsWithAdjustedLR.map(s => Math.abs((s.likelihoodRatio ?? 1) - 1)))
     : 0;
 
+  const posteriorProbability = environmentAdjustedProbability;
   const snapshotForLog = {
     ...result,
+    posteriorProbability,
+    probabilityDiagnostic: {
+      posteriorProbability: Number(posteriorProbability.toFixed(6)),
+      thresholdProbability: Number(distributionResult.thresholdProbability.toFixed(6)),
+      distributionComputed: true,
+      metricsIdentical: Math.abs(posteriorProbability - distributionResult.thresholdProbability) < 0.001,
+      separation: Number(Math.abs(posteriorProbability - distributionResult.thresholdProbability).toFixed(6)),
+    },
     _perfSummary: {
       timestamp: calculatedAt.toISOString(),
       driverCount: signalsWithAdjustedLR.length,

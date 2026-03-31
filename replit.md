@@ -97,6 +97,8 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 
 Stability checks required before expanding: deterministic reruns, threshold sensitivity, state persistence, signal-driven updates, coherent explanations.
 
+**Probability Separation (Signal Strength vs Threshold Probability):** The forecast API returns three distinct probability fields at the top level: `posteriorProbability` (environment-adjusted posterior — "how strong the therapy looks"), `thresholdProbability` (Beta CDF probability of exceeding the outcome threshold after gate constraints — "will the target outcome actually be achieved"), and `currentProbability` (backward-compatible alias for `thresholdProbability`). `brandOutlookProbability` is an alias for `posteriorProbability`. A `probabilityDiagnostic` block provides separation metrics. If the distribution simulation fails, `thresholdProbability` is `null` and the UI shows "Not computed" instead of mirroring. A consecutive equality diagnostic warns if posterior and threshold are identical for 3+ runs (indicates distribution model isn't producing meaningful separation). Frontend reads `thresholdProbability` directly from the API; does NOT derive it from `currentProbability`.
+
 **Interpretation Coherence:** The `interpretFinalProbability` function in `forecasts.ts` generates the primary statement based on (1) the final probability level and (2) the direction/magnitude of change from the prior — ensuring the explanation always matches the actual model output.
 
 **Bounded Agent Architecture:** The system employs 17 bounded, deterministic, single-purpose AI agents with fixed I/O schemas, enforcing a `ProgramID` scope constraint.

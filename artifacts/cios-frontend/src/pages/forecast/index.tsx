@@ -1488,8 +1488,13 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         const outcomeThresholdStr = activeQuestion?.threshold || (f as any).outcomeThreshold || null;
         const confidenceLvl = (f as any).confidenceLevel ?? "Moderate";
         const sigCount = (f as any).signalDetails?.length ?? 5;
-        const displayProb = f.currentProbability ?? 0.5;
-        const displayProbPct = Math.round(displayProb * 100);
+        const apiDistributionComputed = (f as any).distributionComputed ?? true;
+        const apiConsecutiveEqualityWarning = (f as any).consecutiveEqualityWarning ?? null;
+        const apiThresholdProbability: number | null = (f as any).thresholdProbability ?? null;
+        const displayProb = apiDistributionComputed
+          ? (apiThresholdProbability ?? f.currentProbability ?? 0.5)
+          : null;
+        const displayProbPct = displayProb != null ? Math.round(displayProb * 100) : null;
 
         const distGatesForDiag: GateConstraint[] = hasGates
           ? decomp!.event_gates.map((g: any) => ({
@@ -1516,9 +1521,9 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           <>
             {hasGates && (() => {
               const brandPct = Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100);
-              const finalPct = displayProbPct;
+              const finalPct = displayProbPct ?? Math.round((f.currentProbability ?? 0.5) * 100);
               const priorPct = Math.round((f.priorProbability ?? 0.5) * 100);
-              const minGateCapPct = displayProbPct;
+              const minGateCapPct = finalPct;
               const executionGapPts = Math.abs(brandPct - finalPct);
 
               const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount);
@@ -1608,12 +1613,14 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
                   <PanelConnectionLabel label="Explains shift between prior, signal strength, and final probability">
                     <ForecastComparisonCircles
-                      brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}
+                      brandOutlookProb={brandOutlookProb ?? (f as any).posteriorProbability ?? f.currentProbability ?? 0.5}
                       finalForecastProb={displayProb}
                       priorProbability={f.priorProbability}
                       delta={delta}
                       confidence={confidence}
                       outcomeThreshold={outcomeThresholdStr}
+                      distributionComputed={apiDistributionComputed}
+                      consecutiveEqualityWarning={apiConsecutiveEqualityWarning}
                     />
                   </PanelConnectionLabel>
 

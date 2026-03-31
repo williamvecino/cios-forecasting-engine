@@ -16,11 +16,13 @@ const confidenceBadgeClass: Record<Confidence, string> = {
 
 interface ForecastComparisonCirclesProps {
   brandOutlookProb: number;
-  finalForecastProb: number;
+  finalForecastProb: number | null;
   priorProbability: number;
   delta: number;
   confidence: Confidence;
   outcomeThreshold?: string | null;
+  distributionComputed?: boolean;
+  consecutiveEqualityWarning?: string | null;
 }
 
 function deriveVerdictFromProbability(pct: number): { label: string; rule: string; color: string } {
@@ -36,9 +38,12 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
   delta,
   confidence,
   outcomeThreshold,
+  distributionComputed = true,
+  consecutiveEqualityWarning,
 }: ForecastComparisonCirclesProps) {
-  const displayedPct = Math.round(finalForecastProb * 100);
-  const verdict = deriveVerdictFromProbability(displayedPct);
+  const thresholdAvailable = finalForecastProb != null && distributionComputed;
+  const displayedPct = thresholdAvailable ? Math.round(finalForecastProb * 100) : null;
+  const verdict = displayedPct != null ? deriveVerdictFromProbability(displayedPct) : null;
   return (
     <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
@@ -46,7 +51,7 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Signal Strength</div>
           <ProbabilityGauge value={brandOutlookProb} label="Pre-Gate Estimate" size={180} />
           <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
-            Evidence-based estimate before real-world constraints — reflects clinical, competitive, and market signals only
+            How strong the therapy looks — based on all clinical, competitive, and market signals after calibration and environment adjustment
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span title="Where the probability started before any evidence was added">Prior: {(priorProbability * 100).toFixed(0)}%</span>
@@ -60,19 +65,28 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           </div>
         </div>
 
-        <ExecutionGapIndicator
-          brandPct={Math.round(brandOutlookProb * 100)}
-          finalPct={Math.round(finalForecastProb * 100)}
-        />
+        {thresholdAvailable && (
+          <ExecutionGapIndicator
+            brandPct={Math.round(brandOutlookProb * 100)}
+            finalPct={Math.round(finalForecastProb * 100)}
+          />
+        )}
 
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Threshold Probability</div>
-          <ProbabilityGauge value={finalForecastProb} label="Outcome Likelihood" size={180} />
-          <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
-            {finalForecastProb < brandOutlookProb
-              ? "Probability of meeting the outcome threshold after real-world constraints — event gates shape the adoption distribution before this number is calculated"
-              : "Probability of meeting the defined outcome threshold, computed from the full adoption distribution"}
-          </div>
+          {thresholdAvailable ? (
+            <>
+              <ProbabilityGauge value={finalForecastProb} label="Outcome Likelihood" size={180} />
+              <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
+                Will the target outcome actually be achieved — probability of exceeding the outcome threshold after gate constraints shape the adoption distribution
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center w-[180px] h-[180px] rounded-full border-2 border-dashed border-slate-600">
+              <div className="text-sm font-bold text-slate-500">Not computed</div>
+              <div className="text-[10px] text-slate-600 mt-1 px-4 text-center">Distribution simulation unavailable</div>
+            </div>
+          )}
           <div className={cn(
             "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
             confidenceBadgeClass[confidence]
@@ -89,12 +103,25 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
         </div>
       </div>
 
+      {consecutiveEqualityWarning && (
+        <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+          <div className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-1">Diagnostic Alert</div>
+          <div className="text-xs text-amber-300 leading-relaxed">{consecutiveEqualityWarning}</div>
+        </div>
+      )}
+
       <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Verdict Explanation</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div>
-            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Displayed Probability</div>
-            <div className="text-sm font-bold text-white mt-0.5">{displayedPct}%</div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Signal Strength</div>
+            <div className="text-sm font-bold text-blue-300 mt-0.5">{Math.round(brandOutlookProb * 100)}%</div>
+            <div className="text-[10px] text-slate-600 mt-0.5">Posterior</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Threshold Prob.</div>
+            <div className="text-sm font-bold text-white mt-0.5">{displayedPct != null ? `${displayedPct}%` : "Not computed"}</div>
+            <div className="text-[10px] text-slate-600 mt-0.5">{thresholdAvailable ? "CDF-based" : "Unavailable"}</div>
           </div>
           <div>
             <div className="text-[10px] text-slate-600 uppercase tracking-wider">Outcome Threshold</div>
@@ -106,8 +133,14 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           </div>
           <div>
             <div className="text-[10px] text-slate-600 uppercase tracking-wider">Verdict</div>
-            <div className={cn("text-sm font-bold mt-0.5", verdict.color)}>{verdict.label}</div>
-            <div className="text-[10px] text-slate-600 mt-0.5">{verdict.rule}</div>
+            {verdict ? (
+              <>
+                <div className={cn("text-sm font-bold mt-0.5", verdict.color)}>{verdict.label}</div>
+                <div className="text-[10px] text-slate-600 mt-0.5">{verdict.rule}</div>
+              </>
+            ) : (
+              <div className="text-sm font-bold text-slate-500 mt-0.5">Pending</div>
+            )}
           </div>
         </div>
       </div>
