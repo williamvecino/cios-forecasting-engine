@@ -394,6 +394,82 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     thresholdDefinition: "Probability of meeting the defined outcome threshold after gate constraints",
   };
 
+  const priorOddsValue = caseData.priorProbability / (1 - caseData.priorProbability);
+  const signalLrProduct = result.priorOdds > 0
+    ? (result.currentProbability / (1 - result.currentProbability)) / (priorOddsValue * (result.bayesianActorFactor ?? 1))
+    : 1;
+  const posteriorOdds = result.currentProbability / (1 - result.currentProbability);
+  const calculationTrace = {
+    _description: "Full intermediate value trace for calculation integrity audit",
+    step1_prior: {
+      label: "Prior Probability",
+      value: Number(caseData.priorProbability.toFixed(6)),
+      odds: Number(priorOddsValue.toFixed(6)),
+      source: "Case definition (user-set or template-derived)",
+    },
+    step2_bayesianUpdate: {
+      label: "Raw Bayesian Posterior",
+      signalCount: signalsWithAdjustedLR.length,
+      likelihoodRatioProduct: Number(signalLrProduct.toFixed(6)),
+      actorAdjustmentFactor: Number((result.bayesianActorFactor ?? 1).toFixed(6)),
+      posteriorOdds: Number(posteriorOdds.toFixed(6)),
+      rawPosteriorProbability: Number(rawProbability.toFixed(6)),
+      source: "Bayesian engine: prior_odds × LR_product × actor_factor → posterior_odds → probability",
+    },
+    step3_calibration: {
+      label: "Calibrated Probability",
+      calibratedProbability: Number(calibratedProbability.toFixed(6)),
+      correctionApplied: hierarchicalCalibration.correctionAppliedPp !== 0,
+      correctionPp: Number((hierarchicalCalibration.correctionAppliedPp ?? 0).toFixed(6)),
+      source: "Hierarchical calibration (therapy area + question type bias correction)",
+    },
+    step4_environmentAdjustment: {
+      label: "Environment-Adjusted Posterior (= Signal Strength / Brand Outlook)",
+      environmentAdjustedProbability: Number(posteriorProbability.toFixed(6)),
+      priorMultiplier: Number(envAdjustments.priorMultiplier.toFixed(6)),
+      posteriorMultiplier: Number(envAdjustments.posteriorMultiplier.toFixed(6)),
+      source: "Specialty, payer, guideline, competitive, access friction, adoption phase adjustments",
+    },
+    step5_distributionSimulation: distributionResult ? {
+      label: "Distribution Forecast (= Threshold Probability)",
+      inputPosterior: Number(posteriorProbability.toFixed(6)),
+      outcomeThreshold: distributionResult.outcomeThreshold,
+      unconstrainedDistribution: {
+        alpha: Number(distributionResult.unconstrained.alpha.toFixed(4)),
+        beta: Number(distributionResult.unconstrained.beta.toFixed(4)),
+        mean: Number(distributionResult.unconstrained.mean.toFixed(6)),
+      },
+      constrainedDistribution: {
+        alpha: Number(distributionResult.constrained.alpha.toFixed(4)),
+        beta: Number(distributionResult.constrained.beta.toFixed(4)),
+        mean: Number(distributionResult.constrained.mean.toFixed(6)),
+      },
+      gateCount: distributionGates.length,
+      achievableCeiling: Number(distributionResult.achievableCeiling.toFixed(6)),
+      readinessScore: Number(distributionResult.readinessScore.toFixed(6)),
+      thresholdProbability: Number(distributionResult.thresholdProbability.toFixed(6)),
+      source: "Beta CDF: P(adoption >= outcome_threshold | constrained_distribution)",
+    } : {
+      label: "Distribution Forecast FAILED",
+      inputPosterior: Number(posteriorProbability.toFixed(6)),
+      thresholdProbability: null,
+      source: "Distribution simulation unavailable — threshold probability NOT computed, NOT mirrored from posterior",
+    },
+    step6_finalSeparation: {
+      signalStrength: Number(posteriorProbability.toFixed(6)),
+      thresholdProbability: distributionProbability != null ? Number(distributionProbability.toFixed(6)) : null,
+      separationPp: distributionProbability != null
+        ? Number((Math.abs(posteriorProbability - distributionProbability) * 100).toFixed(2))
+        : null,
+      identical: metricsIdentical,
+      verdict: metricsIdentical
+        ? "WARNING: Metrics are identical — distribution model may not be producing meaningful separation"
+        : distributionProbability == null
+        ? "Threshold not computed — distribution unavailable"
+        : "PASS: Metrics are derived from different calculation paths",
+    },
+  };
+
   function interpretFinalProbability(prob: number, prior: number): string {
     const delta = prob - prior;
     const absDelta = Math.abs(delta);
@@ -427,6 +503,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     brandOutlookProbability: posteriorProbability,
     distributionComputed,
     probabilityDiagnostic,
+    calculationTrace,
     distributionForecast: distributionResult ? {
       unconstrained: distributionResult.unconstrained,
       constrained: distributionResult.constrained,
