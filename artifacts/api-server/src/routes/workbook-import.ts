@@ -36,8 +36,8 @@ interface WorkbookSignalRow {
 
 function normalizeDirection(raw: string): string {
   const d = (raw || "").trim().toLowerCase();
-  if (d === "positive" || d === "up" || d === "bullish" || d === "+") return "Positive";
-  if (d === "negative" || d === "down" || d === "bearish" || d === "-") return "Negative";
+  if (d === "positive" || d === "up" || d === "bullish" || d === "+" || d.includes("supports") || d.includes("favorable")) return "Positive";
+  if (d === "negative" || d === "down" || d === "bearish" || d === "-" || d.includes("blocks") || d.includes("unfavorable")) return "Negative";
   return "Neutral";
 }
 
@@ -98,20 +98,59 @@ router.post(
         });
       }
 
-      const rawRows = XLSX.utils.sheet_to_json<WorkbookSignalRow>(sheet);
+      const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
 
-      if (rawRows.length === 0) {
-        return res.status(400).json({ error: `Sheet "${sheetName}" is empty` });
+      if (jsonRows.length < 2) {
+        return res.status(400).json({ error: `Sheet "${sheetName}" is empty or has no data rows` });
       }
 
+      let headerRowIdx = 0;
+      let dataStartIdx = 1;
+      const firstRowKeys = Object.keys(jsonRows[0]);
+      const firstRowHasColumns = firstRowKeys.some(k => {
+        const v = String(jsonRows[0][k] || "").trim();
+        return v === "ProgramID" || v === "SignalLabel" || v === "ActiveFlag";
+      });
+      if (!firstRowHasColumns && jsonRows.length >= 3) {
+        const secondRowKeys = Object.keys(jsonRows[1]);
+        const secondRowHasColumns = secondRowKeys.some(k => {
+          const v = String(jsonRows[1][k] || "").trim();
+          return v === "ProgramID" || v === "SignalLabel" || v === "ActiveFlag";
+        });
+        if (secondRowHasColumns) {
+          headerRowIdx = 1;
+          dataStartIdx = 2;
+        }
+      }
+
+      const headerRow = jsonRows[headerRowIdx];
+      const columnKeys = Object.keys(headerRow);
+      const headers: string[] = columnKeys.map(k => String(headerRow[k]).trim());
+
       const requiredColumns = ["ProgramID", "SignalLabel", "Direction", "Strength", "Confidence", "WhyItMatters", "ActiveFlag"];
-      const firstRow = rawRows[0];
-      const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+      const missingColumns = requiredColumns.filter(col => !headers.includes(col));
       if (missingColumns.length > 0) {
         return res.status(400).json({
           error: `Missing required columns: ${missingColumns.join(", ")}`,
-          foundColumns: Object.keys(firstRow),
+          foundColumns: headers.filter(h => h.length > 0),
         });
+      }
+
+      const rawRows: WorkbookSignalRow[] = [];
+      for (let i = dataStartIdx; i < jsonRows.length; i++) {
+        const row = jsonRows[i];
+        const obj: Record<string, string> = {};
+        let hasAnyValue = false;
+        for (let c = 0; c < columnKeys.length; c++) {
+          const val = String(row[columnKeys[c]] ?? "").trim();
+          const header = headers[c];
+          if (header) { obj[header] = val; if (val) hasAnyValue = true; }
+        }
+        if (hasAnyValue) rawRows.push(obj as unknown as WorkbookSignalRow);
+      }
+
+      if (rawRows.length === 0) {
+        return res.status(400).json({ error: `No data rows found in "${sheetName}"` });
       }
 
       const activeRows = rawRows.filter(row => {

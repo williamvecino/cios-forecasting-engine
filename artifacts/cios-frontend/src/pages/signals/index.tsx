@@ -1579,6 +1579,7 @@ export default function SignalsPage() {
   }
 
   function handleWorkbookImport(importedSignals: any[]) {
+    const cid = activeQuestion?.caseId;
     const isServerImported = importedSignals.length > 0 && importedSignals[0]?._serverImported;
     if (isServerImported) {
       const uiSignals = importedSignals.map((s: any) => enrichSignalFields({
@@ -1596,7 +1597,8 @@ export default function SignalsPage() {
       setSignals(enriched);
       importedSignals.forEach((sig: any) => persistSignalToDb(sig));
     }
-    if (importedSignals.length > 0) {
+    if (importedSignals.length > 0 && cid) {
+      localStorage.setItem(`cios.signalsLocked:${cid}`, "true");
       setTimeout(() => triggerGateRecalculation(importedSignals, `Replaced with ${importedSignals.length} workbook signals`), 0);
     }
   }
