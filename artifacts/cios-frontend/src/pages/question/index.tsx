@@ -175,6 +175,17 @@ export default function QuestionPage() {
 
   const [rawInput, setRawInput] = useState(activeQuestion?.text ?? "");
   const [pageState, setPageState] = useState<PageState>("input");
+
+  useEffect(() => {
+    if (!activeQuestion) {
+      setRawInput("");
+      setPageState("input");
+      setStructuringResult(null);
+      setRefineResult(null);
+      setIsEditMode(false);
+      setEditCaseId("");
+    }
+  }, [activeQuestion]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCaseId, setEditCaseId] = useState("");
