@@ -631,9 +631,14 @@ export default function SimulatePage() {
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
 
-  const scenarioDefined = !!(scenarioName.trim() && scenarioType && messageSource && expectedEffect && impactLevel && timeFrame && confidenceLevel);
+  const scenarioDefined = !!(scenarioName.trim() && scenarioType && expectedEffect);
   const segmentSelected = !!selectedSegment;
   const canRun = scenarioDefined && segmentSelected;
+
+  const missingFields: string[] = [];
+  if (!scenarioName.trim()) missingFields.push("Scenario Name");
+  if (!scenarioType) missingFields.push("Scenario Type");
+  if (!expectedEffect) missingFields.push("Expected Effect");
 
   const currentStep = result ? 5 : !scenarioDefined ? 1 : !segmentSelected ? 2 : canRun ? 4 : 3;
 
@@ -762,13 +767,13 @@ export default function SimulatePage() {
         scenarioDescription: scenarioDescription.trim() || undefined,
         scenarioType,
         scenarioPolarity: scenarioPolarity || undefined,
-        messageSource,
+        messageSource: messageSource || "general",
         evidenceBasis: evidenceBasis || undefined,
         primaryTarget: primaryTarget || undefined,
         expectedEffect,
-        impactLevel,
-        timeFrame,
-        confidenceLevel,
+        impactLevel: impactLevel || "moderate",
+        timeFrame: timeFrame || "near_term",
+        confidenceLevel: confidenceLevel || "probable",
         triggerThreshold: triggerThreshold.trim() || undefined,
       };
 
@@ -1111,7 +1116,9 @@ export default function SimulatePage() {
                     </button>
                     {!canRun && (
                       <p className="text-[12px] text-muted-foreground/50 text-center mt-2">
-                        {!scenarioDefined ? "Define a scenario to continue" : "Select a segment to continue"}
+                        {!scenarioDefined
+                          ? `Missing: ${missingFields.join(", ")}`
+                          : "Select a segment to continue"}
                       </p>
                     )}
                   </div>
