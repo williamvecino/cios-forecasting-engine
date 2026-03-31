@@ -95,7 +95,7 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 | CASE-DEMO-04 | Portfolio resource allocation | Bispecific-401 | Oncology / academic-led | 4 (clinical, competitive, manufacturing, timeline) | 0.50 |
 | CASE-DEMO-05 | Operational readiness | InfusionPlatform V | Oncology / academic-led | 4 (milestone, capacity, workflow, EMR) | 0.40 |
 
-Stability checks required before expanding: deterministic reruns, threshold sensitivity, state persistence, signal-driven updates, coherent explanations.
+**Development Gate:** Do not expand question complexity until all 5 core demo cases pass page-by-page validation. Validation record: `.local/case-validation-record.md`. Current status: **GATE OPEN — 5/5 PASS** (2026-03-31). Known issue: `MAX_SINGLE_DRIVER_SHIFT=0.15` in `engine-guardrails.ts` fires on every case (3-4 signals each); creates artificial sensitivity floors most visible in CASE-DEMO-03.
 
 **Probability Separation (Canonical Metric Definitions):** Three distinct probability layers with canonical names:
 - **PriorProbability** → `priorProbability` API field → case-defined starting baseline
