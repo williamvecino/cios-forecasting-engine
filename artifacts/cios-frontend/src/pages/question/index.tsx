@@ -955,9 +955,10 @@ export default function QuestionPage() {
               <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <Layers className="w-4 h-4 text-cyan-400" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Case Archetype (Optional)</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Decision Pattern (Optional)</span>
                 </div>
-                <p className="text-xs text-foreground/60">Select an archetype to preload a calibrated starting probability and rationale. This does not lock the forecast — it sets a defensible starting point.</p>
+                <p className="text-xs text-foreground/60">Select the decision pattern that best matches the strategic question. This sets a defensible starting probability based on historical outcomes. It does not determine the final forecast.</p>
+                <p className="text-[10px] text-foreground/40 italic">Decision patterns are starting-point priors, not forecast outcomes.</p>
                 <div className="grid grid-cols-2 gap-2">
                   {priorTemplates.map((t: any) => {
                     const isSelected = selectedArchetype === t.archetypeName;
@@ -980,7 +981,15 @@ export default function QuestionPage() {
                           <span className="text-xs font-semibold text-foreground">{t.archetypeName}</span>
                           <span className="text-[10px] font-mono text-cyan-400">{Math.round(t.defaultPriorProbability * 100)}%</span>
                         </div>
-                        <p className="text-[10px] text-foreground/50 line-clamp-2">{t.priorRationale}</p>
+                        <p className="text-[10px] text-cyan-400/70 mb-0.5">Best for: {
+                          ({
+                            "Launch Timing Decision": "launch date uncertainty",
+                            "Regulatory Outcome Risk": "approval or delay questions",
+                            "Early Adoption Acceleration": "specialist uptake questions",
+                            "Broad Adoption Expansion": "community scale-up questions",
+                            "Market Access Constraint": "reimbursement / formulary questions",
+                          } as Record<string, string>)[t.archetypeName] || "strategic forecasting"
+                        }</p>
                       </button>
                     );
                   })}
