@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import { Link } from "wouter";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-react";
@@ -14,7 +14,7 @@ import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
 import { ExplainBox } from "@/components/forecast/ExplainBox";
 import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
-import { computeDistributionForecast, probabilityOfThreshold, computeReadinessScore, computeAchievableCeiling, type GateConstraint, type GateDominationDiagnostic } from "@/lib/adoption-distribution";
+import { computeDistributionForecast, type GateConstraint, type GateDominationDiagnostic } from "@/lib/adoption-distribution";
 import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
 import { IntegrityPanel } from "@/components/forecast/IntegrityPanel";
 import { CalibrationChecksPanel } from "@/components/forecast/CalibrationChecksPanel";
@@ -223,6 +223,18 @@ const directionArrow: Record<Direction, string> = {
 
 function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
+}
+
+function PanelConnectionLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 px-1">
+        <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50 shrink-0" />
+        <div className="text-[10px] text-blue-400/60 font-medium tracking-wide">Connection to Forecast: {label}</div>
+      </div>
+      {children}
+    </div>
+  );
 }
 
 function strengthWeight(s: Strength): number {
@@ -1192,6 +1204,96 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const downsideTotal = drivers.filter((d) => d.direction === "Downward").reduce((s, d) => s + Math.abs(d.contributionPoints), 0);
   const totalShiftPts = Math.round(delta * 100);
 
+  const signalDetailsForStrip: Array<{ signalId: string; description: string; direction: string; likelihoodRatio: number; effectiveLikelihoodRatio: number }> = f.signalDetails || [];
+  const positiveDriversStrip = drivers.filter(d => d.direction === "Upward").slice(0, 3);
+  const negativeDriversStrip = drivers.filter(d => d.direction === "Downward").slice(0, 3);
+  const confidenceCeiling = (f as any)._calibrationChecks?.confidenceCeiling ?? (f as any).distributionForecast?.achievableCeiling ?? null;
+  const fragilityScore = (f as any)._calibrationChecks?.posteriorFragility ?? (f as any)._guardrailLog?.diagnostics?.largest_single_shift ?? null;
+
+  const coreLoopStrip = (
+    <div className="space-y-0" data-testid="core-loop-strip">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-0 rounded-2xl border border-white/10 bg-[#0A1736] overflow-hidden">
+        <div className="p-4 border-r border-white/10 border-b md:border-b-0">
+          <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Question</div>
+          <div className="text-sm text-white font-medium leading-snug line-clamp-3">{activeQuestion?.text || "No question defined"}</div>
+          {activeQuestion?.timeHorizon && (
+            <div className="text-[10px] text-slate-500 mt-1">{activeQuestion.timeHorizon}</div>
+          )}
+        </div>
+        <div className="p-4 border-r border-white/10 border-b md:border-b-0">
+          <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Signals</div>
+          <div className="text-2xl font-bold text-white">{signalDetailsForStrip.length}</div>
+          <div className="text-[10px] text-slate-500 mt-1">
+            {signalDetailsForStrip.filter(s => s.direction === "Positive").length} supportive · {signalDetailsForStrip.filter(s => s.direction === "Negative").length} constraining
+          </div>
+        </div>
+        <div className="p-4 border-r border-white/10">
+          <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Forecast</div>
+          <div className="text-3xl font-bold text-white">{Math.round((f.currentProbability ?? 0) * 100)}%</div>
+          <div className={cn("text-xs font-semibold mt-1", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
+            {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts from prior ({Math.round((f.priorProbability ?? 0.5) * 100)}%)
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Decision</div>
+          <div className="text-sm text-white font-medium">{interpretation?.recommendedAction || "Awaiting judgment"}</div>
+          <div className="mt-1">
+            <span className={cn(
+              "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              confidenceBadgeClass[confidence]
+            )}>
+              {confidence} confidence
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 border-t-0 bg-[#0B1839] p-4" data-testid="forecast-drivers-strip">
+        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Forecast Drivers</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-1.5">Top Positive</div>
+            {positiveDriversStrip.length === 0 ? (
+              <div className="text-xs text-slate-600">None</div>
+            ) : positiveDriversStrip.map((d, i) => (
+              <div key={d.id} className="text-xs text-slate-300 flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="truncate">{d.name}</span>
+                <span className="text-emerald-400 font-semibold ml-auto shrink-0">+{d.contributionPoints}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider mb-1.5">Top Negative</div>
+            {negativeDriversStrip.length === 0 ? (
+              <div className="text-xs text-slate-600">None</div>
+            ) : negativeDriversStrip.map((d, i) => (
+              <div key={d.id} className="text-xs text-slate-300 flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                <span className="truncate">{d.name}</span>
+                <span className="text-rose-400 font-semibold ml-auto shrink-0">{d.contributionPoints}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Confidence Ceiling</div>
+            <div className="text-lg font-bold text-white">
+              {confidenceCeiling !== null ? `${Math.round(confidenceCeiling * 100)}%` : "None"}
+            </div>
+            <div className="text-[10px] text-slate-500">Max achievable probability</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Fragility</div>
+            <div className="text-lg font-bold text-white">
+              {fragilityScore !== null ? fragilityScore.toFixed(2) : "—"}
+            </div>
+            <div className="text-[10px] text-slate-500">Single-driver sensitivity</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (viewMode === "minimal") {
     const signalDetails: Array<{ signalId: string; description: string; direction: string; likelihoodRatio: number; effectiveLikelihoodRatio: number; correlationDampened?: boolean; signalType?: string }> = f.signalDetails || [];
     const rawProb = f.rawProbability ?? f.currentProbability ?? 0;
@@ -1212,13 +1314,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           </button>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-5 space-y-4">
-          <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Question</div>
-          <div className="text-base text-white font-medium">{activeQuestion?.text || "No question defined"}</div>
-          {activeQuestion?.subject && (
-            <div className="text-xs text-slate-400">Subject: {activeQuestion.subject}</div>
-          )}
-        </div>
+        {coreLoopStrip}
 
         <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-5">
           <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-4">Prior &rarr; Final Forecast</div>
@@ -1316,6 +1412,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           </Link>
         </div>
       </div>
+
+      {coreLoopStrip}
 
       {(() => {
         const caseKey = activeQuestion?.caseId || "unknown";
@@ -1478,27 +1576,37 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               return (
                 <>
                   <ExplainBox judgment={judgmentResult} caseContext={caseCtxForExplain} />
-                  <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} priorProbability={priorProbability} />
+                  <PanelConnectionLabel label="Updates probability based on weighted signal evidence and constraint status">
+                    <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} priorProbability={priorProbability} />
+                  </PanelConnectionLabel>
 
                   {activeQuestion?.caseId && (
-                    <EvidenceHealthPanel caseId={activeQuestion.caseId} />
+                    <PanelConnectionLabel label="Explains reliability and diversity of the evidence feeding the forecast">
+                      <EvidenceHealthPanel caseId={activeQuestion.caseId} />
+                    </PanelConnectionLabel>
                   )}
 
-                  <ConsistencyPanel
-                    consistency={f._consistency ?? null}
-                    drift={f._drift ?? null}
-                    snapshots={snapshotsData?.snapshots ?? []}
-                  />
+                  <PanelConnectionLabel label="Monitors probability stability across successive forecast runs">
+                    <ConsistencyPanel
+                      consistency={f._consistency ?? null}
+                      drift={f._drift ?? null}
+                      snapshots={snapshotsData?.snapshots ?? []}
+                    />
+                  </PanelConnectionLabel>
 
-                  <ForecastComparisonCircles
-                    brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}
-                    finalForecastProb={displayProb}
-                    priorProbability={f.priorProbability}
-                    delta={delta}
-                    confidence={confidence}
-                  />
+                  <PanelConnectionLabel label="Explains shift between prior, brand outlook, and final probability">
+                    <ForecastComparisonCircles
+                      brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}
+                      finalForecastProb={displayProb}
+                      priorProbability={f.priorProbability}
+                      delta={delta}
+                      confidence={confidence}
+                    />
+                  </PanelConnectionLabel>
 
-                  <EventGatesPanel gates={decomp!.event_gates} />
+                  <PanelConnectionLabel label="Constrains maximum achievable probability until conditions are met">
+                    <EventGatesPanel gates={decomp!.event_gates} />
+                  </PanelConnectionLabel>
 
                   {gateDomination && gateDomination.gateDominated && (
                     <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.04] p-4 flex items-start gap-3">
@@ -1664,23 +1772,27 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                     </div>
                   </details>
 
-                  <ForecastMeaningPanel
-                    interpretation={judgmentResult.reasoning}
-                    weakestGate={decomp!.event_gates.sort((a, b) => {
-                      const rank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
-                      return (rank[a.status] ?? 0) - (rank[b.status] ?? 0);
-                    })[0]}
-                    strongestUnresolved={(() => {
-                      const uw = decomp!.event_gates.filter(g => g.status === "unresolved" || g.status === "weak");
-                      return uw.length > 0
-                        ? [...uw].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
-                        : decomp!.event_gates.find(g => g.status === "moderate") || decomp!.event_gates[0];
-                    })()}
-                    brandPct={brandPct}
-                  />
+                  <PanelConnectionLabel label="Explains the probability in plain language with key conditions">
+                    <ForecastMeaningPanel
+                      interpretation={judgmentResult.reasoning}
+                      weakestGate={decomp!.event_gates.sort((a, b) => {
+                        const rank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
+                        return (rank[a.status] ?? 0) - (rank[b.status] ?? 0);
+                      })[0]}
+                      strongestUnresolved={(() => {
+                        const uw = decomp!.event_gates.filter(g => g.status === "unresolved" || g.status === "weak");
+                        return uw.length > 0
+                          ? [...uw].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
+                          : decomp!.event_gates.find(g => g.status === "moderate") || decomp!.event_gates[0];
+                      })()}
+                      brandPct={brandPct}
+                    />
+                  </PanelConnectionLabel>
 
                   {drivers.length > 0 && (
-                    <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
+                    <PanelConnectionLabel label="Updates probability by showing each driver's directional point contribution">
+                      <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
+                    </PanelConnectionLabel>
                   )}
 
                   <div className="grid grid-cols-12 gap-4">
@@ -1792,7 +1904,9 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               </p>
             </div>
 
-            <CalibrationChecksPanel data={(f as any)._calibrationChecks} />
+            <PanelConnectionLabel label="Monitors forecast calibration, ceiling enforcement, and safety bounds">
+              <CalibrationChecksPanel data={(f as any)._calibrationChecks} />
+            </PanelConnectionLabel>
           </>
         );
       })()}
@@ -1997,71 +2111,52 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
           <p className="text-sm text-slate-400">No counterfactual scenarios available — all gates are at the same status level.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {scenarios.map(scenario => {
+        <div className="rounded-3xl border border-white/10 bg-[#0A1736] overflow-x-auto">
+          <div className="min-w-[700px]">
+          <div className="grid grid-cols-[1.5fr_2fr_0.8fr_0.8fr_1.2fr] gap-0 border-b border-white/10 px-5 py-3 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+            <div>Scenario</div>
+            <div>Gates Changed</div>
+            <div className="text-right">New Prob.</div>
+            <div className="text-right">Delta</div>
+            <div>Key Driver</div>
+          </div>
+          {scenarios.map((scenario, idx) => {
             const isUpside = scenario.delta > 0;
-            const borderColor = isUpside ? "border-emerald-500/20" : "border-red-500/20";
             const deltaColor = isUpside ? "text-emerald-400" : "text-red-400";
-            const bgColor = isUpside ? "bg-emerald-500/5" : "bg-red-500/5";
-            const isComposite = scenario.gateChanges.length > 1;
+            const rowBorder = idx < scenarios.length - 1 ? "border-b border-white/5" : "";
 
             return (
-              <div key={scenario.id} className={`rounded-3xl border ${borderColor} bg-[#0A1736] p-5`}>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm font-semibold text-white">{scenario.name}</div>
-                      {isComposite && (
-                        <span className="rounded-full bg-blue-500/10 border border-blue-400/20 px-2 py-0.5 text-[10px] font-semibold text-blue-300">
-                          COMPOSITE
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">{scenario.description}</div>
-                  </div>
-
-                  <div className="flex items-center gap-6 shrink-0">
-                    <div className="text-center">
-                      <div className="text-[10px] text-slate-500 uppercase tracking-wider">Base</div>
-                      <div className="text-lg font-semibold text-slate-400">{scenario.baseProbability}%</div>
-                    </div>
-                    <div className="text-slate-600">→</div>
-                    <div className="text-center">
-                      <div className="text-[10px] text-slate-500 uppercase tracking-wider">New</div>
-                      <div className="text-lg font-semibold text-white">{scenario.newProbability}%</div>
-                    </div>
-                    <div className={`rounded-xl ${bgColor} border ${borderColor} px-3 py-2 text-center min-w-[70px]`}>
-                      <div className={`text-lg font-bold ${deltaColor}`}>
-                        {isUpside ? "+" : ""}{scenario.delta}
-                      </div>
-                      <div className="text-[10px] text-slate-500">pts</div>
-                    </div>
-                  </div>
+              <div key={scenario.id} className={`grid grid-cols-[1.5fr_2fr_0.8fr_0.8fr_1.2fr] gap-0 px-5 py-3.5 items-center ${rowBorder} hover:bg-white/[0.02] transition`}>
+                <div>
+                  <div className="text-sm font-semibold text-white">{scenario.name}</div>
+                  {scenario.gateChanges.length > 1 && (
+                    <span className="text-[10px] text-blue-400 font-semibold">COMPOSITE</span>
+                  )}
                 </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {scenario.gateChanges.map(change => {
+                    const gateObj = gates.find(g => g.gate_id === change.gate_id);
                     const fromColor = gateStatusColor[change.from] || gateStatusColor.unresolved;
                     const toColor = gateStatusColor[change.to] || gateStatusColor.unresolved;
-                    const gateObj = gates.find(g => g.gate_id === change.gate_id);
                     return (
-                      <div key={change.gate_id} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
-                        <span className="text-xs text-slate-300 font-medium">{gateObj?.gate_label || change.gate_id}</span>
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${fromColor}`}>{change.from}</span>
-                        <span className="text-slate-600 text-xs">→</span>
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${toColor}`}>{change.to}</span>
+                      <div key={change.gate_id} className="flex items-center gap-1 text-[10px]">
+                        <span className="text-slate-300">{gateObj?.gate_label || change.gate_id}</span>
+                        <span className={`rounded-full border px-1.5 py-0 font-bold uppercase ${fromColor}`}>{change.from}</span>
+                        <span className="text-slate-600">→</span>
+                        <span className={`rounded-full border px-1.5 py-0 font-bold uppercase ${toColor}`}>{change.to}</span>
                       </div>
                     );
                   })}
                 </div>
-
-                <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-500">
-                  <span>Driver:</span>
-                  <span className="text-slate-300 font-medium">{scenario.primaryDriver}</span>
+                <div className="text-right text-sm font-bold text-white">{scenario.newProbability}%</div>
+                <div className={`text-right text-sm font-bold ${deltaColor}`}>
+                  {isUpside ? "+" : ""}{scenario.delta}
                 </div>
+                <div className="text-xs text-slate-300 font-medium truncate">{scenario.primaryDriver}</div>
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </section>
