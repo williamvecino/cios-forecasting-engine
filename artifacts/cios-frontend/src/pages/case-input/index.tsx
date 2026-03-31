@@ -127,14 +127,25 @@ export default function CaseInputPage() {
     setDeferredQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q));
   }, []);
 
+  const [duplicateWarnings, setDuplicateWarnings] = useState<string[]>([]);
+
+  function validateForm(): string | null {
+    if (!scenarioName.trim()) return "Scenario Name is required.";
+    if (!actor.trim()) return "Actor is required to form the primary question.";
+    if (!action.trim()) return "Specific Action is required to form the primary question.";
+    return null;
+  }
+
   async function handleSubmit() {
-    if (!actor.trim() || !action.trim()) {
-      setError("Actor and action are required to form the primary question.");
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setSubmitting(true);
     setError(null);
+    setDuplicateWarnings([]);
 
     try {
       const caseId = `CASE-${Date.now()}`;
@@ -159,9 +170,10 @@ export default function CaseInputPage() {
       }
 
       const validSignals = signals.filter(s => s.description.trim());
+      const dupeWarnings: string[] = [];
       if (validSignals.length > 0) {
         for (const sig of validSignals) {
-          await fetch(`${API}/api/cases/${caseId}/signals`, {
+          const sigRes = await fetch(`${API}/api/cases/${caseId}/signals`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -177,8 +189,29 @@ export default function CaseInputPage() {
               status: lockStatus ? "active" : "candidate",
             }),
           });
+
+          if (sigRes.status === 409) {
+            const dupData = await sigRes.json();
+            dupeWarnings.push(`Signal "${sig.description.slice(0, 60)}..." rejected: ${dupData.message || "Duplicate detected"}`);
+          } else if (!sigRes.ok) {
+            const errData = await sigRes.json().catch(() => ({}));
+            dupeWarnings.push(`Signal "${sig.description.slice(0, 60)}..." failed: ${errData.error || sigRes.statusText}`);
+          }
         }
       }
+
+      if (dupeWarnings.length > 0) {
+        setDuplicateWarnings(dupeWarnings);
+      }
+
+      try {
+        localStorage.setItem(`cios.scenarioName:${caseId}`, scenarioName.trim());
+        localStorage.setItem(`cios.signalsLocked:${caseId}`, lockStatus ? "true" : "false");
+        localStorage.setItem(`cios.baselineReason:${caseId}`, baselineReason.trim());
+        if (expectedOutcomeDate) {
+          localStorage.setItem(`cios.expectedOutcomeDate:${caseId}`, expectedOutcomeDate);
+        }
+      } catch {}
 
       const validDeferred = deferredQuestions.filter(q => q.question.trim());
       if (validDeferred.length > 0) {
@@ -256,7 +289,7 @@ export default function CaseInputPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Scenario Name</label>
+              <label className="text-xs font-medium text-muted-foreground">Scenario Name <span className="text-red-400">*</span></label>
               <input
                 value={scenarioName}
                 onChange={e => setScenarioName(e.target.value)}
@@ -593,6 +626,18 @@ export default function CaseInputPage() {
           </div>
         )}
 
+        {duplicateWarnings.length > 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-sm font-medium text-amber-300">Duplicate Signals Detected</span>
+            </div>
+            {duplicateWarnings.map((w, i) => (
+              <p key={i} className="text-xs text-amber-200/70 pl-6">{w}</p>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center justify-between pt-2 pb-8">
           <button
             type="button"
@@ -605,7 +650,7 @@ export default function CaseInputPage() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting || !actor.trim() || !action.trim()}
+            disabled={submitting || !actor.trim() || !action.trim() || !scenarioName.trim()}
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             {submitting ? "Creating Case..." : "Create Case & Continue"}

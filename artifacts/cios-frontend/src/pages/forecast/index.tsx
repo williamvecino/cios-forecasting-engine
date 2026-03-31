@@ -819,18 +819,74 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   return <ForecastContent activeQuestion={activeQuestion} />;
 }
 
+function checkForecastGate(caseId: string): { ready: boolean; failures: string[] } {
+  const failures: string[] = [];
+  try {
+    const locked = localStorage.getItem(`cios.signalsLocked:${caseId}`);
+    if (locked === "false") {
+      failures.push("Signals must be locked before running a forecast.");
+    }
+    const scenario = localStorage.getItem(`cios.scenarioName:${caseId}`);
+    if (!scenario || !scenario.trim()) {
+      failures.push("Scenario Name is required.");
+    }
+  } catch {}
+  return { ready: failures.length === 0, failures };
+}
+
 function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
   const queryClient = useQueryClient();
   const prevCaseIdRef = useRef<string>("");
+  const [gateOverride, setGateOverride] = useState(false);
 
   useEffect(() => {
     if (prevCaseIdRef.current && prevCaseIdRef.current !== caseId) {
       queryClient.removeQueries({ queryKey: [`/api/cases/${prevCaseIdRef.current}/forecast`] });
       queryClient.removeQueries({ queryKey: [`/api/cases/${prevCaseIdRef.current}`] });
+      setGateOverride(false);
     }
     prevCaseIdRef.current = caseId;
   }, [caseId, queryClient]);
+
+  const gate = checkForecastGate(caseId);
+
+  if (!gate.ready && !gateOverride) {
+    return (
+      <>
+        <div className="rounded-3xl border border-amber-500/20 bg-gradient-to-b from-amber-500/[0.06] to-[#0A1736] p-8 space-y-5">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-8 h-8 text-amber-400" />
+            <div>
+              <h3 className="text-white font-semibold text-sm">Forecast Readiness Check Failed</h3>
+              <p className="text-xs text-slate-400 mt-0.5">The following inputs are required before the forecast can run.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {gate.failures.map((f, i) => (
+              <div key={i} className="flex items-center gap-2.5 rounded-xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="text-sm text-amber-200">{f}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 pt-2">
+            <Link href="/signals" className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
+              Return to Signals
+            </Link>
+            <button
+              type="button"
+              onClick={() => setGateOverride(true)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/10"
+            >
+              Run Anyway
+            </button>
+          </div>
+        </div>
+        <BottomLinks />
+      </>
+    );
+  }
 
   const { data: forecast, isLoading } = useRunForecast(caseId);
   useGetCase(caseId);

@@ -39,6 +39,7 @@ import {
   Globe,
   AlertTriangle,
   Lock,
+  Unlock,
   Upload,
   Info,
   Search,
@@ -733,6 +734,45 @@ function getSourceLabel(signal: { source: string; source_type?: string; category
     adoption: "Adoption tracking",
   };
   return map[signal.category] || "Analysis";
+}
+
+function SignalLockBar({ caseId }: { caseId?: string }) {
+  const [locked, setLocked] = useState(() => {
+    try { return localStorage.getItem(`cios.signalsLocked:${caseId}`) === "true"; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { setLocked(localStorage.getItem(`cios.signalsLocked:${caseId}`) === "true"); } catch {}
+  }, [caseId]);
+
+  function toggle() {
+    if (!caseId) return;
+    const next = !locked;
+    localStorage.setItem(`cios.signalsLocked:${caseId}`, next ? "true" : "false");
+    setLocked(next);
+  }
+
+  return (
+    <div className="flex items-center justify-between">
+      <button
+        type="button"
+        onClick={toggle}
+        className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
+          locked
+            ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+            : "border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+        }`}
+      >
+        {locked
+          ? <><Lock className="w-3.5 h-3.5" /> Signals Locked</>
+          : <><Unlock className="w-3.5 h-3.5" /> Lock Signals</>
+        }
+      </button>
+      <Link href="/forecast" className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+        Continue to Judgment
+      </Link>
+    </div>
+  );
 }
 
 export default function SignalsPage() {
@@ -2593,11 +2633,7 @@ export default function SignalsPage() {
             </div>
           )}
 
-          <div className="flex justify-end">
-            <Link href="/forecast" className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
-              Continue to Judgment
-            </Link>
-          </div>
+          <SignalLockBar caseId={activeQuestion?.caseId} />
         </section>
       </QuestionGate>
       <DataImportDialog
