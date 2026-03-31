@@ -1,5 +1,6 @@
 import type { ForecastCaseInput, ForecastOutput } from "./types";
-import { runCoreForecast } from "./core-forecast-engine";
+
+const API = import.meta.env.VITE_API_URL || "";
 
 export interface ForecastRunState {
   status: "idle" | "dirty" | "running" | "ready" | "error";
@@ -26,50 +27,33 @@ export function markForecastDirty(
   };
 }
 
-function applyLocalDependencyCompression(input: ForecastCaseInput): ForecastCaseInput {
-  const signals = input.signals;
-  if (!signals || signals.length === 0) return input;
-
-  const rootGroups = new Map<string, Array<{ idx: number; lr: number }>>();
-  signals.forEach((s: any, idx: number) => {
-    const root = s.rootEvidenceId || s.eventFamilyId || s.sourceCluster;
-    if (root) {
-      if (!rootGroups.has(root)) rootGroups.set(root, []);
-      rootGroups.get(root)!.push({ idx, lr: s.likelihoodRatio ?? 1 });
-    }
-  });
-
-  const compressed = [...signals];
-  for (const [, group] of rootGroups) {
-    if (group.length <= 1) continue;
-    group.sort((a, b) => Math.abs(Math.log(b.lr || 1)) - Math.abs(Math.log(a.lr || 1)));
-    for (let i = 1; i < group.length; i++) {
-      const orig = (compressed[group[i].idx] as any).likelihoodRatio ?? 1;
-      const dampened = 1 + (orig - 1) * 0.3;
-      (compressed[group[i].idx] as any) = { ...compressed[group[i].idx] as any, likelihoodRatio: dampened };
-    }
-  }
-
-  return { ...input, signals: compressed };
-}
-
 export async function recalculateForecast(
   input: ForecastCaseInput
 ): Promise<ForecastRunState> {
   try {
-    const compressedInput = applyLocalDependencyCompression(input);
-    const output = runCoreForecast(compressedInput);
+    const res = await fetch(`${API}/api/forecast/recalculate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Forecast computation failed (${res.status})`);
+    }
+
+    const output: ForecastOutput = await res.json();
     return {
       status: "ready",
       lastOutput: output,
       errorMessage: null,
       dirtyReason: null,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       status: "error",
       lastOutput: null,
-      errorMessage: error?.message ?? "Unknown recalculation error",
+      errorMessage: error instanceof Error ? error.message : "Unknown recalculation error",
       dirtyReason: null,
     };
   }

@@ -488,4 +488,21 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   res.json(responsePayload);
 });
 
+router.post("/forecast/recalculate", async (req, res) => {
+  try {
+    const { recalculateForecast } = await import("../lib/recalculation-controller.js");
+    const result = await recalculateForecast(req.body);
+
+    if (result.status === "error") {
+      res.status(500).json({ error: result.errorMessage || "Recalculation failed" });
+      return;
+    }
+
+    res.json(result.lastOutput);
+  } catch (err: unknown) {
+    console.error("[forecast/recalculate] Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Recalculation failed" });
+  }
+});
+
 export default router;

@@ -48,17 +48,28 @@ export interface EnvironmentAdjustmentResult {
   normalizedConfig: Required<ActorEnvironmentConfig>;
 }
 
+const VALID_SPECIALTY: SpecialtyActorProfile[] = ["general", "early_adopter_specialty", "conservative_specialty", "cost_sensitive_specialty", "procedural_specialty"];
+const VALID_PAYER: PayerEnvironment[] = ["favorable", "balanced", "restrictive"];
+const VALID_GUIDELINE: GuidelineLeverage[] = ["low", "medium", "high"];
+const VALID_LANDSCAPE: CompetitiveLandscape[] = ["open_market", "moderate_competition", "entrenched_standard_of_care"];
+const VALID_PHASE: AdoptionPhase[] = ["pre_launch", "early_adoption", "growth", "plateau", "decline"];
+const VALID_HORIZON: ForecastHorizonMonths[] = [6, 12, 24, 36];
+
+function validOrDefault<T>(value: unknown, validSet: T[], fallback: T): T {
+  return validSet.includes(value as T) ? (value as T) : fallback;
+}
+
 export function normalizeActorEnvironment(
   config: ActorEnvironmentConfig
 ): Required<ActorEnvironmentConfig> {
   return {
-    specialtyActorProfile: config.specialtyActorProfile ?? "general",
-    payerEnvironment: config.payerEnvironment ?? "balanced",
-    guidelineLeverage: config.guidelineLeverage ?? "medium",
-    competitiveLandscape: config.competitiveLandscape ?? "entrenched_standard_of_care",
+    specialtyActorProfile: validOrDefault(config.specialtyActorProfile, VALID_SPECIALTY, "general"),
+    payerEnvironment: validOrDefault(config.payerEnvironment, VALID_PAYER, "balanced"),
+    guidelineLeverage: validOrDefault(config.guidelineLeverage, VALID_GUIDELINE, "medium"),
+    competitiveLandscape: validOrDefault(config.competitiveLandscape, VALID_LANDSCAPE, "entrenched_standard_of_care"),
     accessFrictionIndex: clamp(config.accessFrictionIndex ?? 0.5, 0, 1),
-    adoptionPhase: config.adoptionPhase ?? "early_adoption",
-    forecastHorizonMonths: config.forecastHorizonMonths ?? 12,
+    adoptionPhase: validOrDefault(config.adoptionPhase, VALID_PHASE, "early_adoption"),
+    forecastHorizonMonths: validOrDefault(config.forecastHorizonMonths, VALID_HORIZON, 12),
   };
 }
 

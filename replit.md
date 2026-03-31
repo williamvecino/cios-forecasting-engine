@@ -1,22 +1,22 @@
 # CIOS — Clinical Intelligence & Outcome System
 
 ## Overview
-CIOS is a Bayesian forecasting platform designed to predict Healthcare Professional (HCP) adoption. It translates prior probabilities into posterior probabilities using clinical signals and a 6-actor behavioral reaction model. The platform provides AI-powered insights to forecast market adoption and stakeholder behavior across various medical assets and geographies, aiming to enhance strategic decision-making in the healthcare industry and provide comprehensive strategic intelligence and market potential analysis.
+CIOS is a Bayesian forecasting platform that predicts Healthcare Professional (HCP) adoption by translating prior probabilities into posterior probabilities using clinical signals and a 6-actor behavioral reaction model. It provides AI-powered insights to forecast market adoption and stakeholder behavior across various medical assets and geographies. The platform aims to enhance strategic decision-making in the healthcare industry, offering comprehensive strategic intelligence and market potential analysis.
 
 ## User Preferences
 I prefer clear and concise information. I appreciate high-level summaries before diving into details. When implementing features, prioritize modular and maintainable code. For architectural decisions, provide the rationale. I expect the agent to ask for clarification if there are ambiguities in my requests and to inform me about significant changes or design choices before proceeding.
 
 ## System Architecture
-CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, Vite, Tailwind CSS, Recharts, and React Query, featuring a question-driven "Aaru-like Decision Interface" with a dark theme. The backend is an Express 5 application in TypeScript, exposing APIs under `/api`. Data persistence is managed by PostgreSQL via Drizzle ORM. API specifications adhere to OpenAPI 3.1, with `orval` used for client and validation library generation.
+CIOS is a monorepo built with pnpm workspaces. The frontend uses React, Vite, Tailwind CSS, Recharts, and React Query, featuring a question-driven "Aaru-like Decision Interface" with a dark theme. The backend is an Express 5 application in TypeScript, exposing APIs under `/api`. PostgreSQL handles data persistence via Drizzle ORM. API specifications follow OpenAPI 3.1, with `orval` generating client and validation libraries.
 
 **Core Architectural Principles:**
-- All agents are deterministic, single-purpose, with fixed inputs and outputs.
+- Agents are deterministic, single-purpose, with fixed inputs and outputs.
 - The Core CIOS Judgment Engine is the central decision-maker.
-- The system processes raw uploaded documents via gating agents and preserves provenance for every signal.
-- Existing engine or UI workflows (Define Question → Define Comparison Groups → Add Information → Judge → Decide → Respond → Simulate) must remain stable.
+- Raw uploaded documents are processed via gating agents, preserving provenance for every signal.
+- Existing engine or UI workflows (Define Question → Define Comparison Groups → Add Information → Judge → Decide → Respond → Simulate) are stable.
 
 **Key Features and Design Principles:**
-- **Bayesian Forecast Engine:** Transparent calculation of posterior probabilities.
+- **Bayesian Forecast Engine:** Transparent probability calculation.
 - **AI-Powered Signal Detection & Review:** AI for signal extraction with human oversight.
 - **Actor Behavioral Modeling:** Integrates a 6-actor model (KOL, HCP, Payer, Patient, Administrator, Competitor).
 - **Calibration Learning Loop:** Continuous outcome tracking and bias adjustments.
@@ -28,7 +28,7 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Executive Judgment Layer:** Produces `ExecutiveJudgmentResult` with integrity checks and audit trails.
 - **Barrier/Constraint Decomposition Layer:** Decomposes gates into operational drivers and abstract constraint categories.
 - **Endpoint Signal Differentiation Layer:** Classifies evidence signals into four tiers and detects `SignalImbalance`.
-- **Forecast Ledger (Calibration Memory):** Versions and persists forecasts with inference snapshots for calibration.
+- **Forecast Ledger (Calibration Memory):** Versions and persists forecasts with inference snapshots.
 - **Decision-Based Comparison Groups:** AI extracts comparison groups from strategic questions.
 - **Ask CIOS (Case-Aware Question Box):** Persistent panel for case-specific questions.
 - **Respond Step:** Converts decision output into client-ready executive responses.
@@ -40,8 +40,8 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Calibration Reference Case Library:** Benchmark library of 13 curated archetype cases.
 - **Adoption Segmentation Panel:** Translates forecasts into 8 segment-level adoption maps.
 - **Barrier Diagnosis Panel:** Diagnoses dominant sources of adoption resistance across 10 categories.
-- **Case Framing Layer:** Mandatory pre-signal-generation step deriving structured case metadata and defining `CaseFrame` (signal families, decision grammar, search targets, relevance rules, standardized output requirements) for 10 archetypes (6 core clinical-commercial + 4 enterprise/system-level).
-- **Case Type Classifier & Routing:** Deterministic engine identifying 10 pharma case archetypes (launch_readiness, competitive_defense, access_expansion, clinical_adoption, lifecycle_management, market_shaping, investment_portfolio, operational_execution, strategic_partnership, policy_environment) and routing to appropriate modules, vocabulary, and constraints.
+- **Case Framing Layer:** Mandatory pre-signal-generation step deriving structured case metadata and defining `CaseFrame` (signal families, decision grammar, search targets, relevance rules, standardized output requirements) for 10 archetypes.
+- **Case Type Classifier & Routing:** Deterministic engine identifying 10 pharma case archetypes and routing to appropriate modules, vocabulary, and constraints.
 - **Standardized Output Requirements:** Every archetype frame mandates 7 structured output fields: top drivers, constraints, contradictions, probability, confidence, fragility, key monitor.
 - **Readiness Timeline Panel:** Time-ordered readiness view across 10 milestone categories.
 - **Competitive Risk Panel:** Identifies competitive forces across 12 categories.
@@ -54,29 +54,29 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Unified Confidence Display:** Presents a single primary confidence label per case.
 - **Actors/Segments Simulation Engine:** Deterministic scenario simulation engine recomputing forecast outcomes under 13 controlled scenario types.
 - **Phase 3 Clinical Endpoint Structural Controls:** Implements 9 structural controls for clinical outcome decisions.
-- **Systematic Calibration Checks:** 5 pre-forecast bias checks (Evidence Echo, Anchor Bias, Missing Signal, Correlation, Overconfidence) run automatically.
-- **Signal Domain Classification:** Each signal carries a `signal_domain` field (e.g., clinical_evidence, regulatory_activity).
+- **Systematic Calibration Checks:** 5 pre-forecast bias checks run automatically.
+- **Signal Domain Classification:** Each signal carries a `signal_domain` field.
 - **Expanded Signal Direction Model:** Direction expanded to 6 values for richer signal interpretation.
-- **MIOS Evidence Verification Guardrail:** Automated evidence verification layer extracting and verifying identifiers (PMID, DOI, NCT) against registries, with red-flag detection.
+- **MIOS Evidence Verification Guardrail:** Automated evidence verification layer extracting and verifying identifiers against registries, with red-flag detection.
 - **Archetype Signal Grammars (9 Archetypes):** Each CaseFrame includes `judgmentQuestions`, `correctSignalTypes`, and `incorrectSignalTypes`.
-- **Signal Structure & Efficiency Upgrade:** Driver Role field (Primary Driver, Supporting Driver, Counterforce, Context Signal, Noise) auto-assigned to every signal with user override; Driver Coverage Validation checking 4 required categories (economic, structural, competitive, execution); Signal Map Panel grouping signals by mechanism; Causal Alignment Check flagging indirect signals; Signal Completeness Suggestions via AI analysis with one-click addition.
-- **Signal Measurement Criteria:** Structured measurement definitions for signals (baseline value, observed change, geographic scope, time window, evidence source, measurement confidence). Editable in signal edit mode; displayed as cyan read-only panel in view mode.
-- **Trigger Rules Engine:** Condition-based auto-flagging rules. Default rule auto-detects competitor field capacity signals near coverage reduction events and escalates importance to High. Rules display as amber panels on signal cards; triggered flags display as red alert banners.
-- **Competitive Coverage Ratio Derived Metric:** System-wide metric computing competitor field capacity ÷ brand field capacity from conflict-resolved accepted signals. Displayed as indigo panel with color-coded interpretation (green/yellow/amber/red thresholds).
-- **Composite Outcome Structure:** Multi-dimensional outcome evaluation with configurable dimensions (competitive share, portfolio growth, operational stability). Auto-generates composite scenarios from dimension combinations. Scenarios are scored by the judgment engine using keyword-based scoring against signal direction and gate resolution. Ranked scenarios displayed in ExecutiveJudgment with probability percentages and dimension breakdowns.
-- **Input Hardening Layer:** Strict forecast gate requiring locked signals + scenario name; auto-unlock on signal edit/add; autosave with 400ms debounce on case-input form; draft restore on revisit; duplicate signal warning (409 Jaccard); deferred questions stored separately in question_repository; root evidence ID on signals.
+- **Signal Structure & Efficiency Upgrade:** Driver Role field auto-assigned with user override; Driver Coverage Validation; Signal Map Panel; Causal Alignment Check; Signal Completeness Suggestions.
+- **Signal Measurement Criteria:** Structured measurement definitions for signals (baseline value, observed change, geographic scope, time window, evidence source, measurement confidence).
+- **Trigger Rules Engine:** Condition-based auto-flagging rules.
+- **Competitive Coverage Ratio Derived Metric:** System-wide metric computing competitor field capacity ÷ brand field capacity.
+- **Composite Outcome Structure:** Multi-dimensional outcome evaluation with configurable dimensions.
+- **Input Hardening Layer:** Strict forecast gate requiring locked signals + scenario name; auto-unlock on signal edit/add; autosave; draft restore; duplicate signal warning; deferred questions stored separately; root evidence ID on signals.
 - **AI Signal Deduplication:** Semantic and similarity-based deduplication of signals.
 - **Simulation Driver Traceability:** Simulation API returns `drivers` array with weight, direction, and rationale.
 - **Probability Banding:** Formal bands (Low, Moderate, High, Very High) for probability display.
-- **Negative Scenario Types:** Expanded scenario polarity (positive/negative/neutral/delay/reversal) and expected effects.
+- **Negative Scenario Types:** Expanded scenario polarity and expected effects.
 - **Canonical 5-Case Validation Pack:** Benchmark suite of 5 curated cases for validation.
 - **AI-Structured Question Definition Workflow:** Multi-step question input flow where AI structures the question, performs feasibility checks, and proposes outcome states.
-- **Question Repository with Cross-Step Persistence:** Saved questions (primary + secondary) persist to a PostgreSQL-backed repository (`questionRepositoryTable`) via CRUD API at `/api/cases/:caseId/questions`. A `SavedQuestionsPanel` component displays saved questions with status management (Analyze/Save/Defer/Discard) on all downstream workflow pages (Comparison Groups, Add Information, Judge, Decide, Respond). Repository writes are idempotent (clear-and-reinsert per case). Parent-child linkage uses deterministic `Q-{caseId}-primary` identifiers.
+- **Question Repository with Cross-Step Persistence:** Saved questions persist to a PostgreSQL-backed repository (`questionRepositoryTable`) via CRUD API at `/api/cases/:caseId/questions`. A `SavedQuestionsPanel` component displays saved questions with status management on all downstream workflow pages.
+- **Guarded Ingestion Layer:** Accepts full unstructured text. Mandatory Decision Classification AI agent (`POST /api/agents/decision-classification`) classifies domain, archetype, primary/supporting/deferred decisions, confidence, evidence spans, alternative archetype, and 2-3 candidate questions.
+- **Signal Interpretation Layer:** Sits between decision classification and signal creation. Persists to `signal_interpretations` DB table. Generates interpretation objects for each extracted fact with details like decision relevance, causal pathway, impact estimate, and recommended signal flag.
+- **Server-Side Recalculation Controller:** `POST /api/forecast/recalculate` — dependency-aware forecast recalculation endpoint. Runs signal dependency analysis, applies LR compression for redundant signals, then delegates to `runCoreForecast`. Applies confidence ceiling when dependency analysis detects high redundancy. Frontend recalculation controller routes all forecast computation through this endpoint.
 
-- **Guarded Ingestion Layer:** Accepts full unstructured text (RFPs, CI docs, emails, slides). Mandatory Decision Classification AI agent (`POST /api/agents/decision-classification`) classifies domain, archetype, primary/supporting/deferred decisions, confidence, evidence spans, alternative archetype, and 2-3 candidate questions. Vendor-selection guardrail prevents misclassification of RFPs. Multi-decision documents auto-route deferred decisions to question_repository. Low-confidence classifications require explicit user review confirmation. Full classification stored in `decision_classifications` table as audit trail. Frontend `/ingest` page with 3-phase flow (input → classifying → review). Entry card "Ingest Document" on question page.
-- **Signal Interpretation Layer:** Sits between decision classification and signal creation. Persists to `signal_interpretations` DB table with `sourceDocumentId`, `sourceSpan`, `sourceType`, `reviewerStatus` (Pending/Accepted/Rejected) fields. For each extracted fact, generates an interpretation object with: decision relevance (direct/indirect/tangential/irrelevant), causal pathway, direction (positive/negative/neutral/ambiguous), impact estimate, independence classification (independent/partially_dependent/dependent/redundant), root evidence ID, confidence, recommended signal flag, recommendation reason, suggested signal type (matching valid CIOS signal types), suggested strength (1-5), and suggested reliability (1-5). Server-side enforcement: tangential/irrelevant facts auto-rejected; null causal pathway auto-rejected; dependent/redundant facts auto-rejected (echo/duplicate blocking). PATCH endpoint enforces strict enum validation for reviewerStatus and status, and requires linkedSignalId for Accepted status. Only recommended=yes items go to user review. Accepted signals link back to `interpretation_id` via both PATCH on interpretation and `interpretationId` column on signals table. API agent at `POST /api/agents/signal-interpretation`; CRUD at `GET /signal-interpretations/:caseId`, `PATCH /signal-interpretations/:interpretationId`. Frontend `/interpret` page with sortable review TABLE (columns: Fact, Relevance, Causal Pathway, Direction, Impact, Independence, Confidence, Recommended, Signal Type, Strength, Reliability, Action). Default sort: Recommended=Yes first, then High confidence, Direct relevance, High impact. Action buttons: Accept/Reject toggle, Edit interpretation (modify strength/reliability), Link to root evidence, Merge with existing root (deduplicate). Batch tracking and per-signal POST validation. 6 acceptance tests verified: duplicate suppression, relevance filtering, causal pathway enforcement, strong direct signal, weak anecdotal signal, strong adoption signal.
-
-**Bounded Agent Architecture:** The system employs 17 bounded, deterministic, single-purpose AI agents (e.g., Decision Gating, Question Structuring, Decision Classification, Signal Interpretation, External Signal Scout, MIOS, BAOS) with fixed I/O schemas, all enforcing a `ProgramID` scope constraint.
+**Bounded Agent Architecture:** The system employs 17 bounded, deterministic, single-purpose AI agents with fixed I/O schemas, enforcing a `ProgramID` scope constraint.
 
 ## External Dependencies
 - **PostgreSQL:** Relational database.
