@@ -35,6 +35,7 @@ import {
   RotateCcw,
   Check,
   X,
+  FileText,
 } from "lucide-react";
 import ImportProjectDialog from "@/components/question/ImportProjectDialog";
 
@@ -1370,7 +1371,7 @@ export default function QuestionPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <button
                 type="button"
                 onClick={() => setShowImportProject(false)}
@@ -1406,6 +1407,21 @@ export default function QuestionPage() {
                   <div>
                     <div className="text-sm font-semibold text-foreground">Import Project</div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">Upload files, images, or paste text</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/case-input")}
+                className="rounded-xl border-2 border-border hover:border-primary/30 bg-card px-5 py-5 text-left transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg p-2.5 bg-muted/20">
+                    <FileText className="w-5 h-5 text-muted-foreground group-hover:text-primary transition" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Structured Input</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">Fill in the standard case form</div>
                   </div>
                 </div>
               </button>

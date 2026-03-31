@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Lightbulb,
+  FileText,
 } from "lucide-react";
 
 const EXAMPLE_QUESTIONS = [
@@ -214,6 +215,13 @@ export default function HomePage() {
               <Paperclip className="w-4 h-4" />
               Attach file
             </button>
+            <Link
+              href="/case-input"
+              className="rounded-xl border border-border px-5 py-3 font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 inline-flex items-center gap-2 text-sm transition"
+            >
+              <FileText className="w-4 h-4" />
+              Structured Input
+            </Link>
           </div>
         </section>
 
