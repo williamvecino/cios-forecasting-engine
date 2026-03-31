@@ -482,11 +482,21 @@ function buildReasoningWithDrivers(
   const parts: string[] = [];
 
   if (gap >= 15) {
-    parts.push(`The clinical evidence is stronger than the operational readiness — there is a ${gap}-point gap between what the product deserves and what the market is ready to deliver. The barriers are practical, not clinical.`);
+    const weakNames = weakGates.slice(0, 2).map(g => g.gate_label);
+    const constraintList = weakNames.length > 0 ? weakNames.join(" and ") : "unresolved conditions";
+    if (caseType === "regulatory_approval") {
+      parts.push(`The evidence package supports a ${brandPct}% outlook, but ${constraintList} reduce the constrained forecast to ${finalPct}% — a ${gap}-point drag from regulatory and procedural conditions, not data quality.`);
+    } else if (caseType === "clinical_outcome") {
+      parts.push(`Trial-level evidence supports a ${brandPct}% probability, but ${constraintList} pull the constrained estimate to ${finalPct}% — a ${gap}-point reduction driven by trial execution and design factors.`);
+    } else {
+      parts.push(`Evidence supports a ${brandPct}% outlook, but ${constraintList} constrain the forecast to ${finalPct}% — a ${gap}-point reduction from operational and market-access conditions rather than clinical merit.`);
+    }
   } else if (gap < 5) {
-    parts.push("Evidence and operational readiness are well aligned. The current outlook accurately reflects conditions on the ground.");
+    parts.push(`Evidence strength and environmental conditions are aligned. The ${finalPct}% forecast reflects current conditions without material constraint drag.`);
   } else {
-    parts.push("Some operational conditions are partially limiting what the evidence would otherwise support.");
+    const weakNames = weakGates.slice(0, 2).map(g => g.gate_label);
+    const constraintList = weakNames.length > 0 ? weakNames.join(" and ") : "partially unresolved conditions";
+    parts.push(`${constraintList} are creating a modest ${gap}-point constraint on the forecast, reducing it from ${brandPct}% to ${finalPct}%.`);
   }
 
   const constraintGates = gates.filter(g => g.status !== "strong");
