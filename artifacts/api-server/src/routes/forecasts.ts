@@ -409,6 +409,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     },
     step2_bayesianUpdate: {
       label: "Raw Bayesian Posterior",
+      canonicalName: "RawPosteriorProbability",
       signalCount: signalsWithAdjustedLR.length,
       likelihoodRatioProduct: Number(signalLrProduct.toFixed(6)),
       actorAdjustmentFactor: Number((result.bayesianActorFactor ?? 1).toFixed(6)),
@@ -424,16 +425,25 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       source: "Hierarchical calibration (therapy area + question type bias correction)",
     },
     step4_environmentAdjustment: {
-      label: "Environment-Adjusted Posterior (= Signal Strength / Brand Outlook)",
-      environmentAdjustedProbability: Number(posteriorProbability.toFixed(6)),
+      label: "Environment-Adjusted Posterior",
+      canonicalName: "EnvironmentAdjustedPosterior",
+      uiLabel: "Signal Strength (Pre-Gate Estimate)",
+      excelEquivalent: "PosteriorProbability — NOTE: This is NOT the raw Bayesian posterior (step 2). It is the posterior AFTER calibration (step 3) and environment adjustments (this step). The raw Bayesian posterior is 'RawPosteriorProbability' in step 2.",
+      value: Number(posteriorProbability.toFixed(6)),
+      inputFromStep3: Number(calibratedProbability.toFixed(6)),
       priorMultiplier: Number(envAdjustments.priorMultiplier.toFixed(6)),
       posteriorMultiplier: Number(envAdjustments.posteriorMultiplier.toFixed(6)),
       source: "Specialty, payer, guideline, competitive, access friction, adoption phase adjustments",
     },
     step5_distributionSimulation: distributionResult ? {
-      label: "Distribution Forecast (= Threshold Probability)",
+      label: "Threshold Probability (CDF-based)",
       inputPosterior: Number(posteriorProbability.toFixed(6)),
-      outcomeThreshold: distributionResult.outcomeThreshold,
+      outcomeThreshold: {
+        numericValue: distributionResult.outcomeThreshold,
+        rawInput: distributionResult.thresholdResolution.rawInput,
+        source: distributionResult.thresholdResolution.source,
+        explanation: distributionResult.thresholdResolution.explanation,
+      },
       unconstrainedDistribution: {
         alpha: Number(distributionResult.unconstrained.alpha.toFixed(4)),
         beta: Number(distributionResult.unconstrained.beta.toFixed(4)),
@@ -448,7 +458,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       achievableCeiling: Number(distributionResult.achievableCeiling.toFixed(6)),
       readinessScore: Number(distributionResult.readinessScore.toFixed(6)),
       thresholdProbability: Number(distributionResult.thresholdProbability.toFixed(6)),
-      source: "Beta CDF: P(adoption >= outcome_threshold | constrained_distribution)",
+      semanticMapping: "The adoption distribution models the full probability landscape for achieving the defined business outcome. ThresholdProbability = P(outcome_achievement >= threshold | constrained_distribution). For non-percentage outcomes (e.g., '≥4 Rx/quarter'), the distribution represents the probability of meeting that specific business criterion, not a generic market share.",
     } : {
       label: "Distribution Forecast FAILED",
       inputPosterior: Number(posteriorProbability.toFixed(6)),
@@ -456,8 +466,14 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       source: "Distribution simulation unavailable — threshold probability NOT computed, NOT mirrored from posterior",
     },
     step6_finalSeparation: {
-      signalStrength: Number(posteriorProbability.toFixed(6)),
-      thresholdProbability: distributionProbability != null ? Number(distributionProbability.toFixed(6)) : null,
+      signalStrength_label: "Signal Strength (Pre-Gate Estimate)",
+      signalStrength_canonicalName: "EnvironmentAdjustedPosterior",
+      signalStrength_value: Number(posteriorProbability.toFixed(6)),
+      signalStrength_excelEquivalent: "PosteriorProbability (after environment adjustments)",
+      thresholdProbability_label: "Threshold Probability (Outcome Likelihood)",
+      thresholdProbability_canonicalName: "ThresholdProbability",
+      thresholdProbability_value: distributionProbability != null ? Number(distributionProbability.toFixed(6)) : null,
+      thresholdProbability_excelEquivalent: "ThresholdProbability (Beta CDF evaluation)",
       separationPp: distributionProbability != null
         ? Number((Math.abs(posteriorProbability - distributionProbability) * 100).toFixed(2))
         : null,
@@ -504,11 +520,13 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     distributionComputed,
     probabilityDiagnostic,
     calculationTrace,
+    outcomeThresholdResolution: distributionResult?.thresholdResolution ?? null,
     distributionForecast: distributionResult ? {
       unconstrained: distributionResult.unconstrained,
       constrained: distributionResult.constrained,
       outcomeThreshold: distributionResult.outcomeThreshold,
       thresholdProbability: distributionResult.thresholdProbability,
+      thresholdResolution: distributionResult.thresholdResolution,
       gateAdjustments: distributionResult.gateAdjustments,
       thresholdSensitivity,
       readinessScore: distributionResult.readinessScore,

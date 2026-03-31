@@ -1621,6 +1621,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       outcomeThreshold={outcomeThresholdStr}
                       distributionComputed={apiDistributionComputed}
                       consecutiveEqualityWarning={apiConsecutiveEqualityWarning}
+                      thresholdSource={(f as any).outcomeThresholdResolution?.source ?? null}
                     />
                   </PanelConnectionLabel>
 

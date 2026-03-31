@@ -23,6 +23,7 @@ interface ForecastComparisonCirclesProps {
   outcomeThreshold?: string | null;
   distributionComputed?: boolean;
   consecutiveEqualityWarning?: string | null;
+  thresholdSource?: string | null;
 }
 
 function deriveVerdictFromProbability(pct: number): { label: string; rule: string; color: string } {
@@ -40,6 +41,7 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
   outcomeThreshold,
   distributionComputed = true,
   consecutiveEqualityWarning,
+  thresholdSource,
 }: ForecastComparisonCirclesProps) {
   const thresholdAvailable = finalForecastProb != null && distributionComputed;
   const displayedPct = thresholdAvailable ? Math.round(finalForecastProb * 100) : null;
@@ -111,21 +113,26 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
       )}
 
       <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
-        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Verdict Explanation</div>
+        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Metric Reconciliation</div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div>
             <div className="text-[10px] text-slate-600 uppercase tracking-wider">Signal Strength</div>
             <div className="text-sm font-bold text-blue-300 mt-0.5">{Math.round(brandOutlookProb * 100)}%</div>
-            <div className="text-[10px] text-slate-600 mt-0.5">Posterior</div>
+            <div className="text-[10px] text-slate-600 mt-0.5">EnvironmentAdjustedPosterior</div>
+            <div className="text-[10px] text-blue-400/50 mt-0.5">How strong the therapy looks</div>
           </div>
           <div>
             <div className="text-[10px] text-slate-600 uppercase tracking-wider">Threshold Prob.</div>
             <div className="text-sm font-bold text-white mt-0.5">{displayedPct != null ? `${displayedPct}%` : "Not computed"}</div>
-            <div className="text-[10px] text-slate-600 mt-0.5">{thresholdAvailable ? "CDF-based" : "Unavailable"}</div>
+            <div className="text-[10px] text-slate-600 mt-0.5">{thresholdAvailable ? "ThresholdProbability (CDF)" : "Unavailable"}</div>
+            <div className="text-[10px] text-emerald-400/50 mt-0.5">Will the target be achieved</div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Outcome Threshold</div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Outcome Target</div>
             <div className="text-sm font-bold text-white mt-0.5">{outcomeThreshold ?? "Not set"}</div>
+            {thresholdSource && (
+              <div className="text-[10px] text-slate-600 mt-0.5">{thresholdSource}</div>
+            )}
           </div>
           <div>
             <div className="text-[10px] text-slate-600 uppercase tracking-wider">Confidence</div>

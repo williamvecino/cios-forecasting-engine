@@ -97,7 +97,13 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 
 Stability checks required before expanding: deterministic reruns, threshold sensitivity, state persistence, signal-driven updates, coherent explanations.
 
-**Probability Separation (Signal Strength vs Threshold Probability):** The forecast API returns three distinct probability fields at the top level: `posteriorProbability` (environment-adjusted posterior — "how strong the therapy looks"), `thresholdProbability` (Beta CDF probability of exceeding the outcome threshold after gate constraints — "will the target outcome actually be achieved"), and `currentProbability` (backward-compatible alias for `thresholdProbability`). `brandOutlookProbability` is an alias for `posteriorProbability`. A `probabilityDiagnostic` block provides separation metrics. If the distribution simulation fails, `thresholdProbability` is `null` and the UI shows "Not computed" instead of mirroring. A consecutive equality diagnostic warns if posterior and threshold are identical for 3+ runs (indicates distribution model isn't producing meaningful separation). Frontend reads `thresholdProbability` directly from the API; does NOT derive it from `currentProbability`.
+**Probability Separation (Canonical Metric Definitions):** Three distinct probability layers with canonical names:
+- **PriorProbability** → `priorProbability` API field → case-defined starting baseline
+- **RawPosteriorProbability** → `rawProbability` API field → Bayesian engine output: prior_odds × LR_product × actor_factor → posterior_odds → probability
+- **EnvironmentAdjustedPosterior** → `posteriorProbability` / `brandOutlookProbability` API fields → UI label "Signal Strength" → "How strong the therapy looks" → RawPosterior after calibration + environment adjustments (NOT the same as RawPosterior)
+- **ThresholdProbability** → `thresholdProbability` API field → UI label "Threshold Probability" → "Will the target outcome actually be achieved" → Beta CDF: P(outcome_achievement >= threshold | constrained_distribution)
+- `currentProbability` is a backward-compatible alias for ThresholdProbability.
+The `calculationTrace` block in every forecast response traces all 6 steps with intermediate values and canonical names. `outcomeThresholdResolution` explains how textual business outcomes (e.g., "≥4 Rx/quarter") map to the distribution model's numeric threshold. If distribution fails, ThresholdProbability is `null` and UI shows "Not computed." Consecutive equality diagnostic warns if metrics are identical for 3+ runs.
 
 **Interpretation Coherence:** The `interpretFinalProbability` function in `forecasts.ts` generates the primary statement based on (1) the final probability level and (2) the direction/magnitude of change from the prior — ensuring the explanation always matches the actual model output.
 

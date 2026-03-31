@@ -32,11 +32,67 @@ export interface GateDominationDiagnostic {
   readinessScore: number;
 }
 
+export interface ThresholdResolution {
+  numericThreshold: number;
+  rawInput: string | number | null;
+  source: "explicit_percentage" | "explicit_numeric" | "inferred_from_text" | "default_fallback";
+  explanation: string;
+}
+
+export function resolveOutcomeThreshold(raw: string | number | null | undefined): ThresholdResolution {
+  if (typeof raw === "number") {
+    return {
+      numericThreshold: raw,
+      rawInput: raw,
+      source: "explicit_numeric",
+      explanation: `Numeric threshold provided directly: ${raw}`,
+    };
+  }
+
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const pctMatch = raw.match(/(\d+(?:\.\d+)?)\s*%/);
+    if (pctMatch) {
+      const value = parseFloat(pctMatch[1]) / 100;
+      return {
+        numericThreshold: value,
+        rawInput: raw,
+        source: "explicit_percentage",
+        explanation: `Parsed percentage from outcome definition: "${raw}" → ${(value * 100).toFixed(1)}%`,
+      };
+    }
+
+    const normalized = raw.toLowerCase();
+    if (normalized.includes("≥") || normalized.includes(">=") || normalized.includes("target") || normalized.includes("achieve")) {
+      return {
+        numericThreshold: 0.5,
+        rawInput: raw,
+        source: "inferred_from_text",
+        explanation: `Business outcome "${raw}" is not a percentage — interpreted as: "Will the defined outcome be achieved?" The 0.5 threshold on the adoption distribution means P(success) is evaluated at the distribution median. This is a probability-of-achievement question, not a percentage-of-market question. The distribution models the likelihood of meeting the specific business criterion, not a generic adoption rate.`,
+      };
+    }
+
+    return {
+      numericThreshold: 0.5,
+      rawInput: raw,
+      source: "inferred_from_text",
+      explanation: `Non-numeric outcome definition "${raw}" — using distribution median (0.5) as the achievement threshold. The adoption distribution represents the probability landscape for meeting this specific business criterion.`,
+    };
+  }
+
+  return {
+    numericThreshold: 0.5,
+    rawInput: null,
+    source: "default_fallback",
+    explanation: "No outcome threshold defined — using default 0.5 (median probability of achievement)",
+  };
+}
+
 export interface DistributionResult {
   unconstrained: AdoptionDistribution;
   constrained: AdoptionDistribution;
   thresholdProbability: number;
   outcomeThreshold: number;
+  thresholdResolution: ThresholdResolution;
   gateAdjustments: GateAdjustment[];
   readinessScore: number;
   achievableCeiling: number;
@@ -303,15 +359,8 @@ export function computeDistributionForecast(
   const { adjusted: constrained, adjustments: gateAdjustments, achievableCeiling } = applyGateConstraints(unconstrained, gates);
   const readinessScore = computeReadinessScore(gates);
 
-  let outcomeThreshold: number;
-  if (typeof outcomeThresholdRaw === "number") {
-    outcomeThreshold = outcomeThresholdRaw;
-  } else if (typeof outcomeThresholdRaw === "string") {
-    const m = outcomeThresholdRaw.match(/(\d+(?:\.\d+)?)\s*%/);
-    outcomeThreshold = m ? parseFloat(m[1]) / 100 : 0.5;
-  } else {
-    outcomeThreshold = 0.5;
-  }
+  const thresholdResolution = resolveOutcomeThreshold(outcomeThresholdRaw);
+  const outcomeThreshold = thresholdResolution.numericThreshold;
 
   const thresholdProbability = probabilityOfThreshold(constrained, outcomeThreshold);
 
@@ -328,6 +377,7 @@ export function computeDistributionForecast(
     constrained,
     thresholdProbability,
     outcomeThreshold,
+    thresholdResolution,
     gateAdjustments,
     readinessScore,
     achievableCeiling,
