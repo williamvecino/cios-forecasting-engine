@@ -3,7 +3,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { researchBrand } from "../lib/web-research";
 import { isSafetyRiskCase, isRegulatoryCase } from "../lib/case-type-router.js";
 import { buildCaseFrame, buildFrameConstraintPrompt, filterSignalsByFrame, scoreSignalRelevance, type CaseFrame } from "../lib/case-framing.js";
-import { buildGapGuardPromptBlock, scanObjectForGapViolations } from "../lib/narrative-gap-guard.js";
+import { buildGapGuardPromptBlock, scanObjectForGapViolations, replaceGapPhrases } from "../lib/narrative-gap-guard.js";
 
 const router = Router();
 
@@ -327,6 +327,33 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
     parsed.brand_check_performed = true;
     parsed.verified_developments_found = hasResearch;
     parsed.sources_searched = research.sourcesSearched;
+
+    const gapViolations = scanObjectForGapViolations(parsed);
+    if (gapViolations.length > 0) {
+      console.warn(`[gap-guard] Found ${gapViolations.length} gap violations in AI response, cleaning...`);
+      if (typeof parsed.constraint_explanation === "string") {
+        parsed.constraint_explanation = replaceGapPhrases(parsed.constraint_explanation);
+      }
+      if (Array.isArray(parsed.event_gates)) {
+        for (const gate of parsed.event_gates) {
+          if (typeof gate.reasoning === "string") gate.reasoning = replaceGapPhrases(gate.reasoning);
+          if (typeof gate.description === "string") gate.description = replaceGapPhrases(gate.description);
+        }
+      }
+      if (typeof parsed.market_summary === "string") {
+        parsed.market_summary = replaceGapPhrases(parsed.market_summary);
+      }
+      if (typeof parsed.question_translation_summary === "string") {
+        parsed.question_translation_summary = replaceGapPhrases(parsed.question_translation_summary);
+      }
+      if (Array.isArray(parsed.signals)) {
+        for (const sig of parsed.signals) {
+          if (typeof sig.text === "string") sig.text = replaceGapPhrases(sig.text);
+          if (typeof sig.rationale === "string") sig.rationale = replaceGapPhrases(sig.rationale);
+          if (typeof sig.question_relevance_note === "string") sig.question_relevance_note = replaceGapPhrases(sig.question_relevance_note);
+        }
+      }
+    }
 
     if (Array.isArray(parsed.signals)) {
       const frameResult = filterSignalsByFrame(parsed.signals, caseFrame);

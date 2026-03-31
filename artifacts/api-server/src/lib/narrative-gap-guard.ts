@@ -140,17 +140,36 @@ export function scanObjectForGapViolations(obj: unknown, path = ""): GapViolatio
   return violations;
 }
 
+const PHRASE_REPLACEMENTS: Record<string, string> = {
+  "deserves": "supports",
+  "ready to deliver": "currently achieving",
+  "market readiness": "current market conditions",
+  "opportunity gap": "forecast constraint",
+  "performance gap": "performance delta",
+  "what the product deserves": "what the evidence supports",
+  "what the market is ready to deliver": "the current constrained forecast",
+  "what the data would suggest": "what the evidence indicates",
+  "unlocking the full potential": "addressing the key constraints",
+  "true potential": "evidence-supported outlook",
+  "unrealized potential": "constrained forecast gap",
+  "latent demand": "unmet clinical need",
+  "inherent value": "evidence-supported value",
+};
+
 export function replaceGapPhrases(text: string): string {
   if (!text || typeof text !== "string") return text;
 
   let result = text;
 
-  for (const pattern of BANNED_PATTERNS) {
+  for (let i = 0; i < BANNED_GAP_PHRASES.length; i++) {
+    const phrase = BANNED_GAP_PHRASES[i];
+    const pattern = BANNED_PATTERNS[i];
     pattern.lastIndex = 0;
+    const replacement = PHRASE_REPLACEMENTS[phrase] || "the current forecast position";
     result = result.replace(pattern, (match, offset) => {
       const sentence = extractSentence(text, offset);
       if (hasNumericContext(sentence)) return match;
-      return `[BLOCKED: "${match}" — requires observed value, expected value, numeric difference, and drivers]`;
+      return replacement;
     });
   }
 
