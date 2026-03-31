@@ -181,6 +181,8 @@ export interface PrimaryConstraint {
   status: string;
   drivers: PrimaryConstraintDriver[];
   lever: string;
+  potentialImpact: number;
+  resolutionWindow: { minMonths: number; maxMonths: number };
 }
 
 export interface CompositeScenarioResult {
@@ -655,6 +657,50 @@ function buildMonitorList(
   return items.slice(0, 4);
 }
 
+const GATE_TIMING_PROFILES: Record<string, { minMonths: number; maxMonths: number }> = {
+  regulatory: { minMonths: 6, maxMonths: 18 },
+  approval: { minMonths: 6, maxMonths: 18 },
+  fda: { minMonths: 6, maxMonths: 18 },
+  pdufa: { minMonths: 3, maxMonths: 12 },
+  coverage: { minMonths: 3, maxMonths: 6 },
+  payer: { minMonths: 3, maxMonths: 9 },
+  formulary: { minMonths: 3, maxMonths: 9 },
+  reimbursement: { minMonths: 3, maxMonths: 9 },
+  access: { minMonths: 3, maxMonths: 9 },
+  competition: { minMonths: 3, maxMonths: 9 },
+  competitor: { minMonths: 3, maxMonths: 9 },
+  market: { minMonths: 3, maxMonths: 9 },
+  launch: { minMonths: 3, maxMonths: 6 },
+  execution: { minMonths: 1, maxMonths: 6 },
+  operational: { minMonths: 1, maxMonths: 6 },
+  supply: { minMonths: 3, maxMonths: 9 },
+  manufacturing: { minMonths: 3, maxMonths: 12 },
+  infrastructure: { minMonths: 3, maxMonths: 6 },
+  protocol: { minMonths: 6, maxMonths: 12 },
+  guideline: { minMonths: 6, maxMonths: 12 },
+  clinical: { minMonths: 6, maxMonths: 18 },
+  trial: { minMonths: 6, maxMonths: 18 },
+  data: { minMonths: 3, maxMonths: 9 },
+  adoption: { minMonths: 3, maxMonths: 12 },
+  behavioral: { minMonths: 6, maxMonths: 12 },
+  entrenchment: { minMonths: 6, maxMonths: 12 },
+  readiness: { minMonths: 1, maxMonths: 6 },
+};
+
+function estimateResolutionWindow(gateLabel: string, gateStatus: string): { minMonths: number; maxMonths: number } {
+  const label = gateLabel.toLowerCase();
+  let best: { minMonths: number; maxMonths: number } | null = null;
+  for (const [keyword, timing] of Object.entries(GATE_TIMING_PROFILES)) {
+    if (label.includes(keyword)) {
+      if (!best || timing.maxMonths > best.maxMonths) best = timing;
+    }
+  }
+  const base = best || { minMonths: 3, maxMonths: 9 };
+  if (gateStatus === "weak") return { minMonths: base.minMonths + 3, maxMonths: base.maxMonths + 6 };
+  if (gateStatus === "unresolved") return { minMonths: base.minMonths + 1, maxMonths: base.maxMonths + 3 };
+  return base;
+}
+
 function buildPrimaryConstraints(
   constraintDecompositions: ConstraintDecomposition[],
   finalPct: number,
@@ -670,10 +716,13 @@ function buildPrimaryConstraints(
       impactScore: d.impactScore,
     }));
 
+    const upliftEstimate = cd.gateStatus === "weak" ? 15 : cd.gateStatus === "unresolved" ? 12 : 8;
+    const potentialImpact = Math.min(brandOutlookPct - finalPct, upliftEstimate);
+    const resolutionWindow = estimateResolutionWindow(cd.gateLabel, cd.gateStatus);
+
     let lever: string;
     const topDriver = cd.drivers[0];
     if (topDriver) {
-      const upliftEstimate = cd.gateStatus === "weak" ? 15 : cd.gateStatus === "unresolved" ? 12 : 8;
       const projectedPct = Math.min(brandOutlookPct, finalPct + upliftEstimate);
       lever = `Resolving ${topDriver.name.toLowerCase()} could raise the outlook from ${finalPct}% to ~${projectedPct}%.`;
     } else {
@@ -685,6 +734,8 @@ function buildPrimaryConstraints(
       status: cd.gateStatus,
       drivers: topDrivers,
       lever,
+      potentialImpact: Math.max(potentialImpact, 1),
+      resolutionWindow,
     };
   });
 }

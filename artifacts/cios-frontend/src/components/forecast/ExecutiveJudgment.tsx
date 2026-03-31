@@ -341,15 +341,28 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
           </div>
           {judgment.primaryConstraints.map((constraint, ci) => (
             <div key={ci} className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.03] p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">{constraint.label}</span>
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                  constraint.status === "weak" ? "bg-red-900/40 text-red-400" :
-                  constraint.status === "unresolved" ? "bg-orange-900/40 text-orange-400" :
-                  "bg-amber-900/40 text-amber-400"
-                }`}>
-                  {constraint.status}
-                </span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm font-bold text-white">{constraint.label}</span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                    constraint.status === "weak" ? "bg-red-900/40 text-red-400" :
+                    constraint.status === "unresolved" ? "bg-orange-900/40 text-orange-400" :
+                    "bg-amber-900/40 text-amber-400"
+                  }`}>
+                    {constraint.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] px-3 py-2">
+                  <div className="text-[9px] uppercase tracking-wider text-emerald-400/70 mb-0.5">Potential impact</div>
+                  <span className="text-sm font-bold text-emerald-300 tabular-nums">+{constraint.potentialImpact} points</span>
+                </div>
+                <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] px-3 py-2">
+                  <div className="text-[9px] uppercase tracking-wider text-sky-400/70 mb-0.5">Expected resolution window</div>
+                  <span className="text-sm font-bold text-sky-300 tabular-nums">{constraint.resolutionWindow.minMonths} to {constraint.resolutionWindow.maxMonths} months</span>
+                </div>
               </div>
 
               {constraint.drivers.length > 0 && (
