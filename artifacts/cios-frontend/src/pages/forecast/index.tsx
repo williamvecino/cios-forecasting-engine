@@ -892,6 +892,17 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     forceRender((n) => n + 1);
   }
 
+  const { data: forecast, isLoading } = useRunForecast(caseId);
+  useGetCase(caseId);
+  const drivers = useDriversFromForecast(forecast, caseId);
+
+  const { data: analogContext, isLoading: analogLoading } = useQuery({
+    queryKey: [`/api/cases/${caseId}/analog-context`],
+    queryFn: () => fetch(`/api/cases/${caseId}/analog-context`).then((r) => r.ok ? r.json() : null),
+    enabled: !!caseId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   if (!gate.ready) {
     const isOnlyLockMissing = gate.failures.length === 1 && gate.failures[0].includes("locked") && hasAcceptedSignals;
 
@@ -931,17 +942,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
       </>
     );
   }
-
-  const { data: forecast, isLoading } = useRunForecast(caseId);
-  useGetCase(caseId);
-  const drivers = useDriversFromForecast(forecast, caseId);
-
-  const { data: analogContext, isLoading: analogLoading } = useQuery({
-    queryKey: [`/api/cases/${caseId}/analog-context`],
-    queryFn: () => fetch(`/api/cases/${caseId}/analog-context`).then((r) => r.ok ? r.json() : null),
-    enabled: !!caseId,
-    staleTime: 5 * 60 * 1000,
-  });
 
   if (isLoading) {
     return (
