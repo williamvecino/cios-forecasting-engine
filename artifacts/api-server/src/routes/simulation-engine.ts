@@ -73,7 +73,7 @@ const SCENARIO_TAXONOMY: ScenarioType[] = [
     id: "guideline_acceleration",
     name: "Guideline Acceleration",
     category: "guideline",
-    description: "Society guidelines updated favorably, NCCN/institutional endorsement achieved earlier",
+    description: "Professional society guidelines updated favorably, institutional endorsement achieved earlier",
     variableTargets: [
       { target: "barrier", categoryMatch: ["evidence_gap", "guideline_absence", "awareness_translation"], field: "barrierStrength", operation: "multiply", value: 0.5 },
       { target: "readiness", categoryMatch: ["guideline_endorsement", "evidence_consolidation", "awareness", "guideline"], field: "readinessScore", operation: "multiply", value: 1.4 },

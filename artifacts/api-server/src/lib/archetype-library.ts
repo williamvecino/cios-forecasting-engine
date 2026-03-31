@@ -53,7 +53,7 @@ export const ARCHETYPE_LIBRARY: Archetype[] = [
     risk_tolerance: "low",
     adoption_timing_tendency: "late",
     influence_level: "moderate",
-    preferred_evidence_type: "NCCN inclusion, society guidelines, institutional protocols",
+    preferred_evidence_type: "Professional society guideline inclusion, institutional protocols",
     reaction_pattern_summary: "Waits for formal guideline endorsement or institutional protocol inclusion before meaningful use. Conference data raises interest but does not trigger adoption.",
   },
   {

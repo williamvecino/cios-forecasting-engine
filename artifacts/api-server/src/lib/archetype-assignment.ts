@@ -259,7 +259,7 @@ function buildTriggers(primary: ArchetypeScore, secondary: ArchetypeScore | null
       triggers.push("Staffing or infrastructure constraint resolution");
       break;
     case "guideline_follower":
-      triggers.push("NCCN or society guideline inclusion");
+      triggers.push("Professional society guideline inclusion or update");
       triggers.push("Institutional protocol committee approval");
       break;
     case "financial_gatekeeper":

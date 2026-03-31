@@ -299,7 +299,7 @@ ASSIGNED ARCHETYPE: ${body.archetype}
 Use this archetype's known behavioral pattern to predict the reaction:${isRegulatory ? regulatoryArchetypes : `
 - Evidence-Driven Innovator: moves on strong clinical data, low guideline dependence
 - Operational Pragmatist: interested but blocked by workflow/staffing/infrastructure burden
-- Guideline Follower: waits for NCCN/society/institutional endorsement before acting
+- Guideline Follower: waits for professional society or institutional guideline endorsement before acting
 - Financial Gatekeeper: delays until coverage is stable, access friction is low
 - Skeptical Conservative: resists until post-launch real-world evidence accumulates`}
 The archetype determines HOW this ${isRegulatory ? "stakeholder evaluates" : "segment decides"}, not just ${isRegulatory ? "their recommendation" : "WHETHER they adopt"}.` : "";
