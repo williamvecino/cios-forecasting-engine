@@ -1093,6 +1093,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 analogContext: analogContext ?? null,
                 questionText: activeQuestion?.text || "",
                 outcomeDefinition: activeQuestion?.outcome ? activeQuestion.outcome.charAt(0).toUpperCase() + activeQuestion.outcome.slice(1) : undefined,
+                outcomeThreshold: activeQuestion?.threshold || (f as any).outcomeThreshold || undefined,
                 subject: activeQuestion?.subject || undefined,
                 timeHorizon: activeQuestion?.timeHorizon || undefined,
                 compositeScenarios: activeQuestion?.compositeScenarios?.map(s => ({

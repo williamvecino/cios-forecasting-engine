@@ -11,6 +11,14 @@ import {
 import type { DecisionQuestion } from "@/lib/question-definition";
 import { clearCaseState } from "@/lib/workflow";
 import type { OutcomeDimension, CompositeScenario } from "@/lib/workflow";
+
+function extractThresholdFromOutcomeStates(states: string[]): string | undefined {
+  for (const s of states) {
+    const m = s.match(/[≥≤><]=?\s*(\d+(?:\.\d+)?)\s*%/);
+    if (m) return s.trim();
+  }
+  return undefined;
+}
 import {
   AlertTriangle,
   Loader2,
@@ -442,6 +450,7 @@ export default function QuestionPage() {
     }
 
     if (isEditMode && editCaseId) {
+      const editThreshold = extractThresholdFromOutcomeStates(outcomeStates);
       const payload = {
         text: interpretation.restatedQuestion || finalQuestion,
         caseId: editCaseId,
@@ -451,6 +460,7 @@ export default function QuestionPage() {
         comparisonGroups: interpretation.comparisonGroups || [],
         subject: interpretation.subject || undefined,
         outcome: interpretation.outcome || undefined,
+        threshold: editThreshold,
         outcomeDimensions: outcomeDimensions.length > 0 ? outcomeDimensions : undefined,
         compositeScenarios: compositeScenarios.length > 0 ? compositeScenarios : undefined,
       };
@@ -477,10 +487,12 @@ export default function QuestionPage() {
         interpretedQuestion: interpretation.restatedQuestion || finalQuestion,
         createdAt: new Date().toISOString(),
       };
+      const outcomeThreshold = extractThresholdFromOutcomeStates(outcomeStates);
       const caseInput = mapDecisionQuestionToCaseInput({
         ...dq,
         priorArchetype: selectedArchetype || undefined,
         priorRationale: archetypeRationale || undefined,
+        outcomeThreshold,
       });
       const created = await createCaseMutation.mutateAsync({ data: caseInput as any });
       const newCaseId = (created as any).caseId || (created as any).id;
@@ -506,6 +518,7 @@ export default function QuestionPage() {
         comparisonGroups: interpretation.comparisonGroups || [],
         subject: interpretation.subject || undefined,
         outcome: interpretation.outcome || undefined,
+        threshold: outcomeThreshold,
         outcomeDimensions: outcomeDimensions.length > 0 ? outcomeDimensions : undefined,
         compositeScenarios: compositeScenarios.length > 0 ? compositeScenarios : undefined,
       };

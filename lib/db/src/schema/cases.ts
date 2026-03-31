@@ -23,6 +23,7 @@ export const casesTable = pgTable("cases", {
   // Strategic question framing
   strategicQuestion: text("strategic_question").notNull(),
   outcomeDefinition: text("outcome_definition"),
+  outcomeThreshold: text("outcome_threshold"),
   timeHorizon: text("time_horizon").default("12 months"),
 
   // Bayesian engine inputs

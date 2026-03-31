@@ -127,6 +127,21 @@ function resolveHorizonMonths(raw: string | null): ForecastHorizonMonths {
   return 36;
 }
 
+function parseThresholdNumber(threshold: string | null | undefined): number | null {
+  if (!threshold) return null;
+  const m = threshold.match(/(\d+(?:\.\d+)?)\s*%/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+function applyThresholdToPrior(basePrior: number, threshold: string | null | undefined): number {
+  const thresholdPct = parseThresholdNumber(threshold);
+  if (thresholdPct === null) return basePrior;
+  const REFERENCE_THRESHOLD = 30;
+  const SENSITIVITY = 0.005;
+  const adjustment = (REFERENCE_THRESHOLD - thresholdPct) * SENSITIVITY;
+  return Math.max(0.05, Math.min(0.95, basePrior + adjustment));
+}
+
 const router = Router();
 
 router.get("/cases/:caseId/forecast", async (req, res) => {
@@ -166,6 +181,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   const stateHash = computeStateHash({
     caseId: req.params.caseId,
     prior: caseData.priorProbability,
+    outcomeThreshold: caseData.outcomeThreshold ?? null,
     specialty: caseData.primarySpecialtyProfile,
     payer: caseData.payerEnvironment,
     guideline: caseData.guidelineLeverage,
@@ -238,9 +254,11 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     agentSimulationResult = { agentDerivedActorTranslation, agentResults: enrichedResults };
   }
 
+  const thresholdAdjustedPrior = applyThresholdToPrior(caseData.priorProbability, caseData.outcomeThreshold);
+
   const result = runForecastEngine(
     req.params.caseId,
-    caseData.priorProbability,
+    thresholdAdjustedPrior,
     signalsWithAdjustedLR,
     actors.map((a) => ({
       actorName: a.actorName,
@@ -340,12 +358,15 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       config: envAdjustments.normalizedConfig,
     },
     // ── Case context metadata (embedded for validation + trace integrity) ───
+    outcomeThreshold: caseData.outcomeThreshold ?? null,
+    thresholdAdjustedPrior: thresholdAdjustedPrior !== caseData.priorProbability ? thresholdAdjustedPrior : null,
     _caseContext: {
       caseId: req.params.caseId,
       therapeuticArea: caseData.therapeuticArea ?? null,
       diseaseState: caseData.diseaseState ?? null,
       specialty: caseData.specialty ?? null,
       strategicQuestion: caseData.strategicQuestion ?? null,
+      outcomeThreshold: caseData.outcomeThreshold ?? null,
       timeHorizon: caseData.timeHorizon ?? "12 months",
       caseMode: caseData.isDemo === "true" ? "demo" : "live",
       actorContext: {

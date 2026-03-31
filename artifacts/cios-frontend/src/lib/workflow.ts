@@ -25,6 +25,7 @@ export interface ActiveQuestion {
   comparisonGroups?: string[];
   subject?: string;
   outcome?: string;
+  threshold?: string;
   outcomeDimensions?: OutcomeDimension[];
   compositeScenarios?: CompositeScenario[];
 }

@@ -64,6 +64,7 @@ export interface JudgmentInput {
   analogContext: AnalogContext | null;
   questionText: string;
   outcomeDefinition?: string;
+  outcomeThreshold?: string;
   subject?: string;
   timeHorizon?: string;
   compositeScenarios?: CompositeScenarioInput[];
@@ -305,9 +306,13 @@ function buildAnchoredVerdict(
   outcomeDefinition: string,
   subject: string,
   timeHorizon: string,
-  band: "high" | "mid" | "low"
+  band: "high" | "mid" | "low",
+  outcomeThreshold?: string
 ): string {
-  const outcomePhrase = outcomeDefinition || "the forecasted outcome";
+  let outcomePhrase = outcomeDefinition || "the forecasted outcome";
+  if (outcomeThreshold) {
+    outcomePhrase = `${outcomePhrase} ${outcomeThreshold}`;
+  }
   const subjectPhrase = subject ? ` for ${subject}` : "";
   const horizonPhrase = timeHorizon ? ` within ${timeHorizon}` : " within the forecast window";
 
@@ -324,25 +329,26 @@ function inferOutcome(
   downCount: number,
   outcomeDefinition?: string,
   subject?: string,
-  timeHorizon?: string
+  timeHorizon?: string,
+  outcomeThreshold?: string
 ): { verdict: string; band: string; rule: string; polarity: OutcomePolarity } {
   const useAnchored = !!(outcomeDefinition || subject);
 
   if (pct >= 60) {
     const verdict = useAnchored
-      ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "high")
+      ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "high", outcomeThreshold)
       : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).high;
     return { verdict, band: ">=60", rule: `${category}_high_band`, polarity: "positive" };
   }
   if (pct >= 40) {
     const verdict = useAnchored
-      ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "mid")
+      ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "mid", outcomeThreshold)
       : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).mid;
     return { verdict, band: "40-59", rule: `${category}_mid_band`, polarity: "neutral" };
   }
 
   const verdict = useAnchored
-    ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "low")
+    ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "low", outcomeThreshold)
     : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).low;
   return { verdict, band: "<40", rule: `${category}_low_band${hasHardCap && upCount > downCount ? "_gate_constrained" : ""}`, polarity: "negative" };
 }
@@ -953,7 +959,7 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
   const questionCategory = categorizeQuestion(questionText);
   const hasHardCap = gates.some(g => g.status === "weak" || g.status === "unresolved");
 
-  const { verdict, band, rule: outcomeRule, polarity } = inferOutcome(questionCategory, finalForecastPct, hasHardCap, upDrivers.length, downDrivers.length, outcomeDefinition, subject, timeHorizon);
+  const { verdict, band, rule: outcomeRule, polarity } = inferOutcome(questionCategory, finalForecastPct, hasHardCap, upDrivers.length, downDrivers.length, outcomeDefinition, subject, timeHorizon, input.outcomeThreshold);
 
   const confidenceAudit = computeConfidence(gates, analogContext, brandOutlookPct, finalForecastPct, drivers);
   const confidence = confidenceAudit.finalLevel;
