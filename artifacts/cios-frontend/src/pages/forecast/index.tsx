@@ -1006,17 +1006,42 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
   return (
     <>
-      <div className="flex items-center justify-end gap-2">
-        <RecalculateForecastButton
-          caseId={caseId}
-          onComplete={() => {
-            queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
-            queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-          }}
-        />
-        <Link href="/signals" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">
-          <Zap className="w-3.5 h-3.5" /> Add Signals
-        </Link>
+      <div className="flex items-center justify-between gap-2">
+        {(() => {
+          const integrity = f?._integrity;
+          if (!integrity) return <div />;
+          const status = integrity.unreliableFlag
+            ? "Unreliable"
+            : integrity.stabilityWarning
+              ? "Warning"
+              : "Stable";
+          const color = status === "Stable"
+            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+            : status === "Warning"
+              ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
+              : "text-red-400 border-red-500/30 bg-red-500/10";
+          const Icon = status === "Stable" ? CheckCircle2 : status === "Warning" ? AlertTriangle : ShieldAlert;
+          return (
+            <div className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${color}`}>
+              <Icon className="w-3.5 h-3.5" />
+              <span>Integrity: {integrity.passed}/{integrity.totalTests} passed</span>
+              <span className="opacity-60">·</span>
+              <span>{status}</span>
+            </div>
+          );
+        })()}
+        <div className="flex items-center gap-2">
+          <RecalculateForecastButton
+            caseId={caseId}
+            onComplete={() => {
+              queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+              queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+            }}
+          />
+          <Link href="/signals" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">
+            <Zap className="w-3.5 h-3.5" /> Add Signals
+          </Link>
+        </div>
       </div>
 
       {(() => {
