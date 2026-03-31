@@ -8,6 +8,7 @@ export interface DifferentiatedSignal {
   strength: string;
   contributionPoints: number;
   rationale: string;
+  functionalRole: string;
 }
 
 export interface SignalHierarchy {
@@ -141,6 +142,27 @@ function buildStrategicImplication(hierarchy: Omit<SignalHierarchy, "strategicIm
   return `Evidence signals are distributed across categories with no clear dominant endpoint.`;
 }
 
+const FUNCTIONAL_ROLE_PATTERNS: [RegExp, string][] = [
+  [/econom|cost|price|pric|rebate|part.d|ira |inflation|reimburse|copay|out.of.pocket|340b|budget|spend|expenditure|afford/i, "Economic trigger"],
+  [/competi|rival|biosimilar|generic|entrant|market.share|displacement|switch|alternative|head.to.head/i, "Competitive constraint"],
+  [/protocol|guideline|entrench|standard.of.care|treatment.pathway|clinical.pathway|practice.pattern/i, "Structural defense"],
+  [/coverage|formulary|access|payer|prior.auth|step.therapy|tier|benefit.design/i, "Execution capability"],
+  [/regulat|fda|ema|approv|pdufa|label|indication|supplement|sNDA|sBLA/i, "Regulatory milestone"],
+  [/trial|endpoint|efficacy|safety|data|readout|phase|survival|response.rate|clinical.evidence/i, "Clinical evidence"],
+  [/launch|commercial|field.force|sales|deploy|infrastructure|readiness|capacity|supply|manufactur/i, "Operational readiness"],
+  [/kol|opinion.leader|advocate|champion|endorse|guideline.author|expert/i, "Stakeholder influence"],
+  [/adopt|uptake|prescri|utiliz|penetrat|behavio|inertia|habit|preference/i, "Adoption dynamics"],
+  [/patent|exclusiv|lifecycle|loe|loss.of|ip /i, "Lifecycle position"],
+];
+
+function classifyFunctionalRole(driverName: string, direction: "Upward" | "Downward"): string {
+  const name = driverName.toLowerCase();
+  for (const [pattern, role] of FUNCTIONAL_ROLE_PATTERNS) {
+    if (pattern.test(name)) return role;
+  }
+  return direction === "Upward" ? "Supporting factor" : "Constraining factor";
+}
+
 export function differentiateSignals(drivers: DriverInput[], gates: GateInput[]): SignalHierarchy {
   if (drivers.length === 0) {
     return {
@@ -164,6 +186,7 @@ export function differentiateSignals(drivers: DriverInput[], gates: GateInput[])
       strength: d.strength,
       contributionPoints: d.contributionPoints,
       rationale,
+      functionalRole: classifyFunctionalRole(d.name, d.direction),
     };
   });
 

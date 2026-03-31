@@ -468,7 +468,12 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
                             {getDriverDirectionLabel(sig.contributionPoints, sig.direction)}
                           </span>
                         </div>
-                        <span className="text-xs text-white font-medium">{sig.name}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-white font-medium">{sig.name}</span>
+                          <span className="rounded-full border border-slate-600/50 bg-slate-700/30 px-2 py-px text-[9px] font-medium text-slate-400 uppercase tracking-wider shrink-0">
+                            {sig.functionalRole}
+                          </span>
+                        </div>
                         <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{sig.rationale}</p>
                       </div>
                     </div>
