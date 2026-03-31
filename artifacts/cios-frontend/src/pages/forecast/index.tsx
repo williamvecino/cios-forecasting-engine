@@ -830,7 +830,7 @@ function checkForecastGate(caseId: string): { ready: boolean; failures: string[]
           const parsed = JSON.parse(hasSignals);
           const accepted = Array.isArray(parsed) ? parsed.filter((s: any) => s.accepted) : [];
           if (accepted.length > 0) {
-            failures.push("Signals must be locked before running a forecast. Go to the Add Information step and lock your signals.");
+            localStorage.setItem(`cios.signalsLocked:${caseId}`, "true");
           } else {
             failures.push("No accepted signals found. Go to the Add Information step to review and accept signals.");
           }
@@ -1415,7 +1415,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
       {interpretation && (
         <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <BrainCircuit className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+            <Zap className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
             <div className="flex-1 space-y-3">
               <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Recommended Action</div>
               <div className="text-base font-semibold text-white">
