@@ -16,6 +16,9 @@ import {
   Link2,
   ChevronDown,
   ChevronUp,
+  Fingerprint,
+  BarChart3,
+  Tag,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -48,7 +51,24 @@ const INDEPENDENCE_LABELS: Record<string, string> = {
   redundant: "Redundant",
 };
 
+const SIGNAL_TYPE_COLORS: Record<string, string> = {
+  "Phase III clinical": "text-cyan-400 border-cyan-500/30 bg-cyan-500/10",
+  "Guideline inclusion": "text-purple-400 border-purple-500/30 bg-purple-500/10",
+  "KOL endorsement": "text-indigo-400 border-indigo-500/30 bg-indigo-500/10",
+  "Field intelligence": "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
+  "Operational friction": "text-slate-400 border-slate-500/30 bg-slate-500/10",
+  "Competitor counteraction": "text-orange-400 border-orange-500/30 bg-orange-500/10",
+  "Access / commercial": "text-blue-400 border-blue-500/30 bg-blue-500/10",
+  "Regulatory / clinical": "text-purple-300 border-purple-400/30 bg-purple-400/10",
+  "Access friction": "text-red-400 border-red-500/30 bg-red-500/10",
+  "Payer / coverage": "text-amber-400 border-amber-500/30 bg-amber-500/10",
+  "Market adoption / utilization": "text-teal-400 border-teal-500/30 bg-teal-500/10",
+  "Capacity / infrastructure": "text-slate-300 border-slate-400/30 bg-slate-400/10",
+  "Competitor countermove": "text-orange-300 border-orange-400/30 bg-orange-400/10",
+};
+
 interface Interpretation {
+  interpretationId: string;
   factIndex: number;
   factText: string;
   decisionRelevance: string;
@@ -57,12 +77,18 @@ interface Interpretation {
   impactEstimate: string;
   independenceClassification: string;
   dependsOn: number | null;
+  rootEvidenceId: string | null;
   confidence: string;
   recommendedSignal: boolean;
+  recommendationReason: string;
   rejectionReason: string | null;
+  suggestedSignalType: string;
+  suggestedStrength: number;
+  suggestedReliability: number;
 }
 
 interface InterpretationResult {
+  batchId: string;
   interpretations: Interpretation[];
   summary: {
     totalFacts: number;
@@ -80,6 +106,25 @@ interface InterpretationResult {
 }
 
 type Phase = "interpreting" | "review" | "creating";
+
+function StrengthBar({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-muted-foreground w-16">{label}</span>
+      <div className="flex gap-0.5">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <div
+            key={n}
+            className={`w-3 h-3 rounded-sm ${
+              n <= value ? "bg-blue-500/60" : "bg-slate-700/40"
+            }`}
+          />
+        ))}
+      </div>
+      <span className="text-[10px] text-slate-400">{value}/5</span>
+    </div>
+  );
+}
 
 export default function InterpretPage() {
   const [, navigate] = useLocation();
@@ -179,8 +224,6 @@ export default function InterpretPage() {
       const failures: string[] = [];
 
       for (const interp of accepted) {
-        if (!interp.recommendedSignal && !overrides[interp.factIndex]) continue;
-
         const signalDirection =
           interp.direction === "positive"
             ? "Positive"
@@ -188,45 +231,60 @@ export default function InterpretPage() {
               ? "Negative"
               : "Neutral";
 
-        const strengthScore =
-          interp.impactEstimate === "high"
-            ? 5
-            : interp.impactEstimate === "moderate"
-              ? 3
-              : 2;
-
-        const reliabilityScore =
-          interp.confidence === "high"
-            ? 5
-            : interp.confidence === "moderate"
-              ? 3
-              : 2;
-
-        const res = await fetch(`${API}/api/cases/${caseId}/signals`, {
+        const signalRes = await fetch(`${API}/api/cases/${caseId}/signals`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            description: interp.factText,
+            signalDescription: interp.factText,
             direction: signalDirection,
-            strengthScore,
-            reliabilityScore,
-            signalType: "Intelligence",
+            strengthScore: interp.suggestedStrength,
+            reliabilityScore: interp.suggestedReliability,
+            signalType: interp.suggestedSignalType,
             source: "ingestion_interpretation",
             sourceLabel: "Document Ingestion",
-            causalPathway: interp.causalPathway,
-            independenceClassification: interp.independenceClassification,
-            interpretationConfidence: interp.confidence,
-            decisionRelevance: interp.decisionRelevance,
+            rootEvidenceId: interp.rootEvidenceId,
           }),
         });
 
-        if (!res.ok) {
+        if (!signalRes.ok) {
           failures.push(`Fact ${interp.factIndex}: ${interp.factText.slice(0, 60)}...`);
+          continue;
         }
+
+        const signalData = await signalRes.json().catch(() => null);
+        const linkedSignalId = signalData?.id || signalData?.signalId || null;
+        const isOverride = interp.recommendedSignal !== overrides[interp.factIndex];
+
+        await fetch(`${API}/api/signal-interpretations/${interp.interpretationId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAccepted: true,
+            userOverride: isOverride,
+            linkedSignalId,
+            status: "accepted",
+          }),
+        });
+      }
+
+      const rejected = result.interpretations.filter(
+        (interp) => !overrides[interp.factIndex]
+      );
+
+      for (const interp of rejected) {
+        await fetch(`${API}/api/signal-interpretations/${interp.interpretationId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAccepted: false,
+            userOverride: interp.recommendedSignal !== (overrides[interp.factIndex] ?? false),
+            status: "rejected",
+          }),
+        });
       }
 
       if (failures.length > 0 && failures.length === accepted.length) {
-        throw new Error(`All signal creations failed. Check the signals endpoint.`);
+        throw new Error("All signal creations failed. Check the signals endpoint.");
       }
 
       if (failures.length > 0) {
@@ -242,10 +300,19 @@ export default function InterpretPage() {
     }
   }, [result, overrides, navigate]);
 
-  const handleSkipAll = useCallback(() => {
+  const handleSkipAll = useCallback(async () => {
+    if (result) {
+      for (const interp of result.interpretations) {
+        await fetch(`${API}/api/signal-interpretations/${interp.interpretationId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userAccepted: false, status: "skipped" }),
+        }).catch(() => {});
+      }
+    }
     localStorage.removeItem("cios.interpretationPayload");
     navigate("/signals");
-  }, [navigate]);
+  }, [result, navigate]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -355,6 +422,7 @@ export default function InterpretPage() {
                 const isActive = overrides[interp.factIndex] ?? false;
                 const expanded = expandedFacts.has(interp.factIndex);
                 const dir = DIRECTION_ICONS[interp.direction] || DIRECTION_ICONS.neutral;
+                const typeColor = SIGNAL_TYPE_COLORS[interp.suggestedSignalType] || SIGNAL_TYPE_COLORS.Intelligence;
 
                 return (
                   <div
@@ -413,6 +481,11 @@ export default function InterpretPage() {
                               {interp.impactEstimate}
                             </span>
 
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${typeColor}`}>
+                              <Tag className="w-3 h-3" />
+                              {interp.suggestedSignalType}
+                            </span>
+
                             <span className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                               <Link2 className="w-3 h-3" />
                               {INDEPENDENCE_LABELS[interp.independenceClassification] || interp.independenceClassification}
@@ -425,6 +498,13 @@ export default function InterpretPage() {
                               <Shield className="w-3 h-3" />
                               {interp.confidence}
                             </span>
+
+                            {interp.rootEvidenceId && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/20 bg-cyan-500/5 px-2.5 py-0.5 text-[10px] font-medium text-cyan-400">
+                                <Fingerprint className="w-3 h-3" />
+                                {interp.rootEvidenceId}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -442,7 +522,7 @@ export default function InterpretPage() {
                       </div>
 
                       {expanded && (
-                        <div className="ml-9 space-y-2 pt-2 border-t border-border">
+                        <div className="ml-9 space-y-3 pt-2 border-t border-border">
                           {interp.causalPathway && (
                             <div className="space-y-1">
                               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -454,30 +534,50 @@ export default function InterpretPage() {
                             </div>
                           )}
 
-                          {interp.rejectionReason && (
-                            <div className="space-y-1">
-                              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                Rejection Reason
-                              </div>
-                              <div className="text-xs text-red-300 bg-red-500/5 rounded-lg px-3 py-2 border border-red-500/10">
-                                {interp.rejectionReason}
-                              </div>
+                          <div className="space-y-1">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {interp.recommendedSignal ? "Recommendation Reason" : "Rejection Reason"}
                             </div>
-                          )}
+                            <div className={`text-xs rounded-lg px-3 py-2 border ${
+                              interp.recommendedSignal
+                                ? "text-green-300 bg-green-500/5 border-green-500/10"
+                                : "text-red-300 bg-red-500/5 border-red-500/10"
+                            }`}>
+                              {interp.recommendationReason || interp.rejectionReason || "No reason provided"}
+                            </div>
+                          </div>
 
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <span className="text-muted-foreground">Recommended: </span>
-                              <span className={interp.recommendedSignal ? "text-green-400" : "text-red-400"}>
-                                {interp.recommendedSignal ? "Yes" : "No"}
-                              </span>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <StrengthBar value={interp.suggestedStrength} label="Strength" />
+                              <StrengthBar value={interp.suggestedReliability} label="Reliability" />
                             </div>
-                            <div>
-                              <span className="text-muted-foreground">Override: </span>
-                              <span className={isActive !== interp.recommendedSignal ? "text-amber-400" : "text-slate-400"}>
-                                {isActive !== interp.recommendedSignal ? "User Override" : "Default"}
-                              </span>
+
+                            <div className="space-y-2 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Recommended: </span>
+                                <span className={interp.recommendedSignal ? "text-green-400" : "text-red-400"}>
+                                  {interp.recommendedSignal ? "Yes" : "No"}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Override: </span>
+                                <span className={isActive !== interp.recommendedSignal ? "text-amber-400" : "text-slate-400"}>
+                                  {isActive !== interp.recommendedSignal ? "User Override" : "Default"}
+                                </span>
+                              </div>
+                              {interp.rootEvidenceId && (
+                                <div>
+                                  <span className="text-muted-foreground">Root Evidence: </span>
+                                  <span className="text-cyan-400 font-mono">{interp.rootEvidenceId}</span>
+                                </div>
+                              )}
                             </div>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-800/30 border border-border px-3 py-2">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Interpretation ID</div>
+                            <div className="text-[11px] text-slate-400 font-mono">{interp.interpretationId}</div>
                           </div>
                         </div>
                       )}
@@ -529,6 +629,13 @@ export default function InterpretPage() {
                 </button>
               </div>
             </div>
+
+            {result.batchId && (
+              <div className="rounded-xl bg-slate-800/30 border border-border px-4 py-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Interpretation Batch</div>
+                <div className="text-xs text-slate-400 font-mono">{result.batchId}</div>
+              </div>
+            )}
           </div>
         )}
       </div>

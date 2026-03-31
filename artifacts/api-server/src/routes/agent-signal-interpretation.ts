@@ -1,5 +1,8 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { db } from "@workspace/db";
+import { signalInterpretationsTable } from "@workspace/db/schema";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
@@ -17,6 +20,8 @@ interface InterpretationRequest {
     decisionArchetype: string;
     questionText: string;
   };
+  caseId: string;
+  classificationId?: string;
 }
 
 router.post("/agents/signal-interpretation", async (req, res) => {
@@ -30,6 +35,11 @@ router.post("/agents/signal-interpretation", async (req, res) => {
 
     if (!body.decisionContext?.primaryDecision || !body.decisionContext?.questionText) {
       res.status(400).json({ error: "decisionContext with primaryDecision and questionText is required" });
+      return;
+    }
+
+    if (!body.caseId) {
+      res.status(400).json({ error: "caseId is required" });
       return;
     }
 
@@ -81,20 +91,32 @@ For EACH fact provided, produce an interpretation object with these fields:
    - "redundant": This fact restates information already present in another fact.
    If partially_dependent, dependent, or redundant, include "dependsOn" with the factIndex of the related fact.
 
-8. confidence: "high" | "moderate" | "low"
+8. rootEvidenceId: If this fact references or derives from an identifiable trial, study, regulatory filing, or data source, provide a short identifier (e.g., "NCT03003780", "ADAURA", "EMA/CHMP/2024"). Otherwise null.
+
+9. confidence: "high" | "moderate" | "low"
    - How confident you are in the interpretation above.
 
-9. recommendedSignal: true | false
-   - true ONLY if ALL of these conditions are met:
-     a) decisionRelevance is "direct" or "indirect"
-     b) impactEstimate is "high" or "moderate"
-     c) independenceClassification is "independent" or "partially_dependent"
-     d) direction is NOT "ambiguous" (unless impact is high)
-   - false for all other facts.
+10. recommendedSignal: true | false
+    - true ONLY if ALL of these conditions are met:
+      a) decisionRelevance is "direct" or "indirect"
+      b) impactEstimate is "high" or "moderate"
+      c) independenceClassification is "independent" or "partially_dependent"
+      d) direction is NOT "ambiguous" (unless impact is high)
+      e) causalPathway is NOT null (unclear causal pathway = not recommended)
+    - false for all other facts.
 
-10. rejectionReason: string | null
-    - If recommendedSignal is false, explain why in one sentence.
-    - If recommendedSignal is true, set to null.
+11. recommendationReason: string
+    - If recommendedSignal is true, explain in one sentence why this fact qualifies as a signal.
+    - If recommendedSignal is false, explain in one sentence why this fact was rejected.
+
+12. suggestedSignalType: One of: "Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Payer / coverage", "Market adoption / utilization", "Capacity / infrastructure", "Competitor countermove"
+    - The most appropriate signal category if this fact were to become a signal.
+
+13. suggestedStrength: integer 1-5
+    - 5 = definitive evidence, 4 = strong evidence, 3 = moderate evidence, 2 = weak evidence, 1 = anecdotal
+
+14. suggestedReliability: integer 1-5
+    - 5 = peer-reviewed/regulatory, 4 = established source, 3 = credible report, 2 = unverified, 1 = rumor/speculation
 
 ═══ INTERPRETATION RULES ═══
 - Be conservative. Most facts should NOT become signals. Over-signaling leads to noisy forecasts.
@@ -102,6 +124,9 @@ For EACH fact provided, produce an interpretation object with these fields:
 - A fact is NOT a signal if it describes a general market condition without specific directional impact.
 - Two facts sharing the same underlying cause should be flagged as dependent. Only the more informative one should be recommended.
 - Facts about vendor/agency capabilities are NOT signals for the underlying business decision (unless the decision IS about vendor selection).
+- Duplicates or derived echoes of the same information must NOT both be recommended. Flag the echo as "redundant" or "dependent".
+- If relevance is "tangential" or "irrelevant", recommendedSignal MUST be false.
+- If causalPathway is null or unclear, recommendedSignal MUST be false.
 
 ═══ RESPONSE FORMAT ═══
 Respond with valid JSON only. No markdown, no explanation outside the JSON.
@@ -117,9 +142,13 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
       "impactEstimate": "high|moderate|low|negligible",
       "independenceClassification": "independent|partially_dependent|dependent|redundant",
       "dependsOn": null,
+      "rootEvidenceId": "string or null",
       "confidence": "high|moderate|low",
       "recommendedSignal": true,
-      "rejectionReason": null
+      "recommendationReason": "string",
+      "suggestedSignalType": "Phase III clinical",
+      "suggestedStrength": 3,
+      "suggestedReliability": 3
     }
   ],
   "summary": {
@@ -139,7 +168,7 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
       ],
       temperature: 0,
       seed: 42,
-      max_tokens: 4000,
+      max_tokens: 6000,
     });
 
     const content = response.choices[0]?.message?.content || "";
@@ -158,27 +187,92 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
     const validImpact = ["high", "moderate", "low", "negligible"];
     const validIndependence = ["independent", "partially_dependent", "dependent", "redundant"];
     const validConfidence = ["high", "moderate", "low"];
+    const validSignalTypes = ["Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Payer / coverage", "Market adoption / utilization", "Capacity / infrastructure", "Competitor countermove"];
+
+    const batchId = `SI-${Date.now()}`;
 
     const interpretations = Array.isArray(parsed.interpretations)
-      ? parsed.interpretations.map((interp: any, i: number) => ({
-          factIndex: interp.factIndex || i + 1,
-          factText: interp.factText || body.facts[i]?.text || "",
-          decisionRelevance: validRelevance.includes(interp.decisionRelevance) ? interp.decisionRelevance : "tangential",
-          causalPathway: interp.causalPathway || null,
-          direction: validDirection.includes(interp.direction) ? interp.direction : "neutral",
-          impactEstimate: validImpact.includes(interp.impactEstimate) ? interp.impactEstimate : "low",
-          independenceClassification: validIndependence.includes(interp.independenceClassification) ? interp.independenceClassification : "independent",
-          dependsOn: typeof interp.dependsOn === "number" ? interp.dependsOn : null,
-          confidence: validConfidence.includes(interp.confidence) ? interp.confidence : "moderate",
-          recommendedSignal: !!interp.recommendedSignal,
-          rejectionReason: interp.rejectionReason || null,
-        }))
+      ? parsed.interpretations.map((interp: any, i: number) => {
+          const relevance = validRelevance.includes(interp.decisionRelevance) ? interp.decisionRelevance : "tangential";
+          const pathway = interp.causalPathway || null;
+          const impact = validImpact.includes(interp.impactEstimate) ? interp.impactEstimate : "low";
+          const independence = validIndependence.includes(interp.independenceClassification) ? interp.independenceClassification : "independent";
+          const direction = validDirection.includes(interp.direction) ? interp.direction : "neutral";
+          const confidence = validConfidence.includes(interp.confidence) ? interp.confidence : "moderate";
+
+          let recommended = !!interp.recommendedSignal;
+          if (["tangential", "irrelevant"].includes(relevance)) recommended = false;
+          if (!pathway) recommended = false;
+          if (["dependent", "redundant"].includes(independence)) recommended = false;
+
+          return {
+            interpretationId: `${batchId}-${interp.factIndex || i + 1}`,
+            factIndex: interp.factIndex || i + 1,
+            factText: interp.factText || body.facts[i]?.text || "",
+            factSource: body.facts[i]?.source || null,
+            factCategory: body.facts[i]?.category || null,
+            decisionRelevance: relevance,
+            causalPathway: pathway,
+            direction,
+            impactEstimate: impact,
+            independenceClassification: independence,
+            dependsOn: typeof interp.dependsOn === "number" ? interp.dependsOn : null,
+            rootEvidenceId: interp.rootEvidenceId || null,
+            confidence,
+            recommendedSignal: recommended,
+            recommendationReason: interp.recommendationReason || (recommended ? "Meets all signal criteria" : "Does not meet signal criteria"),
+            rejectionReason: !recommended ? (interp.recommendationReason || interp.rejectionReason || "Does not meet signal criteria") : null,
+            suggestedSignalType: validSignalTypes.includes(interp.suggestedSignalType) ? interp.suggestedSignalType : "Intelligence",
+            suggestedStrength: Math.max(1, Math.min(5, Math.round(Number(interp.suggestedStrength) || 3))),
+            suggestedReliability: Math.max(1, Math.min(5, Math.round(Number(interp.suggestedReliability) || 3))),
+          };
+        })
       : [];
+
+    try {
+      const dbRows = interpretations.map((interp: any) => ({
+        interpretationId: interp.interpretationId,
+        caseId: body.caseId,
+        classificationId: body.classificationId || null,
+        factIndex: interp.factIndex,
+        factText: interp.factText,
+        factSource: interp.factSource,
+        factCategory: interp.factCategory,
+        decisionRelevance: interp.decisionRelevance,
+        causalPathway: interp.causalPathway,
+        direction: interp.direction,
+        impactEstimate: interp.impactEstimate,
+        independenceClassification: interp.independenceClassification,
+        dependsOnFactIndex: interp.dependsOn,
+        rootEvidenceId: interp.rootEvidenceId,
+        confidence: interp.confidence,
+        recommendedSignal: interp.recommendedSignal,
+        recommendationReason: interp.recommendationReason,
+        rejectionReason: interp.rejectionReason,
+        suggestedSignalType: interp.suggestedSignalType,
+        suggestedStrength: interp.suggestedStrength,
+        suggestedReliability: interp.suggestedReliability,
+        decisionContextQuestion: body.decisionContext.questionText,
+        decisionContextDomain: body.decisionContext.domain,
+        decisionContextArchetype: body.decisionContext.decisionArchetype,
+        decisionContextPrimaryDecision: body.decisionContext.primaryDecision,
+        status: "pending",
+      }));
+
+      if (dbRows.length > 0) {
+        await db.insert(signalInterpretationsTable).values(dbRows);
+      }
+    } catch (dbErr) {
+      console.error("[agent:signal-interpretation] DB insert failed:", dbErr);
+      res.status(500).json({ error: "Failed to persist interpretation audit trail" });
+      return;
+    }
 
     const recommended = interpretations.filter((i: any) => i.recommendedSignal);
     const rejected = interpretations.filter((i: any) => !i.recommendedSignal);
 
     const result = {
+      batchId,
       interpretations,
       summary: {
         totalFacts: interpretations.length,
@@ -194,6 +288,51 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
   } catch (err) {
     console.error("[agent:signal-interpretation] Error:", err);
     res.status(500).json({ error: "Signal interpretation failed" });
+  }
+});
+
+router.get("/signal-interpretations/:caseId", async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const rows = await db
+      .select()
+      .from(signalInterpretationsTable)
+      .where(eq(signalInterpretationsTable.caseId, caseId))
+      .orderBy(signalInterpretationsTable.factIndex);
+
+    res.json(rows);
+  } catch (err) {
+    console.error("[signal-interpretations] GET error:", err);
+    res.status(500).json({ error: "Failed to fetch interpretations" });
+  }
+});
+
+router.patch("/signal-interpretations/:interpretationId", async (req, res) => {
+  try {
+    const { interpretationId } = req.params;
+    const { userAccepted, userOverride, linkedSignalId, status } = req.body;
+
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (typeof userAccepted === "boolean") updates.userAccepted = userAccepted;
+    if (typeof userOverride === "boolean") updates.userOverride = userOverride;
+    if (linkedSignalId) updates.linkedSignalId = linkedSignalId;
+    if (status) updates.status = status;
+
+    const rows = await db
+      .update(signalInterpretationsTable)
+      .set(updates)
+      .where(eq(signalInterpretationsTable.interpretationId, interpretationId))
+      .returning({ interpretationId: signalInterpretationsTable.interpretationId });
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Interpretation not found" });
+      return;
+    }
+
+    res.json({ updated: true });
+  } catch (err) {
+    console.error("[signal-interpretations] PATCH error:", err);
+    res.status(500).json({ error: "Failed to update interpretation" });
   }
 });
 

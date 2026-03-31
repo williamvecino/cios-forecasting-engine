@@ -31,3 +31,4 @@ export * from "./competitive-risk";
 export * from "./growth-feasibility";
 export * from "./simulation-scenarios";
 export * from "./question-repository";
+export * from "./signal-interpretations";
