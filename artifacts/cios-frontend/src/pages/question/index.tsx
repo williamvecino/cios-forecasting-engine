@@ -1619,7 +1619,19 @@ export default function QuestionPage() {
                     <button
                       key={dc.caseId}
                       type="button"
-                      onClick={() => navigate(`/case/${dc.caseId}/forecast`)}
+                      onClick={() => {
+                        clearQuestion();
+                        createQuestion({
+                          text: dc.question,
+                          rawInput: dc.question,
+                          caseId: dc.caseId,
+                          timeHorizon: "12 months",
+                          questionType: "binary",
+                          subject: dc.question.match(/Will\s+(.*?)\s+(?:achieve|displace)/i)?.[1] || "",
+                          outcome: "adoption",
+                        });
+                        navigate("/forecast");
+                      }}
                       className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-white/[0.06] hover:border-white/20 transition flex items-center gap-3 cursor-pointer"
                     >
                       <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400">{dc.label}</span>
