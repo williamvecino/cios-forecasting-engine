@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useListCases, useGetCalibrationStats } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout";
 import { Card, Badge, Button } from "@/components/ui-components";
-import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, HelpCircle, MessageSquare, Send, BookOpen } from "lucide-react";
+import { Activity, TrendingUp, AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, BarChart3, Target, Loader2, HelpCircle, MessageSquare, Send, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/cn";
 import WorkflowIndicator from "@/components/workflow-indicator";
@@ -19,7 +19,7 @@ export default function Dashboard() {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-          <Target className="w-10 h-10 text-primary animate-pulse" />
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
           <div className="text-muted-foreground">Loading strategic forecasts…</div>
         </div>
       </AppLayout>

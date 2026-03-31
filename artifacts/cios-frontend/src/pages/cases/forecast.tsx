@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { Card, Badge, ProbabilityGauge, Button } from "@/components/ui-components";
 import {
   ArrowRight,
-  BrainCircuit,
+  Loader2,
   Users,
   CheckCircle2,
   AlertOctagon,
@@ -210,7 +210,7 @@ export default function ForecastResults() {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-          <BrainCircuit className="w-12 h-12 text-primary animate-pulse" />
+          <Loader2 className="w-12 h-12 text-primary animate-spin" />
           <div className="text-lg font-display text-muted-foreground">
             Building your assessment…
           </div>

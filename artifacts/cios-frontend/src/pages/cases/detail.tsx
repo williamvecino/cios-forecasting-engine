@@ -256,7 +256,7 @@ export default function QuestionDetail() {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-          <Target className="w-10 h-10 text-primary animate-pulse" />
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
           <div className="text-muted-foreground">Loading question…</div>
         </div>
       </AppLayout>

@@ -5,6 +5,7 @@ import {
   BarChart3,
   Plus,
   Target,
+  Loader2,
 } from "lucide-react";
 
 export default function ForecastsPage() {
@@ -34,7 +35,7 @@ export default function ForecastsPage() {
 
         {isLoading && (
           <div className="flex items-center justify-center h-[40vh]">
-            <Target className="w-8 h-8 text-primary animate-pulse" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         )}
 

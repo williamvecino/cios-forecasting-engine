@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useListCases } from "@workspace/api-client-react";
 import TopNav from "@/components/top-nav";
-import { BookOpen, Sparkles, FileText, Target, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { BookOpen, Sparkles, FileText, Target, Loader2, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { MOCK_CASE } from "@/lib/mock-case";
 
 const SAMPLE_QUESTIONS = [
@@ -157,7 +157,7 @@ export default function LibraryPage() {
           </h2>
           {isLoading && (
             <div className="flex items-center justify-center py-12">
-              <Target className="w-8 h-8 text-primary animate-pulse" />
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
           )}
           {!isLoading && allCases.length === 0 && (

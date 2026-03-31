@@ -21,7 +21,7 @@ import EvidenceHealthPanel from "@/components/forecast/EvidenceHealthPanel";
 import {
   ArrowRight,
   BookOpen,
-  BrainCircuit,
+  Loader2,
   AlertTriangle,
   ShieldAlert,
   Zap,
@@ -946,7 +946,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
-        <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
+        <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
         <div className="text-sm text-slate-300">Computing forecast...</div>
         <div className="text-xs text-slate-500">Weighing evidence and stakeholder dynamics</div>
       </div>
@@ -1713,7 +1713,7 @@ function DriverImpactContent({ activeQuestion }: { activeQuestion: any }) {
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
-        <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
+        <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
         <div className="text-sm text-slate-300">Analyzing driver impact...</div>
       </div>
     );
@@ -1838,7 +1838,7 @@ function CaseLibraryTab() {
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-12 flex flex-col items-center gap-3">
-        <BrainCircuit className="w-10 h-10 text-blue-400 animate-pulse" />
+        <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
         <div className="text-sm text-slate-300">Loading cases...</div>
       </div>
     );
