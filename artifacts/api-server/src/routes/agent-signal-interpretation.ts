@@ -160,16 +160,36 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
   }
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: factsBlock },
-      ],
-      temperature: 0,
-      seed: 42,
-      max_tokens: 6000,
-    });
+    const INTERPRETATION_TIMEOUT_MS = 45_000;
+    let response: any;
+    try {
+      response = await Promise.race([
+        openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: factsBlock },
+          ],
+          temperature: 0,
+          seed: 42,
+          max_tokens: 6000,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Interpretation timed out")), INTERPRETATION_TIMEOUT_MS)
+        ),
+      ]);
+    } catch (aiErr: any) {
+      console.error("[agent:signal-interpretation] AI call failed or timed out:", aiErr?.message || aiErr);
+      res.json({
+        batchId: `SI-${Date.now()}`,
+        interpretations: [],
+        summary: { totalFacts: body.facts.length, recommendedCount: 0, rejectedCount: body.facts.length, independentCount: 0, dependentCount: 0 },
+        decisionContext: body.decisionContext,
+        skipped: true,
+        skipReason: aiErr?.message || "Interpretation unavailable",
+      });
+      return;
+    }
 
     const content = response.choices[0]?.message?.content || "";
 
@@ -177,8 +197,16 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
     try {
       const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       parsed = JSON.parse(cleaned);
-    } catch {
-      res.status(500).json({ error: "Failed to parse interpretation output" });
+    } catch (parseErr) {
+      console.error("[agent:signal-interpretation] JSON parse failed:", parseErr);
+      res.json({
+        batchId: `SI-${Date.now()}`,
+        interpretations: [],
+        summary: { totalFacts: body.facts.length, recommendedCount: 0, rejectedCount: body.facts.length, independentCount: 0, dependentCount: 0 },
+        decisionContext: body.decisionContext,
+        skipped: true,
+        skipReason: "Failed to parse interpretation output",
+      });
       return;
     }
 
@@ -266,9 +294,7 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
         await db.insert(signalInterpretationsTable).values(dbRows);
       }
     } catch (dbErr) {
-      console.error("[agent:signal-interpretation] DB insert failed:", dbErr);
-      res.status(500).json({ error: "Failed to persist interpretation audit trail" });
-      return;
+      console.error("[agent:signal-interpretation] DB insert failed (non-blocking):", dbErr);
     }
 
     const recommended = interpretations.filter((i: any) => i.recommendedSignal);
@@ -288,9 +314,16 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
     };
 
     res.json(result);
-  } catch (err) {
-    console.error("[agent:signal-interpretation] Error:", err);
-    res.status(500).json({ error: "Signal interpretation failed" });
+  } catch (err: any) {
+    console.error("[agent:signal-interpretation] Unhandled error (non-blocking):", err?.message || err);
+    res.json({
+      batchId: `SI-${Date.now()}`,
+      interpretations: [],
+      summary: { totalFacts: 0, recommendedCount: 0, rejectedCount: 0, independentCount: 0, dependentCount: 0 },
+      decisionContext: req.body?.decisionContext || {},
+      skipped: true,
+      skipReason: err?.message || "Signal interpretation unavailable",
+    });
   }
 });
 

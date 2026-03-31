@@ -127,27 +127,65 @@ export default function InterpretPage() {
     runInterpretation(payload);
   }, []);
 
+  const FETCH_TIMEOUT_MS = 60_000;
+
   const runInterpretation = async (payload: any) => {
     setPhase("interpreting");
     setError(null);
     try {
-      const res = await fetch(`${API}/api/agents/signal-interpretation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Interpretation failed");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+      let res: Response;
+      try {
+        res = await fetch(`${API}/api/agents/signal-interpretation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId);
+        const reason = fetchErr?.name === "AbortError" ? "Interpretation timed out" : (fetchErr?.message || "Network error");
+        console.error("[interpret] fetch failed:", reason);
+        setError(`Interpretation unavailable: ${reason}. You can skip and continue to signals.`);
+        setPhase("review");
+        return;
       }
-      const data = await res.json();
-      setResult(data);
+      clearTimeout(timeoutId);
+
+      const data = await res.json().catch(() => null);
+      if (!data || data.error) {
+        const reason = data?.error || "empty response";
+        console.error("[interpret] bad response:", reason);
+        setError(`Interpretation unavailable: ${reason}. You can skip and continue to signals.`);
+        setPhase("review");
+        return;
+      }
+
+      if (data.skipped) {
+        console.warn("[interpret] interpretation was skipped:", data.skipReason);
+        setError(`Interpretation was skipped: ${data.skipReason || "unavailable"}. You can continue to signals.`);
+        setPhase("review");
+        return;
+      }
+
+      const interpretations = Array.isArray(data.interpretations) ? data.interpretations : [];
+      if (interpretations.length === 0) {
+        console.warn("[interpret] no interpretations returned");
+        setError("No interpretations were generated. You can skip and continue to signals.");
+        setPhase("review");
+        return;
+      }
+
+      setResult({ ...data, interpretations });
       const initial: Record<number, boolean> = {};
-      data.interpretations.forEach((interp: Interpretation) => { initial[interp.factIndex] = interp.recommendedSignal; });
+      interpretations.forEach((interp: Interpretation) => { initial[interp.factIndex] = interp.recommendedSignal; });
       setOverrides(initial);
       setPhase("review");
     } catch (err: any) {
-      setError(err.message || "Interpretation failed");
+      console.error("[interpret] unexpected error:", err);
+      setError(`Interpretation failed: ${err?.message || "Unknown error"}. You can skip and continue to signals.`);
       setPhase("review");
     }
   };
@@ -165,7 +203,7 @@ export default function InterpretPage() {
   }, []);
 
   const sortedInterpretations = useMemo(() => {
-    if (!result) return [];
+    if (!result || !Array.isArray(result.interpretations)) return [];
     const items = [...result.interpretations];
     const dir = sortAsc ? 1 : -1;
     const DIRECTION_ORDER: Record<string, number> = { positive: 0, negative: 1, neutral: 2, ambiguous: 3 };
@@ -247,7 +285,7 @@ export default function InterpretPage() {
             linkedSignalId,
             status: "accepted",
           }),
-        });
+        }).catch((patchErr) => console.error("[interpret] PATCH accept failed (non-blocking):", patchErr));
       }
 
       const rejected = result.interpretations.filter((interp) => !overrides[interp.factIndex]);
@@ -259,7 +297,7 @@ export default function InterpretPage() {
             reviewerStatus: "Rejected",
             status: "rejected",
           }),
-        });
+        }).catch((patchErr) => console.error("[interpret] PATCH reject failed (non-blocking):", patchErr));
       }
 
       if (failures.length > 0 && failures.length === accepted.length) {
@@ -272,6 +310,7 @@ export default function InterpretPage() {
       localStorage.removeItem("cios.interpretationPayload");
       navigate("/signals");
     } catch (err: any) {
+      console.error("[interpret] signal creation error:", err);
       setError(err.message || "Failed to create signals");
     } finally {
       setCreating(false);
@@ -285,7 +324,7 @@ export default function InterpretPage() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reviewerStatus: "Rejected", status: "skipped" }),
-        }).catch(() => {});
+        }).catch((err) => console.error("[interpret] PATCH skip failed (non-blocking):", err));
       }
     }
     localStorage.removeItem("cios.interpretationPayload");
@@ -392,9 +431,13 @@ export default function InterpretPage() {
           <div className="rounded-2xl border border-red-500/20 bg-card p-8 flex flex-col items-center gap-4">
             <AlertTriangle className="w-8 h-8 text-red-400" />
             <p className="text-sm text-foreground font-medium">Interpretation could not be completed</p>
+            <p className="text-xs text-muted-foreground max-w-md text-center">You can retry, or skip interpretation and continue adding signals manually.</p>
             <div className="flex items-center gap-4">
               <button type="button" onClick={() => { const s = localStorage.getItem("cios.interpretationPayload"); if (s) { try { runInterpretation(JSON.parse(s)); } catch { navigate("/ingest"); } } else { navigate("/ingest"); } }} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition">
                 <Loader2 className="w-4 h-4" /> Retry
+              </button>
+              <button type="button" onClick={() => { localStorage.removeItem("cios.interpretationPayload"); navigate("/signals"); }} className="inline-flex items-center gap-2 rounded-xl bg-slate-700 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-600 transition">
+                <ArrowRight className="w-4 h-4" /> Skip to Signals
               </button>
               <button type="button" onClick={() => navigate("/ingest")} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition">
                 <ArrowLeft className="w-3.5 h-3.5" /> Back
