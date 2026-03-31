@@ -5,69 +5,34 @@ import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import { detectCaseType } from "@/lib/case-type-utils";
 import {
-  Users,
-  ShieldAlert,
-  Clock,
-  Swords,
-  TrendingUp,
   Loader2,
-  CheckCircle2,
-  XCircle,
   AlertTriangle,
-  Target,
-  Zap,
-  Link2,
-  Eye,
   ArrowRight,
   Download,
   FileSpreadsheet,
   FileText,
   FileJson,
+  Target,
+  Clock,
+  User,
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  Gauge,
 } from "lucide-react";
 import { exportToExcel, exportToPDF, exportToJSON } from "@/lib/forecast-export";
-import { PrioritizationPanel } from "@/components/decide/PrioritizationPanel";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 import ExplanationPanel from "@/components/explanation-panel";
 
-interface SegmentGroup {
-  segments: string[];
-  reason: string;
-}
-
-interface DecisionItem {
-  decision_id: string;
-  decision_type: string;
-  title: string;
-  rationale: string;
-  source_gate_id: string;
-  source_gate_label: string;
-  source_gate_status: string;
-  forecast_dependency: string;
-  severity_or_priority: string;
-  derived_from_forecast: boolean;
-}
-
-interface DerivedDecisions {
-  barriers: DecisionItem[];
-  actions: DecisionItem[];
-  segments: DecisionItem[];
-  trigger_events: DecisionItem[];
-  monitoring: DecisionItem[];
-}
-
-interface IntegrityViolation {
-  rule: string;
-  severity: "error" | "warning";
-  detail: string;
-  decision_id?: string;
-  gate_id?: string;
-}
-
-interface IntegrityReport {
-  valid: boolean;
-  violations: IntegrityViolation[];
-  gate_coverage: Record<string, { has_barrier: boolean; has_action: boolean; gate_status: string }>;
-  derivation_chain_complete: boolean;
+interface DecisionAction {
+  gateName: string;
+  blockingCondition: string;
+  requiredAction: string;
+  owner: string;
+  timeline: string;
+  resolutionMetric: string;
+  forecastImpact: string;
+  priorityScore: number;
 }
 
 interface ForecastContext {
@@ -77,64 +42,11 @@ interface ForecastContext {
   weak_gate_count: number;
 }
 
-interface ArchetypeScore {
-  archetype_id: string;
-  archetype_name: string;
-  score: number;
-  confidence: string;
-  reasons: string[];
-}
-
-interface ArchetypeAssignment {
-  segment_name: string;
-  structural_description: string;
-  primary_archetype: ArchetypeScore;
-  secondary_archetype: ArchetypeScore | null;
-  assignment_confidence: string;
-  why_assigned: string;
-  likely_triggers: string[];
-  likely_barriers: string[];
-}
-
-interface BarrierDriver {
-  driver: string;
-  current_state: string;
-  impact_on_adoption: string;
-  what_would_improve_it: string;
-  expected_effect: string;
-}
-
 interface DecideResponse {
   mode: "forecast_derived" | "standalone";
-  derived_decisions: DerivedDecisions | null;
-  integrity: IntegrityReport | null;
-  barrier_decomposition: Record<string, BarrierDriver[]> | null;
-  adoption_segmentation: {
-    early_adopters: SegmentGroup;
-    persuadables: SegmentGroup;
-    late_movers: SegmentGroup;
-    resistant: SegmentGroup;
-  } | null;
-  archetype_assignments: ArchetypeAssignment[] | null;
-  readiness_timeline: {
-    near_term_readiness: string;
-    trigger_events: string[];
-    dependencies: string[];
-    timing_risks: string[];
-  } | null;
-  competitive_risk: {
-    incumbent_defense: string;
-    fast_follower_risk: string;
-    evidence_response: string;
-    access_response: string;
-  } | null;
-  growth_feasibility: {
-    segment_size: string;
-    access_expansion: string;
-    operational_scalability: string;
-    revenue_translation: string;
-  } | null;
+  decision_actions: DecisionAction[];
   forecast_context: ForecastContext | null;
+  [key: string]: any;
 }
 
 interface ForecastGate {
@@ -144,43 +56,6 @@ interface ForecastGate {
   status: string;
   reasoning: string;
   constrains_probability_to: number;
-}
-
-function levelColor(level: string) {
-  const l = level?.toLowerCase();
-  if (l === "low") return "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-  if (l === "moderate" || l === "medium") return "text-amber-400 bg-amber-500/10 border-amber-500/20";
-  if (l === "high" || l === "critical") return "text-rose-400 bg-rose-500/10 border-rose-500/20";
-  if (l === "large") return "text-blue-400 bg-blue-500/10 border-blue-500/20";
-  if (l === "small") return "text-slate-400 bg-slate-500/10 border-slate-500/20";
-  return "text-slate-400 bg-slate-500/10 border-slate-500/20";
-}
-
-function LevelBadge({ level }: { level: string }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${levelColor(level)}`}>
-      {level}
-    </span>
-  );
-}
-
-function gateStatusColor(status: string) {
-  if (status === "strong") return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
-  if (status === "moderate") return "text-amber-400 border-amber-500/30 bg-amber-500/10";
-  if (status === "weak") return "text-red-400 border-red-500/30 bg-red-500/10";
-  return "text-slate-400 border-slate-500/30 bg-slate-500/10";
-}
-
-function DerivedByTag({ gateLabel, gateStatus }: { gateLabel: string; gateStatus: string }) {
-  return (
-    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500">
-      <Link2 className="w-3 h-3" />
-      <span>Derived from:</span>
-      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 font-semibold uppercase tracking-wider ${gateStatusColor(gateStatus)}`}>
-        {gateLabel}
-      </span>
-    </div>
-  );
 }
 
 function loadForecastGates(caseId: string): { gates: ForecastGate[]; brandOutlook: number | null; constrained: number | null } {
@@ -198,6 +73,19 @@ function loadForecastGates(caseId: string): { gates: ForecastGate[]; brandOutloo
   }
 }
 
+function priorityColor(score: number) {
+  if (score >= 80) return { bg: "bg-red-500/10", border: "border-red-500/25", text: "text-red-400", badge: "bg-red-500/15 text-red-400 border-red-500/30" };
+  if (score >= 60) return { bg: "bg-amber-500/10", border: "border-amber-500/25", text: "text-amber-400", badge: "bg-amber-500/15 text-amber-400 border-amber-500/30" };
+  return { bg: "bg-blue-500/10", border: "border-blue-500/25", text: "text-blue-400", badge: "bg-blue-500/15 text-blue-400 border-blue-500/30" };
+}
+
+function priorityLabel(score: number) {
+  if (score >= 80) return "Critical";
+  if (score >= 60) return "High";
+  if (score >= 40) return "Medium";
+  return "Low";
+}
+
 export default function DecisionPanels() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const [, navigate] = useLocation();
@@ -205,6 +93,7 @@ export default function DecisionPanels() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestedRef = useRef<string | null>(null);
+  const [expandedAction, setExpandedAction] = useState<number | null>(null);
 
   const subject = activeQuestion?.subject || "";
   const questionText = activeQuestion?.rawInput || activeQuestion?.text || activeQuestion?.question || "";
@@ -252,15 +141,13 @@ export default function DecisionPanels() {
         } catch {}
       })
       .catch((err) => {
-        console.error("[CIOS Decide] AI analysis failed:", err);
+        console.error("[CIOS Decide] analysis failed:", err);
         setError("Decision analysis unavailable. The analysis will appear once the system responds.");
       })
       .finally(() => setLoading(false));
   }, [contextKey, caseId]);
 
-  const isForecastDerived = data?.mode === "forecast_derived";
-  const dd = data?.derived_decisions;
-  const integrity = data?.integrity;
+  const actions = data?.decision_actions || [];
   const fc = data?.forecast_context;
 
   return (
@@ -276,12 +163,10 @@ export default function DecisionPanels() {
               Decide
             </div>
             <h1 className="mt-2 text-2xl font-semibold text-foreground">
-              What action should we take?
+              Priority Actions
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-              {isForecastDerived
-                ? "Decision layer — every barrier, action, and segment is derived from the forecast gates."
-                : "Commercial decision layer — segmentation, progress blockers, readiness, competitive risk, and feasibility assessment."}
+              Executable actions derived from forecast gates — each action addresses an unresolved gate with a named owner, timeline, and resolution metric.
             </p>
             {caseId && (
               <div className="mt-3">
@@ -294,10 +179,10 @@ export default function DecisionPanels() {
               </div>
             )}
             <div className="mt-3 flex items-center justify-between">
-              {isForecastDerived && fc ? (
+              {fc ? (
                 <div className="flex items-center gap-4 text-xs text-slate-400">
                   <span>Gates: {fc.gate_count}</span>
-                  <span>Weak/Unresolved: {fc.weak_gate_count}</span>
+                  <span>Unresolved: {fc.weak_gate_count}</span>
                   {fc.brand_outlook != null && <span>Brand Outlook: {Math.round(fc.brand_outlook * 100)}%</span>}
                   {fc.constrained_probability != null && <span>Forecast: {Math.round(fc.constrained_probability * 100)}%</span>}
                 </div>
@@ -335,8 +220,8 @@ export default function DecisionPanels() {
           {loading && (
             <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-8 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-              <div className="text-sm text-blue-300 font-medium">Deriving decisions from forecast...</div>
-              <div className="text-xs text-slate-400">Mapping gates to barriers, actions, and segments</div>
+              <div className="text-sm text-blue-300 font-medium">Generating priority actions from forecast gates...</div>
+              <div className="text-xs text-slate-400">Mapping each unresolved gate to an executable action</div>
             </div>
           )}
 
@@ -347,430 +232,128 @@ export default function DecisionPanels() {
             </div>
           )}
 
-          {data && (
-            <>
-              {integrity && !integrity.valid && (
-                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-sm font-semibold text-amber-300">Decision Integrity Warning</div>
-                      <div className="text-xs text-amber-200/70 mt-1">
-                        {integrity.violations.filter(v => v.severity === "error").length} error(s), {integrity.violations.filter(v => v.severity === "warning").length} warning(s) detected in the derivation chain.
+          {data && actions.length > 0 && (
+            <div className="space-y-3">
+              {actions.map((action, idx) => {
+                const colors = priorityColor(action.priorityScore);
+                const isExpanded = expandedAction === idx;
+                return (
+                  <div
+                    key={idx}
+                    className={`rounded-2xl border ${colors.border} bg-card overflow-hidden transition-all duration-200`}
+                  >
+                    <button
+                      onClick={() => setExpandedAction(isExpanded ? null : idx)}
+                      className="w-full flex items-center gap-4 px-5 py-4 text-left cursor-pointer hover:bg-white/[0.02] transition"
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/5 border border-white/10">
+                        <span className={`text-sm font-bold ${colors.text}`}>{idx + 1}</span>
                       </div>
-                      <details className="mt-2">
-                        <summary className="text-[10px] text-amber-300/60 cursor-pointer">Show details</summary>
-                        <div className="mt-2 space-y-1">
-                          {integrity.violations.map((v, i) => (
-                            <div key={i} className="text-[10px] text-slate-400 flex items-start gap-1.5">
-                              <span className={v.severity === "error" ? "text-red-400" : "text-amber-400"}>
-                                {v.severity === "error" ? "ERR" : "WARN"}
-                              </span>
-                              <span>[{v.rule}] {v.detail}</span>
-                            </div>
-                          ))}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-foreground">{action.requiredAction}</div>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-[11px] text-muted-foreground">{action.gateName}</span>
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colors.badge}`}>
+                            <Gauge className="w-2.5 h-2.5" />
+                            {priorityLabel(action.priorityScore)}
+                          </span>
                         </div>
-                      </details>
-                    </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right hidden sm:block">
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <User className="w-3 h-3" />
+                            {action.owner}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
+                            <Clock className="w-3 h-3" />
+                            {action.timeline}
+                          </div>
+                        </div>
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-5 pb-5 space-y-4 border-t border-white/5 pt-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-red-400/80 mb-1.5">Blocking Condition</div>
+                            <div className="text-[12px] text-slate-300 leading-relaxed">{action.blockingCondition}</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80 mb-1.5">Resolution Metric</div>
+                            <div className="text-[12px] text-slate-300 leading-relaxed">{action.resolutionMetric}</div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <User className="w-3 h-3 text-blue-400/70" />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400/80">Owner</span>
+                            </div>
+                            <div className="text-[12px] text-foreground font-medium">{action.owner}</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Clock className="w-3 h-3 text-amber-400/70" />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/80">Timeline</span>
+                            </div>
+                            <div className="text-[12px] text-foreground font-medium">{action.timeline}</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <BarChart3 className="w-3 h-3 text-violet-400/70" />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-400/80">Forecast Effect</span>
+                            </div>
+                            <div className="text-[12px] text-foreground/80 leading-relaxed">{action.forecastImpact}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })}
+            </div>
+          )}
 
-              {isForecastDerived && dd && (
+          {data && actions.length === 0 && (
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
+              <Target className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+              {data.mode === "forecast_derived" && fc && fc.gate_count > 0 ? (
                 <>
-                  {dd.barriers.length > 0 && (
-                    <div className="rounded-2xl border border-red-500/20 bg-card p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <ShieldAlert className="w-4 h-4 text-red-400" />
-                        <div className="text-sm font-semibold text-foreground">What is blocking progress</div>
-                        <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-derived</span>
-                      </div>
-                      <div className="space-y-5">
-                        {dd.barriers.map((b) => {
-                          const drivers = data?.barrier_decomposition?.[b.source_gate_id] || [];
-                          return (
-                            <div key={b.decision_id} className="rounded-xl border border-border/50 bg-muted/5 p-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <div className="text-xs font-semibold text-foreground/90">{b.source_gate_label}</div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${gateStatusColor(b.source_gate_status)}`}>
-                                    {b.source_gate_status}
-                                  </span>
-                                  <LevelBadge level={b.severity_or_priority} />
-                                </div>
-                              </div>
-                              <div className="text-[10px] text-slate-500 mb-3 italic">{b.forecast_dependency}</div>
-
-                              {drivers.length > 0 ? (
-                                <div className="space-y-3">
-                                  {drivers.map((d, i) => (
-                                    <div key={i} className="rounded-lg border border-red-500/10 bg-red-500/5 p-3">
-                                      <div className="text-[11px] font-semibold text-slate-200 mb-2">{d.driver}</div>
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
-                                        <div>
-                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Current State</div>
-                                          <div className="text-[11px] text-slate-300">{d.current_state}</div>
-                                        </div>
-                                        <div>
-                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Impact on Adoption</div>
-                                          <div className="text-[11px] text-slate-300">{d.impact_on_adoption}</div>
-                                        </div>
-                                        <div>
-                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">What Would Improve It</div>
-                                          <div className="text-[11px] text-emerald-300/80">{d.what_would_improve_it}</div>
-                                        </div>
-                                        <div>
-                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Expected Effect</div>
-                                          <div className="text-[11px] text-blue-300/80">{d.expected_effect}</div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="text-[11px] text-muted-foreground">{b.rationale}</div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {dd.actions.length > 0 && (
-                    <div className="rounded-2xl border border-emerald-500/20 bg-card p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Target className="w-4 h-4 text-emerald-400" />
-                        <div className="text-sm font-semibold text-emerald-300">Required Actions</div>
-                        <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-derived</span>
-                      </div>
-                      <div className="space-y-3">
-                        {dd.actions.map((a) => (
-                          <div key={a.decision_id} className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-3">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="flex items-center gap-2">
-                                <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                <div className="text-sm font-semibold text-slate-200">{a.title}</div>
-                              </div>
-                              <LevelBadge level={a.severity_or_priority} />
-                            </div>
-                            <div className="text-[11px] text-slate-300">{a.rationale}</div>
-                            <div className="text-[10px] text-slate-500 mt-1.5 italic">{a.forecast_dependency}</div>
-                            <DerivedByTag gateLabel={a.source_gate_label} gateStatus={a.source_gate_status} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {dd.segments.length > 0 && (
-                    <div className="rounded-2xl border border-blue-500/20 bg-card p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Users className="w-4 h-4 text-blue-400" />
-                        <div className="text-sm font-semibold text-foreground">Segment Assignments</div>
-                        <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-profile derived</span>
-                      </div>
-                      <div className="space-y-3">
-                        {dd.segments.map((s) => {
-                          const tierColor = s.title.toLowerCase().includes("early") ? "text-emerald-400"
-                            : s.title.toLowerCase().includes("persuad") ? "text-blue-400"
-                            : s.title.toLowerCase().includes("late") ? "text-amber-400"
-                            : "text-rose-400";
-                          return (
-                            <div key={s.decision_id} className="rounded-xl border border-border/50 bg-muted/5 p-3">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <div className={`text-xs font-semibold ${tierColor}`}>{s.title}</div>
-                                <LevelBadge level={s.severity_or_priority} />
-                              </div>
-                              <div className="text-[11px] text-muted-foreground">{s.rationale}</div>
-                              <DerivedByTag gateLabel={s.source_gate_label} gateStatus={s.source_gate_status} />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {dd.trigger_events.length > 0 && (
-                    <div className="rounded-2xl border border-indigo-500/20 bg-card p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Zap className="w-4 h-4 text-indigo-400" />
-                        <div className="text-sm font-semibold text-foreground">Trigger Events to Watch</div>
-                        <span className="ml-auto text-[10px] font-medium text-slate-500 uppercase tracking-wider">Gate-derived</span>
-                      </div>
-                      <div className="space-y-3">
-                        {dd.trigger_events.map((t) => (
-                          <div key={t.decision_id} className="rounded-xl border border-indigo-500/10 bg-indigo-500/5 p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Eye className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                              <div className="text-sm text-slate-200">{t.title}</div>
-                            </div>
-                            <div className="text-[11px] text-slate-400">{t.rationale}</div>
-                            <div className="text-[10px] text-slate-500 mt-1 italic">{t.forecast_dependency}</div>
-                            <DerivedByTag gateLabel={t.source_gate_label} gateStatus={t.source_gate_status} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {dd.monitoring.length > 0 && (
-                    <div className="rounded-2xl border border-border bg-card p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <div className="text-sm font-semibold text-foreground">Monitoring (Strong Gates)</div>
-                      </div>
-                      <div className="space-y-2">
-                        {dd.monitoring.map((m) => (
-                          <div key={m.decision_id} className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-3">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                              <div className="text-[11px] text-slate-300">{m.title}</div>
-                            </div>
-                            <DerivedByTag gateLabel={m.source_gate_label} gateStatus={m.source_gate_status} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div className="text-sm text-emerald-300 font-semibold">All gates are strong</div>
+                  <div className="text-xs text-slate-400 mt-1">No blocking conditions detected — the forecast is unconstrained.</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm text-slate-300 font-semibold">No forecast gates available</div>
+                  <div className="text-xs text-slate-400 mt-1">Run the forecast from the Judge step first to generate gate-derived actions.</div>
                 </>
               )}
+            </div>
+          )}
 
-              {data.adoption_segmentation && (
-                <AdoptionSegmentationPanel data={data.adoption_segmentation} archetypes={data.archetype_assignments} />
-              )}
-
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {data.readiness_timeline && (
-                  <ReadinessTimelinePanel data={data.readiness_timeline} />
-                )}
-                {data.competitive_risk && (
-                  <CompetitiveRiskPanel data={data.competitive_risk} />
-                )}
-              </div>
-
-              {data.growth_feasibility && !caseTypeInfo.isRegulatory && (
-                <GrowthFeasibilityPanel data={data.growth_feasibility} />
-              )}
-
-              <PrioritizationPanel
-                question={activeQuestion?.text || ""}
-                brand={activeQuestion?.subject}
-                therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
-                probability={fc?.brand_outlook ? Math.round(fc.brand_outlook * 100) : undefined}
-                context={`Decision page context. Gate count: ${fc?.gate_count || 0}. Weak gates: ${fc?.weak_gate_count || 0}.`}
-              />
-
-              <div className="flex justify-end pt-2">
-                <button
-                  onClick={() => navigate("/respond")}
-                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition"
-                >
-                  Continue to Respond
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </>
+          {data && (
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => navigate("/respond")}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition"
+              >
+                Continue to Respond
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </section>
       </QuestionGate>
     </WorkflowLayout>
-  );
-}
-
-function AdoptionSegmentationPanel({ data, archetypes }: { data: NonNullable<DecideResponse["adoption_segmentation"]>; archetypes: ArchetypeAssignment[] | null | undefined }) {
-  const groups = [
-    { key: "early_adopters", label: "Early Adopters", icon: CheckCircle2, color: "text-emerald-400", data: data.early_adopters },
-    { key: "persuadables", label: "Persuadables", icon: Target, color: "text-blue-400", data: data.persuadables },
-    { key: "late_movers", label: "Late Movers", icon: Clock, color: "text-amber-400", data: data.late_movers },
-    { key: "resistant", label: "Resistant", icon: XCircle, color: "text-rose-400", data: data.resistant },
-  ];
-
-  function findArchetype(label: string): ArchetypeAssignment | undefined {
-    if (!archetypes) return undefined;
-    return archetypes.find(a => a.segment_name.toLowerCase() === label.toLowerCase());
-  }
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Users className="w-4 h-4 text-blue-400" />
-        <div className="text-sm font-semibold text-foreground">Adoption Segmentation</div>
-      </div>
-      <div className="space-y-3">
-        {groups.map((g) => {
-          const arch = findArchetype(g.label);
-          return (
-            <div key={g.key} className="rounded-xl border border-border/50 bg-muted/5 p-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <g.icon className={`w-3.5 h-3.5 ${g.color}`} />
-                  <div className={`text-xs font-semibold ${g.color}`}>{g.label}</div>
-                </div>
-                {arch && (
-                  <span className="rounded-full bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-400">
-                    {arch.primary_archetype.archetype_name}
-                  </span>
-                )}
-              </div>
-              {g.data?.segments && Array.isArray(g.data.segments) && g.data.segments.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-1.5">
-                  {g.data.segments.map((seg: string, i: number) => (
-                    <span key={i} className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[11px] text-slate-200">
-                      {seg}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="text-[11px] text-muted-foreground">{g.data?.reason}</div>
-              {arch && (
-                <div className="mt-2 pt-2 border-t border-border/30 space-y-1.5">
-                  <div className="text-[11px] text-violet-300/80">
-                    <span className="font-semibold">Decision behavior:</span> {arch.why_assigned}
-                  </div>
-                  {arch.likely_triggers.length > 0 && (
-                    <div className="text-[11px] text-muted-foreground">
-                      <span className="font-semibold text-emerald-400/80">What moves them:</span>{" "}
-                      {arch.likely_triggers.slice(0, 2).join(" · ")}
-                    </div>
-                  )}
-                  {arch.likely_barriers.length > 0 && (
-                    <div className="text-[11px] text-muted-foreground">
-                      <span className="font-semibold text-rose-400/80">What blocks them:</span>{" "}
-                      {arch.likely_barriers.slice(0, 2).join(" · ")}
-                    </div>
-                  )}
-                  {arch.secondary_archetype && (
-                    <div className="text-[10px] text-muted-foreground/60">
-                      Secondary: {arch.secondary_archetype.archetype_name}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ReadinessTimelinePanel({ data }: { data: NonNullable<DecideResponse["readiness_timeline"]> }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Clock className="w-4 h-4 text-blue-400" />
-        <div className="text-sm font-semibold text-foreground">Readiness Timeline</div>
-      </div>
-
-      <div className="mb-3 flex items-center gap-2">
-        <div className="text-xs text-muted-foreground">Near-term readiness:</div>
-        <LevelBadge level={data.near_term_readiness} />
-      </div>
-
-      <div className="space-y-3">
-        {data.trigger_events?.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1.5">Trigger Events</div>
-            <div className="space-y-1">
-              {data.trigger_events.map((ev, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Zap className="w-3 h-3 text-emerald-400/70 mt-0.5 shrink-0" />
-                  <div className="text-[11px] text-slate-300">{ev}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {data.dependencies?.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-400 mb-1.5">Dependencies</div>
-            <div className="space-y-1">
-              {data.dependencies.map((dep, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400/60 mt-1 shrink-0" />
-                  <div className="text-[11px] text-slate-300">{dep}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {data.timing_risks?.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-400 mb-1.5">Timing Risks</div>
-            <div className="space-y-1">
-              {data.timing_risks.map((risk, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <AlertTriangle className="w-3 h-3 text-rose-400/70 mt-0.5 shrink-0" />
-                  <div className="text-[11px] text-slate-300">{risk}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CompetitiveRiskPanel({ data }: { data: NonNullable<DecideResponse["competitive_risk"]> }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Swords className="w-4 h-4 text-rose-400" />
-        <div className="text-sm font-semibold text-foreground">Competitive Risk</div>
-      </div>
-      <div className="space-y-3">
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-xs font-semibold text-foreground/90">Fast Follower Risk</div>
-            <LevelBadge level={data.fast_follower_risk} />
-          </div>
-        </div>
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Incumbent Defense</div>
-          <div className="text-[11px] text-slate-300">{data.incumbent_defense}</div>
-        </div>
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Evidence Response</div>
-          <div className="text-[11px] text-slate-300">{data.evidence_response}</div>
-        </div>
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Access Response</div>
-          <div className="text-[11px] text-slate-300">{data.access_response}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GrowthFeasibilityPanel({ data }: { data: NonNullable<DecideResponse["growth_feasibility"]> }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="w-4 h-4 text-emerald-400" />
-        <div className="text-sm font-semibold text-foreground">Feasibility Assessment</div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3 text-center">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Segment Size</div>
-          <LevelBadge level={data.segment_size} />
-        </div>
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3 text-center">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Scalability</div>
-          <LevelBadge level={data.operational_scalability} />
-        </div>
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3 text-center">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Revenue</div>
-          <LevelBadge level={data.revenue_translation} />
-        </div>
-        <div className="rounded-xl border border-border/50 bg-muted/5 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Access Expansion</div>
-          <div className="text-[11px] text-slate-300">{data.access_expansion}</div>
-        </div>
-      </div>
-    </div>
   );
 }

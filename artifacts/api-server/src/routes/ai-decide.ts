@@ -4,6 +4,7 @@ import { researchBrand } from "../lib/web-research";
 import { deriveDecisions, type ForecastGate, type DerivedDecisions, type DecisionItem } from "../lib/decision-derivation";
 import { validateDecisionIntegrity, type IntegrityReport } from "../lib/decision-integrity-validator";
 import { assignArchetypesForSegmentation } from "../lib/archetype-assignment";
+import { generateDecisionActions, type DecisionAction } from "../lib/gate-action-library";
 import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildSegmentationConstraintPrompt, buildRiskFramingPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt, buildEvidenceGatePrompt, buildOutcomeStatePrompt, buildActionFilterPrompt, buildPropagationPathwayPrompt, buildDecisionSensitivityPrompt } from "../lib/case-type-router.js";
 
 const router = Router();
@@ -232,6 +233,15 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
       }
     }
 
+    let decisionActions: DecisionAction[] = [];
+    if (hasGates) {
+      decisionActions = generateDecisionActions(
+        gates,
+        body.brandOutlookProbability ?? null,
+        body.constrainedProbability ?? null,
+      );
+    }
+
     if (hasGates && derived && integrity) {
       const rawDecomp = aiContext.barrier_decomposition || {};
       const decomp: Record<string, any[]> = {};
@@ -298,6 +308,7 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
       res.json({
         mode: "forecast_derived",
         derived_decisions: derived,
+        decision_actions: decisionActions,
         integrity: integrity,
         barrier_decomposition: decomp,
         adoption_segmentation: aiContext.adoption_segmentation || aiContext.stakeholder_segmentation || null,
@@ -326,6 +337,7 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
       res.json({
         mode: "standalone",
         derived_decisions: null,
+        decision_actions: decisionActions,
         integrity: null,
         barrier_decomposition: null,
         adoption_segmentation: aiContext.adoption_segmentation || aiContext.stakeholder_segmentation || null,
