@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { casesTable, caseLibraryTable, signalsTable, calibrationLogTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { buildCanonicalCase } from "../lib/canonical-case.js";
 
 const router = Router();
 
@@ -16,6 +17,20 @@ router.post("/cases", async (req, res) => {
   const id = randomUUID();
   const caseId = body.caseId || `CASE-${Date.now()}`;
   const assetName = body.assetName || body.primaryBrand || "Unknown Asset";
+  const canonical = buildCanonicalCase(
+    caseId,
+    body.strategicQuestion || "",
+    assetName,
+    {
+      outcomeThreshold: body.outcomeThreshold,
+      timeHorizon: body.timeHorizon,
+      therapeuticArea: body.therapeuticArea,
+      diseaseState: body.diseaseState,
+      outcomeDefinition: body.outcomeDefinition,
+      priorArchetype: body.priorArchetype,
+    },
+  );
+
   const [created] = await db.insert(casesTable).values({
     id,
     caseId,
@@ -45,6 +60,8 @@ router.post("/cases", async (req, res) => {
     isDemo: body.isDemo || "false",
     priorArchetype: body.priorArchetype || null,
     priorRationale: body.priorRationale || null,
+    canonicalFields: canonical,
+    fieldsLockedAt: new Date(),
   }).returning();
   res.status(201).json(mapCase(created));
 });
@@ -57,34 +74,82 @@ router.get("/cases/:caseId", async (req, res) => {
 
 router.put("/cases/:caseId", async (req, res) => {
   const body = req.body;
+
+  const [existing] = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
+  if (!existing) return res.status(404).json({ error: "Not found" });
+
+  const LOCKED_FIELDS = ["outcomeDefinition", "outcomeThreshold", "timeHorizon", "priorArchetype", "strategicQuestion", "priorProbability"] as const;
+  const isLocked = !!existing.fieldsLockedAt;
+  const explicitUnlock = body._unlockFields === true;
+
+  if (isLocked && !explicitUnlock) {
+    const violations: string[] = [];
+    for (const f of LOCKED_FIELDS) {
+      if (body[f] !== undefined && body[f] !== existing[f]) {
+        violations.push(f);
+      }
+    }
+    if (violations.length > 0) {
+      return res.status(409).json({
+        error: "LOCKED_FIELD_VIOLATION",
+        message: `Fields [${violations.join(", ")}] are locked after question acceptance. Pass _unlockFields: true to override.`,
+        lockedFields: violations,
+        lockedAt: existing.fieldsLockedAt,
+      });
+    }
+  }
+
   const assetName = body.assetName || body.primaryBrand;
+
+  const updateSet: Record<string, unknown> = {
+    assetName: assetName,
+    assetType: body.assetType,
+    therapeuticArea: body.therapeuticArea,
+    diseaseState: body.diseaseState,
+    specialty: body.specialty,
+    geography: body.geography,
+    strategicQuestion: body.strategicQuestion,
+    outcomeDefinition: body.outcomeDefinition,
+    outcomeThreshold: body.outcomeThreshold ?? undefined,
+    timeHorizon: body.timeHorizon,
+    priorProbability: body.priorProbability,
+    primaryBrand: assetName,
+    primarySpecialtyProfile: body.primarySpecialtyProfile,
+    payerEnvironment: body.payerEnvironment,
+    guidelineLeverage: body.guidelineLeverage,
+    competitorProfile: body.competitorProfile,
+    targetType: body.targetType,
+    targetId: body.targetId,
+    subspecialty: body.subspecialty,
+    institutionName: body.institutionName,
+    accessFrictionIndex: body.accessFrictionIndex != null ? Number(body.accessFrictionIndex) : undefined,
+    adoptionPhase: body.adoptionPhase ?? undefined,
+    forecastHorizonMonths: body.forecastHorizonMonths != null ? Number(body.forecastHorizonMonths) : undefined,
+    priorArchetype: body.priorArchetype ?? undefined,
+    priorRationale: body.priorRationale ?? undefined,
+    lastUpdate: new Date(),
+  };
+
+  if (explicitUnlock) {
+    const newCanonical = buildCanonicalCase(
+      req.params.caseId,
+      body.strategicQuestion || existing.strategicQuestion,
+      assetName || existing.assetName || "",
+      {
+        outcomeThreshold: body.outcomeThreshold ?? existing.outcomeThreshold,
+        timeHorizon: body.timeHorizon ?? existing.timeHorizon,
+        therapeuticArea: body.therapeuticArea ?? existing.therapeuticArea,
+        diseaseState: body.diseaseState ?? existing.diseaseState,
+        outcomeDefinition: body.outcomeDefinition ?? existing.outcomeDefinition,
+        priorArchetype: body.priorArchetype ?? existing.priorArchetype,
+      },
+    );
+    (updateSet as any).canonicalFields = newCanonical;
+    (updateSet as any).fieldsLockedAt = new Date();
+  }
+
   const [updated] = await db.update(casesTable)
-    .set({
-      assetName: assetName,
-      assetType: body.assetType,
-      therapeuticArea: body.therapeuticArea,
-      diseaseState: body.diseaseState,
-      specialty: body.specialty,
-      geography: body.geography,
-      strategicQuestion: body.strategicQuestion,
-      outcomeDefinition: body.outcomeDefinition,
-      outcomeThreshold: body.outcomeThreshold ?? undefined,
-      timeHorizon: body.timeHorizon,
-      priorProbability: body.priorProbability,
-      primaryBrand: assetName,
-      primarySpecialtyProfile: body.primarySpecialtyProfile,
-      payerEnvironment: body.payerEnvironment,
-      guidelineLeverage: body.guidelineLeverage,
-      competitorProfile: body.competitorProfile,
-      targetType: body.targetType,
-      targetId: body.targetId,
-      subspecialty: body.subspecialty,
-      institutionName: body.institutionName,
-      accessFrictionIndex: body.accessFrictionIndex != null ? Number(body.accessFrictionIndex) : undefined,
-      adoptionPhase: body.adoptionPhase ?? undefined,
-      forecastHorizonMonths: body.forecastHorizonMonths != null ? Number(body.forecastHorizonMonths) : undefined,
-      lastUpdate: new Date(),
-    })
+    .set(updateSet as any)
     .where(eq(casesTable.caseId, req.params.caseId))
     .returning();
   if (!updated) return res.status(404).json({ error: "Not found" });
@@ -211,6 +276,8 @@ function mapCase(c: typeof casesTable.$inferSelect) {
     isDemo: c.isDemo,
     priorArchetype: c.priorArchetype,
     priorRationale: c.priorRationale,
+    canonicalFields: c.canonicalFields,
+    fieldsLockedAt: c.fieldsLockedAt,
     lastUpdate: c.lastUpdate,
     signalCount: 0,
   };

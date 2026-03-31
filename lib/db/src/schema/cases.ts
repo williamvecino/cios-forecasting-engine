@@ -54,6 +54,9 @@ export const casesTable = pgTable("cases", {
   priorArchetype: text("prior_archetype"),
   priorRationale: text("prior_rationale"),
 
+  canonicalFields: jsonb("canonical_fields"),
+  fieldsLockedAt: timestamp("fields_locked_at"),
+
   lastUpdate: timestamp("last_update").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   isDemo: text("is_demo").default("false"),

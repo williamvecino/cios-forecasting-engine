@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { casesTable, signalsTable, actorsTable, calibrationLogTable, forecastLedgerTable, AGENT_ARCHETYPES } from "@workspace/db";
+import { casesTable, signalsTable, actorsTable, calibrationLogTable, forecastLedgerTable, forecastSnapshotsTable, AGENT_ARCHETYPES } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runDependencyAnalysis, computeNaiveVsCompressed } from "../lib/signal-dependency-engine.js";
@@ -32,6 +32,8 @@ import {
 } from "../lib/engine-guardrails.js";
 import { getProfileForQuestion } from "../lib/case-type-router.js";
 import { runCalibrationChecks } from "../lib/calibration-checks.js";
+import { buildForecastSnapshot, detectDrift, computeConsistencyFromHistory, type ForecastSnapshot } from "../lib/drift-detection.js";
+import { buildCanonicalCase } from "../lib/canonical-case.js";
 
 interface SafetyCeilingResult {
   applied: boolean;
@@ -151,7 +153,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
 
   const allSignals = await db.select().from(signalsTable).where(
     and(eq(signalsTable.caseId, req.params.caseId), eq(signalsTable.status, "active"))
-  );
+  ).orderBy(signalsTable.signalId);
   const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
 
   if (actors.length === 0) {
@@ -497,16 +499,172 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     console.error("Failed to auto-save to forecast ledger:", ledgerErr);
   }
 
+  let driftResult: ReturnType<typeof detectDrift> | null = null;
+  let consistencyResult: ReturnType<typeof computeConsistencyFromHistory> | null = null;
+
+  try {
+    const prevSnapRows = await db.select()
+      .from(forecastSnapshotsTable)
+      .where(eq(forecastSnapshotsTable.caseId, req.params.caseId))
+      .orderBy(desc(forecastSnapshotsTable.snapshotVersion))
+      .limit(10);
+
+    const nextSnapshotVersion = (prevSnapRows[0]?.snapshotVersion ?? 0) + 1;
+
+    const topDriverDescs = (result.signalDetails ?? [])
+      .filter((sd: any) => (sd.likelihoodRatio ?? 1) > 1)
+      .sort((a: any, b: any) => {
+        const lrDiff = (b.likelihoodRatio ?? 1) - (a.likelihoodRatio ?? 1);
+        if (Math.abs(lrDiff) > 0.0001) return lrDiff;
+        return (a.signalId ?? "").localeCompare(b.signalId ?? "");
+      })
+      .slice(0, 3)
+      .map((sd: any) => sd.description || "Unknown driver");
+
+    const primaryConstraintDesc = (result.signalDetails ?? [])
+      .filter((sd: any) => (sd.likelihoodRatio ?? 1) < 1)
+      .sort((a: any, b: any) => {
+        const lrDiff = (a.likelihoodRatio ?? 1) - (b.likelihoodRatio ?? 1);
+        if (Math.abs(lrDiff) > 0.0001) return lrDiff;
+        return (a.signalId ?? "").localeCompare(b.signalId ?? "");
+      })
+      .map((sd: any) => sd.description || "Unknown constraint")[0] ?? null;
+
+    let actionReco: string | null = null;
+    if (environmentAdjustedProbability >= 0.7) actionReco = "Plan for this outcome — shift resources toward execution.";
+    else if (environmentAdjustedProbability >= 0.5) actionReco = "Cautiously favorable — maintain contingency planning.";
+    else actionReco = "Significant headwinds — prioritize addressing barriers.";
+
+    const currentSnapshot = buildForecastSnapshot(
+      req.params.caseId,
+      nextSnapshotVersion,
+      {
+        decisionPattern: caseTypeProfile.caseType ?? null,
+        primaryConstraint: primaryConstraintDesc,
+        topDriverDescriptions: topDriverDescs,
+        baselinePrior: caseData.priorProbability,
+        forecastProbability: environmentAdjustedProbability,
+        recommendedAction: actionReco,
+        signalCount: eligibleSignals.length,
+        signalIds: eligibleSignals.map((s) => s.signalId ?? ""),
+        canonicalFields: (caseData as any).canonicalFields ?? null,
+      },
+    );
+
+    if (prevSnapRows.length > 0) {
+      const previousSnapshot: ForecastSnapshot = {
+        caseId: prevSnapRows[0].caseId,
+        snapshotVersion: prevSnapRows[0].snapshotVersion,
+        decisionPattern: prevSnapRows[0].decisionPattern,
+        primaryConstraint: prevSnapRows[0].primaryConstraint,
+        topDrivers: (prevSnapRows[0].topDrivers as string[]) ?? [],
+        baselinePrior: prevSnapRows[0].baselinePrior ?? 0.45,
+        forecastProbability: prevSnapRows[0].forecastProbability,
+        forecastDirection: (prevSnapRows[0].forecastDirection as any) ?? "neutral",
+        recommendedAction: prevSnapRows[0].recommendedAction,
+        signalCount: prevSnapRows[0].signalCount ?? 0,
+        signalHash: prevSnapRows[0].signalHash ?? "",
+        canonicalHash: prevSnapRows[0].canonicalHash ?? "",
+      };
+
+      driftResult = detectDrift(previousSnapshot, currentSnapshot);
+
+      const allSnapshots: ForecastSnapshot[] = prevSnapRows.reverse().map((r) => ({
+        caseId: r.caseId,
+        snapshotVersion: r.snapshotVersion,
+        decisionPattern: r.decisionPattern,
+        primaryConstraint: r.primaryConstraint,
+        topDrivers: (r.topDrivers as string[]) ?? [],
+        baselinePrior: r.baselinePrior ?? 0.45,
+        forecastProbability: r.forecastProbability,
+        forecastDirection: (r.forecastDirection as any) ?? "neutral",
+        recommendedAction: r.recommendedAction,
+        signalCount: r.signalCount ?? 0,
+        signalHash: r.signalHash ?? "",
+        canonicalHash: r.canonicalHash ?? "",
+      }));
+      allSnapshots.push(currentSnapshot);
+      consistencyResult = computeConsistencyFromHistory(allSnapshots);
+    } else {
+      consistencyResult = { score: "high", details: "Initial run — no comparison available." };
+    }
+
+    await db.insert(forecastSnapshotsTable).values({
+      id: randomUUID(),
+      caseId: req.params.caseId,
+      snapshotVersion: nextSnapshotVersion,
+      decisionPattern: currentSnapshot.decisionPattern,
+      primaryConstraint: currentSnapshot.primaryConstraint,
+      topDrivers: currentSnapshot.topDrivers,
+      baselinePrior: currentSnapshot.baselinePrior,
+      forecastProbability: currentSnapshot.forecastProbability,
+      forecastDirection: currentSnapshot.forecastDirection,
+      recommendedAction: currentSnapshot.recommendedAction,
+      signalCount: currentSnapshot.signalCount,
+      signalHash: currentSnapshot.signalHash,
+      canonicalHash: currentSnapshot.canonicalHash,
+      canonicalSnapshot: (caseData as any).canonicalFields ?? null,
+      driftDetected: driftResult?.hasMaterialDrift ? "true" : "false",
+      driftFields: driftResult?.driftFields ?? null,
+      consistencyScore: consistencyResult?.score ?? "high",
+      fullSnapshot: {
+        prior: caseData.priorProbability,
+        posterior: environmentAdjustedProbability,
+        signalCount: eligibleSignals.length,
+        topDrivers: topDriverDescs,
+        primaryConstraint: primaryConstraintDesc,
+        confidenceLevel: result.confidenceLevel,
+      },
+    }).onConflictDoNothing();
+  } catch (snapErr) {
+    console.error("[forecast-snapshot] Failed to save snapshot:", snapErr);
+  }
+
   const responsePayload = {
     ...finalResult,
     forecastId,
     savedAt: new Date().toISOString(),
     _guardrailLog: guardrailLog,
     _stateHash: stateHash,
+    _consistency: consistencyResult ?? { score: "high", details: "No snapshot history." },
+    _drift: driftResult ?? null,
   };
 
   setCachedResult(stateHash, responsePayload);
   res.json(responsePayload);
+});
+
+router.get("/cases/:caseId/snapshots", async (req, res) => {
+  try {
+    const rows = await db.select()
+      .from(forecastSnapshotsTable)
+      .where(eq(forecastSnapshotsTable.caseId, req.params.caseId))
+      .orderBy(desc(forecastSnapshotsTable.snapshotVersion))
+      .limit(20);
+
+    const snapshots = rows.map((r) => ({
+      id: r.id,
+      caseId: r.caseId,
+      version: r.snapshotVersion,
+      decisionPattern: r.decisionPattern,
+      primaryConstraint: r.primaryConstraint,
+      topDrivers: r.topDrivers,
+      baselinePrior: r.baselinePrior,
+      forecastProbability: r.forecastProbability,
+      forecastDirection: r.forecastDirection,
+      recommendedAction: r.recommendedAction,
+      signalCount: r.signalCount,
+      driftDetected: r.driftDetected === "true",
+      driftFields: r.driftFields,
+      consistencyScore: r.consistencyScore,
+      createdAt: r.createdAt,
+    }));
+
+    res.json({ snapshots });
+  } catch (err) {
+    console.error("[snapshots] Error:", err);
+    res.status(500).json({ error: "Failed to fetch snapshots" });
+  }
 });
 
 router.post("/forecast/recalculate", async (req, res) => {

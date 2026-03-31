@@ -18,6 +18,7 @@ import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
 import { IntegrityPanel } from "@/components/forecast/IntegrityPanel";
 import { CalibrationChecksPanel } from "@/components/forecast/CalibrationChecksPanel";
 import EvidenceHealthPanel from "@/components/forecast/EvidenceHealthPanel";
+import { ConsistencyPanel } from "@/components/forecast/ConsistencyPanel";
 import {
   ArrowRight,
   BookOpen,
@@ -903,6 +904,13 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: snapshotsData } = useQuery({
+    queryKey: [`/api/cases/${caseId}/snapshots`],
+    queryFn: () => fetch(`/api/cases/${caseId}/snapshots`).then((r) => r.ok ? r.json() : null),
+    enabled: !!caseId,
+    staleTime: 30 * 1000,
+  });
+
   if (!gate.ready) {
     const isOnlyLockMissing = gate.failures.length === 1 && gate.failures[0].includes("locked") && hasAcceptedSignals;
 
@@ -1146,6 +1154,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                   {activeQuestion?.caseId && (
                     <EvidenceHealthPanel caseId={activeQuestion.caseId} />
                   )}
+
+                  <ConsistencyPanel
+                    consistency={f._consistency ?? null}
+                    drift={f._drift ?? null}
+                    snapshots={snapshotsData?.snapshots ?? []}
+                  />
 
                   <ForecastComparisonCircles
                     brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}

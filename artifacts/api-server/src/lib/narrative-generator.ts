@@ -101,7 +101,7 @@ export function generateNarrative(input: NarrativeInput): StrategicNarrative {
   const headline = `${assetName}: ${prob} probability of achieving target outcome — ${direction} within ${timeHorizon}`;
 
   const coreForecastStatement =
-    `The current Bayesian forecast for "${strategicQuestion}" stands at ${prob}, ${change}. ` +
+    `The current structured forecast for "${strategicQuestion}" stands at ${prob}, ${change}. ` +
     `Based on ${positiveDrivers.length + negativeDrivers.length} validated signals evaluated ${confidence}, ` +
     `the evidence ${currentProbability >= 0.5 ? "favors" : "does not yet favor"} the target outcome within the ${timeHorizon} forecast horizon. ` +
     `${interpretation.primaryStatement}.`;

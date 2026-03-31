@@ -1411,12 +1411,37 @@ export default function QuestionPage() {
         {activeQuestion && pageState === "input" && !isEditMode ? (
           <div className="space-y-5">
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60 mb-3">
-                Active Question
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60">
+                  Active Question
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/80">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>Fields Locked</span>
+                </div>
               </div>
               <div className="text-lg font-medium text-foreground leading-relaxed">
                 {activeQuestion.text}
               </div>
+              {(activeQuestion.threshold || activeQuestion.timeHorizon || activeQuestion.outcome) && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activeQuestion.outcome && (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-slate-700/50 text-slate-300 border border-slate-600/30">
+                      <Target className="w-2.5 h-2.5" /> {activeQuestion.outcome}
+                    </span>
+                  )}
+                  {activeQuestion.threshold && (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-slate-700/50 text-slate-300 border border-slate-600/30">
+                      {activeQuestion.threshold}
+                    </span>
+                  )}
+                  {activeQuestion.timeHorizon && (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-slate-700/50 text-slate-300 border border-slate-600/30">
+                      <Clock className="w-2.5 h-2.5" /> {activeQuestion.timeHorizon}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="mt-4 flex items-center gap-3">
                 <button
                   type="button"
