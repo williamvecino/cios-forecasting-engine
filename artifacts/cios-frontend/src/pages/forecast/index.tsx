@@ -14,6 +14,7 @@ import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
 import { ExplainBox } from "@/components/forecast/ExplainBox";
 import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
+import { computeDistributionForecast, probabilityOfThreshold, type GateConstraint } from "@/lib/adoption-distribution";
 import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
 import { IntegrityPanel } from "@/components/forecast/IntegrityPanel";
 import { CalibrationChecksPanel } from "@/components/forecast/CalibrationChecksPanel";
@@ -454,13 +455,28 @@ type EventGate = {
   constrains_probability_to: number;
 };
 
-function computeConstrainedProbability(gates: EventGate[], brandOutlook: number): number {
-  if (gates.length === 0) return brandOutlook;
-  const caps = gates.map(g => typeof g.constrains_probability_to === "number" ? Math.max(0, Math.min(1, g.constrains_probability_to)) : 0.5);
-  const minCap = Math.min(...caps);
-  const hasWeakOrUnresolved = gates.some(g => g.status === "weak" || g.status === "unresolved");
-  const constrained = hasWeakOrUnresolved ? Math.min(minCap, 0.70) : minCap;
-  return Math.min(constrained, brandOutlook);
+function computeConstrainedProbability(
+  gates: EventGate[],
+  brandOutlook: number,
+  outcomeThresholdRaw?: string | null,
+  confidenceLevel?: string,
+  signalCount?: number,
+): number {
+  const distGates: GateConstraint[] = gates.map(g => ({
+    gate_id: g.gate_id,
+    gate_label: g.gate_label,
+    status: (g.status as "unresolved" | "weak" | "moderate" | "strong") ?? "moderate",
+    constrains_probability_to: g.constrains_probability_to,
+  }));
+  const result = computeDistributionForecast(
+    brandOutlook,
+    confidenceLevel ?? "Moderate",
+    signalCount ?? 5,
+    0.5,
+    distGates,
+    outcomeThresholdRaw ?? null,
+  );
+  return result.thresholdProbability;
 }
 
 const GATE_STATUS_ORDER = ["unresolved", "weak", "moderate", "strong"] as const;
@@ -495,10 +511,10 @@ function gateCapForStatus(gate: EventGate, newStatus: string): number {
   return band[0] + clampedPosition * (band[1] - band[0]);
 }
 
-function generateGateScenarios(gates: EventGate[], brandOutlook: number): GateScenario[] {
+function generateGateScenarios(gates: EventGate[], brandOutlook: number, outcomeThreshold?: string | null, confidenceLevel?: string, signalCount?: number): GateScenario[] {
   if (gates.length === 0) return [];
 
-  const baseProbability = computeConstrainedProbability(gates, brandOutlook);
+  const baseProbability = computeConstrainedProbability(gates, brandOutlook, outcomeThreshold, confidenceLevel, signalCount);
   const basePct = Math.round(baseProbability * 100);
   const scenarios: GateScenario[] = [];
 
@@ -511,7 +527,7 @@ function generateGateScenarios(gates: EventGate[], brandOutlook: number): GateSc
         ? { ...g, status: upgradedStatus, constrains_probability_to: upgradedCap }
         : g
     );
-    const newProb = computeConstrainedProbability(modifiedGates, brandOutlook);
+    const newProb = computeConstrainedProbability(modifiedGates, brandOutlook, outcomeThreshold, confidenceLevel, signalCount);
     const newPct = Math.round(newProb * 100);
     const delta = newPct - basePct;
 
@@ -538,7 +554,7 @@ function generateGateScenarios(gates: EventGate[], brandOutlook: number): GateSc
         ? { ...g, status: downgradedStatus, constrains_probability_to: downgradedCap }
         : g
     );
-    const newProb = computeConstrainedProbability(modifiedGates, brandOutlook);
+    const newProb = computeConstrainedProbability(modifiedGates, brandOutlook, outcomeThreshold, confidenceLevel, signalCount);
     const newPct = Math.round(newProb * 100);
     const delta = newPct - basePct;
 
@@ -562,7 +578,7 @@ function generateGateScenarios(gates: EventGate[], brandOutlook: number): GateSc
       const upgraded = gateStatusUpgrade(g.status);
       return { ...g, status: upgraded, constrains_probability_to: gateCapForStatus(g, upgraded) };
     });
-    const newProb = computeConstrainedProbability(modifiedGates, brandOutlook);
+    const newProb = computeConstrainedProbability(modifiedGates, brandOutlook, outcomeThreshold, confidenceLevel, signalCount);
     const newPct = Math.round(newProb * 100);
     const delta = newPct - basePct;
 
@@ -590,7 +606,7 @@ function generateGateScenarios(gates: EventGate[], brandOutlook: number): GateSc
     });
     const downgradeCount = strongGates.length;
     if (downgradeCount > 0) {
-      const newProb = computeConstrainedProbability(modifiedGates, brandOutlook);
+      const newProb = computeConstrainedProbability(modifiedGates, brandOutlook, outcomeThreshold, confidenceLevel, signalCount);
       const newPct = Math.round(newProb * 100);
       const delta = newPct - basePct;
 
@@ -1052,7 +1068,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           decomp = {
             event_gates: defaultGates,
             brand_outlook_probability: currentProb,
-            constrained_probability: computeConstrainedProbability(defaultGates, currentProb),
+            constrained_probability: computeConstrainedProbability(defaultGates, currentProb, activeQuestion?.threshold || (f as any).outcomeThreshold || null, (f as any).confidenceLevel ?? "Moderate", (f as any).signalDetails?.length ?? 5),
             constraint_explanation: "Default gates generated from signal evidence.",
           };
           hasGates = true;
@@ -1061,15 +1077,11 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           } catch {}
         }
         const brandOutlookProb = hasGates ? decomp!.brand_outlook_probability : null;
-        let constrainedProb: number | null = null;
-        if (hasGates) {
-          const gateCaps = decomp!.event_gates.map((g) => typeof g.constrains_probability_to === "number" ? Math.max(0, Math.min(1, g.constrains_probability_to)) : 0.5);
-          const computedCap = Math.min(...gateCaps);
-          const hasWeakOrUnresolved = decomp!.event_gates.some((g) => g.status === "weak" || g.status === "unresolved");
-          constrainedProb = hasWeakOrUnresolved ? Math.min(computedCap, 0.70) : computedCap;
-        }
-        const displayProb = constrainedProb != null
-          ? Math.min(constrainedProb, brandOutlookProb ?? f.currentProbability ?? 0.5)
+        const outcomeThresholdStr = activeQuestion?.threshold || (f as any).outcomeThreshold || null;
+        const confidenceLvl = (f as any).confidenceLevel ?? "Moderate";
+        const sigCount = (f as any).signalDetails?.length ?? 5;
+        const displayProb = hasGates
+          ? computeConstrainedProbability(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount)
           : (f.currentProbability ?? 0.5);
         const displayProbPct = Math.round(displayProb * 100);
 
@@ -1079,10 +1091,10 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               const brandPct = Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100);
               const finalPct = displayProbPct;
               const priorPct = Math.round((f.priorProbability ?? 0.5) * 100);
-              const minGateCapPct = constrainedProb != null ? Math.round(constrainedProb * 100) : brandPct;
+              const minGateCapPct = displayProbPct;
               const executionGapPts = Math.abs(brandPct - finalPct);
 
-              const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5);
+              const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount);
               const individualScenarios = gateScenarios.filter(s => !s.id.startsWith("upgrade_all") && !s.id.startsWith("regress_all"));
               const gateUpside = individualScenarios.filter(s => s.delta > 0).reduce((sum, s) => sum + s.delta, 0);
               const gateDownside = individualScenarios.filter(s => s.delta < 0).reduce((sum, s) => sum + Math.abs(s.delta), 0);
@@ -1583,9 +1595,10 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
 
   const gates = decomp.event_gates;
   const brandOutlook = decomp.brand_outlook_probability ?? 0.5;
-  const baseProbability = computeConstrainedProbability(gates, brandOutlook);
+  const thresholdStr = activeQuestion?.threshold || null;
+  const baseProbability = computeConstrainedProbability(gates, brandOutlook, thresholdStr);
   const basePct = Math.round(baseProbability * 100);
-  const scenarios = generateGateScenarios(gates, brandOutlook);
+  const scenarios = generateGateScenarios(gates, brandOutlook, thresholdStr);
 
   const gateStatusColor: Record<string, string> = {
     strong: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30",

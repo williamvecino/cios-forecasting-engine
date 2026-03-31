@@ -1688,13 +1688,12 @@ export default function SignalsPage() {
         is_locked: s.is_locked,
       }));
 
-    const result = recalculateGatesFromSignals(baseGates, acceptedInputs, brandOutlook);
+    const outcomeThresholdStr = activeQuestion?.threshold || null;
+    const result = recalculateGatesFromSignals(baseGates, acceptedInputs, brandOutlook, outcomeThresholdStr);
     setRecalcResult(result);
     setEventGates(result.updated_gates);
 
-    const hasWeakOrUnresolved = result.updated_gates.some(g => g.status === "weak" || g.status === "unresolved");
-    const minCap = Math.min(...result.updated_gates.map(g => g.constrains_probability_to));
-    const enforcedCap = hasWeakOrUnresolved ? Math.min(minCap, 0.70) : minCap;
+    const enforcedCap = result.new_forecast / 100;
     const updatedDecomp: EventDecomposition = {
       event_gates: result.updated_gates,
       brand_outlook_probability: brandOutlook,

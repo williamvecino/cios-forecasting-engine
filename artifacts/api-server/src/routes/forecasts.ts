@@ -34,6 +34,7 @@ import { getProfileForQuestion } from "../lib/case-type-router.js";
 import { runCalibrationChecks } from "../lib/calibration-checks.js";
 import { buildForecastSnapshot, detectDrift, computeConsistencyFromHistory, type ForecastSnapshot } from "../lib/drift-detection.js";
 import { buildCanonicalCase } from "../lib/canonical-case.js";
+import { computeDistributionForecast, computeThresholdSensitivity, type DistributionResult } from "../lib/adoption-distribution.js";
 
 interface SafetyCeilingResult {
   applied: boolean;
@@ -256,11 +257,9 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     agentSimulationResult = { agentDerivedActorTranslation, agentResults: enrichedResults };
   }
 
-  const thresholdAdjustedPrior = applyThresholdToPrior(caseData.priorProbability, caseData.outcomeThreshold);
-
   const result = runForecastEngine(
     req.params.caseId,
-    thresholdAdjustedPrior,
+    caseData.priorProbability,
     signalsWithAdjustedLR,
     actors.map((a) => ({
       actorName: a.actorName,
@@ -306,7 +305,8 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   const envAdjustments = computeEnvironmentAdjustments(envConfig);
   let environmentAdjustedProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
 
-  // ── GUARDRAIL: Post-engine constraints (Rules 2,3,4) ──────────────────────
+  // ── GUARDRAIL: Post-engine constraints (Rules 2,3) ──────────────────────
+  // Gate constraints (Rule 4) are now handled by the distribution model
   const eventGates: GateStatus[] = (caseData as any).eventGates ?? [];
   const guardrailedProbability = runAllPostEngineGuardrails(
     caseData.priorProbability,
@@ -319,6 +319,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     })) ?? [],
     eventGates,
     guardrailLog,
+    { skipGateConstraint: true },
   );
   environmentAdjustedProbability = guardrailedProbability;
 
@@ -343,10 +344,49 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   // Keep bucket field for backward compatibility with downstream consumers
   const bucket = getBucket(rawProbability);
 
+  // ── Distribution-based forecast (replaces min-cap constraint model) ────────
+  const signalFamilies = new Set(signalsWithAdjustedLR.map(s => (s as any).signalFamily ?? s.signalType ?? "unknown"));
+  const signalCategories = new Set(signalsWithAdjustedLR.map(s => (s as any).category ?? s.signalType ?? "unknown"));
+  const diversityScore = Math.min(1, (signalFamilies.size + signalCategories.size) / 10);
+
+  const distributionGates: Array<{ gate_id: string; gate_label: string; status: "unresolved" | "weak" | "moderate" | "strong"; constrains_probability_to: number }> =
+    (eventGates as any[]).map((g: any) => ({
+      gate_id: g.gate_id ?? g.gateId ?? "",
+      gate_label: g.gate_label ?? g.gateLabel ?? "",
+      status: (g.status ?? "moderate") as "unresolved" | "weak" | "moderate" | "strong",
+      constrains_probability_to: g.constrains_probability_to ?? g.constrainsProbabilityTo ?? 0.5,
+    }));
+
+  const distributionResult = computeDistributionForecast(
+    environmentAdjustedProbability,
+    result.confidenceLevel,
+    signalsWithAdjustedLR.length,
+    diversityScore,
+    distributionGates,
+    caseData.outcomeThreshold,
+  );
+
+  const distributionProbability = distributionResult.thresholdProbability;
+  const thresholdSensitivity = computeThresholdSensitivity(
+    distributionResult.constrained,
+    distributionResult.outcomeThreshold,
+  );
+
+  const finalProbability = distributionProbability;
+
   const finalResult = {
     ...result,
-    currentProbability: environmentAdjustedProbability,
+    currentProbability: finalProbability,
     rawProbability,
+    brandOutlookProbability: environmentAdjustedProbability,
+    distributionForecast: {
+      unconstrained: distributionResult.unconstrained,
+      constrained: distributionResult.constrained,
+      outcomeThreshold: distributionResult.outcomeThreshold,
+      thresholdProbability: distributionResult.thresholdProbability,
+      gateAdjustments: distributionResult.gateAdjustments,
+      thresholdSensitivity,
+    },
     bucketCorrectionApplied: hierarchicalCalibration.correctionAppliedPp !== 0
       ? { bucket, correctionPp: hierarchicalCalibration.correctionAppliedPp }
       : null,
@@ -359,9 +399,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       explanation: envAdjustments.explanation,
       config: envAdjustments.normalizedConfig,
     },
-    // ── Case context metadata (embedded for validation + trace integrity) ───
     outcomeThreshold: caseData.outcomeThreshold ?? null,
-    thresholdAdjustedPrior: thresholdAdjustedPrior !== caseData.priorProbability ? thresholdAdjustedPrior : null,
     _caseContext: {
       caseId: req.params.caseId,
       therapeuticArea: caseData.therapeuticArea ?? null,
@@ -390,7 +428,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   };
 
   await db.update(casesTable).set({
-    currentProbability: environmentAdjustedProbability,
+    currentProbability: finalProbability,
     confidenceLevel: result.confidenceLevel,
     topSupportiveActor: result.topSupportiveActor,
     topConstrainingActor: result.topConstrainingActor,
@@ -404,7 +442,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     id: randomUUID(),
     forecastId,
     caseId: req.params.caseId,
-    predictedProbability: environmentAdjustedProbability,
+    predictedProbability: finalProbability,
     snapshotJson: JSON.stringify(finalResult),
   }).onConflictDoNothing();
 
@@ -422,7 +460,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     const previousPredictionId = prevVersionRows[0]?.predictionId ?? null;
 
     const predictionId = `PRED-${Date.now()}`;
-    const pctBucket = Math.floor(environmentAdjustedProbability * 100 / 10) * 10;
+    const pctBucket = Math.floor(finalProbability * 100 / 10) * 10;
     const calibrationBucket = `${pctBucket}–${pctBucket + 10}%`;
 
     let depSnapshot: Record<string, any> = {};
@@ -483,7 +521,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       caseId: currentCaseId,
       strategicQuestion: caseData.strategicQuestion ?? "Unspecified question",
       decisionDomain: caseData.therapeuticArea ?? null,
-      forecastProbability: environmentAdjustedProbability,
+      forecastProbability: finalProbability,
       forecastDate: new Date(),
       timeHorizon: caseData.timeHorizon || "12 months",
       priorProbability: caseData.priorProbability,
@@ -531,8 +569,8 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       .map((sd: any) => sd.description || "Unknown constraint")[0] ?? null;
 
     let actionReco: string | null = null;
-    if (environmentAdjustedProbability >= 0.7) actionReco = "Plan for this outcome — shift resources toward execution.";
-    else if (environmentAdjustedProbability >= 0.5) actionReco = "Cautiously favorable — maintain contingency planning.";
+    if (finalProbability >= 0.7) actionReco = "Plan for this outcome — shift resources toward execution.";
+    else if (finalProbability >= 0.5) actionReco = "Cautiously favorable — maintain contingency planning.";
     else actionReco = "Significant headwinds — prioritize addressing barriers.";
 
     const currentSnapshot = buildForecastSnapshot(
@@ -543,7 +581,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
         primaryConstraint: primaryConstraintDesc,
         topDriverDescriptions: topDriverDescs,
         baselinePrior: caseData.priorProbability,
-        forecastProbability: environmentAdjustedProbability,
+        forecastProbability: finalProbability,
         recommendedAction: actionReco,
         signalCount: eligibleSignals.length,
         signalIds: eligibleSignals.map((s) => s.signalId ?? ""),
@@ -609,7 +647,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       consistencyScore: consistencyResult?.score ?? "high",
       fullSnapshot: {
         prior: caseData.priorProbability,
-        posterior: environmentAdjustedProbability,
+        posterior: finalProbability,
         signalCount: eligibleSignals.length,
         topDrivers: topDriverDescs,
         primaryConstraint: primaryConstraintDesc,

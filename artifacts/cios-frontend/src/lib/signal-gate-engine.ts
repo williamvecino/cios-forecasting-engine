@@ -1,3 +1,5 @@
+import { computeDistributionForecast, type GateConstraint } from "./adoption-distribution";
+
 type GateStatus = "strong" | "moderate" | "weak" | "unresolved";
 
 interface EventGate {
@@ -194,19 +196,35 @@ function capForStatus(status: GateStatus, positionInBand: number = 0.5): number 
   return band[0] + p * (band[1] - band[0]);
 }
 
-function computeConstrainedProbability(gates: EventGate[], brandOutlook: number): number {
-  if (gates.length === 0) return brandOutlook;
-  const caps = gates.map(g => typeof g.constrains_probability_to === "number" ? Math.max(0, Math.min(1, g.constrains_probability_to)) : 0.5);
-  const minCap = Math.min(...caps);
-  const hasWeakOrUnresolved = gates.some(g => g.status === "weak" || g.status === "unresolved");
-  const constrained = hasWeakOrUnresolved ? Math.min(minCap, 0.70) : minCap;
-  return Math.min(constrained, brandOutlook);
+function computeConstrainedProbability(
+  gates: EventGate[],
+  brandOutlook: number,
+  outcomeThreshold?: string | null,
+  confidenceLevel?: string,
+  signalCount?: number,
+): number {
+  const distGates: GateConstraint[] = gates.map(g => ({
+    gate_id: g.gate_id,
+    gate_label: g.gate_label,
+    status: g.status,
+    constrains_probability_to: g.constrains_probability_to,
+  }));
+  const result = computeDistributionForecast(
+    brandOutlook,
+    confidenceLevel ?? "Moderate",
+    signalCount ?? 5,
+    0.5,
+    distGates,
+    outcomeThreshold ?? null,
+  );
+  return result.thresholdProbability;
 }
 
 export function recalculateGatesFromSignals(
   baseGates: EventGate[],
   acceptedSignals: SignalInput[],
-  brandOutlook: number
+  brandOutlook: number,
+  outcomeThreshold?: string | null,
 ): RecalculationResult {
   const signalsByGate = new Map<string, SignalGateMapping[]>();
   const allMappings: SignalGateMapping[] = [];
@@ -223,7 +241,7 @@ export function recalculateGatesFromSignals(
     signalsByGate.get(targetGateId)!.push(mapping);
   }
 
-  const previousForecast = Math.round(computeConstrainedProbability(baseGates, brandOutlook) * 100);
+  const previousForecast = Math.round(computeConstrainedProbability(baseGates, brandOutlook, outcomeThreshold) * 100);
 
   const updatedGates: EventGate[] = [];
   const gateImpacts: GateImpact[] = [];
@@ -280,7 +298,7 @@ export function recalculateGatesFromSignals(
     });
   }
 
-  const newForecast = Math.round(computeConstrainedProbability(updatedGates, brandOutlook) * 100);
+  const newForecast = Math.round(computeConstrainedProbability(updatedGates, brandOutlook, outcomeThreshold) * 100);
 
   const diagnostics: SignalDiagnostic[] = allMappings.map(mapping => {
     const impact = gateImpacts.find(gi => gi.gate_id === mapping.target_gate_id);

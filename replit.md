@@ -24,7 +24,8 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Forecast Ledger & Strategic Narrative Generator:** Tracks predictions and creates analytical narratives.
 - **Transparency Overhaul:** Offers plain-language explanations for all numerical outputs.
 - **Signal Dependency & Redundancy Control Layer:** Prevents posterior inflation from causally related signals.
-- **Gate-Driven Scenario Planning:** Enables deterministic counterfactual forecasts.
+- **Gate-Driven Scenario Planning:** Enables deterministic counterfactual forecasts. Gate scenarios now use the adoption distribution model for probability computation.
+- **Adoption Distribution Forecast Model (v2):** Final probability is computed by (1) building a Beta adoption distribution from the Bayesian posterior, confidence level, signal count, and evidence diversity; (2) adjusting the distribution using gate constraints (both gate status severity and cap values shift alpha/beta); (3) calculating P(adoption ≥ threshold) from the adjusted distribution's CDF. Each outcome threshold triggers a fresh calculation — the threshold is never baked into the prior. Replaces the old min-cap "Underlying Strength − Constraint Gap" model. Implementation: `adoption-distribution.ts` (both backend and frontend).
 - **Executive Judgment Layer:** Produces `ExecutiveJudgmentResult` with integrity checks and audit trails.
 - **Barrier/Constraint Decomposition Layer:** Decomposes gates into operational drivers and abstract constraint categories.
 - **Endpoint Signal Differentiation Layer:** Classifies evidence signals into four tiers and detects `SignalImbalance`.

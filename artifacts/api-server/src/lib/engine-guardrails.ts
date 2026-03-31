@@ -348,11 +348,14 @@ export function runAllPostEngineGuardrails(
     description: string;
   }>,
   gates: GateStatus[],
-  log: GuardrailLog
+  log: GuardrailLog,
+  options?: { skipGateConstraint?: boolean },
 ): number {
   let prob = capSingleDriverShift(priorProbability, engineProbability, signalDetails, log);
   prob = normalizeTotalShift(priorProbability, prob, log);
-  prob = applyEventGatingConstraint(prob, gates, log);
+  if (!options?.skipGateConstraint) {
+    prob = applyEventGatingConstraint(prob, gates, log);
+  }
   prob = Math.max(0.0001, Math.min(0.9999, prob));
   return Number(prob.toFixed(4));
 }

@@ -56,12 +56,12 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
         />
 
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Final Forecast</div>
-          <ProbabilityGauge value={finalForecastProb} label="Gate-Constrained" size={180} />
+          <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Threshold Probability</div>
+          <ProbabilityGauge value={finalForecastProb} label="Outcome Likelihood" size={180} />
           <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
             {finalForecastProb < brandOutlookProb
-              ? "The final number after real-world barriers (regulatory, access, competition) are applied — these can limit what the brand can actually achieve"
-              : "The probability of achieving the defined outcome after all factors are considered"}
+              ? "Probability of meeting the outcome threshold after real-world constraints — event gates shape the adoption distribution before this number is calculated"
+              : "Probability of meeting the defined outcome threshold, computed from the full adoption distribution"}
           </div>
           <div className={cn(
             "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
@@ -79,7 +79,7 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
         </div>
       </div>
 
-      <div className="mt-3 text-center text-[10px] text-slate-600">Engine v1 · Signal + Gate Constraint</div>
+      <div className="mt-3 text-center text-[10px] text-slate-600">Engine v2 · Distribution + Gate Constraint</div>
     </div>
   );
 });
