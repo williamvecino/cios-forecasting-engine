@@ -1632,16 +1632,7 @@ export default function QuestionPage() {
                       type="button"
                       onClick={() => {
                         clearQuestion();
-                        createQuestion({
-                          text: dc.question,
-                          rawInput: dc.question,
-                          caseId: dc.caseId,
-                          timeHorizon: "12 months",
-                          questionType: "binary",
-                          subject: dc.question.match(/Will\s+(.*?)\s+(?:achieve|displace)/i)?.[1] || "",
-                          outcome: "adoption",
-                        });
-                        navigate("/forecast");
+                        setTimeout(() => navigate(`/case/${dc.caseId}/forecast`), 0);
                       }}
                       className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-white/[0.06] hover:border-white/20 transition flex items-center gap-3 cursor-pointer"
                     >

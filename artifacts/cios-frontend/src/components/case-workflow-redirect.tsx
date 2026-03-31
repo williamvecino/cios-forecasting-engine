@@ -52,13 +52,6 @@ export default function CaseWorkflowRedirect({ targetStep }: { targetStep: strin
   useEffect(() => {
     if (redirectedRef.current) return;
     if (!caseId || isLoading) return;
-
-    if (activeQuestion?.caseId === caseId) {
-      redirectedRef.current = true;
-      navigate(STEP_MAP[targetStep] || "/question", { replace: true });
-      return;
-    }
-
     if (!caseData) return;
 
     const cd = caseData as any;
