@@ -62,6 +62,7 @@ import workbookImportRouter from "./workbook-import.js";
 import aiRefineQuestionRouter from "./ai-refine-question.js";
 import validationPackRouter from "./validation-pack.js";
 import questionRepositoryRouter from "./question-repository.js";
+import agentDecisionClassificationRouter from "./agent-decision-classification.js";
 
 const router: IRouter = Router();
 
@@ -128,5 +129,6 @@ router.use(workbookImportRouter);
 router.use(aiRefineQuestionRouter);
 router.use(validationPackRouter);
 router.use(questionRepositoryRouter);
+router.use(agentDecisionClassificationRouter);
 
 export default router;

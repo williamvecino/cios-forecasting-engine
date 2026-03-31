@@ -37,6 +37,7 @@ import CompetitiveRiskPage from "@/pages/competitive-risk/index";
 import GrowthFeasibilityPage from "@/pages/growth-feasibility/index";
 import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import CaseInputPage from "@/pages/case-input/index";
+import IngestPage from "@/pages/ingest/index";
 import NotFound from "@/pages/not-found";
 import { useRoute, useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -126,6 +127,7 @@ function Router() {
       <Route path="/system-map" component={SystemMap} />
       <Route path="/workbench" component={CIOSWorkbench} />
       <Route path="/case-input" component={CaseInputPage} />
+      <Route path="/ingest" component={IngestPage} />
       <Route path="/stability-tests" component={StabilityTests} />
       <Route path="/cases/:caseId" component={LegacyCaseRedirect} />
       <Route component={NotFound} />

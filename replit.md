@@ -73,7 +73,9 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **AI-Structured Question Definition Workflow:** Multi-step question input flow where AI structures the question, performs feasibility checks, and proposes outcome states.
 - **Question Repository with Cross-Step Persistence:** Saved questions (primary + secondary) persist to a PostgreSQL-backed repository (`questionRepositoryTable`) via CRUD API at `/api/cases/:caseId/questions`. A `SavedQuestionsPanel` component displays saved questions with status management (Analyze/Save/Defer/Discard) on all downstream workflow pages (Comparison Groups, Add Information, Judge, Decide, Respond). Repository writes are idempotent (clear-and-reinsert per case). Parent-child linkage uses deterministic `Q-{caseId}-primary` identifiers.
 
-**Bounded Agent Architecture:** The system employs 15 bounded, deterministic, single-purpose AI agents (e.g., Decision Gating, Question Structuring, External Signal Scout, MIOS, BAOS) with fixed I/O schemas, all enforcing a `ProgramID` scope constraint.
+- **Guarded Ingestion Layer:** Accepts full unstructured text (RFPs, CI docs, emails, slides). Mandatory Decision Classification AI agent (`POST /api/agents/decision-classification`) classifies domain, archetype, primary/supporting/deferred decisions, confidence, evidence spans, alternative archetype, and 2-3 candidate questions. Vendor-selection guardrail prevents misclassification of RFPs. Multi-decision documents auto-route deferred decisions to question_repository. Low-confidence classifications require explicit user review confirmation. Full classification stored in `decision_classifications` table as audit trail. Frontend `/ingest` page with 3-phase flow (input → classifying → review). Entry card "Ingest Document" on question page.
+
+**Bounded Agent Architecture:** The system employs 16 bounded, deterministic, single-purpose AI agents (e.g., Decision Gating, Question Structuring, Decision Classification, External Signal Scout, MIOS, BAOS) with fixed I/O schemas, all enforcing a `ProgramID` scope constraint.
 
 ## External Dependencies
 - **PostgreSQL:** Relational database.
