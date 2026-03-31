@@ -31,19 +31,145 @@ const SUGGESTED_SIGNALS: Record<string, string[]> = {
   ],
 };
 
+const ADOPTION_SUGGESTED_SIGNALS: Record<string, string[]> = {
+  clinical_evidence_strength: [
+    "Strength of pivotal evidence for the specific use asked about",
+    "Real-world evidence supporting efficacy in the target patient population",
+  ],
+  guideline_soc_movement: [
+    "Likelihood and timing of guideline endorsement for the asked use",
+    "Current guideline positioning relative to competitors",
+  ],
+  access_reimbursement: [
+    "Formulary inclusion without restrictive prior authorization controls",
+    "Payer coverage alignment with the specific use asked about",
+  ],
+  prescriber_behavior: [
+    "Physician prescribing intent for the specific use",
+    "Clinician familiarity and comfort with the therapy",
+  ],
+  operational_delivery_friction: [
+    "Operational burden of therapy administration in the target setting",
+    "Training or infrastructure requirements for prescribers",
+  ],
+  competitive_soc_pressure: [
+    "Current treatment-sequencing inertia among target prescribers",
+    "Competing standard-of-care entrenchment in the target indication",
+  ],
+  launch_market_signals: [
+    "KOL support for the specific positioning asked about",
+    "Medical education and awareness activity in the target specialty",
+  ],
+};
+
 interface DriverCoverageSignal {
   id: string;
   text: string;
   accepted: boolean;
 }
 
+interface AdoptionMechanismCoverage {
+  family_id: string;
+  family_label: string;
+  covered: boolean;
+  signal_count: number;
+}
+
 export default function DriverCoveragePanel({
   signals,
   onAddSignal,
+  adoptionCoverage,
 }: {
   signals: DriverCoverageSignal[];
   onAddSignal?: (text: string) => void;
+  adoptionCoverage?: {
+    mechanism_coverage: AdoptionMechanismCoverage[];
+    missing_families: string[];
+  } | null;
 }) {
+  if (adoptionCoverage && adoptionCoverage.mechanism_coverage.length > 0) {
+    const missingMechanisms = adoptionCoverage.mechanism_coverage.filter((mc) => !mc.covered);
+    const allCovered = missingMechanisms.length === 0;
+
+    if (signals.length === 0) return null;
+
+    return (
+      <div className={`rounded-2xl border ${allCovered ? "border-emerald-500/20" : "border-amber-500/30"} bg-card p-5 space-y-4`}>
+        <div className="flex items-center gap-2">
+          {allCovered ? (
+            <>
+              <Check className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-sm font-bold text-foreground">Mechanism Coverage Complete</h2>
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <h2 className="text-sm font-bold text-foreground">Mechanism Coverage Incomplete</h2>
+              <span className="text-xs text-amber-400">{missingMechanisms.length} missing</span>
+            </>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {adoptionCoverage.mechanism_coverage.map((mc) => (
+            <div
+              key={mc.family_id}
+              className={`rounded-lg border px-3 py-2 ${
+                mc.covered
+                  ? "border-emerald-500/20 bg-emerald-500/5"
+                  : "border-amber-500/20 bg-amber-500/5"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                {mc.covered ? (
+                  <Check className="w-3 h-3 text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                )}
+                <span className={`text-[10px] font-semibold uppercase tracking-wider ${mc.covered ? "text-emerald-400" : "text-amber-400"}`}>
+                  {mc.family_label}
+                </span>
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1">
+                {mc.covered ? `${mc.signal_count} signal${mc.signal_count > 1 ? "s" : ""}` : "Not covered"}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {missingMechanisms.length > 0 && onAddSignal && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+              <span className="font-medium">Suggested missing signals</span>
+            </div>
+            <div className="space-y-2">
+              {missingMechanisms.map((mc) => (
+                <div key={mc.family_id} className="space-y-1.5">
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {mc.family_label}
+                  </div>
+                  {(ADOPTION_SUGGESTED_SIGNALS[mc.family_id] || []).map((suggestion, i) => (
+                    <div key={i} className="flex items-center gap-2 group">
+                      <div className="flex-1 text-[11px] text-foreground/70">{suggestion}</div>
+                      <button
+                        type="button"
+                        onClick={() => onAddSignal(suggestion)}
+                        className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const coverage = useMemo(() => {
     const result: Record<string, { covered: boolean; count: number }> = {};
     const accepted = signals.filter((s) => s.accepted);

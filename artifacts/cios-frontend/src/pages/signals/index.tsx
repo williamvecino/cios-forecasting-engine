@@ -109,6 +109,90 @@ function isGenericTemplateSignal(text: string): boolean {
   return GENERIC_SIGNAL_PHRASES.some(phrase => lower.includes(phrase));
 }
 
+const ADOPTION_MECHANISM_FAMILIES = [
+  { id: "clinical_evidence_strength", label: "Clinical Evidence Strength", keywords: ["trial", "efficacy", "endpoint", "phase", "pivotal", "data", "evidence", "clinical", "study", "outcome"] },
+  { id: "guideline_soc_movement", label: "Guideline / Standard-of-Care Movement", keywords: ["guideline", "recommendation", "standard of care", "consensus", "nccn", "asco", "idsa", "ats", "endorsement", "positioning"] },
+  { id: "access_reimbursement", label: "Access / Reimbursement", keywords: ["payer", "formulary", "prior auth", "step therapy", "coverage", "reimbursement", "copay", "access", "restriction", "tier"] },
+  { id: "prescriber_behavior", label: "Prescriber Behavior", keywords: ["prescrib", "physician", "clinician", "adoption", "intent", "familiarity", "comfort", "experience", "uptake", "switching"] },
+  { id: "operational_delivery_friction", label: "Operational / Delivery Friction", keywords: ["administration", "infusion", "nebuliz", "inhal", "injection", "workflow", "training", "burden", "logistic", "compliance"] },
+  { id: "competitive_soc_pressure", label: "Competitive / Standard-of-Care Pressure", keywords: ["competitor", "competing", "entrenched", "incumbent", "alternative", "standard of care", "sequencing", "inertia", "displacement"] },
+  { id: "launch_market_signals", label: "Launch / Market Signals", keywords: ["launch", "kol", "awareness", "education", "field force", "medical affairs", "advocacy", "market shaping", "readiness"] },
+] as const;
+
+function recomputeAdoptionCoverage(signals: { text: string; accepted: boolean; direction?: string; strength?: string; impact?: string }[]) {
+  const accepted = signals.filter((s) => s.accepted || (s as any).source === "system");
+
+  const mechanism_coverage = ADOPTION_MECHANISM_FAMILIES.map((fam) => {
+    const matching = accepted.filter((s) => {
+      const text = (s.text || "").toLowerCase();
+      return fam.keywords.some((kw) => text.includes(kw));
+    });
+    return {
+      family_id: fam.id,
+      family_label: fam.label,
+      covered: matching.length > 0,
+      signal_count: matching.length,
+    };
+  });
+
+  const covered_count = mechanism_coverage.filter((c) => c.covered).length;
+  const missing_families = mechanism_coverage.filter((c) => !c.covered).map((c) => c.family_label);
+
+  const supportive = accepted.filter((s) =>
+    s.direction === "increases_probability" || s.direction === "positive"
+  );
+  const constraining = accepted.filter((s) =>
+    s.direction === "decreases_probability" || s.direction === "negative"
+  );
+  const highSupportive = supportive.filter((s) => s.strength === "High" || s.impact === "High");
+  const highConstraining = constraining.filter((s) => s.strength === "High" || s.impact === "High");
+
+  const dominant_supportive_driver = highSupportive.length > 0
+    ? highSupportive[0].text
+    : supportive.length > 0 ? supportive[0].text : null;
+
+  const dominant_constraining_driver = highConstraining.length > 0
+    ? highConstraining[0].text
+    : constraining.length > 0 ? constraining[0].text : null;
+
+  const is_under_specified = accepted.length < 6 || covered_count < 4;
+
+  let sufficiency_warning: string | null = null;
+  if (accepted.length < 6) {
+    sufficiency_warning = `Signal set may be incomplete — ${accepted.length} signals generated, but adoption cases typically require 6–8 materially distinct signals across major driver families. Additional driver families should be explored.`;
+  } else if (accepted.length < 8 && missing_families.length >= 3) {
+    sufficiency_warning = `Signal coverage is thin — ${missing_families.length} mechanism families have no signals. Consider exploring: ${missing_families.join(", ")}.`;
+  }
+
+  const parts: string[] = [];
+  if (dominant_supportive_driver) {
+    const trunc = dominant_supportive_driver.length > 120 ? dominant_supportive_driver.slice(0, 117) + "..." : dominant_supportive_driver;
+    parts.push(`Dominant supportive driver: ${trunc}`);
+  }
+  if (dominant_constraining_driver) {
+    const trunc = dominant_constraining_driver.length > 120 ? dominant_constraining_driver.slice(0, 117) + "..." : dominant_constraining_driver;
+    parts.push(`Dominant constraining driver: ${trunc}`);
+  }
+  if (missing_families.length > 0) {
+    parts.push(`Missing mechanism families: ${missing_families.join(", ")}`);
+  }
+  if (is_under_specified) {
+    parts.push("Case may be under-specified — additional signals needed for a robust forecast.");
+  }
+
+  return {
+    mechanism_coverage,
+    covered_count,
+    total_families: ADOPTION_MECHANISM_FAMILIES.length,
+    missing_families,
+    dominant_supportive_driver,
+    dominant_constraining_driver,
+    is_under_specified,
+    sufficiency_warning,
+    summary: parts.join(" | "),
+  };
+}
+
 function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): any[] {
   if (!signals || signals.length === 0) return signals;
   return signals.filter((s: any) => {
@@ -655,42 +739,52 @@ function generateSuggestions(ctx: QuestionContext): Signal[] {
   return generateContextualSuggestions(ctx);
 }
 
-function generateSummary(signals: Signal[], questionType?: string, entities?: string[]): string {
+function generateSummary(signals: Signal[], questionType?: string, entities?: string[], adoptionSummary?: string | null): string {
+  if (adoptionSummary) return adoptionSummary;
+
   const accepted = signals.filter((s) => s.accepted || s.source === "system");
   const positiveHigh = accepted.filter((s) => isPositiveDirection(s.direction) && s.impact === "High");
   const negativeHigh = accepted.filter((s) => isNegativeDirection(s.direction) && s.impact === "High");
-  const posCount = accepted.filter((s) => isPositiveDirection(s.direction)).length;
-  const negCount = accepted.filter((s) => isNegativeDirection(s.direction)).length;
 
   if (questionType === "comparative" && entities && entities.length >= 2) {
     const groupA = entities[0];
     const groupB = entities[1];
     if (positiveHigh.length > 0 && negativeHigh.length > 0) {
-      return `Clinical familiarity and patient mix differences suggest ${groupA} may adopt earlier than ${groupB}, while workflow and economic constraints may slow uptake differently. ${posCount} difference signals favoring divergence vs. ${negCount} converging.`;
+      return `Clinical familiarity and patient mix differences suggest ${groupA} may adopt earlier than ${groupB}, while workflow and economic constraints may slow uptake differently.`;
     }
     if (positiveHigh.length > 0) {
-      return `Strong difference signals suggest ${groupA} and ${groupB} will diverge in adoption. ${posCount} signals point to meaningful group differences.`;
+      return `Strong difference signals suggest ${groupA} and ${groupB} will diverge in adoption.`;
     }
     if (negativeHigh.length > 0) {
-      return `Shared constraints may reduce the gap between ${groupA} and ${groupB}. ${negCount} signals suggest convergence.`;
+      return `Shared constraints may reduce the gap between ${groupA} and ${groupB}.`;
     }
     return `${accepted.length} difference signals registered between ${groupA} and ${groupB}. Confirm or add signals to sharpen the comparison.`;
   }
 
-  if (positiveHigh.length > 0 && negativeHigh.length > 0) {
-    const posDriver = positiveHigh[0].category;
-    const negDriver = negativeHigh[0].category;
-    const posLabel = CATEGORY_CONFIG[posDriver]?.label || posDriver;
-    const negLabel = CATEGORY_CONFIG[negDriver]?.label || negDriver;
-    return `Strong ${posLabel.toLowerCase()} signal is driving adoption potential, but ${negLabel.toLowerCase()} friction is limiting near-term uptake. ${posCount} positive vs. ${negCount} negative signals registered.`;
+  const supportiveDrivers = accepted.filter((s) => isPositiveDirection(s.direction));
+  const constrainingDrivers = accepted.filter((s) => isNegativeDirection(s.direction));
+  const highSupportive = supportiveDrivers.filter((s) => s.impact === "High" || s.strength === "High");
+  const highConstraining = constrainingDrivers.filter((s) => s.impact === "High" || s.strength === "High");
+
+  const parts: string[] = [];
+
+  if (highSupportive.length > 0) {
+    const topSupp = highSupportive[0];
+    const suppLabel = CATEGORY_CONFIG[topSupp.category]?.label || topSupp.category;
+    parts.push(`Dominant supportive driver: ${suppLabel.toLowerCase()} (${supportiveDrivers.length} supporting signal${supportiveDrivers.length > 1 ? "s" : ""})`);
   }
-  if (positiveHigh.length > 0) {
-    return `Strong positive signals favor the forecast. ${posCount} positive vs. ${negCount} negative signals registered.`;
+
+  if (highConstraining.length > 0) {
+    const topCon = highConstraining[0];
+    const conLabel = CATEGORY_CONFIG[topCon.category]?.label || topCon.category;
+    parts.push(`Dominant constraining driver: ${conLabel.toLowerCase()} (${constrainingDrivers.length} constraining signal${constrainingDrivers.length > 1 ? "s" : ""})`);
   }
-  if (negativeHigh.length > 0) {
-    return `High-impact headwinds are constraining the outlook. ${posCount} positive vs. ${negCount} negative signals registered.`;
+
+  if (parts.length === 0) {
+    return `${accepted.length} signals registered. The balance is moderately uncertain — confirm or add signals to sharpen the forecast.`;
   }
-  return `${accepted.length} signals registered. The balance is moderately uncertain — confirm or add signals to sharpen the forecast.`;
+
+  return parts.join(" | ");
 }
 
 function getStepHeading(questionType?: string): string {
@@ -876,6 +970,18 @@ export default function SignalsPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
   const [translationSummary, setTranslationSummary] = useState<string | null>(null);
+  const [adoptionCoverage, setAdoptionCoverage] = useState<{
+    mechanism_coverage: { family_id: string; family_label: string; covered: boolean; signal_count: number }[];
+    covered_count: number;
+    total_families: number;
+    missing_families: string[];
+    dominant_supportive_driver: string | null;
+    dominant_constraining_driver: string | null;
+    is_under_specified: boolean;
+    sufficiency_warning: string | null;
+  } | null>(null);
+  const [signalSummaryText, setSignalSummaryText] = useState<string | null>(null);
+  const [sufficiencyWarning, setSufficiencyWarning] = useState<string | null>(null);
   const [eventGates, setEventGates] = useState<EventGate[] | null>(() => {
     try {
       const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
@@ -970,6 +1076,9 @@ export default function SignalsPage() {
     setAiError(null);
     setMarketSummary(null);
     setTranslationSummary(null);
+    setAdoptionCoverage(null);
+    setSignalSummaryText(null);
+    setSufficiencyWarning(null);
     setRecalcResult(null);
     setLastImpact(null);
     setBrandCheckDone(false);
@@ -1047,6 +1156,9 @@ export default function SignalsPage() {
     setAiError(null);
     setMarketSummary(null);
     setTranslationSummary(null);
+    setAdoptionCoverage(null);
+    setSignalSummaryText(null);
+    setSufficiencyWarning(null);
     if (!hasPersistedSignals()) {
       setEventGates(null);
       setBaseGates(null);
@@ -1219,6 +1331,22 @@ export default function SignalsPage() {
 
         if (data.therapeutic_area) {
           localStorage.setItem("cios.therapeuticArea", data.therapeutic_area);
+        }
+
+        if (data.adoption_coverage) {
+          setAdoptionCoverage(data.adoption_coverage);
+        } else {
+          setAdoptionCoverage(null);
+        }
+        if (data.signal_summary) {
+          setSignalSummaryText(data.signal_summary);
+        } else {
+          setSignalSummaryText(null);
+        }
+        if (data.sufficiency_warning) {
+          setSufficiencyWarning(data.sufficiency_warning);
+        } else {
+          setSufficiencyWarning(null);
         }
 
         searchSucceededRef.current = true;
@@ -1722,7 +1850,28 @@ export default function SignalsPage() {
   }, [allSignals]);
   const pending = allSignals.filter((s) => !s.accepted);
   const accepted = allSignals.filter((s) => s.accepted);
-  const summary = generateSummary(allSignals, questionType, comparisonGroups.length >= 2 ? comparisonGroups : entities);
+
+  const isAdoptionQuestion = useMemo(() => {
+    if (adoptionCoverage) return true;
+    const qt = (questionText || "").toLowerCase();
+    const adoptionKeywords = ["adoption", "adopt", "prescrib", "uptake", "first-line", "second-line", "practice change", "guideline", "standard of care"];
+    return adoptionKeywords.some((kw) => qt.includes(kw));
+  }, [adoptionCoverage, questionText]);
+
+  const liveAdoptionCoverage = useMemo(() => {
+    if (!isAdoptionQuestion) return null;
+    return recomputeAdoptionCoverage(allSignals);
+  }, [isAdoptionQuestion, allSignals]);
+
+  const liveSufficiencyWarning = useMemo(() => {
+    return liveAdoptionCoverage?.sufficiency_warning || null;
+  }, [liveAdoptionCoverage]);
+
+  const liveSignalSummary = useMemo(() => {
+    return liveAdoptionCoverage?.summary || null;
+  }, [liveAdoptionCoverage]);
+
+  const summary = generateSummary(allSignals, questionType, comparisonGroups.length >= 2 ? comparisonGroups : entities, liveSignalSummary);
 
   const hasSourceClassification = allSignals.some((s) => s.signal_source);
   const internalSignals = allSignals.filter((s) => s.signal_source === "internal");
@@ -2426,6 +2575,7 @@ export default function SignalsPage() {
           {!aiLoading && allSignals.length > 0 && (
             <DriverCoveragePanel
               signals={allSignals.map((s) => ({ id: s.id, text: s.text, accepted: s.accepted }))}
+              adoptionCoverage={liveAdoptionCoverage}
               onAddSignal={(text) => {
                 const base = { strength: "Medium" as Strength, reliability: "Probable" as Reliability };
                 const sig: Signal = enrichSignalFields({
@@ -2582,7 +2732,7 @@ export default function SignalsPage() {
                 </div>
               )}
 
-              {!aiLoading && allSignals.length > 0 && (
+              {!aiLoading && allSignals.length > 0 && !adoptionCoverage && (
                 <div className="rounded-xl border border-border bg-card p-4 space-y-3">
                   <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
                     Signal Coverage — {coveredFamilies.length}/{ALL_SIGNAL_FAMILIES.length} families
@@ -2602,6 +2752,13 @@ export default function SignalsPage() {
                       Missing: {missingFamilies.map((f) => SIGNAL_FAMILY_LABELS[f]).join(", ")}
                     </div>
                   )}
+                </div>
+              )}
+
+              {liveSufficiencyWarning && !aiLoading && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                  <div className="text-xs text-amber-400">{liveSufficiencyWarning}</div>
                 </div>
               )}
 

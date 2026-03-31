@@ -7,6 +7,184 @@ import { buildGapGuardPromptBlock, scanObjectForGapViolations, replaceGapPhrases
 
 const router = Router();
 
+const ADOPTION_MECHANISM_FAMILIES = [
+  { id: "clinical_evidence_strength", label: "Clinical Evidence Strength", keywords: ["trial", "efficacy", "endpoint", "phase", "pivotal", "data", "evidence", "clinical", "study", "outcome"] },
+  { id: "guideline_soc_movement", label: "Guideline / Standard-of-Care Movement", keywords: ["guideline", "recommendation", "standard of care", "consensus", "nccn", "asco", "idsa", "ats", "endorsement", "positioning"] },
+  { id: "access_reimbursement", label: "Access / Reimbursement", keywords: ["payer", "formulary", "prior auth", "step therapy", "coverage", "reimbursement", "copay", "access", "restriction", "tier"] },
+  { id: "prescriber_behavior", label: "Prescriber Behavior", keywords: ["prescrib", "physician", "clinician", "adoption", "intent", "familiarity", "comfort", "experience", "uptake", "switching"] },
+  { id: "operational_delivery_friction", label: "Operational / Delivery Friction", keywords: ["administration", "infusion", "nebuliz", "inhal", "injection", "workflow", "training", "burden", "logistic", "compliance"] },
+  { id: "competitive_soc_pressure", label: "Competitive / Standard-of-Care Pressure", keywords: ["competitor", "competing", "entrenched", "incumbent", "alternative", "standard of care", "sequencing", "inertia", "displacement"] },
+  { id: "launch_market_signals", label: "Launch / Market Signals", keywords: ["launch", "kol", "awareness", "education", "field force", "medical affairs", "advocacy", "market shaping", "readiness"] },
+] as const;
+
+type AdoptionMechanismId = typeof ADOPTION_MECHANISM_FAMILIES[number]["id"];
+
+function isAdoptionCase(caseFrame: CaseFrame): boolean {
+  return caseFrame.caseType === "clinical_adoption" ||
+    caseFrame.profileCaseType === "clinical_adoption" ||
+    caseFrame.archetypeLabel.toLowerCase().includes("adoption");
+}
+
+function hasThresholdAndTimeWindow(questionText: string): boolean {
+  const hasThreshold = /(?:≥|>=|at least|reach|exceed|achieve)\s*\d+/i.test(questionText) ||
+    /\d+\s*%/i.test(questionText);
+  const hasTimeWindow = /within\s+\d+\s*(month|year|week)/i.test(questionText) ||
+    /by\s+(q[1-4]|20\d\d|end of|year)/i.test(questionText) ||
+    /\d+[\s-]*(month|year)/i.test(questionText);
+  return hasThreshold && hasTimeWindow;
+}
+
+interface MechanismCoverage {
+  family_id: string;
+  family_label: string;
+  covered: boolean;
+  signal_count: number;
+  signal_ids: string[];
+}
+
+interface AdoptionCoverageAnalysis {
+  mechanism_coverage: MechanismCoverage[];
+  covered_count: number;
+  total_families: number;
+  missing_families: string[];
+  dominant_supportive_driver: string | null;
+  dominant_constraining_driver: string | null;
+  is_under_specified: boolean;
+  sufficiency_warning: string | null;
+}
+
+function computeAdoptionCoverage(signals: any[]): AdoptionCoverageAnalysis {
+  const accepted = signals.filter((s: any) => s.text);
+
+  const coverage: MechanismCoverage[] = ADOPTION_MECHANISM_FAMILIES.map((fam) => {
+    const matching = accepted.filter((s: any) => {
+      const text = ((s.text || "") + " " + (s.rationale || "")).toLowerCase();
+      return fam.keywords.some((kw) => text.includes(kw));
+    });
+    return {
+      family_id: fam.id,
+      family_label: fam.label,
+      covered: matching.length > 0,
+      signal_count: matching.length,
+      signal_ids: matching.map((_: any, i: number) => `sig-${i}`),
+    };
+  });
+
+  const coveredCount = coverage.filter((c) => c.covered).length;
+  const missingFamilies = coverage.filter((c) => !c.covered).map((c) => c.family_label);
+
+  const supportive = accepted.filter((s: any) =>
+    s.direction === "increases_probability" || s.direction === "positive"
+  );
+  const constraining = accepted.filter((s: any) =>
+    s.direction === "decreases_probability" || s.direction === "negative"
+  );
+
+  const highSupportive = supportive.filter((s: any) => s.strength === "High");
+  const highConstraining = constraining.filter((s: any) => s.strength === "High");
+
+  const dominantSupportive = highSupportive.length > 0
+    ? highSupportive[0].text
+    : supportive.length > 0 ? supportive[0].text : null;
+
+  const dominantConstraining = highConstraining.length > 0
+    ? highConstraining[0].text
+    : constraining.length > 0 ? constraining[0].text : null;
+
+  const distinctSignals = accepted.length;
+  const isUnderSpecified = distinctSignals < 6 || coveredCount < 4;
+
+  let sufficiencyWarning: string | null = null;
+  if (distinctSignals < 6) {
+    sufficiencyWarning = `Signal set may be incomplete — ${distinctSignals} signals generated, but adoption cases typically require 6–8 materially distinct signals across major driver families. Additional driver families should be explored.`;
+  } else if (distinctSignals < 8 && missingFamilies.length >= 3) {
+    sufficiencyWarning = `Signal coverage is thin — ${missingFamilies.length} mechanism families have no signals. Consider exploring: ${missingFamilies.join(", ")}.`;
+  }
+
+  return {
+    mechanism_coverage: coverage,
+    covered_count: coveredCount,
+    total_families: ADOPTION_MECHANISM_FAMILIES.length,
+    missing_families: missingFamilies,
+    dominant_supportive_driver: dominantSupportive,
+    dominant_constraining_driver: dominantConstraining,
+    is_under_specified: isUnderSpecified,
+    sufficiency_warning: sufficiencyWarning,
+  };
+}
+
+function buildAdoptionSignalSummary(coverage: AdoptionCoverageAnalysis): string {
+  const parts: string[] = [];
+
+  if (coverage.dominant_supportive_driver) {
+    const truncated = coverage.dominant_supportive_driver.length > 120
+      ? coverage.dominant_supportive_driver.slice(0, 117) + "..."
+      : coverage.dominant_supportive_driver;
+    parts.push(`Dominant supportive driver: ${truncated}`);
+  }
+
+  if (coverage.dominant_constraining_driver) {
+    const truncated = coverage.dominant_constraining_driver.length > 120
+      ? coverage.dominant_constraining_driver.slice(0, 117) + "..."
+      : coverage.dominant_constraining_driver;
+    parts.push(`Dominant constraining driver: ${truncated}`);
+  }
+
+  if (coverage.missing_families.length > 0) {
+    parts.push(`Missing mechanism families: ${coverage.missing_families.join(", ")}`);
+  }
+
+  if (coverage.is_under_specified) {
+    parts.push("Case may be under-specified — additional signals needed for a robust forecast.");
+  }
+
+  return parts.join(" | ");
+}
+
+function buildAdoptionExpansionPrompt(questionText: string): string {
+  const hasThreshold = hasThresholdAndTimeWindow(questionText);
+
+  let prompt = `
+ADOPTION CASE — EXPANDED SIGNAL GENERATION RULES:
+
+This is an adoption forecast. You MUST generate signals across ALL of these mechanism families, not just broad categories. For each family, generate at least one causally relevant signal. If a family genuinely has no applicable signal for this specific case, explicitly note it as a gap.
+
+REQUIRED MECHANISM FAMILIES (generate at least one signal per family):
+1. CLINICAL EVIDENCE STRENGTH — Strength of pivotal evidence supporting the specific use asked about. Name the specific trial(s), endpoint(s), and effect size(s).
+2. GUIDELINE / STANDARD-OF-CARE MOVEMENT — Current and anticipated guideline positioning. Name specific guideline bodies and their current stance.
+3. ACCESS / REIMBURSEMENT — Formulary inclusion, prior authorization requirements, step therapy restrictions, payer coverage status.
+4. PRESCRIBER BEHAVIOR — Physician prescribing intent, familiarity, comfort level, and adoption trajectory for this specific use.
+5. OPERATIONAL / DELIVERY FRICTION — Administration complexity, workflow burden, training requirements, logistical barriers specific to this therapy.
+6. COMPETITIVE / STANDARD-OF-CARE PRESSURE — Current treatment-sequencing inertia, competing standard-of-care entrenchment, switching costs.
+7. LAUNCH / MARKET SIGNALS — KOL support, medical education activity, field force coverage, market-shaping efforts.
+
+MINIMUM COVERAGE RULE: You MUST attempt coverage across ALL 7 mechanism families before presenting the signal set. If a family has no candidate signal, state: "No signal identified for [family name] — this is a coverage gap."
+
+MINIMUM SIGNAL COUNT: For adoption cases, generate at least 8 materially distinct signals. If you cannot reach 8 distinct signals, add a note: "Signal set may be incomplete — additional driver families should be explored."
+
+ADOPTION-SPECIFIC DRIVER SUGGESTIONS — consider these signal types if applicable:
+- Strength of pivotal evidence for the specific line/use asked about
+- Likelihood and timing of guideline endorsement for the asked use
+- Physician prescribing intent for the specific use
+- Formulary inclusion without restrictive controls
+- Current treatment-sequencing inertia among target prescribers
+- Operational burden of therapy administration in the target setting
+- KOL support for the specific positioning asked about
+- Competing standard-of-care entrenchment`;
+
+  if (hasThreshold) {
+    prompt += `
+
+THRESHOLD-WINDOW EXPANSION: This question specifies both an adoption threshold and a time window. Apply the adoption-specific driver library:
+- For EACH mechanism family, assess whether it can achieve the required threshold within the time window
+- Generate signals that specifically address the feasibility of reaching the threshold, not just general adoption direction
+- Include at least one signal about treatment-sequencing inertia (how entrenched is the current standard of care?)
+- Include at least one signal about operational barriers specific to reaching the target level`;
+  }
+
+  return prompt;
+}
+
 interface SignalGenerationRequest {
   subject: string;
   outcome?: string;
@@ -289,6 +467,8 @@ Convert relevant verified brand developments into observed signals first, then a
 
 ${buildFrameConstraintPrompt(caseFrame)}
 
+${isAdoptionCase(caseFrame) ? buildAdoptionExpansionPrompt(body.questionText) : ""}
+
 ${isSafetyRiskCase(body.questionText) ? `SAFETY/RISK CASE RULES:
 - This is a safety/risk case. Safety signals are PRIMARY drivers with highest weight.
 - Media/advocacy signals are INFLUENCE FACTORS only — downweight them relative to clinical evidence and regulatory review.
@@ -435,6 +615,15 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
       forbiddenSignalFamilies: caseFrame.forbiddenSignalFamilies,
       prioritizedFamilies: caseFrame.prioritizedFamilies,
     };
+
+    if (isAdoptionCase(caseFrame) && Array.isArray(parsed.signals)) {
+      const coverageAnalysis = computeAdoptionCoverage(parsed.signals);
+      parsed.adoption_coverage = coverageAnalysis;
+      parsed.signal_summary = buildAdoptionSignalSummary(coverageAnalysis);
+      if (coverageAnalysis.sufficiency_warning) {
+        parsed.sufficiency_warning = coverageAnalysis.sufficiency_warning;
+      }
+    }
 
     res.json(parsed);
   } catch (err: any) {

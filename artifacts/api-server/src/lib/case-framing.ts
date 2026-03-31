@@ -505,10 +505,10 @@ const ARCHETYPE_FRAMES: Record<string, ArchetypeFrameDefinition> = {
       "Do physicians trust the therapy?",
       "Can physicians prescribe it easily?",
     ],
-    allowedSignalFamilies: ["brand_clinical_regulatory", "provider_behavioral", "competitor", "payer_access", "patient_demand"],
-    forbiddenSignalFamilies: ["system_operational"],
+    allowedSignalFamilies: ["brand_clinical_regulatory", "provider_behavioral", "competitor", "payer_access", "patient_demand", "system_operational"],
+    forbiddenSignalFamilies: [],
     prioritizedFamilies: ["brand_clinical_regulatory", "provider_behavioral"],
-    deprioritizedFamilies: ["patient_demand"],
+    deprioritizedFamilies: ["patient_demand", "system_operational"],
     correctSignalTypes: [
       "guideline inclusion or recommendation",
       "trial outcome magnitude and clinical significance",
