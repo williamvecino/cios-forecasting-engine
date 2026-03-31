@@ -1882,17 +1882,18 @@ export default function SignalsPage() {
           )}
 
           {aiLoading && processingPhase === "searching" && (
-            <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-card p-5">
+            <div className="rounded-2xl border border-cyan-400/40 bg-gradient-to-r from-cyan-500/15 via-cyan-500/5 to-card p-5 shadow-[0_0_15px_rgba(34,211,238,0.08)]">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <Search className="w-5 h-5 text-blue-400" />
-                  <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+                  <Search className="w-5 h-5 text-cyan-400 animate-pulse" />
+                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-foreground">Searching for signals</div>
                   <div className="text-xs text-muted-foreground mt-0.5">Scanning sources and collecting candidates</div>
-                  <div className="mt-3 h-1.5 w-full rounded-full bg-blue-500/10 overflow-hidden">
-                    <div className="h-full rounded-full bg-blue-500/60 animate-[searchPulse_2.5s_ease-in-out_infinite]" style={{ width: "40%" }} />
+                  <div className="mt-3 h-2.5 w-full rounded-full bg-cyan-500/10 overflow-hidden relative">
+                    <div className="absolute inset-0 h-full rounded-full bg-gradient-to-r from-cyan-500/20 via-cyan-400/60 to-cyan-500/20 animate-[searchSlide_2s_ease-in-out_infinite]" />
+                    <div className="absolute inset-0 h-full rounded-full bg-gradient-to-r from-transparent via-white/15 to-transparent animate-[searchShimmer_1.5s_ease-in-out_infinite]" />
                   </div>
                 </div>
               </div>
@@ -1900,16 +1901,18 @@ export default function SignalsPage() {
           )}
 
           {aiLoading && processingPhase === "processing" && (
-            <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-card p-5">
+            <div className="rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-card p-5 shadow-[0_0_15px_rgba(251,191,36,0.08)]">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Activity className="w-5 h-5 text-amber-400 animate-pulse" />
+                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-foreground">Processing signals</div>
                   <div className="text-xs text-muted-foreground mt-0.5">Deduplicating, normalizing, and assessing quality</div>
-                  <div className="mt-3 h-1.5 w-full rounded-full bg-amber-500/10 overflow-hidden">
-                    <div className="h-full rounded-full bg-amber-500/60 transition-all duration-700" style={{ width: processingCounts.validated > 0 ? "95%" : processingCounts.normalized > 0 ? "70%" : "40%" }} />
+                  <div className="mt-3 h-2.5 w-full rounded-full bg-amber-500/10 overflow-hidden relative">
+                    <div className="h-full rounded-full bg-gradient-to-r from-amber-500/30 via-amber-400/70 to-amber-500/30 transition-all duration-700" style={{ width: processingCounts.validated > 0 ? "95%" : processingCounts.normalized > 0 ? "70%" : "40%" }} />
+                    <div className="absolute inset-0 h-full rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[searchShimmer_1.5s_ease-in-out_infinite]" />
                   </div>
                   <div className="flex items-center gap-4 mt-2">
                     <div className="flex items-center gap-1.5">
