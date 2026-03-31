@@ -1589,28 +1589,6 @@ export default function QuestionPage() {
                   }}
                 />
 
-                {!rawInput.trim() && pageState === "input" && !isEditMode && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Or start with one of these:</span>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {DEMO_CASES.map((dc) => (
-                        <button
-                          key={dc.caseId}
-                          type="button"
-                          onClick={() => setRawInput(dc.question)}
-                          className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition flex items-center gap-3"
-                        >
-                          <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400">{dc.label}</span>
-                          <span>{dc.question}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <div className="mt-4 flex items-center gap-3">
                   <button
                     type="button"
@@ -1629,6 +1607,28 @@ export default function QuestionPage() {
               setShowImportProject(false);
               setRawInput(text);
             }} />
+
+            {pageState === "input" && !isEditMode && (
+              <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Prepared Cases</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Jump into a fully configured case with signals already loaded.</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {DEMO_CASES.map((dc) => (
+                    <button
+                      key={dc.caseId}
+                      type="button"
+                      onClick={() => navigate(`/case/${dc.caseId}/signals`)}
+                      className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-white/[0.06] hover:border-white/20 transition flex items-center gap-3 cursor-pointer"
+                    >
+                      <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400">{dc.label}</span>
+                      <span>{dc.question}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         ) : null}
       </div>
