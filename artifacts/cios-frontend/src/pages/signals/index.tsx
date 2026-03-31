@@ -745,6 +745,17 @@ function SignalLockBar({ caseId }: { caseId?: string }) {
     try { setLocked(localStorage.getItem(`cios.signalsLocked:${caseId}`) === "true"); } catch {}
   }, [caseId]);
 
+  useEffect(() => {
+    const key = `cios.signalsLocked:${caseId}`;
+    const interval = setInterval(() => {
+      try {
+        const val = localStorage.getItem(key) === "true";
+        setLocked((prev) => (prev !== val ? val : prev));
+      } catch {}
+    }, 500);
+    return () => clearInterval(interval);
+  }, [caseId]);
+
   function toggle() {
     if (!caseId) return;
     const next = !locked;
@@ -1504,6 +1515,12 @@ export default function SignalsPage() {
         setTimeout(() => triggerGateRecalculation(updated, editedSignal.text), 0);
       }
       persistSignals(updated);
+
+      const cid = activeQuestion?.caseId;
+      if (cid) {
+        localStorage.setItem(`cios.signalsLocked:${cid}`, "false");
+      }
+
       return updated;
     });
     setEditingId(null);
@@ -1542,6 +1559,10 @@ export default function SignalsPage() {
       return updated;
     });
     persistSignalToDb(sig);
+    const cid = activeQuestion?.caseId;
+    if (cid) {
+      localStorage.setItem(`cios.signalsLocked:${cid}`, "false");
+    }
     setNewText("");
     setNewDirection("positive");
     setNewStrength("Medium");

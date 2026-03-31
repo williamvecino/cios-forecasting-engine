@@ -823,7 +823,7 @@ function checkForecastGate(caseId: string): { ready: boolean; failures: string[]
   const failures: string[] = [];
   try {
     const locked = localStorage.getItem(`cios.signalsLocked:${caseId}`);
-    if (locked === "false") {
+    if (locked !== "true") {
       failures.push("Signals must be locked before running a forecast.");
     }
     const scenario = localStorage.getItem(`cios.scenarioName:${caseId}`);
@@ -838,20 +838,30 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const caseId = activeQuestion?.caseId || "";
   const queryClient = useQueryClient();
   const prevCaseIdRef = useRef<string>("");
-  const [gateOverride, setGateOverride] = useState(false);
-
+  const [, forceRender] = useState(0);
   useEffect(() => {
     if (prevCaseIdRef.current && prevCaseIdRef.current !== caseId) {
       queryClient.removeQueries({ queryKey: [`/api/cases/${prevCaseIdRef.current}/forecast`] });
       queryClient.removeQueries({ queryKey: [`/api/cases/${prevCaseIdRef.current}`] });
-      setGateOverride(false);
     }
     prevCaseIdRef.current = caseId;
   }, [caseId, queryClient]);
 
+  useEffect(() => {
+    const onFocus = () => forceRender((n) => n + 1);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    const interval = setInterval(onFocus, 1000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+      clearInterval(interval);
+    };
+  }, []);
+
   const gate = checkForecastGate(caseId);
 
-  if (!gate.ready && !gateOverride) {
+  if (!gate.ready) {
     return (
       <>
         <div className="rounded-3xl border border-amber-500/20 bg-gradient-to-b from-amber-500/[0.06] to-[#0A1736] p-8 space-y-5">
@@ -874,13 +884,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             <Link href="/signals" className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
               Return to Signals
             </Link>
-            <button
-              type="button"
-              onClick={() => setGateOverride(true)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/10"
-            >
-              Run Anyway
-            </button>
           </div>
         </div>
         <BottomLinks />

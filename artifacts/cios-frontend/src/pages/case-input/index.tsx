@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import TopNav from "@/components/top-nav";
 import { useActiveQuestion } from "@/hooks/use-active-question";
@@ -129,6 +129,44 @@ export default function CaseInputPage() {
 
   const [duplicateWarnings, setDuplicateWarnings] = useState<string[]>([]);
 
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      try {
+        const draft = JSON.stringify({
+          caseName, scenarioName, actor, action, geography, timeHorizon,
+          decisionDomain, actors, baselineProbability, baselineReason,
+          signals, lockStatus, deferredQuestions, expectedOutcomeDate,
+        });
+        localStorage.setItem("cios.caseInputDraft", draft);
+      } catch {}
+    }, 400);
+    return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+  }, [caseName, scenarioName, actor, action, geography, timeHorizon, decisionDomain, actors, baselineProbability, baselineReason, signals, lockStatus, deferredQuestions, expectedOutcomeDate]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cios.caseInputDraft");
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.caseName) setCaseName(d.caseName);
+      if (d.scenarioName) setScenarioName(d.scenarioName);
+      if (d.actor) setActor(d.actor);
+      if (d.action) setAction(d.action);
+      if (d.geography) setGeography(d.geography);
+      if (d.timeHorizon) setTimeHorizon(d.timeHorizon);
+      if (d.decisionDomain) setDecisionDomain(d.decisionDomain);
+      if (d.actors) setActors(d.actors);
+      if (d.baselineProbability != null) setBaselineProbability(d.baselineProbability);
+      if (d.baselineReason) setBaselineReason(d.baselineReason);
+      if (d.signals?.length) setSignals(d.signals);
+      if (d.lockStatus != null) setLockStatus(d.lockStatus);
+      if (d.deferredQuestions?.length) setDeferredQuestions(d.deferredQuestions);
+      if (d.expectedOutcomeDate) setExpectedOutcomeDate(d.expectedOutcomeDate);
+    } catch {}
+  }, []);
+
   function validateForm(): string | null {
     if (!scenarioName.trim()) return "Scenario Name is required.";
     if (!actor.trim()) return "Actor is required to form the primary question.";
@@ -246,6 +284,8 @@ export default function CaseInputPage() {
         subject: actor,
         outcome: action,
       });
+
+      try { localStorage.removeItem("cios.caseInputDraft"); } catch {}
 
       navigate("/signals");
     } catch (err: any) {
