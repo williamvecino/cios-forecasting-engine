@@ -239,6 +239,10 @@ function tagSignals(signals: Signal[]): DependencyTaggedSignal[] {
 
   for (let i = 0; i < tagged.length; i++) {
     for (let j = i + 1; j < tagged.length; j++) {
+      if (tagged[i].signal.lineageOverride || tagged[j].signal.lineageOverride) {
+        continue;
+      }
+
       const rel = inferLineageRelationship(tagged[i].signal, tagged[j].signal);
       if (rel.isRelated) {
         const rootLR = Math.abs((tagged[i].signal.likelihoodRatio ?? 1) - 1);
