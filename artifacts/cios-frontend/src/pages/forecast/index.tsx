@@ -824,11 +824,27 @@ function checkForecastGate(caseId: string): { ready: boolean; failures: string[]
   try {
     const locked = localStorage.getItem(`cios.signalsLocked:${caseId}`);
     if (locked !== "true") {
-      failures.push("Signals must be locked before running a forecast.");
+      const hasSignals = localStorage.getItem(`cios.signals:${caseId}`);
+      if (hasSignals) {
+        try {
+          const parsed = JSON.parse(hasSignals);
+          const accepted = Array.isArray(parsed) ? parsed.filter((s: any) => s.accepted) : [];
+          if (accepted.length > 0) {
+            failures.push("Signals must be locked before running a forecast. Go to the Add Information step and lock your signals.");
+          } else {
+            failures.push("No accepted signals found. Go to the Add Information step to review and accept signals.");
+          }
+        } catch {
+          failures.push("Signals must be locked before running a forecast.");
+        }
+      } else {
+        failures.push("No signals found. Go to the Add Information step to generate signals.");
+      }
     }
-    const scenario = localStorage.getItem(`cios.scenarioName:${caseId}`);
+    let scenario = localStorage.getItem(`cios.scenarioName:${caseId}`);
     if (!scenario || !scenario.trim()) {
-      failures.push("Scenario Name is required.");
+      localStorage.setItem(`cios.scenarioName:${caseId}`, "Baseline");
+      scenario = "Baseline";
     }
   } catch {}
   return { ready: failures.length === 0, failures };
@@ -861,7 +877,24 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
   const gate = checkForecastGate(caseId);
 
+  const hasAcceptedSignals = (() => {
+    try {
+      const raw = localStorage.getItem(`cios.signals:${caseId}`);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.some((s: any) => s.accepted);
+    } catch { return false; }
+  })();
+
+  function lockSignalsNow() {
+    if (!caseId) return;
+    localStorage.setItem(`cios.signalsLocked:${caseId}`, "true");
+    forceRender((n) => n + 1);
+  }
+
   if (!gate.ready) {
+    const isOnlyLockMissing = gate.failures.length === 1 && gate.failures[0].includes("locked") && hasAcceptedSignals;
+
     return (
       <>
         <div className="rounded-3xl border border-amber-500/20 bg-gradient-to-b from-amber-500/[0.06] to-[#0A1736] p-8 space-y-5">
@@ -881,8 +914,16 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             ))}
           </div>
           <div className="flex items-center gap-3 pt-2">
+            {isOnlyLockMissing && (
+              <button
+                onClick={lockSignalsNow}
+                className="inline-flex items-center gap-2 rounded-2xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 transition"
+              >
+                Lock Signals Now
+              </button>
+            )}
             <Link href="/signals" className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
-              Return to Signals
+              Return to Add Information
             </Link>
           </div>
         </div>

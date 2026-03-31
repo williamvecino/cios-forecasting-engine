@@ -1505,6 +1505,7 @@ export default function SignalsPage() {
 
   function commitEdit(id: string) {
     setSignals((prev) => {
+      const original = prev.find(s => s.id === id);
       const updated = prev.map((s) => {
         if (s.id !== id) return s;
         const withImpact = { ...s, impact: computeImpact(s) };
@@ -1516,9 +1517,16 @@ export default function SignalsPage() {
       }
       persistSignals(updated);
 
-      const cid = activeQuestion?.caseId;
-      if (cid) {
-        localStorage.setItem(`cios.signalsLocked:${cid}`, "false");
+      if (original && editedSignal && original.accepted) {
+        const textChanged = original.text !== editedSignal.text;
+        const directionChanged = original.direction !== editedSignal.direction;
+        const strengthChanged = original.strength !== editedSignal.strength;
+        if (textChanged || directionChanged || strengthChanged) {
+          const cid = activeQuestion?.caseId;
+          if (cid) {
+            localStorage.setItem(`cios.signalsLocked:${cid}`, "false");
+          }
+        }
       }
 
       return updated;
