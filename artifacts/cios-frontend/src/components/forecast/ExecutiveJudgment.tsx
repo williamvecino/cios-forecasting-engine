@@ -43,6 +43,7 @@ function getDriverDirectionLabel(points: number, direction: "Upward" | "Downward
 interface ExecutiveJudgmentProps {
   judgment: ExecutiveJudgmentResult;
   isLoading?: boolean;
+  priorProbability?: number | null;
 }
 
 function getProbabilityBand(pct: number): { label: string; description: string } {
@@ -121,6 +122,7 @@ const uncertaintyLabels: Record<string, string> = {
 const ExecutiveJudgment = memo(function ExecutiveJudgment({
   judgment,
   isLoading,
+  priorProbability,
 }: ExecutiveJudgmentProps) {
   const [selectedAnalog, setSelectedAnalog] = useState<AnalogCaseDetail | null>(null);
 
@@ -196,6 +198,19 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
                 : `at ${judgment.probability}%, the evidence suggests this outcome is unlikely without significant changes`
               : "insufficient evidence to form a reliable view"}
           </div>
+          {priorProbability != null && priorProbability !== judgment.probability && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className={`text-sm font-bold tabular-nums ${judgment.probability > priorProbability ? "text-emerald-400" : "text-rose-400"}`}>
+                {judgment.probability}%
+              </span>
+              <span className={`text-xs ${judgment.probability > priorProbability ? "text-emerald-400" : "text-rose-400"}`}>
+                {judgment.probability > priorProbability ? "↑" : "↓"}
+              </span>
+              <span className="text-[11px] text-slate-500">
+                {Math.abs(judgment.probability - priorProbability)} {Math.abs(judgment.probability - priorProbability) === 1 ? "point" : "points"} since last update
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

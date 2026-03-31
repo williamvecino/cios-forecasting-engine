@@ -1002,8 +1002,14 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 })),
               });
 
+              let priorProbability: number | null = null;
               try {
                 const cid = activeQuestion?.caseId || "unknown";
+                const prev = localStorage.getItem(`cios.judgmentResult:${cid}`);
+                if (prev) {
+                  const parsed = JSON.parse(prev);
+                  if (typeof parsed.probability === "number") priorProbability = parsed.probability;
+                }
                 localStorage.setItem(`cios.judgmentResult:${cid}`, JSON.stringify(judgmentResult));
               } catch {}
 
@@ -1034,7 +1040,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               return (
                 <>
                   <ExplainBox judgment={judgmentResult} caseContext={caseCtxForExplain} />
-                  <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} />
+                  <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} priorProbability={priorProbability} />
 
                   {activeQuestion?.caseId && (
                     <EvidenceHealthPanel caseId={activeQuestion.caseId} />
