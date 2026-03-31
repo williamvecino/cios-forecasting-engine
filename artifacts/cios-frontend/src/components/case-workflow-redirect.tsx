@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useGetCase } from "@workspace/api-client-react";
 import { useActiveQuestion } from "@/hooks/use-active-question";
@@ -23,6 +23,8 @@ const STEP_MAP: Record<string, string> = {
   refinement: "/question",
 };
 
+const STRENGTH_MAP: Record<number, string> = { 1: "Low", 2: "Low", 3: "Medium", 4: "High", 5: "High" };
+
 function inferQuestionType(text: string): string {
   const lower = text.toLowerCase();
   if (/\bwhich\b.*\b(first|fastest|most|best|rank)\b/.test(lower)) return "ranking";
@@ -38,21 +40,57 @@ function inferEntities(text: string): string[] {
   return [];
 }
 
+async function loadSignalsToLocalStorage(caseId: string): Promise<void> {
+  try {
+    const baseUrl = import.meta.env.BASE_URL || "/";
+    const res = await fetch(`${baseUrl}api/cases/${caseId}/signals`);
+    if (!res.ok) return;
+    const apiSignals = await res.json();
+    if (!Array.isArray(apiSignals) || apiSignals.length === 0) return;
+
+    const signals = apiSignals.map((s: any) => ({
+      id: s.signalId || s.id,
+      text: s.signalDescription || s.text || "",
+      direction: (s.direction || "neutral").toLowerCase(),
+      strength: STRENGTH_MAP[s.strengthScore] || s.strength || "Medium",
+      reliability: s.reliabilityScore >= 4 ? "Confirmed" : s.reliabilityScore >= 3 ? "Probable" : "Preliminary",
+      accepted: s.status === "active",
+      category: s.signalType || "general",
+      source: "api",
+      impact: s.absoluteImpact || undefined,
+      caveat: "",
+    }));
+
+    localStorage.setItem(`cios.signals:${caseId}`, JSON.stringify(signals));
+    localStorage.setItem(`cios.signalsLocked:${caseId}`, "true");
+    if (!localStorage.getItem(`cios.scenarioName:${caseId}`)) {
+      localStorage.setItem(`cios.scenarioName:${caseId}`, "Baseline");
+    }
+  } catch {}
+}
+
 export default function CaseWorkflowRedirect({ targetStep }: { targetStep: string }) {
   const [, params] = useRoute("/case/:caseId/:rest*");
   const caseId = params?.caseId ?? "";
   const [, navigate] = useLocation();
   const { activeQuestion, createQuestion } = useActiveQuestion();
   const redirectedRef = useRef(false);
+  const [signalsLoaded, setSignalsLoaded] = useState(false);
 
   const { data: caseData, isLoading, isError } = useGetCase(caseId, {
     query: { enabled: !!caseId },
   });
 
   useEffect(() => {
+    if (!caseId) return;
+    loadSignalsToLocalStorage(caseId).then(() => setSignalsLoaded(true));
+  }, [caseId]);
+
+  useEffect(() => {
     if (redirectedRef.current) return;
     if (!caseId || isLoading) return;
     if (!caseData) return;
+    if (!signalsLoaded) return;
 
     const cd = caseData as any;
     const questionText = cd.strategicQuestion || cd.assetName || "Untitled case";
@@ -85,7 +123,7 @@ export default function CaseWorkflowRedirect({ targetStep }: { targetStep: strin
 
     redirectedRef.current = true;
     navigate(STEP_MAP[targetStep] || "/question", { replace: true });
-  }, [caseId, caseData, isLoading, activeQuestion, targetStep, navigate, createQuestion]);
+  }, [caseId, caseData, isLoading, signalsLoaded, activeQuestion, targetStep, navigate, createQuestion]);
 
   if (isError) {
     return (
