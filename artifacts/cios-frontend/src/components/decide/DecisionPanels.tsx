@@ -183,7 +183,7 @@ export default function DecisionPanels() {
                 <div className="flex items-center gap-4 text-xs text-slate-400">
                   <span>Gates: {fc.gate_count}</span>
                   <span>Unresolved: {fc.weak_gate_count}</span>
-                  {fc.brand_outlook != null && <span>Brand Outlook: {Math.round(fc.brand_outlook * 100)}%</span>}
+                  {fc.brand_outlook != null && <span>Signal Strength: {Math.round(fc.brand_outlook * 100)}%</span>}
                   {fc.constrained_probability != null && <span>Forecast: {Math.round(fc.constrained_probability * 100)}%</span>}
                 </div>
               ) : <div />}

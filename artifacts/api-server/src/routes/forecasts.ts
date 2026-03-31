@@ -377,13 +377,14 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     const absDelta = Math.abs(delta);
     const direction = delta > 0.005 ? "favorable" : delta < -0.005 ? "unfavorable" : "neutral";
     const magnitude = absDelta >= 0.15 ? "Strong" : absDelta >= 0.05 ? "Moderate" : "Marginal";
-    if (prob >= 0.75) return `${magnitude} ${direction} shift — high likelihood of reaching target`;
-    if (prob >= 0.6) return `${magnitude} ${direction} shift — outcome likely but not certain`;
-    if (prob >= 0.45) {
+    const displayedPct = Math.round(prob * 100);
+    if (displayedPct >= 75) return `${magnitude} ${direction} shift — high likelihood of reaching target`;
+    if (displayedPct >= 60) return `${magnitude} ${direction} shift — outcome likely but not certain`;
+    if (displayedPct >= 45) {
       if (direction === "neutral") return "Balanced case — outcome uncertain, no clear directional signal";
       return `Balanced case — outcome uncertain with ${direction} lean`;
     }
-    if (prob >= 0.3) {
+    if (displayedPct >= 30) {
       if (direction === "favorable") return `${magnitude} favorable shift — but significant barriers remain`;
       return `${magnitude} ${direction} pressure — significant barriers remain`;
     }

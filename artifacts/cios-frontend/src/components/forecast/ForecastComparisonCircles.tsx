@@ -20,6 +20,13 @@ interface ForecastComparisonCirclesProps {
   priorProbability: number;
   delta: number;
   confidence: Confidence;
+  outcomeThreshold?: string | null;
+}
+
+function deriveVerdictFromProbability(pct: number): { label: string; rule: string; color: string } {
+  if (pct >= 60) return { label: "Likely", rule: "Displayed probability >= 60%", color: "text-emerald-400" };
+  if (pct >= 40) return { label: "Uncertain", rule: "Displayed probability 40–59%", color: "text-amber-400" };
+  return { label: "Unlikely", rule: "Displayed probability < 40%", color: "text-rose-400" };
 }
 
 export const ForecastComparisonCircles = memo(function ForecastComparisonCircles({
@@ -28,15 +35,18 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
   priorProbability,
   delta,
   confidence,
+  outcomeThreshold,
 }: ForecastComparisonCirclesProps) {
+  const displayedPct = Math.round(finalForecastProb * 100);
+  const verdict = deriveVerdictFromProbability(displayedPct);
   return (
     <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Brand Outlook</div>
-          <ProbabilityGauge value={brandOutlookProb} label="Brand Strength" size={180} />
+          <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Signal Strength</div>
+          <ProbabilityGauge value={brandOutlookProb} label="Pre-Gate Estimate" size={180} />
           <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
-            How strong the therapy looks based on all signals — clinical evidence, competitive position, and market readiness combined
+            Evidence-based estimate before real-world constraints — reflects clinical, competitive, and market signals only
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span title="Where the probability started before any evidence was added">Prior: {(priorProbability * 100).toFixed(0)}%</span>
@@ -75,6 +85,29 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
               : confidence === "Moderate"
               ? "Some signals are mixed or incomplete — more evidence would sharpen the forecast"
               : "Limited or conflicting evidence — treat this number as directional, not precise"}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
+        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Verdict Explanation</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Displayed Probability</div>
+            <div className="text-sm font-bold text-white mt-0.5">{displayedPct}%</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Outcome Threshold</div>
+            <div className="text-sm font-bold text-white mt-0.5">{outcomeThreshold ?? "Not set"}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Confidence</div>
+            <div className={cn("text-sm font-bold mt-0.5", confidenceBadgeClass[confidence].split(" ").find(c => c.startsWith("text-")) || "text-white")}>{confidence}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Verdict</div>
+            <div className={cn("text-sm font-bold mt-0.5", verdict.color)}>{verdict.label}</div>
+            <div className="text-[10px] text-slate-600 mt-0.5">{verdict.rule}</div>
           </div>
         </div>
       </div>

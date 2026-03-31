@@ -51,13 +51,13 @@ router.post("/ai-respond/generate", async (req, res) => {
     let probabilityFrame = "";
     if (probPct != null) {
       if (probPct >= 75) {
-        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is LIKELY. Your narrative MUST reflect this — the recommendation should be about capitalizing on momentum and managing remaining risks, NOT about whether the outcome will happen. Do not say "unlikely" or "uncertain" — the analysis says it is probable.`;
-      } else if (probPct >= 55) {
-        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is MORE LIKELY THAN NOT but conditional on key factors. Your narrative should reflect cautious optimism — the outcome leans positive but depends on specific conditions being met. Do not frame it as unlikely.`;
+        probabilityFrame = `The current probability is ${probPct}% — verdict: LIKELY. Your narrative MUST reflect this — the recommendation should be about capitalizing on momentum and managing remaining risks, NOT about whether the outcome will happen. Do not say "unlikely" or "uncertain" — the analysis says it is probable.`;
+      } else if (probPct >= 60) {
+        probabilityFrame = `The current probability is ${probPct}% — verdict: LIKELY. The outcome is more likely than not. Your narrative MUST say this is likely. Do not say "unlikely" or "uncertain" — a ${probPct}% probability means the evidence favors this outcome. Frame the narrative around what conditions must hold and what risks remain, not whether the outcome will happen.`;
       } else if (probPct >= 40) {
-        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is UNCERTAIN — roughly a coin flip. Your narrative should reflect genuine uncertainty. Do not overstate confidence in either direction.`;
+        probabilityFrame = `The current probability is ${probPct}% — verdict: UNCERTAIN. This means the outcome is genuinely uncertain — roughly a coin flip. Your narrative should reflect genuine uncertainty. Do not say "likely" or "unlikely" — say "uncertain" or "conditional." Do not overstate confidence in either direction.`;
       } else {
-        probabilityFrame = `The current probability is ${probPct}%. This means the outcome is UNLIKELY given current evidence. Your narrative should reflect skepticism about the outcome occurring without significant changes to the current trajectory.`;
+        probabilityFrame = `The current probability is ${probPct}% — verdict: UNLIKELY. This means the outcome is unlikely given current evidence. Your narrative should reflect skepticism about the outcome occurring without significant changes to the current trajectory.`;
       }
     }
 

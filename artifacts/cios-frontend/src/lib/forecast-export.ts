@@ -153,7 +153,7 @@ export function exportToExcel() {
     ["Export Date", data.timestamp],
     [],
     ["Forecast Probability", data.constrainedProbability != null ? `${Math.round(data.constrainedProbability * 100)}%` : "N/A"],
-    ["Brand Outlook", data.brandOutlook != null ? `${Math.round(data.brandOutlook * 100)}%` : "N/A"],
+    ["Signal Strength (Pre-Gate)", data.brandOutlook != null ? `${Math.round(data.brandOutlook * 100)}%` : "N/A"],
   ];
   if (data.judgment) {
     summaryData.push(

@@ -334,23 +334,24 @@ function inferOutcome(
 ): { verdict: string; band: string; rule: string; polarity: OutcomePolarity } {
   const useAnchored = !!(outcomeDefinition || subject);
 
-  if (pct >= 60) {
+  const roundedPct = Math.round(pct);
+  if (roundedPct >= 60) {
     const verdict = useAnchored
       ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "high", outcomeThreshold)
       : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).high;
-    return { verdict, band: ">=60", rule: `${category}_high_band`, polarity: "positive" };
+    return { verdict, band: ">=60", rule: `${category}_high_band (displayed ${roundedPct}% >= 60%)`, polarity: "positive" };
   }
-  if (pct >= 40) {
+  if (roundedPct >= 40) {
     const verdict = useAnchored
       ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "mid", outcomeThreshold)
       : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).mid;
-    return { verdict, band: "40-59", rule: `${category}_mid_band`, polarity: "neutral" };
+    return { verdict, band: "40-59", rule: `${category}_mid_band (displayed ${roundedPct}% in 40–59%)`, polarity: "neutral" };
   }
 
   const verdict = useAnchored
     ? buildAnchoredVerdict(outcomeDefinition || "", subject || "", timeHorizon || "", "low", outcomeThreshold)
     : (OUTCOME_TEMPLATES[category] || OUTCOME_TEMPLATES.general).low;
-  return { verdict, band: "<40", rule: `${category}_low_band${hasHardCap && upCount > downCount ? "_gate_constrained" : ""}`, polarity: "negative" };
+  return { verdict, band: "<40", rule: `${category}_low_band${hasHardCap && upCount > downCount ? "_gate_constrained" : ""} (displayed ${roundedPct}% < 40%)`, polarity: "negative" };
 }
 
 function computeConfidence(

@@ -1425,6 +1425,16 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
         let hasGates = decomp && decomp.event_gates && decomp.event_gates.length > 0;
 
+        if (hasGates && (f as any).brandOutlookProbability != null) {
+          const apiBrand = (f as any).brandOutlookProbability;
+          if (Math.abs(decomp!.brand_outlook_probability - apiBrand) > 0.001) {
+            decomp!.brand_outlook_probability = apiBrand;
+            try {
+              localStorage.setItem(`cios.eventDecomposition:${caseKey}`, JSON.stringify(decomp));
+            } catch {}
+          }
+        }
+
         if (!hasGates) {
           const currentProb = f.currentProbability ?? 0.5;
           const defaultGates = [
@@ -1461,10 +1471,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               constrains_probability_to: Math.min(0.85, currentProb + 0.05),
             },
           ];
+          const apiBrandOutlook = (f as any).brandOutlookProbability ?? null;
+          const brandProb = apiBrandOutlook != null ? apiBrandOutlook : currentProb;
           decomp = {
             event_gates: defaultGates,
-            brand_outlook_probability: currentProb,
-            constrained_probability: computeConstrainedProbability(defaultGates, currentProb, activeQuestion?.threshold || (f as any).outcomeThreshold || null, (f as any).confidenceLevel ?? "Moderate", (f as any).signalDetails?.length ?? 5),
+            brand_outlook_probability: brandProb,
+            constrained_probability: computeConstrainedProbability(defaultGates, brandProb, activeQuestion?.threshold || (f as any).outcomeThreshold || null, (f as any).confidenceLevel ?? "Moderate", (f as any).signalDetails?.length ?? 5),
             constraint_explanation: "Default gates generated from signal evidence.",
           };
           hasGates = true;
@@ -1594,13 +1606,14 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                     />
                   </PanelConnectionLabel>
 
-                  <PanelConnectionLabel label="Explains shift between prior, brand outlook, and final probability">
+                  <PanelConnectionLabel label="Explains shift between prior, signal strength, and final probability">
                     <ForecastComparisonCircles
                       brandOutlookProb={brandOutlookProb ?? f.currentProbability ?? 0.5}
                       finalForecastProb={displayProb}
                       priorProbability={f.priorProbability}
                       delta={delta}
                       confidence={confidence}
+                      outcomeThreshold={outcomeThresholdStr}
                     />
                   </PanelConnectionLabel>
 
@@ -1660,7 +1673,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                           <div className="text-base font-bold text-slate-100">{audit.inputs.priorPct}%</div>
                         </div>
                         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Brand Outlook (Pre-Gate)</div>
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Signal Strength (Pre-Gate)</div>
                           <div className="text-base font-bold text-cyan-300">{audit.inputs.brandOutlookPct}%</div>
                         </div>
                         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
@@ -2090,7 +2103,7 @@ function ScenarioPlanningTab({ activeQuestion }: { activeQuestion: any }) {
         <div className="mt-5 flex items-center gap-4 text-xs text-slate-400">
           <span>Base Forecast: <span className="text-white font-semibold">{basePct}%</span></span>
           <span>Gates: {gates.length}</span>
-          <span>Brand Outlook: {Math.round(brandOutlook * 100)}%</span>
+          <span>Signal Strength: {Math.round(brandOutlook * 100)}%</span>
         </div>
       </div>
 
