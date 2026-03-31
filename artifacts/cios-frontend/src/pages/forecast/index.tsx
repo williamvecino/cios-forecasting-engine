@@ -963,6 +963,37 @@ function CurrentForecastTab({ activeQuestion }: { activeQuestion: any }) {
   return <ForecastContent activeQuestion={activeQuestion} />;
 }
 
+const STRENGTH_LABEL: Record<number, string> = { 1: "Low", 2: "Low", 3: "Medium", 4: "High", 5: "High" };
+
+async function tryLoadSignalsFromApi(caseId: string): Promise<boolean> {
+  try {
+    const baseUrl = import.meta.env.BASE_URL || "/";
+    const res = await fetch(`${baseUrl}api/cases/${caseId}/signals`);
+    if (!res.ok) return false;
+    const apiSignals = await res.json();
+    if (!Array.isArray(apiSignals) || apiSignals.length === 0) return false;
+
+    const signals = apiSignals.map((s: any) => ({
+      id: s.signalId || s.id,
+      text: s.signalDescription || s.text || "",
+      direction: (s.direction || "neutral").toLowerCase(),
+      strength: STRENGTH_LABEL[s.strengthScore] || s.strength || "Medium",
+      reliability: s.reliabilityScore >= 4 ? "Confirmed" : s.reliabilityScore >= 3 ? "Probable" : "Preliminary",
+      accepted: s.status === "active",
+      category: s.signalType || "general",
+      source: "api",
+      impact: s.absoluteImpact || undefined,
+      caveat: "",
+    }));
+
+    localStorage.setItem(`cios.signals:${caseId}`, JSON.stringify(signals));
+    localStorage.setItem(`cios.signalsLocked:${caseId}`, "true");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function checkForecastGate(caseId: string): { ready: boolean; failures: string[] } {
   const failures: string[] = [];
   try {
@@ -982,7 +1013,7 @@ function checkForecastGate(caseId: string): { ready: boolean; failures: string[]
           failures.push("Signals must be locked before running a forecast.");
         }
       } else {
-        failures.push("No signals found. Go to the Add Information step to generate signals.");
+        failures.push("__NEEDS_API_LOAD__");
       }
     }
     let scenario = localStorage.getItem(`cios.scenarioName:${caseId}`);
@@ -1019,7 +1050,19 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     };
   }, []);
 
+  const [apiLoadAttempted, setApiLoadAttempted] = useState(false);
+  const [apiLoadDone, setApiLoadDone] = useState(false);
   const gate = checkForecastGate(caseId);
+
+  useEffect(() => {
+    if (gate.failures.includes("__NEEDS_API_LOAD__") && !apiLoadAttempted && caseId) {
+      setApiLoadAttempted(true);
+      tryLoadSignalsFromApi(caseId).then(() => {
+        setApiLoadDone(true);
+        forceRender((n) => n + 1);
+      });
+    }
+  }, [gate.failures, apiLoadAttempted, caseId]);
 
   const hasAcceptedSignals = (() => {
     try {
@@ -1036,6 +1079,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     forceRender((n) => n + 1);
   }
 
+  const needsApiLoad = gate.failures.includes("__NEEDS_API_LOAD__") && !apiLoadDone;
   const { data: forecast, isLoading } = useRunForecast(caseId);
   useGetCase(caseId);
   const drivers = useDriversFromForecast(forecast, caseId);
@@ -1053,6 +1097,17 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     enabled: !!caseId,
     staleTime: 30 * 1000,
   });
+
+  if (needsApiLoad) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="text-sm text-muted-foreground">Loading case signals...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!gate.ready) {
     const isOnlyLockMissing = gate.failures.length === 1 && gate.failures[0].includes("locked") && hasAcceptedSignals;
