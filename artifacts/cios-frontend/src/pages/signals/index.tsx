@@ -962,10 +962,13 @@ export default function SignalsPage() {
   });
   const [incomingEvents, setIncomingEvents] = useState<IncomingEvent[]>(fallbackEvents);
   const [aiLoading, setAiLoading] = useState(false);
-  const [processingPhase, setProcessingPhase] = useState<"searching" | "processing" | "ready" | null>(null);
+  const [processingPhase, setProcessingPhase] = useState<"searching" | "collecting" | "normalizing" | "assessing" | "preparing" | "processing" | "ready" | null>(null);
   const [processingCounts, setProcessingCounts] = useState({ found: 0, normalized: 0, validated: 0 });
   const [showReadyBanner, setShowReadyBanner] = useState(false);
+  const [slowWarning, setSlowWarning] = useState(false);
   const readyBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const slowWarningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSucceededRef = useRef(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
@@ -1148,11 +1151,43 @@ export default function SignalsPage() {
     setProcessingPhase("searching");
     setProcessingCounts({ found: 0, normalized: 0, validated: 0 });
     setShowReadyBanner(false);
+    setSlowWarning(false);
     searchSucceededRef.current = false;
     if (readyBannerTimerRef.current) {
       clearTimeout(readyBannerTimerRef.current);
       readyBannerTimerRef.current = null;
     }
+    if (slowWarningTimerRef.current) {
+      clearTimeout(slowWarningTimerRef.current);
+      slowWarningTimerRef.current = null;
+    }
+    if (phaseTimerRef.current) {
+      clearTimeout(phaseTimerRef.current);
+      phaseTimerRef.current = null;
+    }
+
+    slowWarningTimerRef.current = setTimeout(() => {
+      setSlowWarning(true);
+    }, 15000);
+
+    const phaseSequence: Array<{ phase: "collecting" | "normalizing" | "assessing" | "preparing"; delay: number }> = [
+      { phase: "collecting", delay: 2500 },
+      { phase: "normalizing", delay: 5000 },
+      { phase: "assessing", delay: 8000 },
+      { phase: "preparing", delay: 11000 },
+    ];
+    for (const step of phaseSequence) {
+      const timerId = setTimeout(() => {
+        if (aiRequestIdRef.current === requestId) {
+          setProcessingPhase((current) => {
+            if (current === "ready" || current === "processing") return current;
+            return step.phase;
+          });
+        }
+      }, step.delay);
+      phaseTimerRef.current = timerId;
+    }
+
     setAiError(null);
     setMarketSummary(null);
     setTranslationSummary(null);
@@ -1360,13 +1395,18 @@ export default function SignalsPage() {
       .finally(() => {
         if (aiRequestIdRef.current === requestId) {
           setAiLoading(false);
+          setSlowWarning(false);
+          if (slowWarningTimerRef.current) {
+            clearTimeout(slowWarningTimerRef.current);
+            slowWarningTimerRef.current = null;
+          }
+          if (phaseTimerRef.current) {
+            clearTimeout(phaseTimerRef.current);
+            phaseTimerRef.current = null;
+          }
           if (searchSucceededRef.current) {
             setProcessingPhase("ready");
             setShowReadyBanner(true);
-            readyBannerTimerRef.current = setTimeout(() => {
-              setShowReadyBanner(false);
-              readyBannerTimerRef.current = null;
-            }, 8000);
           } else {
             setProcessingPhase(null);
           }
@@ -1412,9 +1452,18 @@ export default function SignalsPage() {
       setProcessingPhase(null);
       setProcessingCounts({ found: 0, normalized: 0, validated: 0 });
       setShowReadyBanner(false);
+      setSlowWarning(false);
       if (readyBannerTimerRef.current) {
         clearTimeout(readyBannerTimerRef.current);
         readyBannerTimerRef.current = null;
+      }
+      if (slowWarningTimerRef.current) {
+        clearTimeout(slowWarningTimerRef.current);
+        slowWarningTimerRef.current = null;
+      }
+      if (phaseTimerRef.current) {
+        clearTimeout(phaseTimerRef.current);
+        phaseTimerRef.current = null;
       }
       prevCaseRef.current = activeQuestion?.caseId;
     }
@@ -1949,22 +1998,66 @@ export default function SignalsPage() {
             <SavedQuestionsPanel caseId={activeQuestion.caseId} />
           )}
 
-          {aiLoading && (processingPhase === "searching" || processingPhase === "processing") && (
-            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-b from-blue-500/[0.06] to-[#0A1736] p-8">
-              <div className="flex flex-col items-center gap-3 py-2">
-                <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
-                <div className="text-sm font-semibold text-foreground">
-                  {processingPhase === "searching"
-                    ? "Finding signals..."
-                    : processingCounts.validated > 0
-                      ? "Finalizing signals..."
-                      : "Processing signals..."}
+          {aiLoading && processingPhase && processingPhase !== "ready" && (
+            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-b from-blue-500/[0.06] to-[#0A1736] p-6" data-testid="signal-search-activity">
+              <div className="space-y-5">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-8 h-8 text-blue-400 animate-spin shrink-0" />
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      Searching for signals and relevant data
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Editing is disabled while search is in progress
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground text-center">
-                  {processingPhase === "searching"
-                    ? "Scanning evidence sources and collecting candidates"
-                    : "Deduplicating, normalizing, and assessing quality"}
+
+                <div className="space-y-2">
+                  {([
+                    { key: "searching", label: "Searching sources" },
+                    { key: "collecting", label: "Collecting candidate signals" },
+                    { key: "normalizing", label: "Normalizing and deduplicating" },
+                    { key: "assessing", label: "Assessing signal relevance" },
+                    { key: "preparing", label: "Preparing results" },
+                  ] as const).map((step, idx, arr) => {
+                    const phaseOrder = ["searching", "collecting", "normalizing", "assessing", "preparing", "processing"];
+                    const currentIdx = phaseOrder.indexOf(processingPhase ?? "searching");
+                    const stepIdx = phaseOrder.indexOf(step.key);
+                    const isComplete = stepIdx < currentIdx;
+                    const isActive = stepIdx === currentIdx;
+                    return (
+                      <div key={step.key} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 ${isActive ? "bg-blue-500/10 border border-blue-500/20" : isComplete ? "bg-emerald-500/5" : "opacity-40"}`}>
+                        {isComplete ? (
+                          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : isActive ? (
+                          <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-muted-foreground/30 shrink-0" />
+                        )}
+                        <span className={`text-xs font-medium ${isActive ? "text-blue-300" : isComplete ? "text-emerald-300/80" : "text-muted-foreground"}`}>
+                          {step.label}
+                        </span>
+                        {isActive && processingCounts.found > 0 && step.key === "collecting" && (
+                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.found} found</span>
+                        )}
+                        {isActive && processingCounts.normalized > 0 && step.key === "normalizing" && (
+                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.normalized} processed</span>
+                        )}
+                        {isActive && processingCounts.validated > 0 && step.key === "assessing" && (
+                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.validated} validated</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {slowWarning && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-xs text-amber-300">Still processing — this may take a few more seconds</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
