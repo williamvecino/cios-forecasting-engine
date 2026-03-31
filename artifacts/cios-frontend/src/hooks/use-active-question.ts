@@ -23,14 +23,24 @@ export interface CreateQuestionInput {
   compositeScenarios?: import("../lib/workflow").CompositeScenario[];
 }
 
+const questionChangeListeners = new Set<() => void>();
+
+function notifyQuestionChange() {
+  questionChangeListeners.forEach((fn) => fn());
+}
+
 export function useActiveQuestion() {
-  const [activeQuestion, setActiveQuestion] = useState<ActiveQuestion | null>(null);
+  const [activeQuestion, setActiveQuestion] = useState<ActiveQuestion | null>(
+    () => getStoredActiveQuestion()
+  );
 
   useEffect(() => {
-    const stored = getStoredActiveQuestion();
-    if (stored) {
+    const sync = () => {
+      const stored = getStoredActiveQuestion();
       setActiveQuestion(stored);
-    }
+    };
+    questionChangeListeners.add(sync);
+    return () => { questionChangeListeners.delete(sync); };
   }, []);
 
   const createQuestion = useCallback((input: CreateQuestionInput) => {
@@ -60,6 +70,7 @@ export function useActiveQuestion() {
 
     storeActiveQuestion(next);
     setActiveQuestion(next);
+    notifyQuestionChange();
     return next;
   }, []);
 
@@ -83,6 +94,7 @@ export function useActiveQuestion() {
     };
     storeActiveQuestion(updated);
     setActiveQuestion(updated);
+    notifyQuestionChange();
   }, []);
 
   const clearQuestion = useCallback(() => {
@@ -93,6 +105,7 @@ export function useActiveQuestion() {
     clearCaseState("unknown");
     clearStoredActiveQuestion();
     setActiveQuestion(null);
+    notifyQuestionChange();
   }, []);
 
   const hasActiveQuestion = !!activeQuestion;
