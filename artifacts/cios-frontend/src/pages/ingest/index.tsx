@@ -188,7 +188,36 @@ export default function IngestPage() {
         outcome: classification.primaryDecision,
       });
 
-      navigate("/signals");
+      const sentences = sourceText
+        .trim()
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 20);
+
+      const facts = sentences.map((s, i) => ({
+        text: s,
+        source: classification.documentType,
+        category: i < Math.ceil(sentences.length / 2) ? "primary" : "supporting",
+      }));
+
+      if (facts.length > 0) {
+        localStorage.setItem(
+          "cios.interpretationPayload",
+          JSON.stringify({
+            facts,
+            decisionContext: {
+              primaryDecision: classification.primaryDecision,
+              domain: classification.domain,
+              decisionArchetype: classification.decisionArchetype,
+              questionText: q.questionText,
+            },
+            caseId,
+          })
+        );
+        navigate("/interpret");
+      } else {
+        navigate("/signals");
+      }
     } catch (err: any) {
       setError(err.message || "Failed to create case");
     } finally {

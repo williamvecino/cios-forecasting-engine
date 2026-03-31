@@ -38,6 +38,7 @@ import GrowthFeasibilityPage from "@/pages/growth-feasibility/index";
 import CaseWorkflowRedirect from "@/components/case-workflow-redirect";
 import CaseInputPage from "@/pages/case-input/index";
 import IngestPage from "@/pages/ingest/index";
+import InterpretPage from "@/pages/interpret/index";
 import NotFound from "@/pages/not-found";
 import { useRoute, useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -128,6 +129,7 @@ function Router() {
       <Route path="/workbench" component={CIOSWorkbench} />
       <Route path="/case-input" component={CaseInputPage} />
       <Route path="/ingest" component={IngestPage} />
+      <Route path="/interpret" component={InterpretPage} />
       <Route path="/stability-tests" component={StabilityTests} />
       <Route path="/cases/:caseId" component={LegacyCaseRedirect} />
       <Route component={NotFound} />

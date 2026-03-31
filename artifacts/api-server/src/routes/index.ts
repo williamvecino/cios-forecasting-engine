@@ -63,6 +63,7 @@ import aiRefineQuestionRouter from "./ai-refine-question.js";
 import validationPackRouter from "./validation-pack.js";
 import questionRepositoryRouter from "./question-repository.js";
 import agentDecisionClassificationRouter from "./agent-decision-classification.js";
+import agentSignalInterpretationRouter from "./agent-signal-interpretation.js";
 
 const router: IRouter = Router();
 
@@ -130,5 +131,6 @@ router.use(aiRefineQuestionRouter);
 router.use(validationPackRouter);
 router.use(questionRepositoryRouter);
 router.use(agentDecisionClassificationRouter);
+router.use(agentSignalInterpretationRouter);
 
 export default router;
