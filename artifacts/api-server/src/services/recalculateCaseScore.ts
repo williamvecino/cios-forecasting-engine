@@ -11,6 +11,13 @@ import { deriveQuestionType } from "../lib/case-context.js";
 import { filterEligibleSignals, applyEventFamilyGuardrail } from "../lib/signal-eligibility.js";
 import { runDependencyAnalysis, applyCompressionToSignals } from "../lib/signal-dependency-engine.js";
 import {
+  runAllPostEngineGuardrails,
+  type GateStatus,
+} from "../lib/engine-guardrails.js";
+import { runCalibrationChecks } from "../lib/calibration-checks.js";
+import { getProfileForQuestion } from "../lib/case-type-router.js";
+import { computeDistributionForecast } from "../lib/adoption-distribution.js";
+import {
   computeEnvironmentAdjustments,
   applyEnvironmentToProbability,
   type ActorEnvironmentConfig,
@@ -225,13 +232,98 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     forecastHorizonMonths: resolveHorizonMonths(caseData.timeHorizon),
   };
   const envAdjustments = computeEnvironmentAdjustments(envConfig);
-  let finalProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
+  let environmentAdjustedProbability = applyEnvironmentToProbability(calibratedProbability, envAdjustments);
 
-  const ceiling = dependencyAnalysis.confidenceCeiling;
-  if (ceiling.maxAllowedProbability < 1.0 && finalProbability > ceiling.maxAllowedProbability) {
-    console.log(`[recalc-ceiling] caseId=${caseId} raw=${finalProbability.toFixed(4)} ceiling=${ceiling.maxAllowedProbability} reason="${ceiling.diversityLevel}" applying_cap`);
-    finalProbability = ceiling.maxAllowedProbability;
+  const eventGates: GateStatus[] = (caseData as any).eventGates ?? [];
+  const guardrailLog: import("../lib/engine-guardrails.js").GuardrailLog = {
+    duplicate_driver_detected: [],
+    duplicate_driver_removed: [],
+    driver_shift_capped: [],
+    total_shift_normalized: false,
+    probability_limited_by_gate: false,
+    relevance_penalty_applied: [],
+    recalculation_skipped: false,
+    input_validation_errors: [],
+    diagnostics: {
+      driver_count: 0,
+      duplicate_drivers_detected: 0,
+      largest_single_shift: 0,
+      total_shift: 0,
+      gating_constraints_triggered: [],
+      final_probability_limit_reason: null,
+    },
+  };
+  const guardrailedProbability = runAllPostEngineGuardrails(
+    caseData.priorProbability,
+    environmentAdjustedProbability,
+    result.signalDetails?.map((sd: any) => ({
+      signalId: sd.signalId,
+      likelihoodRatio: sd.likelihoodRatio,
+      effectiveLikelihoodRatio: sd.effectiveLikelihoodRatio,
+      description: sd.description,
+    })) ?? [],
+    eventGates,
+    guardrailLog,
+    { skipGateConstraint: true },
+  );
+  environmentAdjustedProbability = guardrailedProbability;
+
+  const caseTypeProfile = getProfileForQuestion(caseData.strategicQuestion ?? "", caseData.caseType ?? undefined);
+  const isRegulatory = caseTypeProfile.caseType === "regulatory_approval";
+  if (isRegulatory) {
+    const safetyKeywords = ["safety", "adverse", "side effect", "toxicity", "risk", "aria", "amyloid-related", "edema", "hemorrhage", "death", "mortality", "black box", "warning", "contraindication"];
+    const resolvedStatuses = ["resolved", "invalidated", "superseded", "archived"];
+    const unresolvedSafety = allSignals.filter(s => {
+      const dir = (s.direction ?? "").toLowerCase();
+      if (dir !== "negative") return false;
+      const st = (s.status ?? "").toLowerCase();
+      if (resolvedStatuses.includes(st)) return false;
+      const strength = s.strengthScore ?? 0;
+      if (strength < 0.5) return false;
+      const desc = (s.signalDescription ?? "").toLowerCase();
+      const cat = (s.category ?? "").toLowerCase();
+      const type = (s.signalType ?? "").toLowerCase();
+      return safetyKeywords.some(kw => desc.includes(kw) || cat.includes(kw) || type.includes(kw));
+    });
+    if (unresolvedSafety.length > 0) {
+      const highStrength = unresolvedSafety.filter(s => (s.strengthScore ?? 0) >= 0.8);
+      const safetyCeiling = highStrength.length >= 2 ? 0.55 : highStrength.length === 1 ? 0.65 : 0.75;
+      environmentAdjustedProbability = Math.min(environmentAdjustedProbability, safetyCeiling);
+    }
   }
+
+  const calibrationChecks = runCalibrationChecks(
+    signalsWithAdjustedLR,
+    caseData.priorProbability ?? 0.5,
+    environmentAdjustedProbability,
+    caseData.strategicQuestion ?? "",
+  );
+  if (calibrationChecks.adjustedProbability !== environmentAdjustedProbability) {
+    environmentAdjustedProbability = calibrationChecks.adjustedProbability;
+  }
+
+  const signalFamilies = new Set(signalsWithAdjustedLR.map(s => (s as any).signalFamily ?? s.signalType ?? "unknown"));
+  const signalCategories = new Set(signalsWithAdjustedLR.map(s => (s as any).category ?? s.signalType ?? "unknown"));
+  const diversityScore = Math.min(1, (signalFamilies.size + signalCategories.size) / 10);
+
+  const distributionGates: Array<{ gate_id: string; gate_label: string; status: "unresolved" | "weak" | "moderate" | "strong"; constrains_probability_to: number }> =
+    (eventGates as any[]).map((g: any) => ({
+      gate_id: g.gate_id ?? g.gateId ?? "",
+      gate_label: g.gate_label ?? g.gateLabel ?? "",
+      status: (g.status ?? "moderate") as "unresolved" | "weak" | "moderate" | "strong",
+      constrains_probability_to: g.constrains_probability_to ?? g.constrainsProbabilityTo ?? 0.5,
+    }));
+
+  const distributionResult = computeDistributionForecast(
+    environmentAdjustedProbability,
+    result.confidenceLevel,
+    signalsWithAdjustedLR.length,
+    diversityScore,
+    distributionGates,
+    caseData.outcomeThreshold,
+  );
+
+  let finalProbability = distributionResult.thresholdProbability;
 
   const calculatedAt = new Date();
 
@@ -336,8 +428,8 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
       forecastHorizonMonths: caseData.forecastHorizonMonths ?? 12,
       priorProbability: caseData.priorProbability,
       confidenceLevel: result.confidenceLevel,
-      confidenceCeilingApplied: ceiling.maxAllowedProbability < 1.0 ? ceiling.maxAllowedProbability : null,
-      confidenceCeilingReason: ceiling.maxAllowedProbability < 1.0 ? ceiling.reason : null,
+      confidenceCeilingApplied: dependencyAnalysis.confidenceCeiling.maxAllowedProbability < 1.0 ? dependencyAnalysis.confidenceCeiling.maxAllowedProbability : null,
+      confidenceCeilingReason: dependencyAnalysis.confidenceCeiling.maxAllowedProbability < 1.0 ? dependencyAnalysis.confidenceCeiling.reason : null,
       evidenceDiversityScore: dependencyAnalysis.metrics.evidenceDiversityScore,
       posteriorFragilityScore: dependencyAnalysis.metrics.posteriorFragilityScore,
       concentrationPenalty: dependencyAnalysis.metrics.concentrationPenalty,

@@ -1378,9 +1378,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         const outcomeThresholdStr = activeQuestion?.threshold || (f as any).outcomeThreshold || null;
         const confidenceLvl = (f as any).confidenceLevel ?? "Moderate";
         const sigCount = (f as any).signalDetails?.length ?? 5;
-        const displayProb = hasGates
-          ? computeConstrainedProbability(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount)
-          : (f.currentProbability ?? 0.5);
+        const displayProb = f.currentProbability ?? 0.5;
         const displayProbPct = Math.round(displayProb * 100);
 
         const distGatesForDiag: GateConstraint[] = hasGates
