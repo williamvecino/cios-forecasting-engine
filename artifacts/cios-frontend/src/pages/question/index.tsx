@@ -144,11 +144,12 @@ function generateScenariosFromDimensions(dims: OutcomeDimension[]): CompositeSce
   return scenarios.slice(0, MAX_SCENARIOS);
 }
 
-const EXAMPLE_QUESTIONS = [
-  "Will the FDA approve a supplemental indication for Keytruda in adjuvant melanoma within 12 months?",
-  "Will Humira biosimilar uptake exceed 40% formulary share among commercial payers by Q4 2026?",
-  "Will Kisqali achieve first-line CDK4/6 inhibitor preference among community oncologists within 18 months?",
-  "Will Leqembi reach 5,000 active patients in the US despite REMS and infusion-site access barriers within 24 months?",
+const DEMO_CASES = [
+  { caseId: "CASE-DEMO-01", label: "Early adoption", question: "Will ARIKAYCE achieve target specialist adoption (≥4 Rx/quarter) within 12 months?" },
+  { caseId: "CASE-DEMO-02", label: "Competitive share", question: "Will CardioAsset X displace entrenched beta-blocker combinations in target cardiologist accounts over 18 months?" },
+  { caseId: "CASE-DEMO-03", label: "Policy / access", question: "Will NeuroModulator Z achieve formulary access in ≥3 major payer plans within 12 months?" },
+  { caseId: "CASE-DEMO-04", label: "Portfolio allocation", question: "Should portfolio investment prioritize Bispecific-401 over the PD-L1 combination program?" },
+  { caseId: "CASE-DEMO-05", label: "Operational readiness", question: "Will InfusionPlatform V achieve deployment readiness across ≥20 academic cancer centers within 18 months?" },
 ];
 
 interface Interpretation {
@@ -1592,17 +1593,18 @@ export default function QuestionPage() {
                   <div className="mt-4 space-y-2">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Or start with one of these:</span>
+                      <span>Or explore a prepared case:</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {EXAMPLE_QUESTIONS.map((q) => (
+                    <div className="flex flex-col gap-2">
+                      {DEMO_CASES.map((dc) => (
                         <button
-                          key={q}
+                          key={dc.caseId}
                           type="button"
-                          onClick={() => setRawInput(q)}
-                          className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition"
+                          onClick={() => navigate(`/case/${dc.caseId}/question`)}
+                          className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition flex items-center gap-3"
                         >
-                          {q}
+                          <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400">{dc.label}</span>
+                          <span>{dc.question}</span>
                         </button>
                       ))}
                     </div>
