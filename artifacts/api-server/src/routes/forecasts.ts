@@ -102,12 +102,10 @@ function resolveSpecialtyProfile(raw: string | null): SpecialtyActorProfile {
 }
 
 function resolvePayerEnv(raw: string | null): PayerEnvironment {
-  const map: Record<string, PayerEnvironment> = {
-    "favorable": "favorable",
-    "balanced": "balanced",
-    "restrictive": "restrictive",
-  };
-  return map[(raw ?? "").toLowerCase()] ?? "balanced";
+  const s = (raw ?? "").toLowerCase();
+  if (s.includes("favorable") || s.includes("open")) return "favorable";
+  if (s.includes("restrictive") || s.includes("medicare-heavy") || s.includes("medicaid")) return "restrictive";
+  return "balanced";
 }
 
 function resolveGuidelineLeverage(raw: string | null): GuidelineLeverage {
@@ -116,12 +114,10 @@ function resolveGuidelineLeverage(raw: string | null): GuidelineLeverage {
 }
 
 function resolveCompetitiveLandscape(raw: string | null): CompetitiveLandscape {
-  const map: Record<string, CompetitiveLandscape> = {
-    "open market": "open_market",
-    "moderate competition": "moderate_competition",
-    "entrenched standard of care": "entrenched_standard_of_care",
-  };
-  return map[(raw ?? "").toLowerCase()] ?? "entrenched_standard_of_care";
+  const s = (raw ?? "").toLowerCase();
+  if (s.includes("open") || s.includes("no direct") || s.includes("uncontested")) return "open_market";
+  if (s.includes("crowded") || s.includes("multiple") || s.includes("moderate") || s.includes("generic")) return "moderate_competition";
+  return "entrenched_standard_of_care";
 }
 
 function resolveHorizonMonths(raw: string | null): ForecastHorizonMonths {
@@ -376,9 +372,32 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
 
   const finalProbability = distributionProbability;
 
+  function interpretFinalProbability(prob: number, prior: number): string {
+    const delta = prob - prior;
+    const absDelta = Math.abs(delta);
+    const direction = delta > 0.005 ? "favorable" : delta < -0.005 ? "unfavorable" : "neutral";
+    const magnitude = absDelta >= 0.15 ? "Strong" : absDelta >= 0.05 ? "Moderate" : "Marginal";
+    if (prob >= 0.75) return `${magnitude} ${direction} shift — high likelihood of reaching target`;
+    if (prob >= 0.6) return `${magnitude} ${direction} shift — outcome likely but not certain`;
+    if (prob >= 0.45) {
+      if (direction === "neutral") return "Balanced case — outcome uncertain, no clear directional signal";
+      return `Balanced case — outcome uncertain with ${direction} lean`;
+    }
+    if (prob >= 0.3) {
+      if (direction === "favorable") return `${magnitude} favorable shift — but significant barriers remain`;
+      return `${magnitude} ${direction} pressure — significant barriers remain`;
+    }
+    if (direction === "favorable") return `Low probability despite ${magnitude.toLowerCase()} favorable shift — substantial obstacles remain`;
+    return `Low probability — substantial obstacles to reaching target`;
+  }
+
   const finalResult = {
     ...result,
     currentProbability: finalProbability,
+    interpretation: {
+      ...result.interpretation,
+      primaryStatement: interpretFinalProbability(finalProbability, caseData.priorProbability),
+    },
     rawProbability,
     brandOutlookProbability: environmentAdjustedProbability,
     distributionForecast: {

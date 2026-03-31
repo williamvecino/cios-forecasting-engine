@@ -86,6 +86,19 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Consistency and Determinism System:** Uses a Canonical Case Object (`canonicalFields` JSONB on `cases` table) for structured parsed fields and `forecast_snapshots` for drift detection and consistency scoring.
 - **System Integrity Test Layer:** Internal validation module that tests 10 engine invariants on every forecast run: threshold monotonicity, horizon monotonicity, positive/negative signal response, constraint release response, duplicate compression, question sensitivity, segment sensitivity, explanation consistency, and reproducibility. Results logged to `integrity_test_results` table. Core invariant failures (threshold monotonicity, signal response, reproducibility) flag the forecast as unreliable. API: `GET /api/integrity/cases/:caseId`. Implementation: `api-server/src/lib/integrity-tests.ts`, `api-server/src/routes/integrity.ts`.
 
+**Controlled Demo Cases (5 cases — do not expand until all pass stability checks):**
+| Case ID | Pattern | Asset | Specialty Profile | Signals | Prior |
+|---|---|---|---|---|---|
+| CASE-DEMO-01 | Early adoption forecast | ARIKAYCE | Pulmonology / rare disease | 3 (clinical, operational, access) | 0.45 |
+| CASE-DEMO-02 | Competitive share risk | CardioAsset X | Cardiology / mixed specialist | 4 (clinical, prescriber, guideline, access) | 0.35 |
+| CASE-DEMO-03 | Policy / access impact | NeuroModulator Z | Psychiatry / access-sensitive | 4 (policy, access×2, advocacy) | 0.30 |
+| CASE-DEMO-04 | Portfolio resource allocation | Bispecific-401 | Oncology / academic-led | 4 (clinical, competitive, manufacturing, timeline) | 0.50 |
+| CASE-DEMO-05 | Operational readiness | InfusionPlatform V | Oncology / academic-led | 4 (milestone, capacity, workflow, EMR) | 0.40 |
+
+Stability checks required before expanding: deterministic reruns, threshold sensitivity, state persistence, signal-driven updates, coherent explanations.
+
+**Interpretation Coherence:** The `interpretFinalProbability` function in `forecasts.ts` generates the primary statement based on (1) the final probability level and (2) the direction/magnitude of change from the prior — ensuring the explanation always matches the actual model output.
+
 **Bounded Agent Architecture:** The system employs 17 bounded, deterministic, single-purpose AI agents with fixed I/O schemas, enforcing a `ProgramID` scope constraint.
 
 ## External Dependencies
