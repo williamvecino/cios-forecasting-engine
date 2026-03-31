@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { signalsTable, casesTable, SIGNAL_TYPES, VALID_TRANSITIONS } from "@workspace/db";
+import { signalsTable, casesTable, SIGNAL_TYPES, VALID_TRANSITIONS, caseSignalStateTable } from "@workspace/db";
 import { eq, and, inArray, gte, lte, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { computeLR, type Scope, type Timing } from "@workspace/db";
@@ -585,6 +585,54 @@ router.post("/signals/check-evidence", async (req, res) => {
 
   const results = await verifySignalEvidence(text, sourceLabel);
   res.json({ results });
+});
+
+router.put("/cases/:caseId/signal-state", async (req, res) => {
+  const { caseId } = req.params;
+  const { signals, contextKey } = req.body;
+  if (!caseId || !Array.isArray(signals)) {
+    return res.status(400).json({ error: "caseId and signals array required" });
+  }
+  try {
+    await db
+      .insert(caseSignalStateTable)
+      .values({
+        caseId,
+        signalData: signals,
+        contextKey: contextKey || null,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: caseSignalStateTable.caseId,
+        set: {
+          signalData: signals,
+          contextKey: contextKey || null,
+          updatedAt: new Date(),
+        },
+      });
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error("[signal-state] save error:", err);
+    res.status(500).json({ error: "Failed to save signal state" });
+  }
+});
+
+router.get("/cases/:caseId/signal-state", async (req, res) => {
+  const { caseId } = req.params;
+  try {
+    const rows = await db
+      .select()
+      .from(caseSignalStateTable)
+      .where(eq(caseSignalStateTable.caseId, caseId))
+      .limit(1);
+    if (rows.length === 0) {
+      return res.json({ signals: null });
+    }
+    res.json({ signals: rows[0].signalData, contextKey: rows[0].contextKey, updatedAt: rows[0].updatedAt });
+  } catch (err: any) {
+    console.error("[signal-state] load error:", err);
+    res.status(500).json({ error: "Failed to load signal state" });
+  }
 });
 
 export default router;

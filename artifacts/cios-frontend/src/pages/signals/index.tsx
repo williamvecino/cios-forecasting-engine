@@ -948,11 +948,24 @@ export default function SignalsPage() {
     return null;
   }, [caseKey, subject]);
 
+  const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contextKeyRef = useRef("");
   const persistSignals = useCallback((sigs: Signal[]) => {
     try {
       const serializable = sigs.map(({ ...s }) => s);
       localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(serializable));
     } catch {}
+    if (caseKey && caseKey !== "unknown") {
+      if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
+      dbSaveTimerRef.current = setTimeout(() => {
+        const API = import.meta.env.VITE_API_URL || "";
+        fetch(`${API}/api/cases/${caseKey}/signal-state`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signals: sigs, contextKey: contextKeyRef.current }),
+        }).catch(() => {});
+      }, 1000);
+    }
   }, [caseKey]);
 
   const [signals, setSignals] = useState<Signal[]>(() => {
@@ -1065,6 +1078,19 @@ export default function SignalsPage() {
     if (prevCaseKeyRef.current === caseKey) return;
     prevCaseKeyRef.current = caseKey;
 
+    const restoreSignals = (sigs: Signal[]) => {
+      setShowActivityPanel(true);
+      setProcessingPhase("preparing");
+      setProcessingCounts({ found: sigs.length, normalized: sigs.length, validated: sigs.length });
+      setSignals([]);
+      setTimeout(() => {
+        setSignals(sigs.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
+        setShowActivityPanel(false);
+        setProcessingPhase("ready");
+        setShowReadyBanner(true);
+      }, 1200);
+    };
+
     const persisted = (() => {
       try {
         const raw = localStorage.getItem(`cios.signals:${caseKey}`);
@@ -1073,16 +1099,24 @@ export default function SignalsPage() {
       return null;
     })();
     if (persisted && persisted.length > 0) {
-      setShowActivityPanel(true);
-      setProcessingPhase("preparing");
-      setProcessingCounts({ found: persisted.length, normalized: persisted.length, validated: persisted.length });
-      setSignals([]);
-      setTimeout(() => {
-        setSignals(persisted.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
-        setShowActivityPanel(false);
-        setProcessingPhase("ready");
-        setShowReadyBanner(true);
-      }, 1500);
+      restoreSignals(persisted);
+    } else if (caseKey && caseKey !== "unknown") {
+      const API = import.meta.env.VITE_API_URL || "";
+      fetch(`${API}/api/cases/${caseKey}/signal-state`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.signals && Array.isArray(data.signals) && data.signals.length > 0) {
+            const cleaned = stripNonMatchingBrandSignals(data.signals, subject) as Signal[];
+            if (cleaned.length > 0) {
+              try { localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(cleaned)); } catch {}
+              if (data.contextKey) {
+                try { localStorage.setItem(`cios.aiRequested:${caseKey}`, data.contextKey); } catch {}
+              }
+              restoreSignals(cleaned);
+            }
+          }
+        })
+        .catch(() => {});
     } else {
       setSignals(fallbackSuggestions.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
     }
@@ -1129,6 +1163,7 @@ export default function SignalsPage() {
   const VALID_RELIABILITIES = new Set(["Confirmed", "Probable", "Speculative"]);
 
   const contextKey = `${subject}|${questionText}|${outcome}|${questionType}|${comparisonGroups.join(",")}|${entities.join(",")}|${timeHorizon}`;
+  contextKeyRef.current = contextKey;
 
   const hasPersistedSignals = useCallback(() => {
     try {
@@ -1448,7 +1483,7 @@ export default function SignalsPage() {
 
   useEffect(() => {
     if (!subject || !questionText) return;
-    if (hasPersistedSignals() && aiAlreadyRan()) return;
+    if (hasPersistedSignals()) return;
     if (aiAlreadyRan()) return;
     runSignalSearch();
   }, [contextKey]);
@@ -1456,8 +1491,10 @@ export default function SignalsPage() {
   const prevQuestionRef = useRef(questionText);
   useEffect(() => {
     if (questionText !== prevQuestionRef.current) {
+      const wasUndefined = prevQuestionRef.current === undefined;
       prevQuestionRef.current = questionText;
-      if (!aiLoading) {
+      if (wasUndefined) return;
+      if (!aiLoading && !hasPersistedSignals()) {
         setSignals((prev) => {
           const lockedSignals = prev.filter((s) => s.is_locked || s.source === "user");
           return [...fallbackSuggestions, ...lockedSignals];
