@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, casesTable, forecastLedgerTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { generateNarrative, type NarrativeInput } from "../lib/narrative-generator.js";
+import { scanObjectForGapViolations, replaceGapPhrases } from "../lib/narrative-gap-guard.js";
 
 const router = Router();
 
@@ -82,7 +83,24 @@ router.get("/cases/:caseId/narrative", async (req, res) => {
   };
 
   const narrative = generateNarrative(input);
-  res.json(narrative);
+
+  const gapViolations = scanObjectForGapViolations(narrative.sections);
+  if (gapViolations.length > 0) {
+    for (const key of Object.keys(narrative.sections) as (keyof typeof narrative.sections)[]) {
+      if (typeof narrative.sections[key] === "string") {
+        (narrative.sections as any)[key] = replaceGapPhrases(narrative.sections[key] as string);
+      }
+    }
+  }
+
+  res.json({
+    ...narrative,
+    _gapGuard: {
+      clean: gapViolations.length === 0,
+      violationCount: gapViolations.length,
+      violations: gapViolations,
+    },
+  });
 });
 
 export default router;

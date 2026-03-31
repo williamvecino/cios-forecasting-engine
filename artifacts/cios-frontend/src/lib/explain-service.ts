@@ -50,7 +50,7 @@ const TERM_DEFINITIONS: Record<string, string> = {
   "regulatory readiness": "Label clarity, post-marketing requirements, REMS programs, and compliance monitoring.",
   "guideline endorsement": "Positioning in clinical guidelines, committee receptivity, and evidence threshold for inclusion.",
   "confidence": "A composite measure reflecting how well-supported the forecast is by evidence, gate resolution, and analogue alignment.",
-  "constraint gap": "The difference between what the evidence outlook suggests and what real-world barriers allow — the larger the gap, the more constraints are holding back the outcome.",
+  "constraint gap": "The numeric difference between the evidence-based probability and the gate-constrained forecast — measured in percentage points. For example, a 72% evidence outlook constrained to 48% by unresolved gates represents a 24-point constraint gap.",
   "probability": "The system's estimated likelihood of the forecasted outcome occurring, based on evidence, constraints, and historical precedent.",
   "forecast": "The system's best estimate of the most likely outcome, derived from signals, gate constraints, and calibration.",
   "gate": "An execution prerequisite that must be resolved before adoption can proceed. Gates can be strong (cleared), moderate (partially resolved), or weak (unresolved).",

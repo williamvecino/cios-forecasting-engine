@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { getProfileForQuestion, buildVocabularyConstraintPrompt, buildDecisionLayerPrompt, buildDriverConstraintPrompt, buildSafetySignalPrompt, buildEvidenceGatePrompt, buildOutcomeStatePrompt, buildActionFilterPrompt, buildPropagationPathwayPrompt, buildDecisionSensitivityPrompt, getResponseModeLabel } from "../lib/case-type-router.js";
+import { buildGapGuardPromptBlock, scanObjectForGapViolations, replaceGapPhrases } from "../lib/narrative-gap-guard.js";
 
 const router = Router();
 
@@ -106,6 +107,7 @@ ${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstr
 ${probabilityFrame || "No probability provided. Generate response from signals and question context."}
 The strategic_recommendation MUST be consistent with the probability. If the probability says likely, the recommendation must say likely. If the probability says unlikely, the recommendation must say unlikely. A contradiction between the computed probability and the narrative is a critical error.
 ═══ END PROBABILITY ALIGNMENT ═══
+${buildGapGuardPromptBlock()}
 
 STRUCTURE — return valid JSON with exactly these 5 keys:
 {
@@ -186,7 +188,23 @@ Translate this into a brief. Do not reanalyze — summarize what the evidence sa
       validated.execution_focus = focusSentences[0] + (focusSentences[0].endsWith(".") ? "" : ".");
     }
 
-    res.json(validated);
+    const gapViolations = scanObjectForGapViolations(validated);
+    if (gapViolations.length > 0) {
+      validated.strategic_recommendation = replaceGapPhrases(validated.strategic_recommendation);
+      validated.why_this_matters = replaceGapPhrases(validated.why_this_matters);
+      validated.priority_actions = validated.priority_actions.map((a: string) => replaceGapPhrases(a));
+      validated.success_measures = validated.success_measures.map((m: string) => replaceGapPhrases(m));
+      validated.execution_focus = replaceGapPhrases(validated.execution_focus);
+    }
+
+    res.json({
+      ...validated,
+      _gapGuard: {
+        clean: gapViolations.length === 0,
+        violationCount: gapViolations.length,
+        violations: gapViolations,
+      },
+    });
   } catch (err: any) {
     console.error("[ai-respond] Error:", err?.message || err);
     res.status(500).json({ error: "Failed to generate response" });

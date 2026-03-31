@@ -14,12 +14,30 @@ import {
 import { Link } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
+interface GapViolation {
+  phrase: string;
+  context: string;
+  requiredStructure: {
+    observedValue: string | null;
+    expectedValue: string | null;
+    difference: string | null;
+    drivers: string | null;
+  };
+}
+
+interface GapGuardResult {
+  clean: boolean;
+  violationCount: number;
+  violations: GapViolation[];
+}
+
 interface RespondResult {
   strategic_recommendation: string;
   why_this_matters: string;
   priority_actions: string[];
   success_measures: string[];
   execution_focus: string;
+  _gapGuard?: GapGuardResult;
 }
 
 function getApiBase() {
@@ -209,6 +227,27 @@ export default function RespondPage() {
 
           {data && !loading && (
             <div className="space-y-6">
+              {data._gapGuard && !data._gapGuard.clean && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-amber-400">
+                        {data._gapGuard.violationCount} narrative gap{data._gapGuard.violationCount > 1 ? "s" : ""} blocked
+                      </p>
+                      <p className="text-xs text-amber-400/80">
+                        Vague gap statements were detected and replaced. Each gap statement requires: observed value, expected value, numeric difference, and specific drivers.
+                      </p>
+                      {data._gapGuard.violations.map((v, i) => (
+                        <div key={i} className="text-xs text-amber-400/70 border-t border-amber-500/20 pt-1.5 mt-1.5">
+                          <span className="font-medium">Blocked phrase:</span> "{v.phrase}"
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <section>
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Strategic Recommendation</h2>
                 <p className="text-[15px] text-foreground leading-relaxed">{data.strategic_recommendation}</p>

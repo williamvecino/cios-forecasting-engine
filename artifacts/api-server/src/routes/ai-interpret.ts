@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { buildGapGuardPromptBlock, scanObjectForGapViolations } from "../lib/narrative-gap-guard.js";
 
 const router = Router();
 
@@ -125,15 +126,17 @@ Allowed readiness dimensions:
 Rules for vague statements:
 1. Preserve the intended meaning first.
 2. Restate the sentence in plain analytic language.
-3. Convert it into a forecastable gap statement.
+3. Convert it into a forecastable gap statement WITH numeric definitions.
 4. Do not invent scales, probabilities, PMIDs, scores, or numbers.
 5. If a number is provided but the scale is undefined, mark it as structurally incomplete rather than false.
 6. In the restatedQuestion, output the operational version — the forecastable restatement.
+7. NEVER use vague gap phrases ("deserves", "ready to deliver", "market readiness", "opportunity gap", "performance gap") without converting them into structured variables: observed value, expected value, difference, and drivers.
 
 Example:
 Input: "There is a 45-point gap between what the product deserves and what the market is ready to deliver."
-restatedQuestion: "Is there a substantial gap between product/evidence strength and current market readiness, suggesting adoption is being limited by environmental constraints rather than product weakness?"
-primaryConstraint: "Market readiness gap — scale for 45-point measurement undefined"
+restatedQuestion: "Is the product's current market penetration substantially below the level its clinical evidence supports, and if so, what specific environmental constraints account for the shortfall?"
+primaryConstraint: "Market penetration gap — observed value, expected value, and scale for 45-point measurement undefined; must be decomposed into measurable variables before forecasting"
+${buildGapGuardPromptBlock()}
 
 From any input — whether it is a clean question, messy notes, bullet points, partial thoughts, or pasted text — you must extract:
 

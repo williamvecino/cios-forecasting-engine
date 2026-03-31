@@ -67,6 +67,7 @@ import agentSignalInterpretationRouter from "./agent-signal-interpretation.js";
 import priorTemplatesRouter from "./prior-templates.js";
 import explanationGeneratorRouter from "./explanation-generator.js";
 import goldSetRouter from "./gold-set.js";
+import gapGuardRouter from "./gap-guard.js";
 
 const router: IRouter = Router();
 
@@ -138,5 +139,6 @@ router.use(agentSignalInterpretationRouter);
 router.use(priorTemplatesRouter);
 router.use(explanationGeneratorRouter);
 router.use(goldSetRouter);
+router.use(gapGuardRouter);
 
 export default router;

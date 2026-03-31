@@ -3,6 +3,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { researchBrand } from "../lib/web-research";
 import { isSafetyRiskCase, isRegulatoryCase } from "../lib/case-type-router.js";
 import { buildCaseFrame, buildFrameConstraintPrompt, filterSignalsByFrame, scoreSignalRelevance, type CaseFrame } from "../lib/case-framing.js";
+import { buildGapGuardPromptBlock, scanObjectForGapViolations } from "../lib/narrative-gap-guard.js";
 
 const router = Router();
 
@@ -190,7 +191,8 @@ For incoming_events, generate 5 events the forecaster should monitor:
 
 For market_summary: 2-3 sentences starting with the most important recent development if one exists.
 
-For question_translation_summary: Write 2-3 sentences explaining the gap between the strongest brand signal and the specific question asked. For example: "ENCORE data strengthens the clinical case for Arikayce broadly, but the question asks about first-line adoption specifically. Current label, guidelines, and payer coverage do not yet support routine first-line use, creating a translation gap between the brand signal and the forecast outcome."
+For question_translation_summary: Write 2-3 sentences explaining the translation distance between the strongest brand signal and the specific question asked. Quantify the distance with specific metrics — do NOT use vague phrases like "deserves", "ready to deliver", "market readiness", "opportunity gap", or "performance gap" without numeric definitions. For example: "ENCORE data strengthens the clinical case for Arikayce broadly (HR 0.70, p<0.001), but the question asks about first-line adoption specifically. Current label covers second-line only, 0 of 5 major guidelines recommend first-line use, and 2 of 3 national payers restrict to second-line — creating a measurable translation distance between the clinical signal and the specific adoption outcome."
+${buildGapGuardPromptBlock()}
 
 EVENT DECOMPOSITION LAYER — CRITICAL
 
