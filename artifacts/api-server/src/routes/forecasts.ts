@@ -35,6 +35,8 @@ import { runCalibrationChecks } from "../lib/calibration-checks.js";
 import { buildForecastSnapshot, detectDrift, computeConsistencyFromHistory, type ForecastSnapshot } from "../lib/drift-detection.js";
 import { buildCanonicalCase } from "../lib/canonical-case.js";
 import { computeDistributionForecast, computeThresholdSensitivity, type DistributionResult } from "../lib/adoption-distribution.js";
+import { runAllIntegrityTests, buildForecastSnapshotForIntegrity, type IntegrityRunSummary } from "../lib/integrity-tests.js";
+import { integrityTestResultsTable } from "@workspace/db";
 
 interface SafetyCeilingResult {
   applied: boolean;
@@ -658,6 +660,48 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     console.error("[forecast-snapshot] Failed to save snapshot:", snapErr);
   }
 
+  let integrityReport: IntegrityRunSummary | null = null;
+  try {
+    const integritySnapshot = buildForecastSnapshotForIntegrity(
+      req.params.caseId,
+      caseData,
+      finalResult,
+      signalsWithAdjustedLR,
+      eventGates,
+    );
+    integrityReport = runAllIntegrityTests(integritySnapshot);
+
+    const integrityRows = integrityReport.allResults.map(r => ({
+      id: r.id,
+      caseId: r.caseId,
+      runId: r.runId,
+      invariantName: r.invariantName,
+      passed: r.passed,
+      expectedBehavior: r.expectedBehavior,
+      actualBehavior: r.actualBehavior,
+      details: r.details,
+      forecastProbability: r.forecastProbability,
+      createdAt: r.createdAt,
+    }));
+    if (integrityRows.length > 0) {
+      db.insert(integrityTestResultsTable)
+        .values(integrityRows)
+        .onConflictDoNothing()
+        .execute()
+        .catch(err => console.error("[integrity] Failed to persist results:", err));
+    }
+
+    if (integrityReport.stabilityWarning) {
+      console.warn(
+        `[integrity] STABILITY WARNING for case ${req.params.caseId}: ` +
+        `${integrityReport.failed}/${integrityReport.totalTests} tests failed. ` +
+        `Core failures: ${integrityReport.coreFailures.join(", ")}`
+      );
+    }
+  } catch (integrityErr) {
+    console.error("[integrity] Test suite error:", integrityErr);
+  }
+
   const responsePayload = {
     ...finalResult,
     forecastId,
@@ -666,6 +710,21 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     _stateHash: stateHash,
     _consistency: consistencyResult ?? { score: "high", details: "No snapshot history." },
     _drift: driftResult ?? null,
+    _integrity: integrityReport ? {
+      runId: integrityReport.runId,
+      passed: integrityReport.passed,
+      failed: integrityReport.failed,
+      totalTests: integrityReport.totalTests,
+      coreFailures: integrityReport.coreFailures,
+      stabilityWarning: integrityReport.stabilityWarning,
+      unreliableFlag: integrityReport.unreliableFlag,
+      results: integrityReport.allResults.map(r => ({
+        invariantName: r.invariantName,
+        passed: r.passed,
+        expectedBehavior: r.expectedBehavior,
+        actualBehavior: r.actualBehavior,
+      })),
+    } : null,
   };
 
   setCachedResult(stateHash, responsePayload);

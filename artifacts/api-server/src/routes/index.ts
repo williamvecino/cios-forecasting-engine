@@ -68,6 +68,7 @@ import priorTemplatesRouter from "./prior-templates.js";
 import explanationGeneratorRouter from "./explanation-generator.js";
 import goldSetRouter from "./gold-set.js";
 import gapGuardRouter from "./gap-guard.js";
+import integrityRouter from "./integrity.js";
 
 const router: IRouter = Router();
 
@@ -140,5 +141,6 @@ router.use(priorTemplatesRouter);
 router.use(explanationGeneratorRouter);
 router.use(goldSetRouter);
 router.use(gapGuardRouter);
+router.use(integrityRouter);
 
 export default router;

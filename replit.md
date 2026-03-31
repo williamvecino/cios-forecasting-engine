@@ -84,6 +84,7 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 - **Gold-Set Test Pack:** `gold_set_cases` table with 20 seeded benchmark cases.
 - **Narrative Gap Guard:** Context-aware validator that blocks or flags vague narrative gap statements lacking numeric definitions.
 - **Consistency and Determinism System:** Uses a Canonical Case Object (`canonicalFields` JSONB on `cases` table) for structured parsed fields and `forecast_snapshots` for drift detection and consistency scoring.
+- **System Integrity Test Layer:** Internal validation module that tests 10 engine invariants on every forecast run: threshold monotonicity, horizon monotonicity, positive/negative signal response, constraint release response, duplicate compression, question sensitivity, segment sensitivity, explanation consistency, and reproducibility. Results logged to `integrity_test_results` table. Core invariant failures (threshold monotonicity, signal response, reproducibility) flag the forecast as unreliable. API: `GET /api/integrity/cases/:caseId`. Implementation: `api-server/src/lib/integrity-tests.ts`, `api-server/src/routes/integrity.ts`.
 
 **Bounded Agent Architecture:** The system employs 17 bounded, deterministic, single-purpose AI agents with fixed I/O schemas, enforcing a `ProgramID` scope constraint.
 
