@@ -1931,11 +1931,11 @@ function BottomLinks({ forecastData }: { forecastData?: any }) {
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
         <div className="text-sm font-semibold text-white">What comes next</div>
         <div className="mt-2 text-sm text-slate-300">
-          Once the forecast is visible, the next layer helps convert that output into action:
-          who to target, what blocks movement, when to act, and what competitive risks to watch.
+          Once the forecast is visible, the next layer converts each unresolved gate into an executable action
+          with an owner, timeline, resolution metric, and forecast effect.
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {["Adoption Segmentation", "Progress Blockers", "Readiness Timeline", "Competitive Risk", "Feasibility Assessment"].map((item) => (
+          {["Priority Actions", "Owner Assignment", "Timeline", "Resolution Metrics", "Forecast Impact"].map((item) => (
             <span key={item} className="rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-400">{item}</span>
           ))}
         </div>
