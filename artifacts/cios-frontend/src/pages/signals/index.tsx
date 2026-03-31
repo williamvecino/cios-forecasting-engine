@@ -89,9 +89,30 @@ function doesMiosBaosMatchBrand(s: any, currentSubject: string): boolean {
   return false;
 }
 
+const GENERIC_SIGNAL_PHRASES = [
+  "launch trajectory tracking above historical comparators",
+  "patient awareness campaigns driving demand",
+  "favorable guideline positioning supporting rapid",
+  "market access barriers may cap penetration below target threshold",
+  "tracking above historical",
+  "driving demand-side pull",
+  "supporting rapid initial uptake",
+  "cap penetration below target",
+  "creating competitive pressure",
+  "early adoption momentum",
+  "favorable positioning supporting",
+  "awareness campaigns driving",
+];
+
+function isGenericTemplateSignal(text: string): boolean {
+  const lower = (text || "").toLowerCase().trim();
+  return GENERIC_SIGNAL_PHRASES.some(phrase => lower.includes(phrase));
+}
+
 function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): any[] {
   if (!signals || signals.length === 0) return signals;
   return signals.filter((s: any) => {
+    if (isGenericTemplateSignal(s.text)) return false;
     if (!isMiosBaosSignal(s)) return true;
     if (!currentSubject) return false;
     return doesMiosBaosMatchBrand(s, currentSubject);
@@ -590,10 +611,10 @@ function generateContextualSuggestions(ctx: QuestionContext): Signal[] {
     );
   } else if (q.includes("exceed") || q.includes("threshold") || q.includes("%")) {
     raw.push(
-      { id: "sys-th1", text: `Early launch trajectory for ${subjectLabel} tracking above historical comparators`, caveat: "", direction: "positive", strength: "High", reliability: "Probable", category: "adoption", source: "system", accepted: false },
-      { id: "sys-th2", text: `Market access barriers may cap penetration below target threshold`, caveat: "", direction: "negative", strength: "Medium", reliability: "Probable", category: "access", source: "system", accepted: false },
-      { id: "sys-th3", text: `Favorable guideline positioning supporting rapid initial uptake`, caveat: "", direction: "positive", strength: "High", reliability: "Confirmed", category: "guideline", source: "system", accepted: false },
-      { id: "sys-th4", text: `Patient awareness campaigns driving demand-side pull`, caveat: "", direction: "positive", strength: "Medium", reliability: "Speculative", category: "adoption", source: "system", accepted: false },
+      { id: "sys-th1", text: `Current prescribing volume trend for ${subjectLabel} relative to threshold target`, caveat: "Direct measurement of whether the adoption target is on track", direction: "positive", strength: "High", reliability: "Probable", category: "adoption", source: "system", accepted: false },
+      { id: "sys-th2", text: `Payer coverage restrictions or prior authorization requirements limiting ${subjectLabel} access`, caveat: "Access barriers directly constrain achievable market share", direction: "negative", strength: "High", reliability: "Probable", category: "access", source: "system", accepted: false },
+      { id: "sys-th3", text: `Guideline committee positioning of ${subjectLabel} for the target indication`, caveat: "Guideline inclusion directly influences prescribing behavior at scale", direction: "positive", strength: "High", reliability: "Confirmed", category: "guideline", source: "system", accepted: false },
+      { id: "sys-th4", text: `Competitive alternatives to ${subjectLabel} that may fragment the addressable market`, caveat: "Competitor presence constrains maximum achievable share", direction: "negative", strength: "Medium", reliability: "Probable", category: "competition", source: "system", accepted: false },
     );
   } else {
     raw.push(
