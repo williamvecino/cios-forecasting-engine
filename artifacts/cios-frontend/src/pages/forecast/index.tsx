@@ -1050,6 +1050,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     };
   }, []);
 
+  const [viewMode, setViewMode] = useState<"minimal" | "full">("full");
+  const prevViewModeCaseRef = useRef(caseId);
+  if (prevViewModeCaseRef.current !== caseId) {
+    prevViewModeCaseRef.current = caseId;
+    setViewMode("full");
+  }
   const [apiLoadAttempted, setApiLoadAttempted] = useState(false);
   const [apiLoadDone, setApiLoadDone] = useState(false);
   const gate = checkForecastGate(caseId);
@@ -1186,11 +1192,118 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const downsideTotal = drivers.filter((d) => d.direction === "Downward").reduce((s, d) => s + Math.abs(d.contributionPoints), 0);
   const totalShiftPts = Math.round(delta * 100);
 
+  if (viewMode === "minimal") {
+    const signalDetails: Array<{ signalId: string; description: string; direction: string; likelihoodRatio: number; effectiveLikelihoodRatio: number; correlationDampened?: boolean; signalType?: string }> = f.signalDetails || [];
+    const rawProb = f.rawProbability ?? f.currentProbability ?? 0;
+    const finalProb = f.currentProbability ?? 0;
+    const priorProb = f.priorProbability ?? 0.5;
+    const shift = finalProb - priorProb;
+    const topContributors = drivers.slice(0, 8);
+
+    return (
+      <>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Minimal View — Core Engine Only</div>
+          <button
+            onClick={() => setViewMode("full")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10 transition"
+          >
+            Switch to Full View
+          </button>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-5 space-y-4">
+          <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Question</div>
+          <div className="text-base text-white font-medium">{activeQuestion?.text || "No question defined"}</div>
+          {activeQuestion?.subject && (
+            <div className="text-xs text-slate-400">Subject: {activeQuestion.subject}</div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-5">
+          <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-4">Prior &rarr; Final Forecast</div>
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Prior</div>
+              <div className="text-2xl font-bold text-slate-300">{Math.round(priorProb * 100)}%</div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-slate-600" />
+            <div className="text-center">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Engine Output</div>
+              <div className="text-lg font-semibold text-slate-400">{Math.round(rawProb * 100)}%</div>
+              <div className="text-[10px] text-slate-600">pre-distribution</div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-slate-600" />
+            <div className="text-center">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Final Forecast</div>
+              <div className="text-3xl font-bold text-white">{Math.round(finalProb * 100)}%</div>
+              <div className={cn("text-sm font-semibold", shift >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {shift >= 0 ? "+" : ""}{(shift * 100).toFixed(1)} pts from prior
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+            <span>Confidence: {confidence}</span>
+            {f.outcomeThreshold && <span>Threshold: {f.outcomeThreshold}</span>}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Accepted Signals ({signalDetails.length})</div>
+          </div>
+          {signalDetails.length === 0 ? (
+            <div className="text-xs text-slate-500">No signals in engine output.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {signalDetails.map((sig) => (
+                <div key={sig.signalId} className="flex items-start gap-3 py-1.5 border-b border-white/5 last:border-0">
+                  <span className={cn(
+                    "shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full",
+                    sig.direction === "Positive" ? "bg-emerald-400" : sig.direction === "Negative" ? "bg-rose-400" : "bg-slate-500"
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-slate-200 truncate">{sig.description}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">
+                      {sig.direction} &middot; LR {sig.effectiveLikelihoodRatio.toFixed(2)}
+                      {sig.correlationDampened && " (dampened)"}
+                      {sig.signalType && ` \u00B7 ${sig.signalType}`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {activeQuestion?.caseId && (
+          <EvidenceHealthPanel caseId={activeQuestion.caseId} />
+        )}
+
+        {topContributors.length > 0 && (
+          <DriverContributionBreakdown drivers={topContributors} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
+        )}
+
+        <div className="rounded-2xl border border-dashed border-white/10 bg-transparent p-4 text-center">
+          <div className="text-[10px] text-slate-600 uppercase tracking-wider">
+            Minimal mode: showing engine pipeline only. No gates, narratives, readiness, or scenarios.
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="flex items-center justify-between gap-2">
         <IntegrityBadge integrity={f?._integrity} />
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode("minimal")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-slate-200 transition"
+          >
+            Minimal View
+          </button>
           <RecalculateForecastButton
             caseId={caseId}
             onComplete={() => {
