@@ -73,10 +73,12 @@ router.post("/ai-signals/generate", async (req, res) => {
     const systemPrompt = `You are a pharmaceutical market intelligence analyst. Given a specific brand/therapy and a forecasting question, you must generate structured, multi-source signals that drive the forecast.
 
 A BRAND DEVELOPMENT CHECK has been performed. ${hasResearch
-  ? "Real-time web research found recent developments. You MUST convert these into structured signals FIRST, before generating any derived or generic signals."
-  : "No recent verified brand developments were found from web research."}
+  ? "Real-time web research found recent developments. You MUST convert these into structured signals FIRST, before generating any derived signals."
+  : "No recent verified brand developments were found from web research. You MUST still use your training knowledge about this specific product to generate brand-specific signals."}
 
 CRITICAL RULES:
+
+0. BRAND SPECIFICITY — ABSOLUTE REQUIREMENT: Every signal text MUST name the actual product, disease, trial, mechanism, or competitive product. NEVER generate signals with generic text like "Early launch trajectory tracking above historical comparators" or "Patient awareness campaigns driving demand-side pull" or "Favorable guideline positioning supporting rapid initial uptake." These are banned template phrases. Instead, name the SPECIFIC trial (e.g. CONVERT, ENCORE), the SPECIFIC disease (e.g. MAC lung disease, refractory NTM), the SPECIFIC mechanism (e.g. nebulized liposomal amikacin), and the SPECIFIC competitors or guidelines. If you cannot name the specific details, state what is unknown rather than substituting generic filler. A signal that could apply to any drug in any therapeutic area is ALWAYS wrong.
 
 1. Each case is unique. Do NOT apply generic templates. Evaluate this specific brand/product/question on its own merits.
 
@@ -240,7 +242,7 @@ Return ONLY valid JSON:
     if (hasResearch) {
       researchSection = `\n\n--- BRAND DEVELOPMENT CHECK RESULTS ---\n${research.combinedContext}\n--- END BRAND DEVELOPMENT CHECK ---\n\nIMPORTANT: Only convert brand developments into signals if they are CAUSALLY relevant to the decision mechanism in the question. Discard any news items that are merely in the same therapeutic area but do not directly affect the asked decision. For example, if the question asks about publication-driven adoption, discard general disease area news, unrelated product launches, or broad industry updates. Only include developments that influence the specific causal chain in the question.\n\nConvert relevant verified developments into "observed" signals with source_url, observed_date, citation_excerpt, and brand_verified: true. Then generate derived and uncertainty signals.`;
     } else {
-      researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found for "${body.subject}". Generate signals based on known market dynamics, but classify them as "derived" or "uncertainty" — not "observed". Every signal must be causally relevant to the decision mechanism in the question.`;
+      researchSection = `\n\nBRAND DEVELOPMENT CHECK: No recent verified brand developments found via live search for "${body.subject}". However, you MUST still use your training knowledge about this specific product/brand. You know the clinical trial history, mechanism of action, approved indications, competitive landscape, and key milestones for major pharmaceutical products. USE THAT KNOWLEDGE to generate product-specific signals. Classify them as "derived" (not "observed") since they are not from a live source, but they must still reference the ACTUAL product details — real trial names, real indications, real competitive products, real regulatory history. Do NOT fall back to generic adoption templates.`;
     }
 
     const keywordSection = sanitizedKeywords?.length
@@ -366,6 +368,33 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
           if (union > 0 && intersection / union > 0.7) return false;
         }
         seen.push(s.text || "");
+        return true;
+      });
+
+      const GENERIC_PHRASES = [
+        "launch trajectory tracking above historical comparators",
+        "patient awareness campaigns driving demand",
+        "favorable guideline positioning supporting rapid",
+        "market access barriers may cap penetration below target threshold",
+        "strong clinical data supporting",
+        "competitive landscape creating pressure",
+        "real-world evidence generation",
+        "tracking above historical",
+        "driving demand-side pull",
+        "supporting rapid initial uptake",
+        "cap penetration below target",
+        "creating competitive pressure",
+        "early adoption momentum",
+        "favorable positioning supporting",
+        "awareness campaigns driving",
+      ];
+      parsed.signals = parsed.signals.filter((s: any) => {
+        const text = (s.text || "").toLowerCase().trim();
+        const matchesGeneric = GENERIC_PHRASES.some(phrase => text.includes(phrase));
+        if (matchesGeneric) {
+          console.warn(`[signal-filter] Removed generic signal: "${(s.text || "").slice(0, 100)}"`);
+          return false;
+        }
         return true;
       });
     }

@@ -481,12 +481,19 @@ function buildReasoningWithDrivers(
 
   const parts: string[] = [];
 
+  const hasRegulatoryGates = gates.some(g =>
+    /regulatory|approval|fda|ema|label|filing|advisory committee/i.test(g.gate_label)
+  );
+  const hasClinicalGates = gates.some(g =>
+    /trial|enrollment|endpoint|efficacy|clinical|comparator|protocol/i.test(g.gate_label)
+  );
+
   if (gap >= 15) {
     const weakNames = weakGates.slice(0, 2).map(g => g.gate_label);
     const constraintList = weakNames.length > 0 ? weakNames.join(" and ") : "unresolved conditions";
-    if (caseType === "regulatory_approval") {
+    if (hasRegulatoryGates && !hasClinicalGates) {
       parts.push(`The evidence package supports a ${brandPct}% outlook, but ${constraintList} reduce the constrained forecast to ${finalPct}% — a ${gap}-point drag from regulatory and procedural conditions, not data quality.`);
-    } else if (caseType === "clinical_outcome") {
+    } else if (hasClinicalGates && !hasRegulatoryGates) {
       parts.push(`Trial-level evidence supports a ${brandPct}% probability, but ${constraintList} pull the constrained estimate to ${finalPct}% — a ${gap}-point reduction driven by trial execution and design factors.`);
     } else {
       parts.push(`Evidence supports a ${brandPct}% outlook, but ${constraintList} constrain the forecast to ${finalPct}% — a ${gap}-point reduction from operational and market-access conditions rather than clinical merit.`);
