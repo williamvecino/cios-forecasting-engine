@@ -101,6 +101,8 @@ Stability checks required before expanding: deterministic reruns, threshold sens
 
 **Bounded Agent Architecture:** The system employs 17 bounded, deterministic, single-purpose AI agents with fixed I/O schemas, enforcing a `ProgramID` scope constraint.
 
+**Agent Registry:** A 7-agent chain registry (`api-server/src/lib/agent-registry.ts`) defines the canonical forecasting pipeline agents (Question Structuring → Signal Identification → Signal Validation → Dependency Control → Forecast Engine → Interpretation → Scenario Simulation). Each agent has explicit input/output contracts, boundary rules, implementation files, and downstream consumers. Exposed via `GET /api/agent-registry` and rendered at `/agent-registry` in the frontend.
+
 ## External Dependencies
 - **PostgreSQL:** Relational database.
 - **Express 5:** Backend framework.

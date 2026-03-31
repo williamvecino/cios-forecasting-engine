@@ -13,6 +13,7 @@ import {
   Eye,
   Users,
   Layers,
+  GitBranch,
 } from "lucide-react";
 
 const SYSTEM_MODULES = [
@@ -27,6 +28,7 @@ const SYSTEM_MODULES = [
   {
     section: "Infrastructure",
     items: [
+      { label: "Agent Registry", path: "/agent-registry", icon: GitBranch, description: "Canonical agent chain with explicit contracts, boundaries, and enforcement rules." },
       { label: "Strategic Dashboard", path: "/dashboard", icon: Activity, description: "Full case overview with probabilities and active questions." },
       { label: "System Map", path: "/system-map", icon: Map, description: "Architecture view and internal relationships." },
       { label: "Workbench", path: "/workbench", icon: Settings, description: "Detailed operational testing and manual forecasting." },
