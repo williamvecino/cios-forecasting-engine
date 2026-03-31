@@ -1889,54 +1889,94 @@ export default function SignalsPage() {
             </div>
           )}
 
-          {aiLoading && processingPhase === "searching" && (
-            <div className="rounded-2xl border border-cyan-400/40 bg-gradient-to-r from-cyan-500/15 via-cyan-500/5 to-card p-5 shadow-[0_0_15px_rgba(34,211,238,0.08)]">
-              <div className="flex items-center gap-3">
+          {aiLoading && (processingPhase === "searching" || processingPhase === "processing") && (
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0d1b3e] to-[#0A1736] p-6 shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+              <div className="flex flex-col items-center gap-4 py-2">
                 <div className="relative">
-                  <Search className="w-5 h-5 text-cyan-400 animate-pulse" />
-                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-foreground">Searching for signals</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Scanning sources and collecting candidates</div>
-                  <div className="mt-3 h-2.5 w-full rounded-full bg-cyan-500/10 overflow-hidden relative">
-                    <div className="absolute inset-0 h-full rounded-full bg-gradient-to-r from-cyan-500/20 via-cyan-400/60 to-cyan-500/20 animate-[searchSlide_2s_ease-in-out_infinite]" />
-                    <div className="absolute inset-0 h-full rounded-full bg-gradient-to-r from-transparent via-white/15 to-transparent animate-[searchShimmer_1.5s_ease-in-out_infinite]" />
+                  <div
+                    className="absolute inset-0 rounded-full blur-xl opacity-60"
+                    style={{
+                      background: processingPhase === "searching"
+                        ? "radial-gradient(circle, rgba(239,68,68,0.5) 0%, transparent 70%)"
+                        : processingCounts.validated > 0
+                          ? "radial-gradient(circle, rgba(34,197,94,0.5) 0%, transparent 70%)"
+                          : "radial-gradient(circle, rgba(251,191,36,0.5) 0%, transparent 70%)",
+                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                    }}
+                  />
+                  <div
+                    className="relative w-16 h-16 flex items-center justify-center rounded-full"
+                    style={{
+                      background: processingPhase === "searching"
+                        ? "linear-gradient(135deg, rgba(239,68,68,0.25) 0%, rgba(239,68,68,0.08) 100%)"
+                        : processingCounts.validated > 0
+                          ? "linear-gradient(135deg, rgba(34,197,94,0.25) 0%, rgba(34,197,94,0.08) 100%)"
+                          : "linear-gradient(135deg, rgba(251,191,36,0.25) 0%, rgba(251,191,36,0.08) 100%)",
+                      border: `2px solid ${processingPhase === "searching" ? "rgba(239,68,68,0.4)" : processingCounts.validated > 0 ? "rgba(34,197,94,0.4)" : "rgba(251,191,36,0.4)"}`,
+                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                    }}
+                  >
+                    <Brain
+                      className="w-8 h-8 transition-colors duration-1000"
+                      style={{
+                        color: processingPhase === "searching"
+                          ? "#ef4444"
+                          : processingCounts.validated > 0
+                            ? "#22c55e"
+                            : "#fbbf24",
+                      }}
+                    />
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
 
-          {aiLoading && processingPhase === "processing" && (
-            <div className="rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-card p-5 shadow-[0_0_15px_rgba(251,191,36,0.08)]">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Activity className="w-5 h-5 text-amber-400 animate-pulse" />
-                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+                <div className="text-center space-y-1">
+                  <div className="text-sm font-semibold text-foreground tracking-wide">
+                    {processingPhase === "searching"
+                      ? "Completing signals..."
+                      : processingCounts.validated > 0
+                        ? "Finalizing signals..."
+                        : "Processing signals..."}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {processingPhase === "searching"
+                      ? "Scanning evidence sources and collecting candidates"
+                      : "Deduplicating, normalizing, and assessing quality"}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-foreground">Processing signals</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Deduplicating, normalizing, and assessing quality</div>
-                  <div className="mt-3 h-2.5 w-full rounded-full bg-amber-500/10 overflow-hidden relative">
-                    <div className="h-full rounded-full bg-gradient-to-r from-amber-500/30 via-amber-400/70 to-amber-500/30 transition-all duration-700" style={{ width: processingCounts.validated > 0 ? "95%" : processingCounts.normalized > 0 ? "70%" : "40%" }} />
+
+                <div className="w-full max-w-xs">
+                  <div className="h-1.5 w-full rounded-full bg-white/5 overflow-hidden relative">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: processingPhase === "searching" ? "30%" : processingCounts.validated > 0 ? "95%" : processingCounts.normalized > 0 ? "70%" : "45%",
+                        background: processingPhase === "searching"
+                          ? "linear-gradient(90deg, rgba(239,68,68,0.4), rgba(239,68,68,0.8), rgba(239,68,68,0.4))"
+                          : processingCounts.validated > 0
+                            ? "linear-gradient(90deg, rgba(34,197,94,0.4), rgba(34,197,94,0.8), rgba(34,197,94,0.4))"
+                            : "linear-gradient(90deg, rgba(251,191,36,0.4), rgba(251,191,36,0.8), rgba(251,191,36,0.4))",
+                      }}
+                    />
                     <div className="absolute inset-0 h-full rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[searchShimmer_1.5s_ease-in-out_infinite]" />
                   </div>
-                  <div className="flex items-center gap-4 mt-2">
+                </div>
+
+                {processingPhase === "processing" && (
+                  <div className="flex items-center gap-5 mt-1">
                     <div className="flex items-center gap-1.5">
-                      <div className={`w-1.5 h-1.5 rounded-full ${processingCounts.found > 0 ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
-                      <span className="text-[10px] text-muted-foreground">Signals found: <span className="text-foreground font-medium">{processingCounts.found}</span></span>
+                      <div className={`w-2 h-2 rounded-full transition-colors duration-500 ${processingCounts.found > 0 ? "bg-emerald-400" : "bg-white/10"}`} />
+                      <span className="text-[11px] text-muted-foreground">Found: <span className="text-foreground font-semibold">{processingCounts.found}</span></span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className={`w-1.5 h-1.5 rounded-full ${processingCounts.normalized > 0 ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
-                      <span className="text-[10px] text-muted-foreground">Normalized: <span className="text-foreground font-medium">{processingCounts.normalized}</span></span>
+                      <div className={`w-2 h-2 rounded-full transition-colors duration-500 ${processingCounts.normalized > 0 ? "bg-emerald-400" : "bg-white/10"}`} />
+                      <span className="text-[11px] text-muted-foreground">Normalized: <span className="text-foreground font-semibold">{processingCounts.normalized}</span></span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className={`w-1.5 h-1.5 rounded-full ${processingCounts.validated > 0 ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
-                      <span className="text-[10px] text-muted-foreground">Validated: <span className="text-foreground font-medium">{processingCounts.validated}</span></span>
+                      <div className={`w-2 h-2 rounded-full transition-colors duration-500 ${processingCounts.validated > 0 ? "bg-emerald-400" : "bg-white/10"}`} />
+                      <span className="text-[11px] text-muted-foreground">Validated: <span className="text-foreground font-semibold">{processingCounts.validated}</span></span>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
