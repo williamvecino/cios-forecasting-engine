@@ -14,25 +14,40 @@ export interface GateConstraint {
   constrains_probability_to: number;
 }
 
+export interface GateAdjustment {
+  gate_id: string;
+  gate_label: string;
+  alphaShift: number;
+  betaShift: number;
+  reason: string;
+}
+
+export interface GateDominationDiagnostic {
+  gateDominated: boolean;
+  warning: string | null;
+  unconstrainedProbability: number;
+  constrainedProbability: number;
+  gateImpactRatio: number;
+  achievableCeiling: number;
+  readinessScore: number;
+}
+
 export interface DistributionResult {
   unconstrained: AdoptionDistribution;
   constrained: AdoptionDistribution;
   thresholdProbability: number;
   outcomeThreshold: number;
-  gateAdjustments: Array<{
-    gate_id: string;
-    gate_label: string;
-    alphaShift: number;
-    betaShift: number;
-    reason: string;
-  }>;
+  gateAdjustments: GateAdjustment[];
+  readinessScore: number;
+  achievableCeiling: number;
+  gateDomination: GateDominationDiagnostic;
 }
 
 const GATE_SEVERITY: Record<string, number> = {
   strong: 0,
-  moderate: 0.15,
-  weak: 0.35,
-  unresolved: 0.55,
+  moderate: 0.25,
+  weak: 0.55,
+  unresolved: 0.85,
 };
 
 function lnGamma(z: number): number {
@@ -149,40 +164,74 @@ export function buildAdoptionDistribution(
   return { alpha: safeAlpha, beta: safeBeta, mean, variance, mode, concentration: safeAlpha + safeBeta };
 }
 
-export function applyGateConstraints(
-  dist: AdoptionDistribution,
-  gates: GateConstraint[],
-): { adjusted: AdoptionDistribution; adjustments: DistributionResult["gateAdjustments"] } {
-  let alpha = dist.alpha;
-  let beta = dist.beta;
-  const adjustments: DistributionResult["gateAdjustments"] = [];
+export function computeReadinessScore(gates: GateConstraint[]): number {
+  if (gates.length === 0) return 1.0;
+  let score = 1.0;
+  for (const gate of gates) {
+    const severity = GATE_SEVERITY[gate.status] ?? 0;
+    score *= (1 - severity);
+  }
+  return Number(Math.max(0, Math.min(1, score)).toFixed(4));
+}
 
+export function computeAchievableCeiling(gates: GateConstraint[]): number {
+  if (gates.length === 0) return 1.0;
+  let ceiling = 1.0;
   for (const gate of gates) {
     const severity = GATE_SEVERITY[gate.status] ?? 0;
     if (severity === 0) continue;
+    const bindingFraction = severity;
+    const gateCeiling = 1.0 - bindingFraction * (1.0 - gate.constrains_probability_to);
+    ceiling = Math.min(ceiling, gateCeiling);
+  }
+  return Number(Math.max(0.02, Math.min(1, ceiling)).toFixed(4));
+}
 
-    const currentMean = alpha / (alpha + beta);
-    const capValue = Math.max(0.05, Math.min(0.95, gate.constrains_probability_to));
-    const capPenalty = currentMean > capValue ? (currentMean - capValue) : 0;
+export function applyGateConstraints(
+  dist: AdoptionDistribution,
+  gates: GateConstraint[],
+): { adjusted: AdoptionDistribution; adjustments: GateAdjustment[]; achievableCeiling: number } {
+  const adjustments: GateAdjustment[] = [];
+  const achievableCeiling = computeAchievableCeiling(gates);
 
-    const concentration = alpha + beta;
-    const statusTransfer = severity * concentration * 0.08;
-    const capTransfer = capPenalty * concentration * 0.25;
-    const transfer = statusTransfer + capTransfer;
+  let alpha = dist.alpha;
+  let beta = dist.beta;
+  const concentration = alpha + beta;
+  const currentMean = alpha / concentration;
 
-    const alphaShift = -transfer;
-    const betaShift = transfer;
+  if (currentMean > achievableCeiling && achievableCeiling < 1.0) {
+    const targetMean = achievableCeiling;
+    const newAlpha = targetMean * concentration;
+    const newBeta = (1 - targetMean) * concentration;
+    const alphaShift = newAlpha - alpha;
+    const betaShift = newBeta - beta;
 
-    alpha = Math.max(1.01, alpha + alphaShift);
-    beta = Math.max(1.01, beta + betaShift);
+    alpha = Math.max(1.01, newAlpha);
+    beta = Math.max(1.01, newBeta);
 
-    adjustments.push({
-      gate_id: gate.gate_id,
-      gate_label: gate.gate_label,
-      alphaShift: Number(alphaShift.toFixed(4)),
-      betaShift: Number(betaShift.toFixed(4)),
-      reason: `${gate.gate_label} (${gate.status}, cap ${(capValue * 100).toFixed(0)}%): shifts distribution downward`,
-    });
+    for (const gate of gates) {
+      const severity = GATE_SEVERITY[gate.status] ?? 0;
+      if (severity === 0) continue;
+      adjustments.push({
+        gate_id: gate.gate_id,
+        gate_label: gate.gate_label,
+        alphaShift: Number((alphaShift / gates.filter(g => (GATE_SEVERITY[g.status] ?? 0) > 0).length).toFixed(4)),
+        betaShift: Number((betaShift / gates.filter(g => (GATE_SEVERITY[g.status] ?? 0) > 0).length).toFixed(4)),
+        reason: `${gate.gate_label} (${gate.status}): ceiling ${(computeAchievableCeiling([gate]) * 100).toFixed(0)}% — constrains achievable outcome range`,
+      });
+    }
+  } else {
+    for (const gate of gates) {
+      const severity = GATE_SEVERITY[gate.status] ?? 0;
+      if (severity === 0) continue;
+      adjustments.push({
+        gate_id: gate.gate_id,
+        gate_label: gate.gate_label,
+        alphaShift: 0,
+        betaShift: 0,
+        reason: `${gate.gate_label} (${gate.status}): distribution already within achievable range`,
+      });
+    }
   }
 
   const mean = alpha / (alpha + beta);
@@ -194,6 +243,7 @@ export function applyGateConstraints(
   return {
     adjusted: { alpha, beta, mean, variance, mode, concentration: alpha + beta },
     adjustments,
+    achievableCeiling,
   };
 }
 
@@ -201,6 +251,38 @@ export function probabilityOfThreshold(dist: AdoptionDistribution, threshold: nu
   const t = Math.max(0, Math.min(1, threshold));
   const pBelow = betaCDF(t, dist.alpha, dist.beta);
   return Math.max(0, Math.min(1, 1 - pBelow));
+}
+
+export function detectGateDomination(
+  unconstrained: AdoptionDistribution,
+  constrained: AdoptionDistribution,
+  threshold: number,
+  achievableCeiling: number,
+  readinessScore: number,
+): GateDominationDiagnostic {
+  const unconstrainedProb = probabilityOfThreshold(unconstrained, threshold);
+  const constrainedProb = probabilityOfThreshold(constrained, threshold);
+
+  const gateImpact = Math.abs(unconstrainedProb - constrainedProb);
+  const gateImpactRatio = unconstrainedProb > 0.01
+    ? gateImpact / unconstrainedProb
+    : 0;
+
+  const gateDominated = gateImpactRatio > 0.5 && gateImpact > 0.05;
+
+  const warning = gateDominated
+    ? `Gate Domination Warning: Gate constraints account for ${(gateImpactRatio * 100).toFixed(0)}% of the probability reduction (${(gateImpact * 100).toFixed(1)}pp). Probability is primarily determined by constraint status rather than signal evidence. Readiness: ${(readinessScore * 100).toFixed(0)}%.`
+    : null;
+
+  return {
+    gateDominated,
+    warning,
+    unconstrainedProbability: Number(unconstrainedProb.toFixed(4)),
+    constrainedProbability: Number(constrainedProb.toFixed(4)),
+    gateImpactRatio: Number(gateImpactRatio.toFixed(4)),
+    achievableCeiling,
+    readinessScore,
+  };
 }
 
 export function computeDistributionForecast(
@@ -218,7 +300,8 @@ export function computeDistributionForecast(
     evidenceDiversityScore,
   );
 
-  const { adjusted: constrained, adjustments: gateAdjustments } = applyGateConstraints(unconstrained, gates);
+  const { adjusted: constrained, adjustments: gateAdjustments, achievableCeiling } = applyGateConstraints(unconstrained, gates);
+  const readinessScore = computeReadinessScore(gates);
 
   let outcomeThreshold: number;
   if (typeof outcomeThresholdRaw === "number") {
@@ -232,12 +315,23 @@ export function computeDistributionForecast(
 
   const thresholdProbability = probabilityOfThreshold(constrained, outcomeThreshold);
 
+  const gateDomination = detectGateDomination(
+    unconstrained,
+    constrained,
+    outcomeThreshold,
+    achievableCeiling,
+    readinessScore,
+  );
+
   return {
     unconstrained,
     constrained,
     thresholdProbability,
     outcomeThreshold,
     gateAdjustments,
+    readinessScore,
+    achievableCeiling,
+    gateDomination,
   };
 }
 

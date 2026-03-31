@@ -407,6 +407,9 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       thresholdProbability: distributionResult.thresholdProbability,
       gateAdjustments: distributionResult.gateAdjustments,
       thresholdSensitivity,
+      readinessScore: distributionResult.readinessScore,
+      achievableCeiling: distributionResult.achievableCeiling,
+      gateDomination: distributionResult.gateDomination,
     },
     bucketCorrectionApplied: hierarchicalCalibration.correctionAppliedPp !== 0
       ? { bucket, correctionPp: hierarchicalCalibration.correctionAppliedPp }

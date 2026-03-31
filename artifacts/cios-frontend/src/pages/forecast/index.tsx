@@ -14,7 +14,7 @@ import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
 import { ExplainBox } from "@/components/forecast/ExplainBox";
 import { generateExecutiveJudgment } from "@/lib/judgment-engine";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
-import { computeDistributionForecast, probabilityOfThreshold, type GateConstraint } from "@/lib/adoption-distribution";
+import { computeDistributionForecast, probabilityOfThreshold, computeReadinessScore, computeAchievableCeiling, type GateConstraint, type GateDominationDiagnostic } from "@/lib/adoption-distribution";
 import { CaseComparatorPanel } from "@/components/forecast/CaseComparatorPanel";
 import { IntegrityPanel } from "@/components/forecast/IntegrityPanel";
 import { CalibrationChecksPanel } from "@/components/forecast/CalibrationChecksPanel";
@@ -1270,6 +1270,27 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           : (f.currentProbability ?? 0.5);
         const displayProbPct = Math.round(displayProb * 100);
 
+        const distGatesForDiag: GateConstraint[] = hasGates
+          ? decomp!.event_gates.map((g: any) => ({
+              gate_id: g.gate_id,
+              gate_label: g.gate_label,
+              status: g.status as "unresolved" | "weak" | "moderate" | "strong",
+              constrains_probability_to: g.constrains_probability_to,
+            }))
+          : [];
+        const localDistResult = hasGates
+          ? computeDistributionForecast(
+              brandOutlookProb ?? f.currentProbability ?? 0.5,
+              confidenceLvl,
+              sigCount,
+              0.5,
+              distGatesForDiag,
+              outcomeThresholdStr,
+            )
+          : null;
+        const gateDomination = (f?.distributionForecast?.gateDomination as GateDominationDiagnostic | undefined) ?? localDistResult?.gateDomination ?? null;
+        const readinessScore = (f?.distributionForecast?.readinessScore as number | undefined) ?? localDistResult?.readinessScore ?? 1.0;
+
         return (
           <>
             {hasGates && (() => {
@@ -1367,6 +1388,47 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                   />
 
                   <EventGatesPanel gates={decomp!.event_gates} />
+
+                  {gateDomination && gateDomination.gateDominated && (
+                    <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.04] p-4 flex items-start gap-3">
+                      <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <div className="text-sm font-semibold text-amber-200">Constraint Domination Detected</div>
+                        <div className="text-xs text-amber-200/70">
+                          Constraint status accounts for {Math.round(gateDomination.gateImpactRatio * 100)}% of probability movement ({(Math.abs(gateDomination.unconstrainedProbability - gateDomination.constrainedProbability) * 100).toFixed(1)}pp).
+                          The forecast is primarily shaped by constraint resolution rather than signal evidence.
+                        </div>
+                        <div className="flex items-center gap-4 mt-2 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">Signal-only probability:</span>
+                            <span className="font-semibold text-cyan-300">{Math.round(gateDomination.unconstrainedProbability * 100)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">After constraints:</span>
+                            <span className="font-semibold text-amber-300">{Math.round(gateDomination.constrainedProbability * 100)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">Readiness:</span>
+                            <span className="font-semibold text-emerald-300">{Math.round(readinessScore * 100)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!gateDomination?.gateDominated && readinessScore < 1.0 && (
+                    <div className="rounded-2xl border border-white/10 bg-[#0A1736]/40 p-4 flex items-center gap-3">
+                      <div className="text-xs text-slate-400">
+                        <span className="font-medium text-slate-300">Readiness Score:</span>{" "}
+                        <span className={readinessScore >= 0.7 ? "text-emerald-400" : readinessScore >= 0.4 ? "text-amber-400" : "text-red-400"}>
+                          {Math.round(readinessScore * 100)}%
+                        </span>
+                        <span className="ml-2 text-slate-500">
+                          {readinessScore >= 0.7 ? "Constraints largely resolved" : readinessScore >= 0.4 ? "Some constraints remain" : "Significant constraints unresolved"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   <details className="rounded-2xl border border-white/10 bg-[#0A1736]/60 overflow-hidden" data-testid="judgment-audit-block">
                     <summary className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-slate-200 select-none">
