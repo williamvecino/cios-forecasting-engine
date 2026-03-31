@@ -966,10 +966,13 @@ export default function SignalsPage() {
   const [processingCounts, setProcessingCounts] = useState({ found: 0, normalized: 0, validated: 0 });
   const [showReadyBanner, setShowReadyBanner] = useState(false);
   const [slowWarning, setSlowWarning] = useState(false);
+  const [showActivityPanel, setShowActivityPanel] = useState(false);
   const readyBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slowWarningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const phaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
   const searchSucceededRef = useRef(false);
+  const searchStartTimeRef = useRef<number>(0);
+  const MIN_ACTIVITY_DISPLAY_MS = 3000;
   const [aiError, setAiError] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
   const [translationSummary, setTranslationSummary] = useState<string | null>(null);
@@ -1070,7 +1073,16 @@ export default function SignalsPage() {
       return null;
     })();
     if (persisted && persisted.length > 0) {
-      setSignals(persisted.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
+      setShowActivityPanel(true);
+      setProcessingPhase("preparing");
+      setProcessingCounts({ found: persisted.length, normalized: persisted.length, validated: persisted.length });
+      setSignals([]);
+      setTimeout(() => {
+        setSignals(persisted.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
+        setShowActivityPanel(false);
+        setProcessingPhase("ready");
+        setShowReadyBanner(true);
+      }, 1500);
     } else {
       setSignals(fallbackSuggestions.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
     }
@@ -1148,11 +1160,13 @@ export default function SignalsPage() {
     const requestId = ++aiRequestIdRef.current;
 
     setAiLoading(true);
+    setShowActivityPanel(true);
     setProcessingPhase("searching");
     setProcessingCounts({ found: 0, normalized: 0, validated: 0 });
     setShowReadyBanner(false);
     setSlowWarning(false);
     searchSucceededRef.current = false;
+    searchStartTimeRef.current = Date.now();
     if (readyBannerTimerRef.current) {
       clearTimeout(readyBannerTimerRef.current);
       readyBannerTimerRef.current = null;
@@ -1161,10 +1175,8 @@ export default function SignalsPage() {
       clearTimeout(slowWarningTimerRef.current);
       slowWarningTimerRef.current = null;
     }
-    if (phaseTimerRef.current) {
-      clearTimeout(phaseTimerRef.current);
-      phaseTimerRef.current = null;
-    }
+    for (const t of phaseTimerRefs.current) clearTimeout(t);
+    phaseTimerRefs.current = [];
 
     slowWarningTimerRef.current = setTimeout(() => {
       setSlowWarning(true);
@@ -1185,7 +1197,7 @@ export default function SignalsPage() {
           });
         }
       }, step.delay);
-      phaseTimerRef.current = timerId;
+      phaseTimerRefs.current.push(timerId);
     }
 
     setAiError(null);
@@ -1213,7 +1225,7 @@ export default function SignalsPage() {
     }
 
     const API = import.meta.env.VITE_API_URL || "";
-    fetch(`${API}/api/ai-signals/generate`, {
+    const doFetch = () => fetch(`${API}/api/ai-signals/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1394,24 +1406,44 @@ export default function SignalsPage() {
       })
       .finally(() => {
         if (aiRequestIdRef.current === requestId) {
-          setAiLoading(false);
-          setSlowWarning(false);
           if (slowWarningTimerRef.current) {
             clearTimeout(slowWarningTimerRef.current);
             slowWarningTimerRef.current = null;
           }
-          if (phaseTimerRef.current) {
-            clearTimeout(phaseTimerRef.current);
-            phaseTimerRef.current = null;
-          }
-          if (searchSucceededRef.current) {
-            setProcessingPhase("ready");
-            setShowReadyBanner(true);
+          for (const t of phaseTimerRefs.current) clearTimeout(t);
+          phaseTimerRefs.current = [];
+
+          const elapsed = Date.now() - searchStartTimeRef.current;
+          const remaining = Math.max(0, MIN_ACTIVITY_DISPLAY_MS - elapsed);
+
+          const finishSearch = () => {
+            setAiLoading(false);
+            setSlowWarning(false);
+            setShowActivityPanel(false);
+            if (searchSucceededRef.current) {
+              setProcessingPhase("ready");
+              setShowReadyBanner(true);
+            } else {
+              setProcessingPhase(null);
+            }
+          };
+
+          if (remaining > 0) {
+            setProcessingPhase("preparing");
+            setTimeout(() => {
+              if (aiRequestIdRef.current === requestId) {
+                finishSearch();
+              }
+            }, remaining);
           } else {
-            setProcessingPhase(null);
+            finishSearch();
           }
         }
       });
+
+    requestAnimationFrame(() => {
+      setTimeout(doFetch, 50);
+    });
   }, [subject, questionText, outcome, questionType, timeHorizon, entities, caseKey, fallbackEvents, fallbackSuggestions]);
 
   useEffect(() => {
@@ -1449,22 +1481,7 @@ export default function SignalsPage() {
   useEffect(() => {
     if (activeQuestion?.caseId !== prevCaseRef.current) {
       setSignalLineageMap({});
-      setProcessingPhase(null);
-      setProcessingCounts({ found: 0, normalized: 0, validated: 0 });
       setShowReadyBanner(false);
-      setSlowWarning(false);
-      if (readyBannerTimerRef.current) {
-        clearTimeout(readyBannerTimerRef.current);
-        readyBannerTimerRef.current = null;
-      }
-      if (slowWarningTimerRef.current) {
-        clearTimeout(slowWarningTimerRef.current);
-        slowWarningTimerRef.current = null;
-      }
-      if (phaseTimerRef.current) {
-        clearTimeout(phaseTimerRef.current);
-        phaseTimerRef.current = null;
-      }
       prevCaseRef.current = activeQuestion?.caseId;
     }
   }, [activeQuestion?.caseId]);
@@ -1998,7 +2015,7 @@ export default function SignalsPage() {
             <SavedQuestionsPanel caseId={activeQuestion.caseId} />
           )}
 
-          {aiLoading && processingPhase && processingPhase !== "ready" && (
+          {showActivityPanel && processingPhase && processingPhase !== "ready" && (
             <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-b from-blue-500/[0.06] to-[#0A1736] p-6" data-testid="signal-search-activity">
               <div className="space-y-5">
                 <div className="flex items-center gap-3">
@@ -2020,7 +2037,7 @@ export default function SignalsPage() {
                     { key: "normalizing", label: "Normalizing and deduplicating" },
                     { key: "assessing", label: "Assessing signal relevance" },
                     { key: "preparing", label: "Preparing results" },
-                  ] as const).map((step, idx, arr) => {
+                  ] as const).map((step) => {
                     const phaseOrder = ["searching", "collecting", "normalizing", "assessing", "preparing", "processing"];
                     const currentIdx = phaseOrder.indexOf(processingPhase ?? "searching");
                     const stepIdx = phaseOrder.indexOf(step.key);
@@ -2038,11 +2055,17 @@ export default function SignalsPage() {
                         <span className={`text-xs font-medium ${isActive ? "text-blue-300" : isComplete ? "text-emerald-300/80" : "text-muted-foreground"}`}>
                           {step.label}
                         </span>
+                        {isComplete && processingCounts.found > 0 && step.key === "collecting" && (
+                          <span className="ml-auto text-[10px] text-emerald-400/70">{processingCounts.found} found</span>
+                        )}
                         {isActive && processingCounts.found > 0 && step.key === "collecting" && (
                           <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.found} found</span>
                         )}
+                        {isComplete && processingCounts.normalized > 0 && step.key === "normalizing" && (
+                          <span className="ml-auto text-[10px] text-emerald-400/70">{processingCounts.normalized} processed</span>
+                        )}
                         {isActive && processingCounts.normalized > 0 && step.key === "normalizing" && (
-                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.normalized} processed</span>
+                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.normalized} processing</span>
                         )}
                         {isActive && processingCounts.validated > 0 && step.key === "assessing" && (
                           <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.validated} validated</span>
@@ -2085,7 +2108,7 @@ export default function SignalsPage() {
             <button
               type="button"
               onClick={() => setShowFindPanel(true)}
-              disabled={aiLoading}
+              disabled={aiLoading || showActivityPanel}
               className="w-full rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-6 py-4 text-left transition hover:border-primary/50 hover:from-primary/15 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
               <div className="flex items-center gap-3">
@@ -2153,7 +2176,7 @@ export default function SignalsPage() {
                       setShowFindPanel(false);
                       runSignalSearch(kws);
                     }}
-                    disabled={aiLoading}
+                    disabled={aiLoading || showActivityPanel}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition disabled:opacity-50"
                   >
                     <Search className="w-4 h-4" />
