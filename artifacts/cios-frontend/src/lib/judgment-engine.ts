@@ -212,6 +212,12 @@ export interface ExecutiveJudgmentResult {
   nextBestQuestion: string;
   caseType: string;
   compositeScenarios?: CompositeScenarioResult[];
+  gateConstrained?: {
+    underlyingStrengthPct: number;
+    constraintGap: number;
+    constraintLabels: string[];
+    constraintType: "execution" | "access" | "mixed";
+  };
   _audit: JudgmentAudit;
 }
 
@@ -1011,6 +1017,18 @@ export function generateExecutiveJudgment(input: JudgmentInput): ExecutiveJudgme
     nextBestQuestion,
     caseType,
     compositeScenarios: compositeResults,
+    gateConstrained: (() => {
+      const constraintGap = brandOutlookPct - adjustedFinalPct;
+      const constraintGates = correctedGates.filter(g => g.status === "weak" || g.status === "unresolved" || g.status === "moderate");
+      if (constraintGap >= 15 && brandOutlookPct >= 50 && constraintGates.length > 0) {
+        const labels = constraintGates.slice(0, 3).map(g => g.gate_label);
+        const hasAccess = constraintGates.some(g => /access|payer|reimbursement|formulary|coverage|authorization|part.d/i.test(g.gate_label));
+        const hasExecution = constraintGates.some(g => /execution|operational|supply|manufacturing|readiness|launch|infrastructure/i.test(g.gate_label));
+        const constraintType = hasAccess && hasExecution ? "mixed" as const : hasAccess ? "access" as const : "execution" as const;
+        return { underlyingStrengthPct: brandOutlookPct, constraintGap, constraintLabels: labels, constraintType };
+      }
+      return undefined;
+    })(),
     _audit: audit,
   };
 }

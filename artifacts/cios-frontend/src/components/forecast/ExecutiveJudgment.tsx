@@ -16,6 +16,8 @@ import {
   ExternalLink,
   Layers,
   ShieldAlert,
+  ShieldCheck,
+  Lock,
 } from "lucide-react";
 import type { ExecutiveJudgmentResult, AnalogCaseDetail } from "@/lib/judgment-engine";
 import type { SignalTier } from "@/lib/signal-differentiation";
@@ -172,11 +174,53 @@ const ExecutiveJudgment = memo(function ExecutiveJudgment({
               : judgment.probability >= 40
               ? `at ${judgment.probability}%, the outcome is uncertain — evidence is mixed`
               : judgment.probability >= 10
-              ? `at ${judgment.probability}%, the evidence suggests this outcome is unlikely without significant changes`
+              ? judgment.gateConstrained
+                ? `at ${judgment.probability}%, realization is constrained by operational barriers — not by weak product evidence`
+                : `at ${judgment.probability}%, the evidence suggests this outcome is unlikely without significant changes`
               : "insufficient evidence to form a reliable view"}
           </div>
         </div>
       </div>
+
+      {judgment.gateConstrained && (
+        <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-r from-amber-500/[0.06] to-transparent p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-400" />
+            <h3 className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Gate-Constrained Outcome</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Underlying Strength</span>
+              </div>
+              <div className="text-lg font-bold text-emerald-300 tabular-nums">{judgment.gateConstrained.underlyingStrengthPct}%</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Product evidence supports a stronger outcome</div>
+            </div>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Constraint Impact</span>
+              </div>
+              <div className="text-lg font-bold text-amber-300 tabular-nums">−{judgment.gateConstrained.constraintGap} pts</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                {judgment.gateConstrained.constraintType === "access" ? "Access constraints" : judgment.gateConstrained.constraintType === "execution" ? "Execution constraints" : "Execution and access constraints"} limiting realization
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {judgment.gateConstrained.constraintLabels.map((label) => (
+              <span key={label} className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-0.5 text-[10px]">
+                <Lock className="w-2.5 h-2.5 text-amber-400/70" />
+                <span className="text-amber-200/80">{label}</span>
+              </span>
+            ))}
+          </div>
+          <div className="text-[10px] text-slate-500 leading-snug border-t border-white/5 pt-2">
+            This is not a product weakness — the clinical evidence supports a {judgment.gateConstrained.underlyingStrengthPct}% outlook. The current {judgment.probability}% forecast reflects {judgment.gateConstrained.constraintType === "access" ? "access barriers" : judgment.gateConstrained.constraintType === "execution" ? "execution gaps" : "operational constraints"} that, if resolved, would allow the forecast to rise toward its evidence-supported level.
+          </div>
+        </div>
+      )}
 
       {judgment.compositeScenarios && judgment.compositeScenarios.length > 0 && (() => {
         const maxProb = Math.max(...judgment.compositeScenarios.map(s => s.probability));
