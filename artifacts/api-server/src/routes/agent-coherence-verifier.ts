@@ -416,40 +416,109 @@ function checkRule11_NoCrossSectionRedundancy(output: RespondOutput, issues: Coh
   const constraintLower = output.primary_constraint.toLowerCase();
   const leverLower = output.highest_impact_lever.toLowerCase();
 
-  const redundancies: string[] = [];
+  const problems: string[] = [];
 
+  const constraintHasInterpretation = hasInterpretiveDepth(output.primary_constraint);
+  const leverHasInterpretation = hasInterpretiveDepth(output.highest_impact_lever);
+
+  let constraintHasOverlap = false;
   for (const driver of nm.moves_down) {
     const driverTerms = extractKeyTerms(driver.name.toLowerCase());
     const constraintOverlap = driverTerms.filter(t => constraintLower.includes(t));
     if (constraintOverlap.length >= 2) {
-      redundancies.push(`"${driver.name.slice(0, 50)}" appears in both Needle Movement (moves down) and Primary Constraint`);
-    }
-  }
-
-  for (const action of [...nm.recommended_actions.strategic, ...nm.recommended_actions.tactical]) {
-    const actionTerms = extractKeyTerms(action.toLowerCase());
-    const leverOverlap = actionTerms.filter(t => leverLower.includes(t));
-    if (leverOverlap.length >= 2) {
-      redundancies.push(`Recommended action overlaps with Highest Impact Lever`);
+      constraintHasOverlap = true;
       break;
     }
   }
 
-  if (redundancies.length >= 2) {
+  let leverHasOverlap = false;
+  for (const action of [...nm.recommended_actions.strategic, ...nm.recommended_actions.tactical]) {
+    const actionTerms = extractKeyTerms(action.toLowerCase());
+    const leverOverlap = actionTerms.filter(t => leverLower.includes(t));
+    if (leverOverlap.length >= 2) {
+      leverHasOverlap = true;
+      break;
+    }
+  }
+
+  if (!constraintHasInterpretation && constraintHasOverlap) {
+    problems.push("Primary Constraint restates a Needle Movement driver without adding interpretation — must explain WHY the driver matters and HOW it affects the forecast");
+  } else if (!constraintHasInterpretation) {
+    problems.push("Primary Constraint lacks interpretation — must explain WHY the driver matters and HOW it affects the forecast, not just name it");
+  }
+
+  if (!leverHasInterpretation && leverHasOverlap) {
+    problems.push("Highest Impact Lever restates a Needle Movement action without adding interpretation — must explain WHY this lever is the most important and the MECHANISM by which it works");
+  } else if (!leverHasInterpretation) {
+    problems.push("Highest Impact Lever lacks interpretation — must explain WHY this lever is the most important one and the MECHANISM by which it works, not just name the action");
+  }
+
+  if (problems.length >= 2) {
     issues.push({
-      rule: "No cross-section redundancy between prose and structured data",
+      rule: "Prose adds interpretation beyond structured data (no paraphrase)",
       ruleNumber: 11,
       severity: "fail",
-      detail: `${redundancies.length} redundancies detected: ${redundancies.join("; ")}. When Needle Movement is present, prose sections (primary_constraint, highest_impact_lever) must add context or interpretation not already in the structured driver cards — not restate the same information.`,
+      detail: `${problems.length} issues: ${problems.join("; ")}. Needle Movement provides facts and drivers. Prose sections must add decision meaning — why the driver matters, how it affects the forecast, why the lever is the most important one.`,
     });
-  } else if (redundancies.length === 1) {
+  } else if (problems.length === 1) {
     issues.push({
-      rule: "No cross-section redundancy between prose and structured data",
+      rule: "Prose adds interpretation beyond structured data (no paraphrase)",
       ruleNumber: 11,
       severity: "warn",
-      detail: `Minor overlap: ${redundancies[0]}. Ensure prose adds interpretation beyond what the structured data already shows.`,
+      detail: `${problems[0]}. Needle Movement provides facts; prose must add interpretation and decision logic.`,
     });
   }
+}
+
+function hasInterpretiveDepth(prose: string): boolean {
+  const lower = prose.toLowerCase();
+  const sentences = prose.split(/[.!?]+/).filter(s => s.trim().length > 15);
+
+  if (sentences.length < 2) return false;
+
+  const causalMarkers = [
+    "because", "this means", "as a result", "which leads to", "which reduces",
+    "which increases", "which limits", "which prevents", "which makes",
+    "this creates", "this reduces", "this limits", "this drives",
+    "consequently", "therefore", "the effect is", "the impact is",
+    "translates to", "translates into", "undermines", "compounds",
+    "cascading", "knock-on", "downstream",
+    "directly affects", "directly impacts", "directly reduces",
+    "in practice", "operationally",
+    "making it", "rendering", "resulting in",
+  ];
+
+  const mechanismMarkers = [
+    "by reducing", "by increasing", "by removing", "by addressing",
+    "by enabling", "by lowering", "by streamlining", "by targeting",
+    "by providing", "by shortening", "by eliminating", "by mitigating",
+    "through targeted", "through comprehensive", "through improved",
+    "the mechanism",
+  ];
+
+  const whyMarkers = [
+    "matters because", "important because", "critical because",
+    "significance is", "the reason", "this is the most",
+    "more than any", "unlike", "compared to",
+    "creates a", "creates dual", "creates practical",
+    "dual burden", "compounding", "reinforcing",
+    "clinic workflows", "prescribing behavior", "patient acceptance",
+    "prescriber confidence", "prescriber uptake",
+  ];
+
+  const causalCount = causalMarkers.filter(m => lower.includes(m)).length;
+  const mechanismCount = mechanismMarkers.filter(m => lower.includes(m)).length;
+  const whyCount = whyMarkers.filter(m => lower.includes(m)).length;
+
+  if (causalCount === 0 && mechanismCount === 0) return false;
+
+  const totalInterpretiveMarkers = causalCount + mechanismCount + whyCount;
+
+  if (totalInterpretiveMarkers >= 3) return true;
+
+  if (totalInterpretiveMarkers >= 2 && causalCount >= 1 && (mechanismCount >= 1 || whyCount >= 1)) return true;
+
+  return false;
 }
 
 function extractKeyTerms(description: string): string[] {
@@ -499,11 +568,20 @@ EXECUTIVE FORMATTING RULES:
 - The proposed lever must be logically tied to the primary constraint
 - Write for an executive reader: concise, plain language, no technical notation
 
-REDUNDANCY RULES:
-- If the output has a needle_movement section (structured driver cards and recommended actions), then the prose sections (primary_constraint, highest_impact_lever) must NOT restate the same information
-- primary_constraint should explain WHY the constraint matters and HOW it operates — not just name it (the name is already in needle_movement)
-- highest_impact_lever should explain the MECHANISM of why the lever works — not just name the action (the action is already in needle_movement recommended_actions)
-- Each section must add unique value: the structured section names and quantifies; the prose section interprets and explains
+INTERPRETATION vs PARAPHRASE RULES (when needle_movement is present):
+- Needle Movement = facts and drivers (names, categories, contribution in pp, recommended actions)
+- Prose sections = interpretation, decision meaning, and action logic
+- primary_constraint must explain:
+  * WHY this driver matters to the decision (not just name it)
+  * HOW it mechanistically affects the forecast (causal chain)
+  * What downstream effects it creates for prescribers, patients, or workflows
+- highest_impact_lever must explain:
+  * WHY this lever is the most important one (not just name it)
+  * The MECHANISM by which it works (by reducing X, by enabling Y, through Z)
+  * How it specifically addresses the constraint (logical connection)
+- DO NOT merely restate driver names in different words — that is paraphrase, not interpretation
+- Each prose section must contain at least 2 sentences of causal/mechanistic reasoning
+- Use language like "because", "which leads to", "by reducing", "this means", "the mechanism", "in practice"
 
 Fix the output to address ONLY the listed issues. Keep everything else unchanged. Return valid JSON with the same 4 keys.`;
 
