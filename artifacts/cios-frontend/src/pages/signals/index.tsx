@@ -48,6 +48,7 @@ import {
   TrendingDown,
   BarChart3,
   Loader2,
+  Layers,
 } from "lucide-react";
 import DataImportDialog from "@/components/signals/DataImportDialog";
 import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog";
@@ -418,6 +419,16 @@ interface Signal {
   measurement_criteria?: MeasurementCriteria;
   trigger_rules?: TriggerRule[];
   triggered_flags?: string[];
+}
+
+interface ForecastSignalDetail {
+  likelihoodRatio: number;
+  effectiveLikelihoodRatio: number;
+  correlationGroup: string | null;
+  correlationDampened: boolean;
+  dependencyRole: "Root" | "Derivative" | "Independent";
+  rawLikelihoodRatio: number;
+  pointContribution: number;
 }
 
 interface MeasurementCriteria {
@@ -1514,18 +1525,55 @@ export default function SignalsPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [signalLineageMap, setSignalLineageMap] = useState<Record<string, SignalLineageInfo>>({});
   const [lineageRefreshKey, setLineageRefreshKey] = useState(0);
+  const [forecastDetailMap, setForecastDetailMap] = useState<Record<string, ForecastSignalDetail>>({});
   const prevCaseRef = useRef(activeQuestion?.caseId);
   useEffect(() => {
     if (activeQuestion?.caseId !== prevCaseRef.current) {
       setSignalLineageMap({});
+      setForecastDetailMap({});
       setShowReadyBanner(false);
       prevCaseRef.current = activeQuestion?.caseId;
     }
   }, [activeQuestion?.caseId]);
 
+  useEffect(() => {
+    const caseId = activeQuestion?.caseId;
+    if (!caseId) return;
+    const controller = new AbortController();
+    const API = import.meta.env.VITE_API_URL || "";
+    fetch(`${API}/api/cases/${encodeURIComponent(caseId)}/forecast`, { signal: controller.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.signalDetails) return;
+        const map: Record<string, ForecastSignalDetail> = {};
+        for (const d of data.signalDetails) {
+          const detail: ForecastSignalDetail = {
+            likelihoodRatio: d.likelihoodRatio,
+            effectiveLikelihoodRatio: d.effectiveLikelihoodRatio,
+            correlationGroup: d.correlationGroup,
+            correlationDampened: d.correlationDampened,
+            dependencyRole: d.dependencyRole,
+            rawLikelihoodRatio: d.rawLikelihoodRatio,
+            pointContribution: d.pointContribution,
+          };
+          map[d.signalId] = detail;
+          if (d.description) {
+            map[`desc:${d.description.slice(0, 80)}`] = detail;
+          }
+        }
+        setForecastDetailMap(map);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [activeQuestion?.caseId, lineageRefreshKey]);
+
   const handleDependencyData = useCallback((_data: any, lineageMap: Record<string, SignalLineageInfo>) => {
     setSignalLineageMap(lineageMap);
   }, []);
+
+  const getForecastDetail = useCallback((sig: Signal): ForecastSignalDetail | undefined => {
+    return forecastDetailMap[`SIG-${sig.id}`] || forecastDetailMap[`desc:${sig.text.slice(0, 80)}`];
+  }, [forecastDetailMap]);
 
   const handleLineageUpdated = useCallback(() => {
     setSignalLineageMap({});
@@ -2472,6 +2520,7 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        forecastDetail={getForecastDetail(sig)}
                         caseId={activeQuestion?.caseId}
                         onLineageUpdated={handleLineageUpdated}
                       />
@@ -2501,6 +2550,7 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        forecastDetail={getForecastDetail(sig)}
                         caseId={activeQuestion?.caseId}
                         onLineageUpdated={handleLineageUpdated}
                       />
@@ -2530,6 +2580,7 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        forecastDetail={getForecastDetail(sig)}
                         caseId={activeQuestion?.caseId}
                         onLineageUpdated={handleLineageUpdated}
                       />
@@ -2562,6 +2613,7 @@ export default function SignalsPage() {
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         isPrimaryDriver={sig.id === primaryDriverId}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        forecastDetail={getForecastDetail(sig)}
                         caseId={activeQuestion?.caseId}
                         onLineageUpdated={handleLineageUpdated}
                       />
@@ -2586,6 +2638,7 @@ export default function SignalsPage() {
                         outcomeLabel={outcome || "outcome"}
                         onShowProvenance={() => setProvenanceSignal(sig)}
                         lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        forecastDetail={getForecastDetail(sig)}
                         caseId={activeQuestion?.caseId}
                         onLineageUpdated={handleLineageUpdated}
                       />
@@ -2617,6 +2670,7 @@ export default function SignalsPage() {
                     onShowProvenance={() => setProvenanceSignal(sig)}
                     isPrimaryDriver={sig.id === primaryDriverId}
                     lineage={signalLineageMap[`SIG-${sig.id}`]}
+                        forecastDetail={getForecastDetail(sig)}
                     caseId={activeQuestion?.caseId}
                     onLineageUpdated={handleLineageUpdated}
                   />
@@ -3009,6 +3063,7 @@ function MinimalSignalCard({
   onShowProvenance,
   isPrimaryDriver,
   lineage,
+  forecastDetail,
   caseId,
   onLineageUpdated,
 }: {
@@ -3022,6 +3077,7 @@ function MinimalSignalCard({
   onShowProvenance?: () => void;
   isPrimaryDriver?: boolean;
   lineage?: SignalLineageInfo;
+  forecastDetail?: ForecastSignalDetail;
   caseId?: string;
   onLineageUpdated?: () => void;
 }) {
@@ -3364,6 +3420,51 @@ function MinimalSignalCard({
                     <button type="button" onClick={() => setEditingLineage(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1 rounded-lg border border-border transition cursor-pointer">Cancel</button>
                     <button type="button" onClick={handleOverrideSave} className="text-xs text-indigo-400 hover:text-indigo-300 px-3 py-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 transition cursor-pointer">Save Override</button>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+          {forecastDetail && (
+            <div className="mt-2 rounded-lg border border-slate-500/15 bg-slate-500/5 p-2.5">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <BarChart3 className="w-3 h-3 text-slate-400" />
+                <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Signal Weight</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] md:grid-cols-4">
+                <div>
+                  <span className="text-[9px] text-muted-foreground uppercase">Raw Weight</span>
+                  <div className="text-foreground/90 font-mono">{forecastDetail.rawLikelihoodRatio.toFixed(2)}</div>
+                </div>
+                <div>
+                  <span className="text-[9px] text-muted-foreground uppercase">Effective Weight</span>
+                  <div className={`font-mono ${forecastDetail.correlationDampened ? "text-amber-400" : "text-foreground/90"}`}>
+                    {forecastDetail.effectiveLikelihoodRatio.toFixed(2)}
+                    {forecastDetail.correlationDampened && <span className="text-[8px] ml-1 text-amber-400/60">compressed</span>}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[9px] text-muted-foreground uppercase">Contribution</span>
+                  <div className={`font-mono ${forecastDetail.pointContribution > 0 ? "text-emerald-400" : forecastDetail.pointContribution < 0 ? "text-red-400" : "text-foreground/90"}`}>
+                    {forecastDetail.pointContribution > 0 ? "+" : ""}{(forecastDetail.pointContribution * 100).toFixed(1)}pp
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[9px] text-muted-foreground uppercase">Role</span>
+                  <div className="flex items-center gap-1">
+                    <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-semibold ${
+                      forecastDetail.dependencyRole === "Root" ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/20" :
+                      forecastDetail.dependencyRole === "Derivative" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
+                      "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                    }`}>
+                      {forecastDetail.dependencyRole}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {forecastDetail.correlationGroup && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+                  <Layers className="w-2.5 h-2.5" />
+                  <span>Cluster: <span className="text-foreground/70 font-mono">{forecastDetail.correlationGroup.replace(/_/g, " ")}</span></span>
                 </div>
               )}
             </div>

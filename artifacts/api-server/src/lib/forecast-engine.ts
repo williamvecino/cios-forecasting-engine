@@ -35,9 +35,14 @@ export interface SignalForecastDetail {
   effectiveLikelihoodRatio: number;
   correlationGroup: string | null;
   correlationDampened: boolean;
+  dependencyRole: "Root" | "Derivative" | "Independent";
+  rawLikelihoodRatio: number;
+  pointContribution: number;
   weightedActorReaction: number;
   actorReactions: Record<string, number>;
   absoluteImpact: number;
+  /** @internal full-precision effective LR for sensitivity math; omitted in JSON response */
+  _fullPrecisionEffLr: number;
 }
 
 export interface ActorAggregation {
@@ -279,6 +284,12 @@ export function runForecastEngine(
     const rawLr = signal.likelihoodRatio ?? 1;
     const corrGroup = (signal as any).correlationGroup as string | null ?? null;
 
+    const isDampened = effLr !== rawLr;
+    let depRole: "Root" | "Derivative" | "Independent" = "Independent";
+    if (corrGroup) {
+      depRole = isDampened ? "Derivative" : "Root";
+    }
+
     return {
       signalId: signal.signalId,
       signalType: signal.signalType ?? "Unknown",
@@ -290,7 +301,10 @@ export function runForecastEngine(
       effectiveLikelihoodRatio: Number(effLr.toFixed(4)),
       _fullPrecisionEffLr: effLr,
       correlationGroup: corrGroup,
-      correlationDampened: effLr !== rawLr,
+      correlationDampened: isDampened,
+      dependencyRole: depRole,
+      rawLikelihoodRatio: Number((signal.likelihoodRatio ?? 1).toFixed(4)),
+      pointContribution: 0,
       weightedActorReaction,
       actorReactions,
       absoluteImpact: Math.abs(weightedActorReaction),
@@ -363,6 +377,13 @@ export function runForecastEngine(
     const oddsReversed = priorOdds * lrReversed * actorAdjustmentFactor;
     const probReversed = oddsToProb(oddsReversed);
     const deltaIfReversed = Math.abs(currentProbability - probReversed);
+
+    const signedContribution = sig.direction === "Negative"
+      ? -deltaIfRemoved
+      : sig.direction === "Positive"
+        ? deltaIfRemoved
+        : 0;
+    sig.pointContribution = Number(signedContribution.toFixed(4));
 
     const entry: SensitivitySignal = {
       signalId: sig.signalId,
