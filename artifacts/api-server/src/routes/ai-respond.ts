@@ -224,9 +224,12 @@ Answer these executive questions in the structured format:
       environmentStrength: body.posteriorProbability ?? null,
     };
 
+    const needleMovement = buildNeedleMovement(body.signalDetails || []);
+
     res.json({
       ...validated,
       decision_clarity: decisionClarity,
+      needle_movement: needleMovement,
       _gapGuard: {
         clean: gapViolations.length === 0,
         violationCount: gapViolations.length,
@@ -264,6 +267,122 @@ function buildSignalDetailContext(details: SignalDetail[]): string {
   }
 
   return lines.join("\n");
+}
+
+interface NeedleDriver {
+  name: string;
+  category: string;
+  direction: "increases probability" | "decreases probability";
+  impact: "high" | "moderate" | "low";
+  contribution: string;
+}
+
+interface NeedleMovement {
+  moves_up: NeedleDriver[];
+  moves_down: NeedleDriver[];
+  recommended_actions: {
+    strategic: string[];
+    tactical: string[];
+  };
+}
+
+function classifyCategory(desc: string): string {
+  const d = desc.toLowerCase();
+  if (/phase\s*(i|ii|iii|iv)|trial|sputum|culture\s*conversion|efficacy|endpoint|fev1/i.test(d)) return "clinical";
+  if (/formulary|payer|coverage|reimbursement|copay|prior\s*auth|specialty\s*pharmacy/i.test(d)) return "access";
+  if (/nebuliz|administrat|infusion|dosing|delivery|logistics|rems|monitoring/i.test(d)) return "operational";
+  if (/prescrib|adopt|survey|familiarity|awareness|education|behavior/i.test(d)) return "behavioral";
+  if (/off-label|compet|entrenched|alternative|pipeline|generic|biosimilar/i.test(d)) return "competitive";
+  if (/safety|adverse|discontinu|bronchospasm|tolerab|pharmacovigilance/i.test(d)) return "clinical";
+  if (/population|prevalence|incidence|eligible|patient\s*pool/i.test(d)) return "operational";
+  return "operational";
+}
+
+function classifyImpact(absContribution: number): "high" | "moderate" | "low" {
+  if (absContribution >= 0.05) return "high";
+  if (absContribution >= 0.025) return "moderate";
+  return "low";
+}
+
+function stripSignalId(desc: string): string {
+  return desc.replace(/^[A-Z]{2,4}-\d{2,4}:\s*/, "").trim();
+}
+
+function buildNeedleMovement(details: SignalDetail[]): NeedleMovement | null {
+  if (!details.length) return null;
+
+  const sorted = [...details].sort((a, b) => Math.abs(b.pointContribution ?? 0) - Math.abs(a.pointContribution ?? 0));
+
+  const positive = sorted
+    .filter(s => (s.pointContribution ?? 0) > 0)
+    .slice(0, 3);
+
+  const negative = sorted
+    .filter(s => (s.pointContribution ?? 0) < 0)
+    .slice(0, 3);
+
+  const movesUp: NeedleDriver[] = positive.map(s => ({
+    name: stripSignalId(s.description || "Unknown driver"),
+    category: classifyCategory(s.description || ""),
+    direction: "increases probability" as const,
+    impact: classifyImpact(Math.abs(s.pointContribution ?? 0)),
+    contribution: `+${(Math.abs(s.pointContribution ?? 0) * 100).toFixed(1)}pp`,
+  }));
+
+  const movesDown: NeedleDriver[] = negative.map(s => ({
+    name: stripSignalId(s.description || "Unknown driver"),
+    category: classifyCategory(s.description || ""),
+    direction: "decreases probability" as const,
+    impact: classifyImpact(Math.abs(s.pointContribution ?? 0)),
+    contribution: `-${(Math.abs(s.pointContribution ?? 0) * 100).toFixed(1)}pp`,
+  }));
+
+  const topConstraintCategory = movesDown[0]?.category || "operational";
+  const topDriverCategory = movesUp[0]?.category || "clinical";
+
+  const strategic: string[] = [];
+  const tactical: string[] = [];
+
+  if (movesDown.length > 0) {
+    const topNeg = movesDown[0];
+    const rawShort = topNeg.name.split(/[—(,]/)[0].trim();
+    const constraintShortName = rawShort.length > 60 ? rawShort.slice(0, 60).replace(/\s+\S*$/, "") : rawShort.toLowerCase();
+    if (topNeg.category === "clinical") {
+      strategic.push(`Address ${topNeg.name.toLowerCase().includes("bronchospasm") || topNeg.name.toLowerCase().includes("safety") || topNeg.name.toLowerCase().includes("pharmacovigilance") ? "safety profile concerns" : "clinical evidence gaps"} through targeted real-world evidence programs`);
+      tactical.push(`Develop specialist-facing materials addressing ${constraintShortName}`);
+    } else if (topNeg.category === "operational") {
+      strategic.push(`Redesign the administration pathway to reduce operational friction from ${constraintShortName}`);
+      tactical.push(`Launch clinic workflow optimization pilots at high-volume prescribing centers`);
+    } else if (topNeg.category === "behavioral") {
+      strategic.push(`Build a structured specialist education and adoption program targeting prescriber familiarity barriers`);
+      tactical.push(`Deploy peer-to-peer education with KOLs who have direct prescribing experience`);
+    } else if (topNeg.category === "competitive") {
+      strategic.push(`Develop differentiation strategy against entrenched alternatives`);
+      tactical.push(`Create comparative effectiveness messaging for specialist detailing`);
+    } else if (topNeg.category === "access") {
+      strategic.push(`Expand payer coverage through health economics and outcomes research submissions`);
+      tactical.push(`Prioritize formulary negotiations with top specialty pharmacy networks`);
+    }
+  }
+
+  if (movesUp.length > 0) {
+    const topPos = movesUp[0];
+    if (topPos.category === "clinical") {
+      strategic.push(`Maximize leverage of clinical evidence from ${topPos.name.split("(")[0].trim()} across all stakeholder communications`);
+    } else if (topPos.category === "access") {
+      strategic.push(`Accelerate formulary expansion building on existing ${topPos.name.split("(")[0].trim().toLowerCase()}`);
+    }
+    tactical.push(`Integrate top positive driver evidence into field team messaging immediately`);
+  }
+
+  if (strategic.length === 0) strategic.push("Conduct root-cause analysis on the primary binding constraint to identify structural intervention points");
+  if (tactical.length === 0) tactical.push("Brief field teams on current driver landscape and priority actions within 30 days");
+
+  return {
+    moves_up: movesUp,
+    moves_down: movesDown,
+    recommended_actions: { strategic, tactical },
+  };
 }
 
 function buildDecisionContext(body: RespondRequest): string {

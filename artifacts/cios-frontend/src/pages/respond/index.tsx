@@ -18,6 +18,10 @@ import {
   ShieldAlert,
   ChevronDown,
   ChevronRight,
+  ArrowUpRight,
+  ArrowDownRight,
+  Zap,
+  Crosshair,
 } from "lucide-react";
 import { Link } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
@@ -47,12 +51,30 @@ interface DecisionClarity {
   environmentStrength: number | null;
 }
 
+interface NeedleDriver {
+  name: string;
+  category: string;
+  direction: string;
+  impact: "high" | "moderate" | "low";
+  contribution: string;
+}
+
+interface NeedleMovement {
+  moves_up: NeedleDriver[];
+  moves_down: NeedleDriver[];
+  recommended_actions: {
+    strategic: string[];
+    tactical: string[];
+  };
+}
+
 interface RespondResult {
   strategic_recommendation: string;
   primary_constraint: string;
   highest_impact_lever: string;
   realistic_ceiling: string;
   decision_clarity?: DecisionClarity;
+  needle_movement?: NeedleMovement;
   _gapGuard?: GapGuardResult;
 }
 
@@ -423,6 +445,13 @@ export default function RespondPage() {
                 </>
               )}
 
+              {data.needle_movement && (
+                <>
+                  <NeedleMovementSection movement={data.needle_movement} />
+                  <div className="border-t border-border/40" />
+                </>
+              )}
+
               <section>
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why the Probability Is Low</h2>
                 <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
@@ -528,6 +557,117 @@ function CoherencePanel({ coherence, usingRevised }: { coherence: CoherenceResul
   );
 }
 
+function ImpactBadge({ impact }: { impact: "high" | "moderate" | "low" }) {
+  const colors = {
+    high: "bg-rose-500/20 text-rose-400",
+    moderate: "bg-amber-500/20 text-amber-400",
+    low: "bg-slate-500/20 text-slate-400",
+  };
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${colors[impact]}`}>
+      {impact}
+    </span>
+  );
+}
+
+function CategoryBadge({ category }: { category: string }) {
+  const colors: Record<string, string> = {
+    clinical: "bg-blue-500/15 text-blue-400",
+    operational: "bg-violet-500/15 text-violet-400",
+    access: "bg-emerald-500/15 text-emerald-400",
+    behavioral: "bg-amber-500/15 text-amber-400",
+    competitive: "bg-rose-500/15 text-rose-400",
+  };
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium capitalize ${colors[category] || "bg-slate-500/15 text-slate-400"}`}>
+      {category}
+    </span>
+  );
+}
+
+function NeedleMovementSection({ movement }: { movement: NeedleMovement }) {
+  return (
+    <section>
+      <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Needle Movement Analysis</h2>
+
+      <div className="space-y-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">What moves the probability up</h3>
+          </div>
+          <div className="space-y-2">
+            {movement.moves_up.map((d, i) => (
+              <div key={i} className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-foreground leading-snug flex-1">{d.name}</p>
+                  <span className="text-xs font-semibold text-emerald-400 whitespace-nowrap">{d.contribution}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <CategoryBadge category={d.category} />
+                  <ImpactBadge impact={d.impact} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <ArrowDownRight className="w-4 h-4 text-rose-400" />
+            <h3 className="text-xs font-semibold text-rose-400 uppercase tracking-wide">What moves the probability down</h3>
+          </div>
+          <div className="space-y-2">
+            {movement.moves_down.map((d, i) => (
+              <div key={i} className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-3.5 py-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-foreground leading-snug flex-1">{d.name}</p>
+                  <span className="text-xs font-semibold text-rose-400 whitespace-nowrap">{d.contribution}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <CategoryBadge category={d.category} />
+                  <ImpactBadge impact={d.impact} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <Crosshair className="w-4 h-4 text-blue-400" />
+            <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wide">Recommended Actions</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border/60 bg-card/50 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Zap className="w-3.5 h-3.5 text-violet-400" />
+                <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">Strategic</span>
+              </div>
+              <ul className="space-y-1.5">
+                {movement.recommended_actions.strategic.map((a, i) => (
+                  <li key={i} className="text-xs text-muted-foreground leading-relaxed pl-3 relative before:content-[''] before:absolute before:left-0 before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-violet-400/40">{a}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/50 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Tactical</span>
+              </div>
+              <ul className="space-y-1.5">
+                {movement.recommended_actions.tactical.map((a, i) => (
+                  <li key={i} className="text-xs text-muted-foreground leading-relaxed pl-3 relative before:content-[''] before:absolute before:left-0 before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-amber-400/40">{a}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ClarityRow({
   icon,
   label,
@@ -588,6 +728,7 @@ function normalizeResult(raw: any): RespondResult | null {
     highest_impact_lever,
     realistic_ceiling,
     decision_clarity: raw.decision_clarity || undefined,
+    needle_movement: raw.needle_movement || undefined,
   };
 }
 
@@ -611,6 +752,26 @@ function formatAsText(data: RespondResult): string {
   lines.push("WHY THE PROBABILITY IS LOW");
   lines.push(data.primary_constraint);
   lines.push("");
+
+  if (data.needle_movement) {
+    lines.push("NEEDLE MOVEMENT ANALYSIS");
+    lines.push("");
+    lines.push("What moves the probability up:");
+    data.needle_movement.moves_up.forEach(d => {
+      lines.push(`  ${d.name} [${d.category}] ${d.contribution} — ${d.impact} impact`);
+    });
+    lines.push("");
+    lines.push("What moves the probability down:");
+    data.needle_movement.moves_down.forEach(d => {
+      lines.push(`  ${d.name} [${d.category}] ${d.contribution} — ${d.impact} impact`);
+    });
+    lines.push("");
+    lines.push("Strategic actions:");
+    data.needle_movement.recommended_actions.strategic.forEach(a => lines.push(`  - ${a}`));
+    lines.push("Tactical actions:");
+    data.needle_movement.recommended_actions.tactical.forEach(a => lines.push(`  - ${a}`));
+    lines.push("");
+  }
 
   lines.push("WHAT WOULD CHANGE THE FORECAST");
   lines.push(data.highest_impact_lever);
