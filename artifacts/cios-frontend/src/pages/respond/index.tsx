@@ -14,6 +14,10 @@ import {
   Clock,
   TrendingUp,
   Gauge,
+  ShieldCheck,
+  ShieldAlert,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Link } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
@@ -52,6 +56,20 @@ interface RespondResult {
   _gapGuard?: GapGuardResult;
 }
 
+interface CoherenceIssue {
+  rule: string;
+  ruleNumber: number;
+  severity: "fail" | "warn";
+  detail: string;
+}
+
+interface CoherenceResult {
+  pass: boolean;
+  issueCount: number;
+  issues: CoherenceIssue[];
+  revisedOutput: RespondResult | null;
+}
+
 interface ForecastData {
   posteriorProbability?: number;
   thresholdProbability?: number;
@@ -84,7 +102,10 @@ function getApiBase() {
 export default function RespondPage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const [data, setData] = useState<RespondResult | null>(null);
+  const [coherence, setCoherence] = useState<CoherenceResult | null>(null);
+  const [usingRevised, setUsingRevised] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -202,10 +223,49 @@ export default function RespondPage() {
       const result = await res.json();
       setData(result);
       localStorage.setItem(`cios.respondResult:${caseId}`, JSON.stringify(result));
+
+      setVerifying(true);
+      try {
+        const verifyPayload = {
+          respondOutput: result,
+          caseId,
+          strategicQuestion: caseData.strategicQuestion || activeQuestion.text,
+          successDefinition: caseData.outcomeDefinition || null,
+          outcomeThreshold: caseData.outcomeThreshold || null,
+          timeHorizon: caseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
+          posteriorProbability: forecastData.posteriorProbability ?? null,
+          thresholdProbability: forecastData.thresholdProbability ?? null,
+          signalDetails: forecastData.signalDetails || [],
+        };
+
+        const verifyRes = await fetch(`${apiBase}/agent-coherence/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(verifyPayload),
+        });
+
+        if (verifyRes.ok) {
+          const coherenceResult = await verifyRes.json();
+          setCoherence(coherenceResult);
+
+          if (!coherenceResult.pass && coherenceResult.revisedOutput) {
+            const revised = {
+              ...coherenceResult.revisedOutput,
+              decision_clarity: result.decision_clarity,
+              _gapGuard: result._gapGuard,
+            };
+            setData(revised);
+            setUsingRevised(true);
+            localStorage.setItem(`cios.respondResult:${caseId}`, JSON.stringify(revised));
+          }
+        }
+      } catch {}
+      setVerifying(false);
     } catch (err: any) {
       setError(err.message || "Failed to generate response");
     } finally {
       setLoading(false);
+      setVerifying(false);
     }
   }
 
@@ -223,6 +283,8 @@ export default function RespondPage() {
       localStorage.removeItem(`cios.respondResult:${caseId}`);
     }
     setData(null);
+    setCoherence(null);
+    setUsingRevised(false);
     generate();
   }
 
@@ -303,6 +365,17 @@ export default function RespondPage() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {verifying && (
+                <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 flex items-center gap-3">
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+                  <p className="text-sm text-blue-400">Verifying coherence...</p>
+                </div>
+              )}
+
+              {coherence && !verifying && (
+                <CoherencePanel coherence={coherence} usingRevised={usingRevised} />
               )}
 
               <section>
@@ -388,6 +461,82 @@ export default function RespondPage() {
         </div>
       </QuestionGate>
     </WorkflowLayout>
+  );
+}
+
+function CoherencePanel({ coherence, usingRevised }: { coherence: CoherenceResult; usingRevised: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const failCount = coherence.issues.filter(i => i.severity === "fail").length;
+  const warnCount = coherence.issues.filter(i => i.severity === "warn").length;
+
+  if (coherence.pass && coherence.issueCount === 0) {
+    return (
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center gap-3">
+        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-emerald-400">Coherence verified — all 8 rules pass</p>
+          <p className="text-xs text-emerald-400/70 mt-0.5">Output is rule-compliant, internally coherent, and decision-clear.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const borderColor = failCount > 0 ? "border-rose-500/30" : "border-amber-500/30";
+  const bgColor = failCount > 0 ? "bg-rose-500/10" : "bg-amber-500/10";
+  const iconColor = failCount > 0 ? "text-rose-400" : "text-amber-400";
+  const Icon = failCount > 0 ? ShieldAlert : ShieldCheck;
+
+  return (
+    <div className={`rounded-xl border ${borderColor} ${bgColor} p-4`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-start gap-3 text-left"
+      >
+        <Icon className={`w-5 h-5 ${iconColor} shrink-0 mt-0.5`} />
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className={`text-sm font-medium ${iconColor}`}>
+              Coherence {coherence.pass ? "passed with warnings" : "issues detected"}
+              {failCount > 0 && ` — ${failCount} fail`}
+              {warnCount > 0 && ` — ${warnCount} warning${warnCount > 1 ? "s" : ""}`}
+            </p>
+            {expanded
+              ? <ChevronDown className={`w-3.5 h-3.5 ${iconColor}`} />
+              : <ChevronRight className={`w-3.5 h-3.5 ${iconColor}`} />
+            }
+          </div>
+          {usingRevised && (
+            <p className="text-xs text-emerald-400/80 mt-1">
+              Output was auto-corrected for coherence. Probabilities and data unchanged.
+            </p>
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-2 pl-8">
+          {coherence.issues.map((issue, i) => (
+            <div key={i} className={`text-xs border-t ${failCount > 0 ? "border-rose-500/20" : "border-amber-500/20"} pt-2`}>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                  issue.severity === "fail"
+                    ? "bg-rose-500/20 text-rose-400"
+                    : "bg-amber-500/20 text-amber-400"
+                }`}>
+                  {issue.severity}
+                </span>
+                <span className={`font-medium ${issue.severity === "fail" ? "text-rose-400" : "text-amber-400"}`}>
+                  Rule {issue.ruleNumber}: {issue.rule}
+                </span>
+              </div>
+              <p className={`mt-1 ${issue.severity === "fail" ? "text-rose-400/70" : "text-amber-400/70"}`}>
+                {issue.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

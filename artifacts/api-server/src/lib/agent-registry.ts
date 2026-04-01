@@ -156,6 +156,32 @@ export const AGENT_REGISTRY: Record<string, AgentContract> = {
       "api-server/src/routes/simulation-engine.ts",
       "cios-frontend/src/lib/adoption-distribution.ts",
     ],
+    downstreamConsumer: "coherenceVerification",
+  },
+
+  coherenceVerification: {
+    name: "Coherence Verification Agent",
+    purpose: "Verify that the final output is rule-compliant, internally coherent, and decision-clear before display.",
+    input: [
+      "Respond output (strategic recommendation, primary constraint, highest-impact lever, realistic ceiling)",
+      "Decision clarity fields (success definition, time horizon, target probability, environment strength)",
+      "Signal details (top drivers and constraints)",
+    ],
+    output: [
+      "Pass/fail verdict",
+      "List of coherence issues with severity",
+      "Revised output if fixable presentation/coherence issues found",
+    ],
+    boundary: [
+      "Does not change probabilities",
+      "Does not change priors",
+      "Does not change signal weights",
+      "Does not invent new signals",
+      "Does not invent new drivers",
+    ],
+    implementationFiles: [
+      "api-server/src/routes/agent-coherence-verifier.ts",
+    ],
     downstreamConsumer: "terminal",
   },
 };
@@ -167,6 +193,7 @@ export const AGENT_CHAIN_ORDER: (keyof typeof AGENT_REGISTRY)[] = [
   "dependencyControl",
   "forecastEngine",
   "interpretation",
+  "coherenceVerification",
   "scenarioSimulation",
 ];
 

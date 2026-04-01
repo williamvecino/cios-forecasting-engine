@@ -69,6 +69,7 @@ import explanationGeneratorRouter from "./explanation-generator.js";
 import goldSetRouter from "./gold-set.js";
 import gapGuardRouter from "./gap-guard.js";
 import integrityRouter from "./integrity.js";
+import agentCoherenceVerifierRouter from "./agent-coherence-verifier.js";
 import agentRegistryRouter from "./agent-registry.js";
 
 const router: IRouter = Router();
@@ -143,6 +144,7 @@ router.use(explanationGeneratorRouter);
 router.use(goldSetRouter);
 router.use(gapGuardRouter);
 router.use(integrityRouter);
+router.use(agentCoherenceVerifierRouter);
 router.use(agentRegistryRouter);
 
 export default router;
