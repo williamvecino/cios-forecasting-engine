@@ -74,7 +74,9 @@ router.post("/agent-coherence/verify", async (req, res) => {
     checkRule5_VerdictMatchesThreshold(output, body, issues);
     checkRule6_PrimaryConstraintNamed(output, issues);
     checkRule7_MainLeverNamed(output, issues);
-    checkRule8_GroundedInDrivers(output, body.signalDetails || [], issues);
+    checkRule8_DriversAndConstraintReflected(output, body.signalDetails || [], issues);
+    checkRule9_NoRawDecimals(output, issues);
+    checkRule10_NoInternalIDs(output, body.signalDetails || [], issues);
 
     const pass = issues.filter(i => i.severity === "fail").length === 0;
 
@@ -289,46 +291,101 @@ function checkRule7_MainLeverNamed(output: RespondOutput, issues: CoherenceIssue
   }
 }
 
-function checkRule8_GroundedInDrivers(output: RespondOutput, signalDetails: SignalDetail[], issues: CoherenceIssue[]) {
+function checkRule8_DriversAndConstraintReflected(output: RespondOutput, signalDetails: SignalDetail[], issues: CoherenceIssue[]) {
   if (!signalDetails.length) return;
 
-  const topDrivers = [...signalDetails]
-    .sort((a, b) => Math.abs(b.pointContribution ?? 0) - Math.abs(a.pointContribution ?? 0))
-    .slice(0, 3);
+  const positiveDrivers = [...signalDetails]
+    .filter(s => (s.pointContribution ?? 0) > 0)
+    .sort((a, b) => (b.pointContribution ?? 0) - (a.pointContribution ?? 0));
+
+  const negativeDrivers = [...signalDetails]
+    .filter(s => (s.pointContribution ?? 0) < 0)
+    .sort((a, b) => (a.pointContribution ?? 0) - (b.pointContribution ?? 0));
+
+  const topPositive = positiveDrivers[0] || null;
+  const topNegative = negativeDrivers[0] || null;
 
   const recLower = output.strategic_recommendation.toLowerCase();
   const constraintLower = output.primary_constraint.toLowerCase();
   const leverLower = output.highest_impact_lever.toLowerCase();
-  const allNarrativeLower = `${recLower} ${constraintLower} ${leverLower}`;
+  const allNarrative = `${recLower} ${constraintLower} ${leverLower}`;
 
-  let driverMentions = 0;
-  const unmatchedDrivers: string[] = [];
+  const failures: string[] = [];
 
-  for (const driver of topDrivers) {
-    const desc = (driver.description || "").toLowerCase();
-    const keywords = extractKeyTerms(desc);
-
-    const mentioned = keywords.some(kw => allNarrativeLower.includes(kw));
-    if (mentioned) {
-      driverMentions++;
-    } else {
-      unmatchedDrivers.push(`${driver.signalId}: ${driver.description?.slice(0, 60) || "unknown"}`);
+  if (topPositive) {
+    const keywords = extractKeyTerms((topPositive.description || "").toLowerCase());
+    const mentioned = keywords.some(kw => allNarrative.includes(kw));
+    if (!mentioned) {
+      failures.push(`Top positive driver not referenced: ${topPositive.description?.slice(0, 80) || "unknown"}`);
     }
   }
 
-  if (driverMentions === 0) {
+  if (topNegative) {
+    const keywords = extractKeyTerms((topNegative.description || "").toLowerCase());
+    const mentionedInConstraint = keywords.some(kw => constraintLower.includes(kw));
+    const mentionedAnywhere = keywords.some(kw => allNarrative.includes(kw));
+    if (!mentionedAnywhere) {
+      failures.push(`Top binding constraint not referenced: ${topNegative.description?.slice(0, 80) || "unknown"}`);
+    } else if (!mentionedInConstraint) {
+      issues.push({
+        rule: "Recommendation explicitly reflects top positive drivers and top binding constraint",
+        ruleNumber: 8,
+        severity: "warn",
+        detail: `Top binding constraint is mentioned but not in the primary_constraint section where it belongs.`,
+      });
+    }
+  }
+
+  if (topNegative) {
+    const constraintKeywords = extractKeyTerms((topNegative.description || "").toLowerCase());
+    const leverReferencesConstraint = constraintKeywords.some(kw => leverLower.includes(kw));
+    if (!leverReferencesConstraint) {
+      const constraintInConstraintSection = constraintKeywords.some(kw => constraintLower.includes(kw));
+      if (constraintInConstraintSection) {
+        issues.push({
+          rule: "Recommendation explicitly reflects top positive drivers and top binding constraint",
+          ruleNumber: 8,
+          severity: "warn",
+          detail: `Proposed lever is not logically tied to the primary constraint. The lever should address the binding constraint directly.`,
+        });
+      }
+    }
+  }
+
+  if (failures.length > 0) {
     issues.push({
-      rule: "Recommendation is grounded in actual forecast drivers",
+      rule: "Recommendation explicitly reflects top positive drivers and top binding constraint",
       ruleNumber: 8,
       severity: "fail",
-      detail: `None of the top 3 forecast drivers appear in the narrative. Unmatched: ${unmatchedDrivers.join("; ")}`,
+      detail: failures.join(". "),
     });
-  } else if (unmatchedDrivers.length > 1) {
+  }
+}
+
+function checkRule9_NoRawDecimals(output: RespondOutput, issues: CoherenceIssue[]) {
+  const allText = `${output.strategic_recommendation} ${output.primary_constraint} ${output.highest_impact_lever} ${output.realistic_ceiling}`;
+
+  const rawDecimalPattern = /0\.\d{3,}/;
+  if (rawDecimalPattern.test(allText)) {
     issues.push({
-      rule: "Recommendation is grounded in actual forecast drivers",
-      ruleNumber: 8,
-      severity: "warn",
-      detail: `Only ${driverMentions}/3 top drivers reflected in narrative. Missing: ${unmatchedDrivers.join("; ")}`,
+      rule: "No raw decimal probabilities in user-facing output",
+      ruleNumber: 9,
+      severity: "fail",
+      detail: "Output contains raw decimal probability (e.g. 0.178...). All probabilities must be displayed as rounded percentages (e.g. 18%).",
+    });
+  }
+}
+
+function checkRule10_NoInternalIDs(output: RespondOutput, signalDetails: SignalDetail[], issues: CoherenceIssue[]) {
+  const allText = `${output.strategic_recommendation} ${output.primary_constraint} ${output.highest_impact_lever} ${output.realistic_ceiling}`;
+
+  const idPattern = /\b[A-Z]{2,4}-\d{2,4}\b/;
+  if (idPattern.test(allText)) {
+    issues.push({
+      rule: "No internal signal IDs in user-facing output",
+      ruleNumber: 10,
+      severity: "fail",
+      detail: "Output contains internal signal identifiers (e.g. CS-001). Refer to signals by descriptive name only.",
     });
   }
 }
@@ -373,6 +430,13 @@ BOUNDARY RULES — ABSOLUTE:
 - Cannot invent new signals or drivers
 - Can ONLY fix wording, structure, and coherence
 
+EXECUTIVE FORMATTING RULES:
+- All probabilities must be rounded whole-number percentages (e.g. "18%" not "0.178...")
+- NEVER include internal signal identifiers (CS-001, CS-002, SIG-xxx etc). Refer to signals by descriptive name only.
+- The recommendation must reference the top positive driver and the top binding constraint by name
+- The proposed lever must be logically tied to the primary constraint
+- Write for an executive reader: concise, plain language, no technical notation
+
 Fix the output to address ONLY the listed issues. Keep everything else unchanged. Return valid JSON with the same 4 keys.`;
 
     const userPrompt = `The following executive brief has coherence issues that need fixing:
@@ -395,7 +459,7 @@ CASE CONTEXT:
 - Overall environment strength: ${posteriorPct != null ? `${posteriorPct}%` : "Not provided"}
 
 TOP SIGNAL DRIVERS:
-${(body.signalDetails || []).slice(0, 5).map(s => `- ${s.signalId}: ${s.description || "?"} (contribution: ${s.pointContribution != null ? `${(s.pointContribution * 100).toFixed(1)}pp` : "?"})`).join("\n")}
+${(body.signalDetails || []).slice(0, 5).map(s => `- ${s.description || "?"} (contribution: ${s.pointContribution != null ? `${(s.pointContribution * 100).toFixed(1)}pp` : "?"})`).join("\n")}
 
 Fix ONLY the issues listed. Do not change information that is already correct. Return JSON:
 {

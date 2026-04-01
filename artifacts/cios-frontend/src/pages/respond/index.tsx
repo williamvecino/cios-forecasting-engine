@@ -389,39 +389,34 @@ export default function RespondPage() {
                 <>
                   <section>
                     <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Decision Clarity</h2>
-                    <div className="grid grid-cols-2 gap-3">
-                      <ClarityField
-                        icon={<Target className="w-4 h-4 text-blue-400" />}
-                        label="Success Definition"
-                        value={data.decision_clarity.successDefinition || "Not defined"}
-                      />
-                      <ClarityField
-                        icon={<Clock className="w-4 h-4 text-blue-400" />}
-                        label="Time Horizon"
-                        value={data.decision_clarity.timeHorizon || "Not defined"}
-                      />
-                      <ClarityField
+                    <div className="rounded-xl border border-border/60 bg-card/50 divide-y divide-border/40">
+                      <ClarityRow
                         icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
-                        label="Probability of Achieving Target"
+                        label={`Probability of achieving the target within ${data.decision_clarity.timeHorizon || "forecast horizon"}`}
                         value={data.decision_clarity.targetProbability != null
                           ? `${Math.round(data.decision_clarity.targetProbability * 100)}%`
                           : "Not calculated"}
                         valueColor={getProbabilityColor(data.decision_clarity.targetProbability)}
                       />
-                      <ClarityField
+                      <ClarityRow
                         icon={<Gauge className="w-4 h-4 text-amber-400" />}
-                        label="Overall Environment Strength"
+                        label="Overall environment strength"
                         value={data.decision_clarity.environmentStrength != null
                           ? `${Math.round(data.decision_clarity.environmentStrength * 100)}%`
                           : "Not calculated"}
                         valueColor={getProbabilityColor(data.decision_clarity.environmentStrength)}
                       />
+                      <ClarityRow
+                        icon={<Target className="w-4 h-4 text-blue-400" />}
+                        label="Success definition"
+                        value={data.decision_clarity.outcomeThreshold || data.decision_clarity.successDefinition || "Not defined"}
+                      />
+                      <ClarityRow
+                        icon={<Clock className="w-4 h-4 text-blue-400" />}
+                        label="Most likely current range under present constraints"
+                        value={data.realistic_ceiling}
+                      />
                     </div>
-                    {data.decision_clarity.outcomeThreshold && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Target threshold: {data.decision_clarity.outcomeThreshold}
-                      </p>
-                    )}
                   </section>
 
                   <div className="border-t border-border/40" />
@@ -438,13 +433,6 @@ export default function RespondPage() {
               <section>
                 <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">What Would Change the Forecast</h2>
                 <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
-              </section>
-
-              <div className="border-t border-border/40" />
-
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Realistic Ceiling</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.realistic_ceiling}</p>
               </section>
 
               <div className="border-t border-border/40 pt-2" />
@@ -474,7 +462,7 @@ function CoherencePanel({ coherence, usingRevised }: { coherence: CoherenceResul
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center gap-3">
         <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-emerald-400">Coherence verified — all 8 rules pass</p>
+          <p className="text-sm font-medium text-emerald-400">Coherence verified — all 10 rules pass</p>
           <p className="text-xs text-emerald-400/70 mt-0.5">Output is rule-compliant, internally coherent, and decision-clear.</p>
         </div>
       </div>
@@ -540,7 +528,7 @@ function CoherencePanel({ coherence, usingRevised }: { coherence: CoherenceResul
   );
 }
 
-function ClarityField({
+function ClarityRow({
   icon,
   label,
   value,
@@ -552,12 +540,12 @@ function ClarityField({
   valueColor?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border/60 bg-card/50 p-3">
-      <div className="flex items-center gap-2 mb-1">
+    <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center gap-2.5">
         {icon}
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
       </div>
-      <p className={`text-sm font-semibold ${valueColor || "text-foreground"}`}>{value}</p>
+      <span className={`text-sm font-semibold ${valueColor || "text-foreground"}`}>{value}</span>
     </div>
   );
 }
@@ -612,11 +600,11 @@ function formatAsText(data: RespondResult): string {
 
   if (data.decision_clarity) {
     lines.push("DECISION CLARITY");
-    if (data.decision_clarity.successDefinition) lines.push(`Success Definition: ${data.decision_clarity.successDefinition}`);
-    if (data.decision_clarity.timeHorizon) lines.push(`Time Horizon: ${data.decision_clarity.timeHorizon}`);
-    if (data.decision_clarity.targetProbability != null) lines.push(`Probability of Achieving Target: ${Math.round(data.decision_clarity.targetProbability * 100)}%`);
-    if (data.decision_clarity.environmentStrength != null) lines.push(`Overall Environment Strength: ${Math.round(data.decision_clarity.environmentStrength * 100)}%`);
-    if (data.decision_clarity.outcomeThreshold) lines.push(`Outcome Threshold: ${data.decision_clarity.outcomeThreshold}`);
+    const dc = data.decision_clarity;
+    if (dc.targetProbability != null) lines.push(`Probability of achieving the target within ${dc.timeHorizon || "forecast horizon"}: ${Math.round(dc.targetProbability * 100)}%`);
+    if (dc.environmentStrength != null) lines.push(`Overall environment strength: ${Math.round(dc.environmentStrength * 100)}%`);
+    lines.push(`Success definition: ${dc.outcomeThreshold || dc.successDefinition || "Not defined"}`);
+    if (data.realistic_ceiling) lines.push(`Most likely current range under present constraints: ${data.realistic_ceiling}`);
     lines.push("");
   }
 
@@ -626,10 +614,6 @@ function formatAsText(data: RespondResult): string {
 
   lines.push("WHAT WOULD CHANGE THE FORECAST");
   lines.push(data.highest_impact_lever);
-  lines.push("");
-
-  lines.push("REALISTIC CEILING");
-  lines.push(data.realistic_ceiling);
 
   return lines.join("\n");
 }

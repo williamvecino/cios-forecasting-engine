@@ -136,10 +136,16 @@ STRUCTURE — return valid JSON with exactly these 4 keys:
 
 CRITICAL RULES:
 - TRANSPARENCY IS MANDATORY. Every statement must explain WHY.
-- strategic_recommendation: ONE SENTENCE ONLY. Must include the specific target definition, time horizon, probability percentage, and primary constraint. The reader must know: probability of WHAT, by WHEN, and WHY it is at this level.
+- strategic_recommendation: ONE SENTENCE ONLY. Must include the specific target definition, time horizon, probability percentage, and primary constraint. The reader must know: probability of WHAT, by WHEN, and WHY it is at this level. MUST reference the main positive support AND the main binding constraint by name (not by ID).
 - primary_constraint: Name the SINGLE most binding constraint. Explain its mechanism in plain language. 2-4 sentences maximum. Do not list barriers — explain the one that matters most.
-- highest_impact_lever: Name ONE specific action, not a list. Explain why THIS action would have the largest effect on probability. Must be operationally specific, not strategic platitude.
-- realistic_ceiling: ONE sentence describing what is achievable without removing the binding constraint.`;
+- highest_impact_lever: Name ONE specific action, not a list. Explain why THIS action would have the largest effect on probability. Must be operationally specific, not strategic platitude. The lever MUST be logically tied to the primary constraint.
+- realistic_ceiling: ONE sentence describing what is achievable without removing the binding constraint.
+
+EXECUTIVE FORMATTING (MANDATORY):
+- All probabilities must be displayed as rounded whole-number percentages (e.g. "18%" not "0.17860861821130714", "39%" not "0.3885")
+- NEVER output raw decimal probabilities in any field
+- NEVER include internal signal identifiers (e.g. CS-001, CS-002, SIG-xxx). Refer to signals by their descriptive name only (e.g. "CONVERT Phase III trial" not "CS-001")
+- Write for an executive reader: concise, plain language, no technical notation`;
 
     const decisionContext = buildDecisionContext(body);
 
@@ -244,7 +250,7 @@ function buildSignalDetailContext(details: SignalDetail[]): string {
     lines.push("Positive drivers:");
     positive.forEach(d => {
       const ppPct = d.pointContribution != null ? `${d.pointContribution > 0 ? "+" : ""}${(d.pointContribution * 100).toFixed(1)}pp` : "";
-      lines.push(`  - ${d.signalId}: ${d.description || "No description"} [${ppPct}, ${d.dependencyRole || "Independent"}]`);
+      lines.push(`  - ${d.description || "No description"} [${ppPct}, ${d.dependencyRole || "Independent"}]`);
     });
   }
 
@@ -253,7 +259,7 @@ function buildSignalDetailContext(details: SignalDetail[]): string {
     negative.forEach(d => {
       const ppPct = d.pointContribution != null ? `${(d.pointContribution * 100).toFixed(1)}pp` : "";
       const compressed = d.dependencyRole === "Derivative" ? " (compressed — partially redundant)" : "";
-      lines.push(`  - ${d.signalId}: ${d.description || "No description"} [${ppPct}, ${d.dependencyRole || "Independent"}${compressed}]`);
+      lines.push(`  - ${d.description || "No description"} [${ppPct}, ${d.dependencyRole || "Independent"}${compressed}]`);
     });
   }
 
