@@ -89,11 +89,11 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 **Controlled Demo Cases (5 cases — do not expand until all pass stability checks):**
 | Case ID | Pattern | Asset | Specialty Profile | Signals | Prior |
 |---|---|---|---|---|---|
-| CASE-DEMO-01 | Early adoption forecast | ARIKAYCE | Pulmonology / rare disease | 10 (clinical, safety×2, guideline, epidemiology, operational, prescriber behavior, access×2, real-world evidence) | 0.45 |
-| CASE-DEMO-02 | Competitive share risk | CardioAsset X | Cardiology / mixed specialist | 7 (clinical, safety, guideline, epidemiology, operational, prescriber, access) | 0.35 |
-| CASE-DEMO-03 | Policy / access impact | NeuroModulator Z | Psychiatry / access-sensitive | 9 (clinical, safety, policy, epidemiology, operational, prescriber, access×2, advocacy) | 0.30 |
+| CASE-DEMO-01 | Early adoption forecast | ARIKAYCE | Pulmonology / rare disease | 11 (clinical×2, safety×2, guideline, epidemiology, operational, prescriber, access×2, competitive) | 0.45 |
+| CASE-DEMO-02 | Competitive share risk | CardioAsset X | Cardiology / mixed specialist | 8 (clinical, safety, guideline, epidemiology, operational, prescriber, access, competitive) | 0.35 |
+| CASE-DEMO-03 | Policy / access impact | NeuroModulator Z | Psychiatry / access-sensitive | 10 (clinical, safety, policy, epidemiology, operational, prescriber, access×2, advocacy, competitive) | 0.30 |
 | CASE-DEMO-04 | Portfolio resource allocation | Bispecific-401 | Oncology / academic-led | 9 (clinical, safety, guideline, epidemiology, competitive, manufacturing, prescriber, access, timeline) | 0.50 |
-| CASE-DEMO-05 | Operational readiness | InfusionPlatform V | Oncology / academic-led | 9 (safety, guideline, epidemiology, operational×2, prescriber, access, milestone, workflow) | 0.40 |
+| CASE-DEMO-05 | Operational readiness | InfusionPlatform V | Oncology / academic-led | 10 (clinical×2, safety, guideline, epidemiology, operational×2, prescriber, access, competitive) | 0.40 |
 
 **Development Gate:** Do not expand question complexity until all 5 core demo cases pass page-by-page validation. Validation record: `.local/case-validation-record.md`. Current status: **GATE OPEN — 5/5 PASS** (2026-03-31). Guardrail calibration report: `.local/guardrail-calibration-report.md`. Single-driver cap is now dynamic: ≤2 signals→0.30, ≤4→0.25, ≤6→0.20, 7+→0.15 (`getMaxSingleDriverShift()` in `engine-guardrails.ts`).
 
