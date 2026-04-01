@@ -190,7 +190,7 @@ function handleExplanation(question: string, judgment: ExecutiveJudgmentResult, 
       ].filter(Boolean),
       affectedVariable: null,
       directionalEffect: null,
-      sourceLabel: "Audit Trail — Forecast Path",
+      sourceLabel: "Detailed Reasoning — Forecast Path",
       followUp: judgment.primaryConstraints.length > 0
         ? `Ask "How do I solve ${judgment.primaryConstraints[0].label}?" for actionable guidance.`
         : null,

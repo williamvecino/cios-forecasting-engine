@@ -50,20 +50,20 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
     <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Signal Strength</div>
-          <ProbabilityGauge value={brandOutlookProb} label="Pre-Gate Estimate" size={180} />
+          <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Evidence Strength</div>
+          <ProbabilityGauge value={brandOutlookProb} label="Before Barriers" size={180} />
           <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
-            How strong the therapy looks — based on all clinical, competitive, and market signals after calibration and environment adjustment
+            How strong the case looks based on all evidence collected so far
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span title="Where the probability started before any evidence was added">Prior: {(priorProbability * 100).toFixed(0)}%</span>
+            <span>Started at: {(priorProbability * 100).toFixed(0)}%</span>
             <ArrowRight className="w-3 h-3" />
-            <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"} title={delta >= 0 ? "Positive signals pushed the probability up by this amount" : "Negative signals pulled the probability down by this amount"}>
+            <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
               {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(0)} pts
             </span>
           </div>
           <div className="text-[10px] text-slate-600 leading-snug max-w-[220px]">
-            Started at {(priorProbability * 100).toFixed(0)}%, then {Math.abs(Math.round(delta * 100))} points were {delta >= 0 ? "added" : "removed"} based on the evidence you accepted
+            Evidence {delta >= 0 ? "added" : "removed"} {Math.abs(Math.round(delta * 100))} points from the starting estimate
           </div>
         </div>
 
@@ -75,18 +75,18 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
         )}
 
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Threshold Probability</div>
+          <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Target Likelihood</div>
           {thresholdAvailable ? (
             <>
-              <ProbabilityGauge value={finalForecastProb} label="Outcome Likelihood" size={180} />
+              <ProbabilityGauge value={finalForecastProb} label="After Barriers" size={180} />
               <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
-                Will the target outcome actually be achieved — probability of exceeding the outcome threshold after gate constraints shape the adoption distribution
+                How likely the target will actually be reached once real-world barriers are factored in
               </div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center w-[180px] h-[180px] rounded-full border-2 border-dashed border-slate-600">
-              <div className="text-sm font-bold text-slate-500">Not computed</div>
-              <div className="text-[10px] text-slate-600 mt-1 px-4 text-center">Distribution simulation unavailable</div>
+              <div className="text-sm font-bold text-slate-500">Not available</div>
+              <div className="text-[10px] text-slate-600 mt-1 px-4 text-center">Needs more data to calculate</div>
             </div>
           )}
           <div className={cn(
@@ -113,22 +113,20 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
       )}
 
       <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
-        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Metric Reconciliation</div>
+        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Summary</div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div>
-            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Signal Strength</div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Evidence Strength</div>
             <div className="text-sm font-bold text-blue-300 mt-0.5">{Math.round(brandOutlookProb * 100)}%</div>
-            <div className="text-[10px] text-slate-600 mt-0.5">EnvironmentAdjustedPosterior</div>
-            <div className="text-[10px] text-blue-400/50 mt-0.5">How strong the therapy looks</div>
+            <div className="text-[10px] text-blue-400/50 mt-0.5">How strong the case looks</div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Threshold Prob.</div>
-            <div className="text-sm font-bold text-white mt-0.5">{displayedPct != null ? `${displayedPct}%` : "Not computed"}</div>
-            <div className="text-[10px] text-slate-600 mt-0.5">{thresholdAvailable ? "ThresholdProbability (CDF)" : "Unavailable"}</div>
-            <div className="text-[10px] text-emerald-400/50 mt-0.5">Will the target be achieved</div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Target Likelihood</div>
+            <div className="text-sm font-bold text-white mt-0.5">{displayedPct != null ? `${displayedPct}%` : "Not available"}</div>
+            <div className="text-[10px] text-emerald-400/50 mt-0.5">Will the target be reached</div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Outcome Target</div>
+            <div className="text-[10px] text-slate-600 uppercase tracking-wider">Target</div>
             <div className="text-sm font-bold text-white mt-0.5">{outcomeThreshold ?? "Not set"}</div>
             {thresholdSource && (
               <div className="text-[10px] text-slate-600 mt-0.5">{thresholdSource}</div>
@@ -143,7 +141,6 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
             {verdict ? (
               <>
                 <div className={cn("text-sm font-bold mt-0.5", verdict.color)}>{verdict.label}</div>
-                <div className="text-[10px] text-slate-600 mt-0.5">{verdict.rule}</div>
               </>
             ) : (
               <div className="text-sm font-bold text-slate-500 mt-0.5">Pending</div>
@@ -151,8 +148,6 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           </div>
         </div>
       </div>
-
-      <div className="mt-3 text-center text-[10px] text-slate-600">Engine v2 · Distribution + Gate Constraint</div>
     </div>
   );
 });
@@ -184,7 +179,7 @@ function ExecutionGapIndicator({ brandPct, finalPct }: { brandPct: number; final
   return (
     <div className="flex flex-col items-center justify-center px-4 py-3">
       <div className={`rounded-2xl border px-5 py-4 text-center space-y-2 min-w-[140px] ${severityStyles[severity]}`}>
-        <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">Constraint Gap</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">Barrier Impact</div>
         <div className={`text-2xl font-bold ${arrowColor[severity]}`}>
           {isNegative ? "+" : ""}{absGap}
           <span className="text-sm font-normal ml-1">pts</span>
@@ -196,10 +191,10 @@ function ExecutionGapIndicator({ brandPct, finalPct }: { brandPct: number; final
         </div>
         <div className="text-[10px] text-slate-500 leading-snug max-w-[140px]">
           {isNegative
-            ? "The final forecast is higher than the brand outlook — favorable conditions are boosting the expected outcome"
+            ? "Conditions are better than expected — the forecast is higher than the evidence alone would suggest"
             : absGap >= 15
-            ? `Real-world barriers are reducing the achievable outcome by ${absGap} points — look at the event gates below to see what is causing this`
-            : "Minor gap between potential and constrained outcome — barriers are having a small effect"
+            ? `Real-world barriers are reducing the forecast by ${absGap} points — check the constraints below to understand why`
+            : "Barriers are having a small effect on the forecast"
           }
         </div>
       </div>

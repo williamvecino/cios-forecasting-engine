@@ -230,7 +230,7 @@ function PanelConnectionLabel({ label, children }: { label: string; children: Re
     <div className="space-y-1">
       <div className="flex items-center gap-2 px-1">
         <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50 shrink-0" />
-        <div className="text-[10px] text-blue-400/60 font-medium tracking-wide">Connection to Forecast: {label}</div>
+        <div className="text-[10px] text-blue-400/60 font-medium tracking-wide">{label}</div>
       </div>
       {children}
     </div>
@@ -1304,18 +1304,18 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             ))}
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Confidence Ceiling</div>
+            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Maximum Probability</div>
             <div className="text-lg font-bold text-white">
               {confidenceCeiling !== null ? `${Math.round(confidenceCeiling * 100)}%` : "None"}
             </div>
-            <div className="text-[10px] text-slate-500">Max achievable probability</div>
+            <div className="text-[10px] text-slate-500">Highest the forecast can reach</div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Fragility</div>
+            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Sensitivity</div>
             <div className="text-lg font-bold text-white">
               {fragilityScore !== null ? fragilityScore.toFixed(2) : "—"}
             </div>
-            <div className="text-[10px] text-slate-500">Single-driver sensitivity</div>
+            <div className="text-[10px] text-slate-500">How much one signal can swing the result</div>
           </div>
         </div>
       </div>
@@ -1353,9 +1353,9 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             </div>
             <ArrowRight className="w-5 h-5 text-slate-600" />
             <div className="text-center">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Engine Output</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Before Barriers</div>
               <div className="text-lg font-semibold text-slate-400">{Math.round(rawProb * 100)}%</div>
-              <div className="text-[10px] text-slate-600">pre-distribution</div>
+              <div className="text-[10px] text-slate-600">evidence only</div>
             </div>
             <ArrowRight className="w-5 h-5 text-slate-600" />
             <div className="text-center">
@@ -1389,7 +1389,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-slate-200 truncate">{sig.description}</div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
-                      {sig.direction} &middot; LR {sig.effectiveLikelihoodRatio.toFixed(2)}
+                      {sig.direction} &middot; Weight {sig.effectiveLikelihoodRatio.toFixed(2)}
                       {sig.correlationDampened && " (dampened)"}
                       {sig.signalType && ` \u00B7 ${sig.signalType}`}
                     </div>
@@ -1455,6 +1455,46 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         </div>
         {coreLoopStrip}
       </section>
+
+      {(() => {
+        const caseKey = activeQuestion?.caseId || "unknown";
+        let decomp: any = null;
+        try {
+          const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
+          if (raw) decomp = JSON.parse(raw);
+        } catch {}
+        const hasGatesLocal = decomp && decomp.event_gates && decomp.event_gates.length > 0;
+        const brandProb = hasGatesLocal
+          ? decomp.brand_outlook_probability
+          : ((f as any).brandOutlookProbability ?? f.currentProbability ?? 0.5);
+        const apiThreshold: number | null = (f as any).thresholdProbability ?? null;
+        const apiDistComputed = (f as any).distributionComputed ?? true;
+        const dispProb = apiDistComputed ? (apiThreshold ?? f.currentProbability ?? 0.5) : null;
+        let storedPrior: number | null = null;
+        try {
+          const prev = localStorage.getItem(`cios.judgmentResult:${caseKey}`);
+          if (prev) {
+            const parsed = JSON.parse(prev);
+            if (typeof parsed.probability === "number") storedPrior = parsed.probability;
+          }
+        } catch {}
+        const circDelta = (brandProb ?? f.currentProbability ?? 0.5) - (storedPrior ?? f.priorProbability ?? 0.5);
+        return (
+          <div className="mt-4">
+            <ForecastComparisonCircles
+              brandOutlookProb={brandProb ?? (f as any).posteriorProbability ?? f.currentProbability ?? 0.5}
+              finalForecastProb={dispProb}
+              priorProbability={storedPrior ?? f.priorProbability ?? 0.5}
+              delta={circDelta}
+              confidence={confidence}
+              outcomeThreshold={activeQuestion?.threshold || (f as any).outcomeThreshold || null}
+              distributionComputed={apiDistComputed}
+              consecutiveEqualityWarning={(f as any).consecutiveEqualityWarning ?? null}
+              thresholdSource={(f as any).outcomeThresholdResolution?.source ?? null}
+            />
+          </div>
+        );
+      })()}
 
       <div className="border-t border-white/10" />
 
@@ -1563,11 +1603,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                 </div>
               </div>
               <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-[10px] text-slate-500">
-                <span>Derived from probability band</span>
-                <span>·</span>
                 <span>{f.confidenceLevel} confidence</span>
-                <span>·</span>
-                <span>adapter v1</span>
               </div>
             </div>
           )}
@@ -1752,7 +1788,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           return (
             <>
               {/* === SECTION 2 (cont.): ForecastMeaningPanel within Interpretation context === */}
-              <PanelConnectionLabel label="Explains the probability in plain language with key conditions">
+              <PanelConnectionLabel label="What the numbers mean">
                 <ForecastMeaningPanel
                   interpretation={judgmentResult.reasoning}
                   weakestGate={decomp!.event_gates.sort((a, b) => {
@@ -1780,7 +1816,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
                 <div className="space-y-4">
                   {drivers.length > 0 && (
-                    <PanelConnectionLabel label="Updates probability by showing each driver's directional point contribution">
+                    <PanelConnectionLabel label="What is moving the number">
                       <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
                     </PanelConnectionLabel>
                   )}
@@ -1898,17 +1934,17 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
                     <ExplainBox judgment={judgmentResult} caseContext={caseCtxForExplain} />
 
-                    <PanelConnectionLabel label="Updates probability based on weighted signal evidence and constraint status">
+                    <PanelConnectionLabel label="Executive assessment">
                       <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} priorProbability={priorProbability} />
                     </PanelConnectionLabel>
 
                     {activeQuestion?.caseId && (
-                      <PanelConnectionLabel label="Explains reliability and diversity of the evidence feeding the forecast">
+                      <PanelConnectionLabel label="Evidence quality">
                         <EvidenceHealthPanel caseId={activeQuestion.caseId} />
                       </PanelConnectionLabel>
                     )}
 
-                    <PanelConnectionLabel label="Monitors probability stability across successive forecast runs">
+                    <PanelConnectionLabel label="Forecast stability">
                       <ConsistencyPanel
                         consistency={f._consistency ?? null}
                         drift={f._drift ?? null}
@@ -1916,27 +1952,13 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       />
                     </PanelConnectionLabel>
 
-                    <PanelConnectionLabel label="Explains shift between prior, signal strength, and final probability">
-                      <ForecastComparisonCircles
-                        brandOutlookProb={brandOutlookProb ?? (f as any).posteriorProbability ?? f.currentProbability ?? 0.5}
-                        finalForecastProb={displayProb}
-                        priorProbability={f.priorProbability}
-                        delta={delta}
-                        confidence={confidence}
-                        outcomeThreshold={outcomeThresholdStr}
-                        distributionComputed={apiDistributionComputed}
-                        consecutiveEqualityWarning={apiConsecutiveEqualityWarning}
-                        thresholdSource={(f as any).outcomeThresholdResolution?.source ?? null}
-                      />
-                    </PanelConnectionLabel>
-
-                    <PanelConnectionLabel label="Constrains maximum achievable probability until conditions are met">
+                    <PanelConnectionLabel label="Barriers and constraints">
                       <EventGatesPanel gates={decomp!.event_gates} />
                     </PanelConnectionLabel>
 
                     <details className="rounded-2xl border border-white/10 bg-[#0A1736]/60 overflow-hidden" data-testid="judgment-audit-block">
                       <summary className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-slate-200 select-none">
-                        Judgment Audit Trail
+                        Detailed Reasoning
                       </summary>
                       <div className="px-5 pb-4 space-y-4 text-xs text-slate-300">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1945,11 +1967,11 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                             <div className="text-base font-bold text-slate-100">{audit.inputs.priorPct}%</div>
                           </div>
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Signal Strength (Pre-Gate)</div>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Evidence Strength</div>
                             <div className="text-base font-bold text-cyan-300">{audit.inputs.brandOutlookPct}%</div>
                           </div>
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Min Gate Cap</div>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Barrier Cap</div>
                             <div className="text-base font-bold text-amber-300">{audit.inputs.minGateCapPct}%</div>
                           </div>
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
@@ -1960,7 +1982,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Constraint Gap</div>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Barrier Impact</div>
                             <div className="text-base font-bold text-red-300">{audit.inputs.executionGapPts} pts</div>
                           </div>
                           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
