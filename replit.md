@@ -42,6 +42,7 @@ CIOS is a monorepo using pnpm workspaces. The frontend uses React, Vite, Tailwin
 - **Signal Interpretation Layer:** Sits between decision classification and signal creation, persisting to `signal_interpretations` DB table.
 - **Server-Side Recalculation Controller:** `POST /api/forecast/recalculate` is a dependency-aware forecast recalculation endpoint.
 - **Forecast Explanation Layer:** `GET /api/cases/:caseId/explanation` endpoint generates structured explanations.
+- **Respond / Launch Strategy Output:** Restructured executive brief answering 5 executive questions: (1) Probability of what? (2) By when? (3) Why is it low? (4) What is the main constraint? (5) What would change it? Includes a data-driven Decision Clarity panel showing success definition, time horizon, target probability (threshold), and environment strength (posterior) — clearly distinguishing the two probability types. LLM-generated sections: Strategic Recommendation (one sentence), Primary Constraint, Highest-Impact Lever, Realistic Ceiling.
 - **Consistency and Determinism System:** Uses a Canonical Case Object (`canonicalFields` JSONB on `cases` table) for structured parsed fields and `forecast_snapshots` for drift detection and consistency scoring.
 - **System Integrity Test Layer:** Internal validation module that tests 10 engine invariants on every forecast run, logging results to `integrity_test_results` table. Core invariant failures flag the forecast as unreliable.
 

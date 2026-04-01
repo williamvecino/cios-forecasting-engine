@@ -5,6 +5,16 @@ import { buildGapGuardPromptBlock, scanObjectForGapViolations, replaceGapPhrases
 
 const router = Router();
 
+interface SignalDetail {
+  signalId: string;
+  description?: string;
+  rawLikelihoodRatio?: number;
+  effectiveLikelihoodRatio?: number;
+  dependencyRole?: string;
+  pointContribution?: number;
+  correlationGroup?: string;
+}
+
 interface RespondRequest {
   subject: string;
   questionText: string;
@@ -12,6 +22,14 @@ interface RespondRequest {
   timeHorizon?: string;
   probability?: number | null;
   constrainedProbability?: number | null;
+  posteriorProbability?: number | null;
+  thresholdProbability?: number | null;
+  successDefinition?: string | null;
+  outcomeThreshold?: string | null;
+  strategicQuestion?: string | null;
+  topConstraint?: string | null;
+  topDriver?: string | null;
+  signalDetails?: SignalDetail[];
   signals?: { text: string; direction: string; importance: string; confidence: string; source: string; signal_source?: string }[];
   derived_decisions?: {
     barriers: { title: string; rationale: string; severity_or_priority: string }[];
@@ -45,19 +63,21 @@ router.post("/ai-respond/generate", async (req, res) => {
       return;
     }
 
-    const prob = body.constrainedProbability ?? body.probability ?? null;
-    const probPct = prob != null ? Math.round(prob * 100) : null;
+    const posteriorPct = body.posteriorProbability != null ? Math.round(body.posteriorProbability * 100) : null;
+    const thresholdPct = body.thresholdProbability != null ? Math.round(body.thresholdProbability * 100) : null;
+    const fallbackProb = body.constrainedProbability ?? body.probability ?? null;
+    const displayPct = thresholdPct ?? (fallbackProb != null ? Math.round(fallbackProb * 100) : null);
 
     let probabilityFrame = "";
-    if (probPct != null) {
-      if (probPct >= 75) {
-        probabilityFrame = `The current probability is ${probPct}% — verdict: LIKELY. Your narrative MUST reflect this — the recommendation should be about capitalizing on momentum and managing remaining risks, NOT about whether the outcome will happen. Do not say "unlikely" or "uncertain" — the analysis says it is probable.`;
-      } else if (probPct >= 60) {
-        probabilityFrame = `The current probability is ${probPct}% — verdict: LIKELY. The outcome is more likely than not. Your narrative MUST say this is likely. Do not say "unlikely" or "uncertain" — a ${probPct}% probability means the evidence favors this outcome. Frame the narrative around what conditions must hold and what risks remain, not whether the outcome will happen.`;
-      } else if (probPct >= 40) {
-        probabilityFrame = `The current probability is ${probPct}% — verdict: UNCERTAIN. This means the outcome is genuinely uncertain — roughly a coin flip. Your narrative should reflect genuine uncertainty. Do not say "likely" or "unlikely" — say "uncertain" or "conditional." Do not overstate confidence in either direction.`;
+    if (displayPct != null) {
+      if (displayPct >= 75) {
+        probabilityFrame = `The probability of achieving the defined target is ${displayPct}% — verdict: LIKELY. Your narrative MUST reflect this — the recommendation should be about capitalizing on momentum and managing remaining risks, NOT about whether the outcome will happen.`;
+      } else if (displayPct >= 60) {
+        probabilityFrame = `The probability of achieving the defined target is ${displayPct}% — verdict: LIKELY. The outcome is more likely than not. Frame the narrative around what conditions must hold and what risks remain.`;
+      } else if (displayPct >= 40) {
+        probabilityFrame = `The probability of achieving the defined target is ${displayPct}% — verdict: UNCERTAIN. The outcome is genuinely uncertain. Do not say "likely" or "unlikely" — say "uncertain" or "conditional."`;
       } else {
-        probabilityFrame = `The current probability is ${probPct}% — verdict: UNLIKELY. This means the outcome is unlikely given current evidence. Your narrative should reflect skepticism about the outcome occurring without significant changes to the current trajectory.`;
+        probabilityFrame = `The probability of achieving the defined target is ${displayPct}% — verdict: UNLIKELY. The outcome is unlikely given current evidence. Your narrative should reflect skepticism about the outcome occurring without significant changes.`;
       }
     }
 
@@ -75,17 +95,6 @@ router.post("/ai-respond/generate", async (req, res) => {
     const sensitivityConstraints = buildDecisionSensitivityPrompt(caseTypeProfile);
     const responseModeLabel = getResponseModeLabel(caseTypeProfile.responseMode);
 
-    const actionExample = isClinical
-      ? `"Optimize enrollment strategy because patient selection quality directly determines endpoint sensitivity."`
-      : isRegulatory
-        ? `"Finalize ARIA risk mitigation strategy because benefit-risk balance is the primary advisory concern."`
-        : `"Secure payer commitment because reimbursement uncertainty is the biggest barrier to adoption."`;
-    const successExample = isClinical
-      ? `"Interim analysis shows consistent treatment effect — confirms endpoint trajectory."`
-      : isRegulatory
-        ? `"Favorable advisory committee vote — confirms benefit-risk acceptance."`
-        : `"First formulary listing — confirms payer acceptance."`;
-
     const caseTypeLabel = isClinical ? "clinical trial strategy" : isRegulatory ? "regulatory" : "strategy";
     const caseTypeHeader = isClinical
       ? "\nThis is a CLINICAL OUTCOME case. All language, actions, and success measures must be trial-focused — NOT regulatory, commercial, or adoption-oriented.\n"
@@ -93,7 +102,9 @@ router.post("/ai-respond/generate", async (req, res) => {
         ? "\nThis is a REGULATORY APPROVAL case. All language, actions, and success measures must be regulatory — NOT commercial, adoption, or launch-oriented.\n"
         : "";
 
-    const systemPrompt = `You are a senior ${caseTypeLabel} advisor writing a concise executive brief. Your output will be read by a decision-maker who needs to act, not analyze.
+    const signalContext = buildSignalDetailContext(body.signalDetails || []);
+
+    const systemPrompt = `You are a senior ${caseTypeLabel} advisor writing a concise executive launch strategy brief. Your output will be read by a decision-maker who needs to act, not analyze.
 RESPONSE MODE: ${responseModeLabel}
 ${caseTypeHeader}
 VOICE:
@@ -101,48 +112,60 @@ VOICE:
 - Short, declarative sentences. No filler. No hedging.
 - State what is happening, what matters, what to do. Nothing else.
 - Never use: "Bayesian", "posterior", "Brier score", "likelihood ratio", "prior odds"
-- "Probability" is allowed
+- "Probability" is allowed but MUST always specify probability OF WHAT — always say "probability of achieving [the defined target] within [time horizon]"
+- Never say only "unlikely" without completing the sentence with what is unlikely to be achieved
 ${vocabConstraints}${decisionLayerConstraints}${driverConstraints}${safetyConstraints}${evidenceGateConstraints}${outcomeStateConstraints}${actionFilterConstraints}${propagationConstraints}${sensitivityConstraints}
 ═══ PROBABILITY ALIGNMENT (MANDATORY) ═══
 ${probabilityFrame || "No probability provided. Generate response from signals and question context."}
 The strategic_recommendation MUST be consistent with the probability. If the probability says likely, the recommendation must say likely. If the probability says unlikely, the recommendation must say unlikely. A contradiction between the computed probability and the narrative is a critical error.
+
+CRITICAL DISTINCTION — TWO PROBABILITIES:
+- "Probability of achieving the target" = ${thresholdPct != null ? `${thresholdPct}%` : "not provided"} — this is the probability that the defined adoption target will be reached within the time horizon. THIS is what the executive cares about.
+- "Overall environment strength" = ${posteriorPct != null ? `${posteriorPct}%` : "not provided"} — this is the overall signal-adjusted probability reflecting the balance of all positive and negative evidence. This contextualizes the environment but is NOT the target probability.
+Do NOT confuse these two numbers. When you say "probability," you mean probability of achieving the defined target.
 ═══ END PROBABILITY ALIGNMENT ═══
 ${buildGapGuardPromptBlock()}
 
-STRUCTURE — return valid JSON with exactly these 5 keys:
+STRUCTURE — return valid JSON with exactly these 4 keys:
 {
-  "strategic_recommendation": "Two to three sentences. The core strategic call — what is likely to happen AND WHY the probability is what it is. Name the specific evidence or conditions that led to this number. Be specific to the case, not generic. MUST align with the computed probability.",
-  "why_this_matters": "Two to three sentences. Name the specific limiting factors or driving forces AND explain why each one matters in plain terms. Do NOT list drivers and risks separately — weave them into a single narrative paragraph that connects each factor to its real-world consequence.",
-  "priority_actions": ["Specific action most likely to change forecast probability + because [reason]", "Second action + because [reason]", "Third action + because [reason]"],
-  "success_measures": ["First observable, measurable event that indicates strategy is working", "Second measurable signal", "Third measurable signal"],
-  "execution_focus": "The single constraint most likely to block progress. One item only."
+  "strategic_recommendation": "One sentence. State whether the defined target is likely/unlikely to be achieved within the time horizon, at what probability, and name the primary reason. Example format: 'It is unlikely that [brand] will achieve [target] within [time], with a current [X]% probability of reaching this adoption target, primarily because [binding constraint].' MUST align with the computed probability.",
+  "primary_constraint": "Two to four sentences maximum. Name the single primary binding constraint that is limiting the probability. Explain in plain language WHY this constraint matters for adoption. Do NOT list multiple constraints — identify the ONE that is most binding and explain its mechanism. Be specific to this case.",
+  "highest_impact_lever": "Two to three sentences. Name the single action most likely to move the probability upward. Explain what kind of change is required and why it would work. Do NOT give generic advice — be specific to the signals and constraints in this case.",
+  "realistic_ceiling": "One sentence. State the likely achievable range under current conditions without structural change. Example: 'Under current conditions, [brand] adoption is more likely to reach [realistic range] rather than the [target] threshold.'"
 }
 
 CRITICAL RULES:
-- TRANSPARENCY IS MANDATORY. Every statement must explain WHY. Never state a conclusion without saying what evidence or reasoning led to it. The reader should never have to guess where a number or recommendation came from.
-- strategic_recommendation: State the expected ${isClinical ? "endpoint" : isRegulatory ? "approval" : "outcome"} trajectory AND its primary constraint. Explain WHY the probability is at this level — name the specific signals or conditions. The TONE and CONCLUSION must match the probability — high probability = likely outcome, low probability = unlikely outcome.
-- why_this_matters: A SINGLE PARAGRAPH. Name the real bottlenecks AND explain in plain terms why each one matters for the decision. Connect each factor to what it means practically.
-- priority_actions: EXACTLY 3 actions. These are the top 3 actions most likely to change the forecast probability within the defined time horizon. Each action MUST include a "because" clause. Must be action-oriented and testable — not generic planning language or strategy themes. Example: ${actionExample}${isRegulatory ? " Actions must be pre-approval and regulatory in scope — no post-approval commercialization tasks like physician education or market rollout." : ""}
-- success_measures: EXACTLY 3 items. These are the first observable signals that indicate the strategy is working. Each must be a measurable event — not a description or aspiration. Example: ${successExample}${isRegulatory ? " Success measures must be regulatory milestones only — no launch readiness, rollout, or market-share markers." : ""}
-- execution_focus: ONE sentence identifying the SINGLE constraint most likely to block progress. Only one item is allowed. Do not list multiple priorities. Do not describe strategy themes. Name the specific blocker.`;
+- TRANSPARENCY IS MANDATORY. Every statement must explain WHY.
+- strategic_recommendation: ONE SENTENCE ONLY. Must include the specific target definition, time horizon, probability percentage, and primary constraint. The reader must know: probability of WHAT, by WHEN, and WHY it is at this level.
+- primary_constraint: Name the SINGLE most binding constraint. Explain its mechanism in plain language. 2-4 sentences maximum. Do not list barriers — explain the one that matters most.
+- highest_impact_lever: Name ONE specific action, not a list. Explain why THIS action would have the largest effect on probability. Must be operationally specific, not strategic platitude.
+- realistic_ceiling: ONE sentence describing what is achievable without removing the binding constraint.`;
 
     const decisionContext = buildDecisionContext(body);
 
-    const userPrompt = `Write an executive response brief for:
+    const userPrompt = `Write an executive launch strategy brief for:
 
 Subject: ${body.subject}
-Question: ${body.questionText}
-Outcome: ${body.outcome || "adoption"}
+Strategic Question: ${body.strategicQuestion || body.questionText}
+Success Definition: ${body.successDefinition || body.outcome || "adoption target"}
+Outcome Threshold: ${body.outcomeThreshold || "Not specified"}
 Time Horizon: ${body.timeHorizon || "12 months"}
-Current Probability: ${body.constrainedProbability != null ? `${Math.round(body.constrainedProbability * 100)}%` : body.probability != null ? `${Math.round(body.probability * 100)}%` : "Not yet calculated"}
+Probability of Achieving Target: ${thresholdPct != null ? `${thresholdPct}%` : displayPct != null ? `${displayPct}%` : "Not yet calculated"}
+Overall Environment Strength: ${posteriorPct != null ? `${posteriorPct}%` : "Not yet calculated"}
+
+${signalContext}
 
 ${decisionContext}
 
-Translate this into a brief. Do not reanalyze — summarize what the evidence says, what should be done, and how to know it is working.`;
+Answer these executive questions in the structured format:
+1. What is the probability of achieving this specific target, and is it likely or unlikely?
+2. What is the primary constraint preventing a higher probability?
+3. What single action would most move the probability?
+4. What is realistically achievable under current conditions?`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_completion_tokens: 2000,
+      max_completion_tokens: 1500,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -162,43 +185,42 @@ Translate this into a brief. Do not reanalyze — summarize what the evidence sa
       strategic_recommendation: typeof parsed.strategic_recommendation === "string"
         ? parsed.strategic_recommendation
         : parsed.strategic_recommendation?.headline || parsed.strategic_recommendation?.text || "Recommendation pending",
-      why_this_matters: typeof parsed.why_this_matters === "string"
-        ? parsed.why_this_matters
-        : parsed.why_this_matters?.summary || parsed.why_this_matters?.text || "",
-      priority_actions: Array.isArray(parsed.priority_actions)
-        ? parsed.priority_actions.map((a: any) => typeof a === "string" ? a : a.action || a.text || "").filter(Boolean).slice(0, 3)
-        : [],
-      success_measures: Array.isArray(parsed.success_measures)
-        ? parsed.success_measures.map((m: any) => typeof m === "string" ? m : m.metric || m.text || "").filter(Boolean).slice(0, 3)
-        : [],
-      execution_focus: typeof parsed.execution_focus === "string"
-        ? parsed.execution_focus
-        : parsed.execution_focus?.primary_focus || parsed.execution_focus?.text || "",
+      primary_constraint: typeof parsed.primary_constraint === "string"
+        ? parsed.primary_constraint
+        : parsed.primary_constraint?.text || "",
+      highest_impact_lever: typeof parsed.highest_impact_lever === "string"
+        ? parsed.highest_impact_lever
+        : parsed.highest_impact_lever?.text || "",
+      realistic_ceiling: typeof parsed.realistic_ceiling === "string"
+        ? parsed.realistic_ceiling
+        : parsed.realistic_ceiling?.text || "",
     };
 
-    if (validated.priority_actions.length < 3) {
-      while (validated.priority_actions.length < 3) validated.priority_actions.push("Action pending — insufficient context to specify");
-    }
-    if (validated.success_measures.length < 3) {
-      while (validated.success_measures.length < 3) validated.success_measures.push("Measure pending — insufficient context to specify");
-    }
-
-    const focusSentences = validated.execution_focus.split(/\.\s+/).filter(Boolean);
-    if (focusSentences.length > 1) {
-      validated.execution_focus = focusSentences[0] + (focusSentences[0].endsWith(".") ? "" : ".");
-    }
-
-    const gapViolations = scanObjectForGapViolations(validated);
+    const gapFields = {
+      strategic_recommendation: validated.strategic_recommendation,
+      primary_constraint: validated.primary_constraint,
+      highest_impact_lever: validated.highest_impact_lever,
+      realistic_ceiling: validated.realistic_ceiling,
+    };
+    const gapViolations = scanObjectForGapViolations(gapFields);
     if (gapViolations.length > 0) {
       validated.strategic_recommendation = replaceGapPhrases(validated.strategic_recommendation);
-      validated.why_this_matters = replaceGapPhrases(validated.why_this_matters);
-      validated.priority_actions = validated.priority_actions.map((a: string) => replaceGapPhrases(a));
-      validated.success_measures = validated.success_measures.map((m: string) => replaceGapPhrases(m));
-      validated.execution_focus = replaceGapPhrases(validated.execution_focus);
+      validated.primary_constraint = replaceGapPhrases(validated.primary_constraint);
+      validated.highest_impact_lever = replaceGapPhrases(validated.highest_impact_lever);
+      validated.realistic_ceiling = replaceGapPhrases(validated.realistic_ceiling);
     }
+
+    const decisionClarity = {
+      successDefinition: body.successDefinition || body.outcome || null,
+      outcomeThreshold: body.outcomeThreshold || null,
+      timeHorizon: body.timeHorizon || null,
+      targetProbability: body.thresholdProbability ?? fallbackProb,
+      environmentStrength: body.posteriorProbability ?? null,
+    };
 
     res.json({
       ...validated,
+      decision_clarity: decisionClarity,
       _gapGuard: {
         clean: gapViolations.length === 0,
         violationCount: gapViolations.length,
@@ -210,6 +232,33 @@ Translate this into a brief. Do not reanalyze — summarize what the evidence sa
     res.status(500).json({ error: "Failed to generate response" });
   }
 });
+
+function buildSignalDetailContext(details: SignalDetail[]): string {
+  if (!details.length) return "";
+
+  const lines: string[] = ["SIGNAL EVIDENCE SUMMARY:"];
+  const positive = details.filter(d => (d.rawLikelihoodRatio ?? 1) > 1);
+  const negative = details.filter(d => (d.rawLikelihoodRatio ?? 1) < 1);
+
+  if (positive.length) {
+    lines.push("Positive drivers:");
+    positive.forEach(d => {
+      const ppPct = d.pointContribution != null ? `${d.pointContribution > 0 ? "+" : ""}${(d.pointContribution * 100).toFixed(1)}pp` : "";
+      lines.push(`  - ${d.signalId}: ${d.description || "No description"} [${ppPct}, ${d.dependencyRole || "Independent"}]`);
+    });
+  }
+
+  if (negative.length) {
+    lines.push("Negative constraints:");
+    negative.forEach(d => {
+      const ppPct = d.pointContribution != null ? `${(d.pointContribution * 100).toFixed(1)}pp` : "";
+      const compressed = d.dependencyRole === "Derivative" ? " (compressed — partially redundant)" : "";
+      lines.push(`  - ${d.signalId}: ${d.description || "No description"} [${ppPct}, ${d.dependencyRole || "Independent"}${compressed}]`);
+    });
+  }
+
+  return lines.join("\n");
+}
 
 function buildDecisionContext(body: RespondRequest): string {
   const parts: string[] = [];

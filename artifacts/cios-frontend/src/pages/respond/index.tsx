@@ -10,6 +10,10 @@ import {
   Check,
   RefreshCw,
   FlaskConical,
+  Target,
+  Clock,
+  TrendingUp,
+  Gauge,
 } from "lucide-react";
 import { Link } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
@@ -31,13 +35,43 @@ interface GapGuardResult {
   violations: GapViolation[];
 }
 
+interface DecisionClarity {
+  successDefinition: string | null;
+  outcomeThreshold: string | null;
+  timeHorizon: string | null;
+  targetProbability: number | null;
+  environmentStrength: number | null;
+}
+
 interface RespondResult {
   strategic_recommendation: string;
-  why_this_matters: string;
-  priority_actions: string[];
-  success_measures: string[];
-  execution_focus: string;
+  primary_constraint: string;
+  highest_impact_lever: string;
+  realistic_ceiling: string;
+  decision_clarity?: DecisionClarity;
   _gapGuard?: GapGuardResult;
+}
+
+interface ForecastData {
+  posteriorProbability?: number;
+  thresholdProbability?: number;
+  signalDetails?: {
+    signalId: string;
+    description?: string;
+    rawLikelihoodRatio?: number;
+    effectiveLikelihoodRatio?: number;
+    dependencyRole?: string;
+    pointContribution?: number;
+    correlationGroup?: string;
+  }[];
+}
+
+interface CaseData {
+  strategicQuestion?: string;
+  outcomeDefinition?: string;
+  outcomeThreshold?: string;
+  timeHorizon?: string;
+  assetName?: string;
 }
 
 function getApiBase() {
@@ -85,6 +119,23 @@ export default function RespondPage() {
     setError(null);
 
     try {
+      const apiBase = getApiBase();
+
+      let forecastData: ForecastData = {};
+      let caseData: CaseData = {};
+
+      try {
+        const [forecastRes, caseRes] = await Promise.all([
+          fetch(`${apiBase}/cases/${caseId}/forecast`),
+          fetch(`${apiBase}/cases/${caseId}`),
+        ]);
+        if (forecastRes.ok) forecastData = await forecastRes.json();
+        if (caseRes.ok) {
+          const caseJson = await caseRes.json();
+          caseData = caseJson.data || caseJson;
+        }
+      } catch {}
+
       const decideRaw = localStorage.getItem(`cios.decideResult:${caseId}`);
       const decideData = decideRaw ? JSON.parse(decideRaw) : null;
 
@@ -118,12 +169,18 @@ export default function RespondPage() {
       } catch {}
 
       const payload = {
-        subject: activeQuestion.subject || activeQuestion.text,
+        subject: activeQuestion.subject || caseData.assetName || activeQuestion.text,
         questionText: activeQuestion.text,
-        outcome: activeQuestion.outcome || "adoption",
-        timeHorizon: activeQuestion.timeHorizon || "12 months",
+        outcome: caseData.outcomeDefinition || activeQuestion.outcome || "adoption",
+        timeHorizon: caseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
         probability,
         constrainedProbability,
+        posteriorProbability: forecastData.posteriorProbability ?? null,
+        thresholdProbability: forecastData.thresholdProbability ?? null,
+        successDefinition: caseData.outcomeDefinition || null,
+        outcomeThreshold: caseData.outcomeThreshold || null,
+        strategicQuestion: caseData.strategicQuestion || null,
+        signalDetails: forecastData.signalDetails || [],
         signals,
         derived_decisions: decideData?.derived_decisions || null,
         adoption_segmentation: decideData?.adoption_segmentation || null,
@@ -131,7 +188,7 @@ export default function RespondPage() {
         competitive_risk: decideData?.competitive_risk || null,
       };
 
-      const res = await fetch(`${getApiBase()}/ai-respond/generate`, {
+      const res = await fetch(`${apiBase}/ai-respond/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -236,7 +293,7 @@ export default function RespondPage() {
                         {data._gapGuard.violationCount} narrative gap{data._gapGuard.violationCount > 1 ? "s" : ""} blocked
                       </p>
                       <p className="text-xs text-amber-400/80">
-                        Vague gap statements were detected and replaced. Each gap statement requires: observed value, expected value, numeric difference, and specific drivers.
+                        Vague gap statements were detected and replaced.
                       </p>
                       {data._gapGuard.violations.map((v, i) => (
                         <div key={i} className="text-xs text-amber-400/70 border-t border-amber-500/20 pt-1.5 mt-1.5">
@@ -255,44 +312,66 @@ export default function RespondPage() {
 
               <div className="border-t border-border/40" />
 
+              {data.decision_clarity && (
+                <>
+                  <section>
+                    <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Decision Clarity</h2>
+                    <div className="grid grid-cols-2 gap-3">
+                      <ClarityField
+                        icon={<Target className="w-4 h-4 text-blue-400" />}
+                        label="Success Definition"
+                        value={data.decision_clarity.successDefinition || "Not defined"}
+                      />
+                      <ClarityField
+                        icon={<Clock className="w-4 h-4 text-blue-400" />}
+                        label="Time Horizon"
+                        value={data.decision_clarity.timeHorizon || "Not defined"}
+                      />
+                      <ClarityField
+                        icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
+                        label="Probability of Achieving Target"
+                        value={data.decision_clarity.targetProbability != null
+                          ? `${Math.round(data.decision_clarity.targetProbability * 100)}%`
+                          : "Not calculated"}
+                        valueColor={getProbabilityColor(data.decision_clarity.targetProbability)}
+                      />
+                      <ClarityField
+                        icon={<Gauge className="w-4 h-4 text-amber-400" />}
+                        label="Overall Environment Strength"
+                        value={data.decision_clarity.environmentStrength != null
+                          ? `${Math.round(data.decision_clarity.environmentStrength * 100)}%`
+                          : "Not calculated"}
+                        valueColor={getProbabilityColor(data.decision_clarity.environmentStrength)}
+                      />
+                    </div>
+                    {data.decision_clarity.outcomeThreshold && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Target threshold: {data.decision_clarity.outcomeThreshold}
+                      </p>
+                    )}
+                  </section>
+
+                  <div className="border-t border-border/40" />
+                </>
+              )}
+
               <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why This Matters</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.why_this_matters}</p>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why the Probability Is Low</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
               </section>
 
               <div className="border-t border-border/40" />
 
               <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Prioritize Resources</h2>
-                <ul className="space-y-2">
-                  {data.priority_actions.map((action, i) => (
-                    <li key={i} className="flex items-start gap-3 text-[15px] text-foreground">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-2" />
-                      {action}
-                    </li>
-                  ))}
-                </ul>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">What Would Change the Forecast</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
               </section>
 
               <div className="border-t border-border/40" />
 
               <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Success Measures</h2>
-                <ul className="space-y-2">
-                  {data.success_measures.map((measure, i) => (
-                    <li key={i} className="flex items-start gap-3 text-[15px] text-foreground">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-2" />
-                      {measure}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              <div className="border-t border-border/40" />
-
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Execution Focus</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.execution_focus}</p>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Realistic Ceiling</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.realistic_ceiling}</p>
               </section>
 
               <div className="border-t border-border/40 pt-2" />
@@ -312,6 +391,36 @@ export default function RespondPage() {
   );
 }
 
+function ClarityField({
+  icon,
+  label,
+  value,
+  valueColor,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  valueColor?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card/50 p-3">
+      <div className="flex items-center gap-2 mb-1">
+        {icon}
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      </div>
+      <p className={`text-sm font-semibold ${valueColor || "text-foreground"}`}>{value}</p>
+    </div>
+  );
+}
+
+function getProbabilityColor(prob: number | null | undefined): string {
+  if (prob == null) return "text-muted-foreground";
+  const pct = prob * 100;
+  if (pct >= 60) return "text-emerald-400";
+  if (pct >= 40) return "text-amber-400";
+  return "text-rose-400";
+}
+
 function normalizeResult(raw: any): RespondResult | null {
   if (!raw || typeof raw !== "object") return null;
 
@@ -321,27 +430,28 @@ function normalizeResult(raw: any): RespondResult | null {
     : (sr?.headline || sr?.text || "");
   if (!strategic_recommendation) return null;
 
-  const wm = raw.why_this_matters;
-  const why_this_matters = typeof wm === "string"
-    ? wm
-    : (wm?.summary || wm?.text || "");
+  const pc = raw.primary_constraint;
+  const primary_constraint = typeof pc === "string"
+    ? pc
+    : (pc?.text || raw.why_this_matters || "");
 
-  const pa = raw.priority_actions;
-  const priority_actions = Array.isArray(pa)
-    ? pa.map((a: any) => typeof a === "string" ? a : (a?.action || a?.text || "")).filter(Boolean)
-    : [];
+  const hil = raw.highest_impact_lever;
+  const highest_impact_lever = typeof hil === "string"
+    ? hil
+    : (hil?.text || "");
 
-  const sm = raw.success_measures;
-  const success_measures = Array.isArray(sm)
-    ? sm.map((m: any) => typeof m === "string" ? m : (m?.metric || m?.text || "")).filter(Boolean)
-    : [];
+  const rc = raw.realistic_ceiling;
+  const realistic_ceiling = typeof rc === "string"
+    ? rc
+    : (rc?.text || raw.execution_focus || "");
 
-  const ef = raw.execution_focus;
-  const execution_focus = typeof ef === "string"
-    ? ef
-    : (ef?.primary_focus || ef?.text || "");
-
-  return { strategic_recommendation, why_this_matters, priority_actions, success_measures, execution_focus };
+  return {
+    strategic_recommendation,
+    primary_constraint,
+    highest_impact_lever,
+    realistic_ceiling,
+    decision_clarity: raw.decision_clarity || undefined,
+  };
 }
 
 function formatAsText(data: RespondResult): string {
@@ -351,20 +461,26 @@ function formatAsText(data: RespondResult): string {
   lines.push(data.strategic_recommendation);
   lines.push("");
 
-  lines.push("WHY THIS MATTERS");
-  lines.push(data.why_this_matters);
+  if (data.decision_clarity) {
+    lines.push("DECISION CLARITY");
+    if (data.decision_clarity.successDefinition) lines.push(`Success Definition: ${data.decision_clarity.successDefinition}`);
+    if (data.decision_clarity.timeHorizon) lines.push(`Time Horizon: ${data.decision_clarity.timeHorizon}`);
+    if (data.decision_clarity.targetProbability != null) lines.push(`Probability of Achieving Target: ${Math.round(data.decision_clarity.targetProbability * 100)}%`);
+    if (data.decision_clarity.environmentStrength != null) lines.push(`Overall Environment Strength: ${Math.round(data.decision_clarity.environmentStrength * 100)}%`);
+    if (data.decision_clarity.outcomeThreshold) lines.push(`Outcome Threshold: ${data.decision_clarity.outcomeThreshold}`);
+    lines.push("");
+  }
+
+  lines.push("WHY THE PROBABILITY IS LOW");
+  lines.push(data.primary_constraint);
   lines.push("");
 
-  lines.push("PRIORITIZE RESOURCES");
-  data.priority_actions.forEach(a => lines.push(`• ${a}`));
+  lines.push("WHAT WOULD CHANGE THE FORECAST");
+  lines.push(data.highest_impact_lever);
   lines.push("");
 
-  lines.push("SUCCESS MEASURES");
-  data.success_measures.forEach(m => lines.push(`• ${m}`));
-  lines.push("");
-
-  lines.push("EXECUTION FOCUS");
-  lines.push(data.execution_focus);
+  lines.push("REALISTIC CEILING");
+  lines.push(data.realistic_ceiling);
 
   return lines.join("\n");
 }
