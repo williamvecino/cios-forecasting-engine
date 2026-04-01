@@ -22,6 +22,11 @@ import {
   ArrowDownRight,
   Zap,
   Crosshair,
+  Eye,
+  Activity,
+  BarChart3,
+  Layers,
+  Search,
 } from "lucide-react";
 import { Link } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
@@ -92,18 +97,55 @@ interface CoherenceResult {
   revisedOutput: RespondResult | null;
 }
 
+interface SignalDetail {
+  signalId: string;
+  description?: string;
+  rawLikelihoodRatio?: number;
+  effectiveLikelihoodRatio?: number;
+  dependencyRole?: string;
+  pointContribution?: number;
+  correlationGroup?: string;
+  direction?: string;
+}
+
 interface ForecastData {
   posteriorProbability?: number;
   thresholdProbability?: number;
-  signalDetails?: {
-    signalId: string;
-    description?: string;
-    rawLikelihoodRatio?: number;
-    effectiveLikelihoodRatio?: number;
-    dependencyRole?: string;
-    pointContribution?: number;
-    correlationGroup?: string;
-  }[];
+  priorProbability?: number;
+  currentProbability?: number;
+  confidenceLevel?: string;
+  signalDetails?: SignalDetail[];
+  sensitivityAnalysis?: {
+    swingFactor?: {
+      signalId: string;
+      description: string;
+      probabilityDeltaIfReversed: number;
+    };
+    stabilityNote?: string;
+  };
+  _calibrationChecks?: {
+    confidenceCeiling?: number;
+    posteriorFragility?: number;
+    overconfidence?: {
+      fragility?: number;
+      diversityScore?: number;
+      signalConcentration?: number;
+    };
+    independence?: {
+      rawIndependenceScore?: number;
+      summary?: string;
+    };
+  };
+  _integrityMetrics?: {
+    correlationGroupsDetected?: number;
+    signalsDampened?: number;
+    independentSignalCount?: number;
+    lrCompressionApplied?: boolean;
+  };
+  _consistency?: {
+    score?: string;
+    details?: string;
+  };
 }
 
 interface CaseData {
@@ -114,6 +156,12 @@ interface CaseData {
   assetName?: string;
 }
 
+interface DiagnosticTriggers {
+  lowConfidence: boolean;
+  largeShift: boolean;
+  signalConflict: boolean;
+}
+
 function getApiBase() {
   if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
     return `https://${window.location.hostname}:443/api`;
@@ -121,22 +169,55 @@ function getApiBase() {
   return "/api";
 }
 
+function computeDiagnosticTriggers(forecastData: ForecastData): DiagnosticTriggers {
+  const confidence = (forecastData.confidenceLevel || "").toLowerCase();
+  const lowConfidence = confidence === "low" || confidence === "very low";
+
+  const prior = forecastData.priorProbability ?? 0.5;
+  const current = forecastData.currentProbability ?? forecastData.posteriorProbability ?? prior;
+  const shiftPp = Math.abs((current - prior) * 100);
+  const largeShift = shiftPp >= 10;
+
+  const signals = forecastData.signalDetails || [];
+  const positiveCount = signals.filter(s => (s.pointContribution ?? 0) > 0).length;
+  const negativeCount = signals.filter(s => (s.pointContribution ?? 0) < 0).length;
+  const signalConflict = positiveCount >= 2 && negativeCount >= 2;
+
+  return { lowConfidence, largeShift, signalConflict };
+}
+
 export default function RespondPage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const [data, setData] = useState<RespondResult | null>(null);
+  const [forecastData, setForecastData] = useState<ForecastData>({});
   const [coherence, setCoherence] = useState<CoherenceResult | null>(null);
   const [usingRevised, setUsingRevised] = useState(false);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [diagnosticsUserOverride, setDiagnosticsUserOverride] = useState<boolean | null>(null);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.question || activeQuestion?.rawInput || activeQuestion?.text || "";
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
 
+  const diagnosticTriggers = useMemo(() => computeDiagnosticTriggers(forecastData), [forecastData]);
+  const diagnosticsAutoOpen = diagnosticTriggers.lowConfidence || diagnosticTriggers.largeShift || diagnosticTriggers.signalConflict;
+  const diagnosticsVisible = diagnosticsUserOverride !== null ? diagnosticsUserOverride : diagnosticsAutoOpen;
+
+  function handleDiagnosticsToggle() {
+    if (diagnosticsUserOverride !== null) {
+      setDiagnosticsUserOverride(prev => !prev);
+    } else {
+      setDiagnosticsUserOverride(!diagnosticsAutoOpen);
+    }
+  }
+
   useEffect(() => {
     if (!caseId) return;
+
+    fetchForecastData();
 
     const cached = localStorage.getItem(`cios.respondResult:${caseId}`);
     if (cached) {
@@ -156,6 +237,17 @@ export default function RespondPage() {
     generate();
   }, [caseId]);
 
+  async function fetchForecastData() {
+    try {
+      const apiBase = getApiBase();
+      const res = await fetch(`${apiBase}/cases/${caseId}/forecast`);
+      if (res.ok) {
+        const fd = await res.json();
+        setForecastData(fd);
+      }
+    } catch {}
+  }
+
   async function generate() {
     if (!activeQuestion) return;
     setLoading(true);
@@ -164,7 +256,7 @@ export default function RespondPage() {
     try {
       const apiBase = getApiBase();
 
-      let forecastData: ForecastData = {};
+      let fetchedForecast: ForecastData = {};
       let caseData: CaseData = {};
 
       try {
@@ -172,7 +264,10 @@ export default function RespondPage() {
           fetch(`${apiBase}/cases/${caseId}/forecast`),
           fetch(`${apiBase}/cases/${caseId}`),
         ]);
-        if (forecastRes.ok) forecastData = await forecastRes.json();
+        if (forecastRes.ok) {
+          fetchedForecast = await forecastRes.json();
+          setForecastData(fetchedForecast);
+        }
         if (caseRes.ok) {
           const caseJson = await caseRes.json();
           caseData = caseJson.data || caseJson;
@@ -218,12 +313,12 @@ export default function RespondPage() {
         timeHorizon: caseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
         probability,
         constrainedProbability,
-        posteriorProbability: forecastData.posteriorProbability ?? null,
-        thresholdProbability: forecastData.thresholdProbability ?? null,
+        posteriorProbability: fetchedForecast.posteriorProbability ?? null,
+        thresholdProbability: fetchedForecast.thresholdProbability ?? null,
         successDefinition: caseData.outcomeDefinition || null,
         outcomeThreshold: caseData.outcomeThreshold || null,
         strategicQuestion: caseData.strategicQuestion || null,
-        signalDetails: forecastData.signalDetails || [],
+        signalDetails: fetchedForecast.signalDetails || [],
         signals,
         derived_decisions: decideData?.derived_decisions || null,
         adoption_segmentation: decideData?.adoption_segmentation || null,
@@ -255,9 +350,9 @@ export default function RespondPage() {
           successDefinition: caseData.outcomeDefinition || null,
           outcomeThreshold: caseData.outcomeThreshold || null,
           timeHorizon: caseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
-          posteriorProbability: forecastData.posteriorProbability ?? null,
-          thresholdProbability: forecastData.thresholdProbability ?? null,
-          signalDetails: forecastData.signalDetails || [],
+          posteriorProbability: fetchedForecast.posteriorProbability ?? null,
+          thresholdProbability: fetchedForecast.thresholdProbability ?? null,
+          signalDetails: fetchedForecast.signalDetails || [],
         };
 
         const verifyRes = await fetch(`${apiBase}/agent-coherence/verify`, {
@@ -294,7 +389,7 @@ export default function RespondPage() {
 
   function handleCopyAll() {
     if (!data) return;
-    const text = formatAsText(data);
+    const text = formatAsText(data, forecastData);
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -401,18 +496,21 @@ export default function RespondPage() {
                 <CoherencePanel coherence={coherence} usingRevised={usingRevised} />
               )}
 
+              {/* === SECTION 1: DECISION SNAPSHOT (always visible) === */}
               <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Strategic Recommendation</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.strategic_recommendation}</p>
-              </section>
+                <div className="flex items-center gap-2 mb-4">
+                  <Crosshair className="w-4 h-4 text-blue-400" />
+                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Decision Snapshot</h2>
+                </div>
 
-              <div className="border-t border-border/40" />
+                <div className="rounded-xl border border-border/60 bg-card/50 divide-y divide-border/40">
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Decision</div>
+                    <p className="text-[15px] text-foreground leading-relaxed">{data.strategic_recommendation}</p>
+                  </div>
 
-              {data.decision_clarity && (
-                <>
-                  <section>
-                    <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Decision Clarity</h2>
-                    <div className="rounded-xl border border-border/60 bg-card/50 divide-y divide-border/40">
+                  {data.decision_clarity && (
+                    <>
                       <ClarityRow
                         icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
                         label={`Probability of achieving the target within ${data.decision_clarity.timeHorizon || "forecast horizon"}`}
@@ -422,30 +520,71 @@ export default function RespondPage() {
                         valueColor={getProbabilityColor(data.decision_clarity.targetProbability)}
                       />
                       <ClarityRow
-                        icon={<Gauge className="w-4 h-4 text-amber-400" />}
-                        label="Overall environment strength"
-                        value={data.decision_clarity.environmentStrength != null
-                          ? `${Math.round(data.decision_clarity.environmentStrength * 100)}%`
-                          : "Not calculated"}
-                        valueColor={getProbabilityColor(data.decision_clarity.environmentStrength)}
-                      />
-                      <ClarityRow
-                        icon={<Target className="w-4 h-4 text-blue-400" />}
-                        label="Success definition"
-                        value={data.decision_clarity.outcomeThreshold || data.decision_clarity.successDefinition || "Not defined"}
-                      />
-                      <ClarityRow
                         icon={<Clock className="w-4 h-4 text-blue-400" />}
-                        label="Most likely current range under present constraints"
+                        label="Most likely outcome"
                         value={data.realistic_ceiling}
                       />
+                      <ClarityRow
+                        icon={<AlertTriangle className="w-4 h-4 text-rose-400" />}
+                        label="Primary blocker"
+                        value={truncateToSentence(data.primary_constraint)}
+                      />
+                      <ClarityRow
+                        icon={<Zap className="w-4 h-4 text-amber-400" />}
+                        label="Fastest way to improve"
+                        value={truncateToSentence(data.highest_impact_lever)}
+                      />
+                    </>
+                  )}
+                </div>
+              </section>
+
+              <div className="border-t border-border/40" />
+
+              {/* === SECTION 2: INTERPRETATION (always visible) === */}
+              <section>
+                <div className="flex items-center gap-2 mb-4">
+                  <Eye className="w-4 h-4 text-violet-400" />
+                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Interpretation</h2>
+                </div>
+
+                <div className="space-y-5">
+                  {data.decision_clarity && (
+                    <div className="rounded-xl border border-border/40 bg-card/30 p-4">
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Environment Strength</div>
+                          <div className={`text-xl font-bold ${getProbabilityColor(data.decision_clarity.environmentStrength)}`}>
+                            {data.decision_clarity.environmentStrength != null
+                              ? `${Math.round(data.decision_clarity.environmentStrength * 100)}%`
+                              : "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Success Definition</div>
+                          <div className="text-sm text-foreground">
+                            {data.decision_clarity.outcomeThreshold || data.decision_clarity.successDefinition || "Not defined"}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </section>
+                  )}
 
-                  <div className="border-t border-border/40" />
-                </>
-              )}
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Why the probability looks like this</h3>
+                    <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
+                  </div>
 
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">What would change the forecast</h3>
+                    <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
+                  </div>
+                </div>
+              </section>
+
+              <div className="border-t border-border/40" />
+
+              {/* === SECTION 3: NEEDLE MOVEMENT (visible) === */}
               {data.needle_movement && (
                 <>
                   <NeedleMovementSection movement={data.needle_movement} />
@@ -453,19 +592,16 @@ export default function RespondPage() {
                 </>
               )}
 
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why the Probability Is Low</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
-              </section>
+              {/* === SECTION 4: DIAGNOSTICS (hidden by default) === */}
+              <DiagnosticsSection
+                forecastData={forecastData}
+                triggers={diagnosticTriggers}
+                autoOpen={diagnosticsAutoOpen}
+                onToggle={handleDiagnosticsToggle}
+                visible={diagnosticsVisible}
+              />
 
-              <div className="border-t border-border/40" />
-
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">What Would Change the Forecast</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
-              </section>
-
-              <div className="border-t border-border/40 pt-2" />
+              <div className="pt-2" />
 
               <Link
                 href="/simulate"
@@ -480,6 +616,194 @@ export default function RespondPage() {
       </QuestionGate>
     </WorkflowLayout>
   );
+}
+
+function DiagnosticsSection({
+  forecastData,
+  triggers,
+  autoOpen,
+  onToggle,
+  visible,
+}: {
+  forecastData: ForecastData;
+  triggers: DiagnosticTriggers;
+  autoOpen: boolean;
+  onToggle: () => void;
+  visible: boolean;
+}) {
+  const signals = forecastData.signalDetails || [];
+  const calibChecks = (forecastData as any)?._calibrationChecks;
+  const integrityMetrics = (forecastData as any)?._integrityMetrics;
+  const sensitivity = forecastData.sensitivityAnalysis;
+  const consistency = (forecastData as any)?._consistency;
+
+  const confidenceCeiling = calibChecks?.confidenceCeiling ?? (forecastData as any)?.distributionForecast?.achievableCeiling ?? null;
+  const fragility = calibChecks?.overconfidence?.fragility ?? calibChecks?.posteriorFragility ?? null;
+  const diversityScore = calibChecks?.overconfidence?.diversityScore ?? null;
+  const independenceScore = calibChecks?.independence?.rawIndependenceScore ?? null;
+  const signalConcentration = calibChecks?.overconfidence?.signalConcentration ?? null;
+
+  const compressedCount = integrityMetrics?.signalsDampened ?? 0;
+  const correlationGroups = integrityMetrics?.correlationGroupsDetected ?? 0;
+  const independentCount = integrityMetrics?.independentSignalCount ?? signals.length;
+
+  const prior = forecastData.priorProbability ?? 0.5;
+  const current = forecastData.currentProbability ?? forecastData.posteriorProbability ?? prior;
+  const shiftPp = Math.round((current - prior) * 100);
+
+  const triggerReasons: string[] = [];
+  if (triggers.lowConfidence) triggerReasons.push("Low confidence");
+  if (triggers.largeShift) triggerReasons.push(`Large probability shift (${shiftPp >= 0 ? "+" : ""}${shiftPp}pp)`);
+  if (triggers.signalConflict) triggerReasons.push("Conflicting signals detected");
+
+  const hasData = signals.length > 0 || confidenceCeiling !== null || fragility !== null;
+
+  if (!hasData && !visible) return null;
+
+  return (
+    <section>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 mb-3 group"
+      >
+        <Activity className="w-4 h-4 text-slate-400 group-hover:text-slate-300 transition" />
+        <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest group-hover:text-foreground transition">
+          Diagnostics
+        </h2>
+        {autoOpen && triggerReasons.length > 0 && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-amber-500/20 text-amber-400 ml-1">
+            auto-revealed
+          </span>
+        )}
+        <div className="flex-1" />
+        {!visible ? (
+          <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition flex items-center gap-1">
+            <Search className="w-3 h-3" /> Explain
+          </span>
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        )}
+      </button>
+
+      {visible && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          {triggerReasons.length > 0 && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-amber-400/90">
+                Diagnostics visible because: {triggerReasons.join(" · ")}
+              </div>
+            </div>
+          )}
+
+          {signals.length > 0 && (
+            <div className="rounded-xl border border-border/40 bg-card/30 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-3.5 h-3.5 text-blue-400" />
+                <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Signal Details</h3>
+                <span className="text-[10px] text-muted-foreground ml-auto">{signals.length} signals</span>
+              </div>
+              <div className="space-y-1.5">
+                {signals.map((s) => {
+                  const pp = s.pointContribution != null ? s.pointContribution * 100 : 0;
+                  const isPositive = pp > 0;
+                  const compressed = s.dependencyRole === "Echo" || s.dependencyRole === "Translation";
+                  return (
+                    <div key={s.signalId} className="flex items-center gap-2 text-xs">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPositive ? "bg-emerald-400" : "bg-rose-400"}`} />
+                      <span className="text-foreground/80 truncate flex-1">{s.description || s.signalId}</span>
+                      {compressed && (
+                        <span className="text-[9px] text-amber-400/70 shrink-0">{s.dependencyRole}</span>
+                      )}
+                      <span className={`font-semibold shrink-0 tabular-nums ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
+                        {isPositive ? "+" : ""}{pp.toFixed(1)}pp
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <DiagnosticCard
+              label="Fragility"
+              value={fragility !== null ? fragility.toFixed(3) : "—"}
+              sublabel="Single-driver sensitivity"
+              warn={fragility !== null && fragility > 0.15}
+            />
+            <DiagnosticCard
+              label="Confidence Ceiling"
+              value={confidenceCeiling !== null ? `${Math.round(confidenceCeiling * 100)}%` : "None"}
+              sublabel="Max achievable probability"
+              warn={confidenceCeiling !== null && confidenceCeiling < 0.5}
+            />
+            <DiagnosticCard
+              label="Compression"
+              value={`${compressedCount} / ${signals.length}`}
+              sublabel={`${correlationGroups} correlation group${correlationGroups !== 1 ? "s" : ""}`}
+              warn={compressedCount > 0}
+            />
+            <DiagnosticCard
+              label="Independence"
+              value={independenceScore !== null ? `${Math.round(independenceScore * 100)}%` : `${independentCount} ind.`}
+              sublabel={diversityScore !== null ? `Diversity: ${(diversityScore * 100).toFixed(0)}%` : "Signal diversity"}
+              warn={independenceScore !== null && independenceScore < 0.5}
+            />
+          </div>
+
+          {sensitivity?.swingFactor && (
+            <div className="rounded-xl border border-border/40 bg-card/30 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="w-3.5 h-3.5 text-violet-400" />
+                <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sensitivity</h3>
+              </div>
+              <p className="text-xs text-foreground/80">
+                <span className="font-medium">Swing factor:</span>{" "}
+                {sensitivity.swingFactor.description?.replace(/^CS-\d+\s*[-–—]\s*/, "") || "—"}
+                {sensitivity.swingFactor.probabilityDeltaIfReversed != null && (
+                  <span className="text-rose-400 font-semibold ml-1">
+                    ({(sensitivity.swingFactor.probabilityDeltaIfReversed * 100).toFixed(1)}pp if reversed)
+                  </span>
+                )}
+              </p>
+              {sensitivity.stabilityNote && (
+                <p className="text-[11px] text-muted-foreground mt-1.5">{sensitivity.stabilityNote}</p>
+              )}
+            </div>
+          )}
+
+          {consistency && (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
+              <span className="font-medium">Consistency:</span>
+              <span className={consistency.score === "high" ? "text-emerald-400" : consistency.score === "moderate" ? "text-amber-400" : "text-rose-400"}>
+                {consistency.score}
+              </span>
+              {consistency.details && <span>— {consistency.details}</span>}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiagnosticCard({ label, value, sublabel, warn }: { label: string; value: string; sublabel: string; warn?: boolean }) {
+  return (
+    <div className={`rounded-lg border p-3 ${warn ? "border-amber-500/20 bg-amber-500/5" : "border-border/40 bg-card/30"}`}>
+      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</div>
+      <div className={`text-lg font-bold ${warn ? "text-amber-400" : "text-foreground"}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{sublabel}</div>
+    </div>
+  );
+}
+
+function truncateToSentence(text: string): string {
+  const firstSentence = text.match(/^[^.!?]+[.!?]/);
+  if (firstSentence && firstSentence[0].length < text.length * 0.8) {
+    return firstSentence[0];
+  }
+  return text;
 }
 
 function CoherencePanel({ coherence, usingRevised }: { coherence: CoherenceResult; usingRevised: boolean }) {
@@ -589,7 +913,10 @@ function CategoryBadge({ category }: { category: string }) {
 function NeedleMovementSection({ movement }: { movement: NeedleMovement }) {
   return (
     <section>
-      <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Needle Movement Analysis</h2>
+      <div className="flex items-center gap-2 mb-4">
+        <TrendingUp className="w-4 h-4 text-emerald-400" />
+        <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Needle Movement Analysis</h2>
+      </div>
 
       <div className="space-y-4">
         <div>
@@ -599,14 +926,16 @@ function NeedleMovementSection({ movement }: { movement: NeedleMovement }) {
           </div>
           <div className="space-y-2">
             {movement.moves_up.map((d, i) => (
-              <div key={i} className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-2.5">
+              <div key={i} className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm text-foreground leading-snug flex-1">{d.name}</p>
-                  <span className="text-xs font-semibold text-emerald-400 whitespace-nowrap">{d.contribution}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <CategoryBadge category={d.category} />
-                  <ImpactBadge impact={d.impact} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{d.name}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <CategoryBadge category={d.category} />
+                      <ImpactBadge impact={d.impact} />
+                    </div>
+                  </div>
+                  <span className="text-emerald-400 font-bold text-sm shrink-0">{d.contribution}</span>
                 </div>
               </div>
             ))}
@@ -620,14 +949,16 @@ function NeedleMovementSection({ movement }: { movement: NeedleMovement }) {
           </div>
           <div className="space-y-2">
             {movement.moves_down.map((d, i) => (
-              <div key={i} className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-3.5 py-2.5">
+              <div key={i} className="rounded-lg border border-rose-500/15 bg-rose-500/5 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm text-foreground leading-snug flex-1">{d.name}</p>
-                  <span className="text-xs font-semibold text-rose-400 whitespace-nowrap">{d.contribution}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <CategoryBadge category={d.category} />
-                  <ImpactBadge impact={d.impact} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{d.name}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <CategoryBadge category={d.category} />
+                      <ImpactBadge impact={d.impact} />
+                    </div>
+                  </div>
+                  <span className="text-rose-400 font-bold text-sm shrink-0">{d.contribution}</span>
                 </div>
               </div>
             ))}
@@ -636,29 +967,29 @@ function NeedleMovementSection({ movement }: { movement: NeedleMovement }) {
 
         <div>
           <div className="flex items-center gap-2 mb-2.5">
-            <Crosshair className="w-4 h-4 text-blue-400" />
-            <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wide">Recommended Actions</h3>
+            <Zap className="w-4 h-4 text-amber-400" />
+            <h3 className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Recommended Actions</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="rounded-lg border border-border/60 bg-card/50 p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Zap className="w-3.5 h-3.5 text-violet-400" />
-                <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">Strategic</span>
-              </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border/40 bg-card/30 p-3">
+              <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Strategic</div>
               <ul className="space-y-1.5">
                 {movement.recommended_actions.strategic.map((a, i) => (
-                  <li key={i} className="text-xs text-muted-foreground leading-relaxed pl-3 relative before:content-[''] before:absolute before:left-0 before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-violet-400/40">{a}</li>
+                  <li key={i} className="text-xs text-foreground/80 flex items-start gap-2">
+                    <span className="w-1 h-1 rounded-full bg-amber-400 shrink-0 mt-1.5" />
+                    {a}
+                  </li>
                 ))}
               </ul>
             </div>
-            <div className="rounded-lg border border-border/60 bg-card/50 p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Tactical</span>
-              </div>
+            <div className="rounded-lg border border-border/40 bg-card/30 p-3">
+              <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Tactical</div>
               <ul className="space-y-1.5">
                 {movement.recommended_actions.tactical.map((a, i) => (
-                  <li key={i} className="text-xs text-muted-foreground leading-relaxed pl-3 relative before:content-[''] before:absolute before:left-0 before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-amber-400/40">{a}</li>
+                  <li key={i} className="text-xs text-foreground/80 flex items-start gap-2">
+                    <span className="w-1 h-1 rounded-full bg-blue-400 shrink-0 mt-1.5" />
+                    {a}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -681,12 +1012,12 @@ function ClarityRow({
   valueColor?: string;
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3">
-      <div className="flex items-center gap-2.5">
-        {icon}
-        <span className="text-sm text-muted-foreground">{label}</span>
+    <div className="flex items-start gap-3 px-4 py-3">
+      <div className="shrink-0 mt-0.5">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground leading-snug">{label}</p>
+        <p className={`text-sm font-medium mt-0.5 ${valueColor || "text-foreground"}`}>{value}</p>
       </div>
-      <span className={`text-sm font-semibold ${valueColor || "text-foreground"}`}>{value}</span>
     </div>
   );
 }
@@ -733,22 +1064,28 @@ function normalizeResult(raw: any): RespondResult | null {
   };
 }
 
-function formatAsText(data: RespondResult): string {
+function formatAsText(data: RespondResult, forecastData?: ForecastData): string {
   const lines: string[] = [];
 
-  lines.push("STRATEGIC RECOMMENDATION");
-  lines.push(data.strategic_recommendation);
-  lines.push("");
-
+  lines.push("DECISION SNAPSHOT");
+  lines.push(`Decision: ${data.strategic_recommendation}`);
   if (data.decision_clarity) {
-    lines.push("DECISION CLARITY");
     const dc = data.decision_clarity;
     if (dc.targetProbability != null) lines.push(`Probability of achieving the target within ${dc.timeHorizon || "forecast horizon"}: ${Math.round(dc.targetProbability * 100)}%`);
-    if (dc.environmentStrength != null) lines.push(`Overall environment strength: ${Math.round(dc.environmentStrength * 100)}%`);
-    lines.push(`Success definition: ${dc.outcomeThreshold || dc.successDefinition || "Not defined"}`);
-    if (data.realistic_ceiling) lines.push(`Most likely current range under present constraints: ${data.realistic_ceiling}`);
-    lines.push("");
+    lines.push(`Most likely outcome: ${data.realistic_ceiling}`);
+    lines.push(`Primary blocker: ${truncateToSentence(data.primary_constraint)}`);
+    lines.push(`Fastest way to improve: ${truncateToSentence(data.highest_impact_lever)}`);
   }
+  lines.push("");
+
+  lines.push("INTERPRETATION");
+  if (data.decision_clarity) {
+    if (data.decision_clarity.environmentStrength != null) lines.push(`Environment strength: ${Math.round(data.decision_clarity.environmentStrength * 100)}%`);
+    lines.push(`Success definition: ${data.decision_clarity.outcomeThreshold || data.decision_clarity.successDefinition || "Not defined"}`);
+  }
+  lines.push(`Why the probability looks like this: ${data.primary_constraint}`);
+  lines.push(`What would change the forecast: ${data.highest_impact_lever}`);
+  lines.push("");
 
   if (data.needle_movement) {
     lines.push("NEEDLE MOVEMENT ANALYSIS");
@@ -771,12 +1108,14 @@ function formatAsText(data: RespondResult): string {
     lines.push("");
   }
 
-  lines.push("WHY THE PROBABILITY IS LOW");
-  lines.push(data.primary_constraint);
-  lines.push("");
-
-  lines.push("WHAT WOULD CHANGE THE FORECAST");
-  lines.push(data.highest_impact_lever);
+  if (forecastData && (forecastData.signalDetails?.length || 0) > 0) {
+    lines.push("DIAGNOSTICS");
+    const signals = forecastData.signalDetails || [];
+    signals.forEach(s => {
+      const pp = (s.pointContribution ?? 0) * 100;
+      lines.push(`  ${s.description || s.signalId}: ${pp >= 0 ? "+" : ""}${pp.toFixed(1)}pp${s.dependencyRole && s.dependencyRole !== "Independent" ? ` (${s.dependencyRole})` : ""}`);
+    });
+  }
 
   return lines.join("\n");
 }
