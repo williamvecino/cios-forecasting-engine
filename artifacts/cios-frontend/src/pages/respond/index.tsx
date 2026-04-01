@@ -452,19 +452,25 @@ export default function RespondPage() {
                 </>
               )}
 
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why the Probability Is Low</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
-              </section>
+              {!data.needle_movement && (
+                <>
+                  <section>
+                    <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why the Probability Is Low</h2>
+                    <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
+                  </section>
 
-              <div className="border-t border-border/40" />
+                  <div className="border-t border-border/40" />
 
-              <section>
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">What Would Change the Forecast</h2>
-                <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
-              </section>
+                  <section>
+                    <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">What Would Change the Forecast</h2>
+                    <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
+                  </section>
 
-              <div className="border-t border-border/40 pt-2" />
+                  <div className="border-t border-border/40" />
+                </>
+              )}
+
+              <div className="pt-2" />
 
               <Link
                 href="/simulate"
@@ -749,10 +755,6 @@ function formatAsText(data: RespondResult): string {
     lines.push("");
   }
 
-  lines.push("WHY THE PROBABILITY IS LOW");
-  lines.push(data.primary_constraint);
-  lines.push("");
-
   if (data.needle_movement) {
     lines.push("NEEDLE MOVEMENT ANALYSIS");
     lines.push("");
@@ -766,15 +768,18 @@ function formatAsText(data: RespondResult): string {
       lines.push(`  ${d.name} [${d.category}] ${d.contribution} — ${d.impact} impact`);
     });
     lines.push("");
-    lines.push("Strategic actions:");
-    data.needle_movement.recommended_actions.strategic.forEach(a => lines.push(`  - ${a}`));
-    lines.push("Tactical actions:");
-    data.needle_movement.recommended_actions.tactical.forEach(a => lines.push(`  - ${a}`));
+    lines.push("Recommended Actions:");
+    lines.push("  Strategic:");
+    data.needle_movement.recommended_actions.strategic.forEach(a => lines.push(`    - ${a}`));
+    lines.push("  Tactical:");
+    data.needle_movement.recommended_actions.tactical.forEach(a => lines.push(`    - ${a}`));
+  } else {
+    lines.push("WHY THE PROBABILITY IS LOW");
+    lines.push(data.primary_constraint);
     lines.push("");
+    lines.push("WHAT WOULD CHANGE THE FORECAST");
+    lines.push(data.highest_impact_lever);
   }
-
-  lines.push("WHAT WOULD CHANGE THE FORECAST");
-  lines.push(data.highest_impact_lever);
 
   return lines.join("\n");
 }
