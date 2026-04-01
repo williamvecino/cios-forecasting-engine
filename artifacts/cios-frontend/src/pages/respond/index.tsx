@@ -274,6 +274,7 @@ export default function RespondPage() {
             const revised = {
               ...coherenceResult.revisedOutput,
               decision_clarity: result.decision_clarity,
+              needle_movement: result.needle_movement,
               _gapGuard: result._gapGuard,
             };
             setData(revised);
@@ -452,25 +453,19 @@ export default function RespondPage() {
                 </>
               )}
 
-              {!data.needle_movement && (
-                <>
-                  <section>
-                    <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why the Probability Is Low</h2>
-                    <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
-                  </section>
+              <section>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Why the Probability Is Low</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.primary_constraint}</p>
+              </section>
 
-                  <div className="border-t border-border/40" />
+              <div className="border-t border-border/40" />
 
-                  <section>
-                    <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">What Would Change the Forecast</h2>
-                    <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
-                  </section>
+              <section>
+                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">What Would Change the Forecast</h2>
+                <p className="text-[15px] text-foreground leading-relaxed">{data.highest_impact_lever}</p>
+              </section>
 
-                  <div className="border-t border-border/40" />
-                </>
-              )}
-
-              <div className="pt-2" />
+              <div className="border-t border-border/40 pt-2" />
 
               <Link
                 href="/simulate"
@@ -497,7 +492,7 @@ function CoherencePanel({ coherence, usingRevised }: { coherence: CoherenceResul
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center gap-3">
         <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-emerald-400">Coherence verified — all 10 rules pass</p>
+          <p className="text-sm font-medium text-emerald-400">Coherence verified — all 11 rules pass</p>
           <p className="text-xs text-emerald-400/70 mt-0.5">Output is rule-compliant, internally coherent, and decision-clear.</p>
         </div>
       </div>
@@ -773,13 +768,15 @@ function formatAsText(data: RespondResult): string {
     data.needle_movement.recommended_actions.strategic.forEach(a => lines.push(`    - ${a}`));
     lines.push("  Tactical:");
     data.needle_movement.recommended_actions.tactical.forEach(a => lines.push(`    - ${a}`));
-  } else {
-    lines.push("WHY THE PROBABILITY IS LOW");
-    lines.push(data.primary_constraint);
     lines.push("");
-    lines.push("WHAT WOULD CHANGE THE FORECAST");
-    lines.push(data.highest_impact_lever);
   }
+
+  lines.push("WHY THE PROBABILITY IS LOW");
+  lines.push(data.primary_constraint);
+  lines.push("");
+
+  lines.push("WHAT WOULD CHANGE THE FORECAST");
+  lines.push(data.highest_impact_lever);
 
   return lines.join("\n");
 }

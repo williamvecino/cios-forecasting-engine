@@ -21,12 +21,30 @@ interface DecisionClarity {
   environmentStrength: number | null;
 }
 
+interface NeedleDriver {
+  name: string;
+  category: string;
+  direction: string;
+  impact: string;
+  contribution: string;
+}
+
+interface NeedleMovement {
+  moves_up: NeedleDriver[];
+  moves_down: NeedleDriver[];
+  recommended_actions: {
+    strategic: string[];
+    tactical: string[];
+  };
+}
+
 interface RespondOutput {
   strategic_recommendation: string;
   primary_constraint: string;
   highest_impact_lever: string;
   realistic_ceiling: string;
   decision_clarity?: DecisionClarity;
+  needle_movement?: NeedleMovement;
 }
 
 interface VerifyRequest {
@@ -77,6 +95,7 @@ router.post("/agent-coherence/verify", async (req, res) => {
     checkRule8_DriversAndConstraintReflected(output, body.signalDetails || [], issues);
     checkRule9_NoRawDecimals(output, issues);
     checkRule10_NoInternalIDs(output, body.signalDetails || [], issues);
+    checkRule11_NoCrossSectionRedundancy(output, issues);
 
     const pass = issues.filter(i => i.severity === "fail").length === 0;
 
@@ -390,6 +409,49 @@ function checkRule10_NoInternalIDs(output: RespondOutput, signalDetails: SignalD
   }
 }
 
+function checkRule11_NoCrossSectionRedundancy(output: RespondOutput, issues: CoherenceIssue[]) {
+  if (!output.needle_movement) return;
+
+  const nm = output.needle_movement;
+  const constraintLower = output.primary_constraint.toLowerCase();
+  const leverLower = output.highest_impact_lever.toLowerCase();
+
+  const redundancies: string[] = [];
+
+  for (const driver of nm.moves_down) {
+    const driverTerms = extractKeyTerms(driver.name.toLowerCase());
+    const constraintOverlap = driverTerms.filter(t => constraintLower.includes(t));
+    if (constraintOverlap.length >= 2) {
+      redundancies.push(`"${driver.name.slice(0, 50)}" appears in both Needle Movement (moves down) and Primary Constraint`);
+    }
+  }
+
+  for (const action of [...nm.recommended_actions.strategic, ...nm.recommended_actions.tactical]) {
+    const actionTerms = extractKeyTerms(action.toLowerCase());
+    const leverOverlap = actionTerms.filter(t => leverLower.includes(t));
+    if (leverOverlap.length >= 2) {
+      redundancies.push(`Recommended action overlaps with Highest Impact Lever`);
+      break;
+    }
+  }
+
+  if (redundancies.length >= 2) {
+    issues.push({
+      rule: "No cross-section redundancy between prose and structured data",
+      ruleNumber: 11,
+      severity: "fail",
+      detail: `${redundancies.length} redundancies detected: ${redundancies.join("; ")}. When Needle Movement is present, prose sections (primary_constraint, highest_impact_lever) must add context or interpretation not already in the structured driver cards — not restate the same information.`,
+    });
+  } else if (redundancies.length === 1) {
+    issues.push({
+      rule: "No cross-section redundancy between prose and structured data",
+      ruleNumber: 11,
+      severity: "warn",
+      detail: `Minor overlap: ${redundancies[0]}. Ensure prose adds interpretation beyond what the structured data already shows.`,
+    });
+  }
+}
+
 function extractKeyTerms(description: string): string[] {
   const terms: string[] = [];
   const pharmaTerms = description.match(
@@ -437,6 +499,12 @@ EXECUTIVE FORMATTING RULES:
 - The proposed lever must be logically tied to the primary constraint
 - Write for an executive reader: concise, plain language, no technical notation
 
+REDUNDANCY RULES:
+- If the output has a needle_movement section (structured driver cards and recommended actions), then the prose sections (primary_constraint, highest_impact_lever) must NOT restate the same information
+- primary_constraint should explain WHY the constraint matters and HOW it operates — not just name it (the name is already in needle_movement)
+- highest_impact_lever should explain the MECHANISM of why the lever works — not just name the action (the action is already in needle_movement recommended_actions)
+- Each section must add unique value: the structured section names and quantifies; the prose section interprets and explains
+
 Fix the output to address ONLY the listed issues. Keep everything else unchanged. Return valid JSON with the same 4 keys.`;
 
     const userPrompt = `The following executive brief has coherence issues that need fixing:
@@ -460,6 +528,13 @@ CASE CONTEXT:
 
 TOP SIGNAL DRIVERS:
 ${(body.signalDetails || []).slice(0, 5).map(s => `- ${s.description || "?"} (contribution: ${s.pointContribution != null ? `${(s.pointContribution * 100).toFixed(1)}pp` : "?"})`).join("\n")}
+${original.needle_movement ? `
+NEEDLE MOVEMENT (STRUCTURED DATA ALREADY SHOWN TO USER):
+Moves up: ${original.needle_movement.moves_up.map(d => `${d.name} [${d.category}] ${d.contribution}`).join("; ")}
+Moves down: ${original.needle_movement.moves_down.map(d => `${d.name} [${d.category}] ${d.contribution}`).join("; ")}
+Strategic actions: ${original.needle_movement.recommended_actions.strategic.join("; ")}
+Tactical actions: ${original.needle_movement.recommended_actions.tactical.join("; ")}
+NOTE: The user already sees the above structured data. Your prose sections must ADD interpretation and context, not restate the same facts.` : ""}
 
 Fix ONLY the issues listed. Do not change information that is already correct. Return JSON:
 {
