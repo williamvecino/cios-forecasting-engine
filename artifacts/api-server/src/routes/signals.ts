@@ -468,7 +468,7 @@ router.patch("/signals/:signalId", async (req, res) => {
   if (!existing) return res.status(404).json({ error: "Not found" });
 
   const body = req.body;
-  const allowedFields = ["signalDescription", "sourceLabel", "sourceUrl", "evidenceSnippet", "observedAt", "notes", "strength", "reliability"] as const;
+  const allowedFields = ["signalDescription", "sourceLabel", "sourceUrl", "evidenceSnippet", "observedAt", "notes", "strength", "reliability", "correlationGroup"] as const;
   const updates: Record<string, any> = { updatedAt: new Date() };
 
   for (const field of allowedFields) {

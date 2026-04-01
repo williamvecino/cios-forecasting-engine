@@ -229,6 +229,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Operational / Delivery Friction",
+        correlationGroup: "TREATMENT_COMPLEXITY_ARIKAYCE",
       },
       {
         id: randomUUID(),
