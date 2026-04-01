@@ -1,8 +1,15 @@
 import type { Signal } from "@workspace/db";
 import { createHash } from "crypto";
 
-const MAX_SINGLE_DRIVER_SHIFT = 0.15;
+const MAX_SINGLE_DRIVER_SHIFT_BASE = 0.15;
 const MAX_TOTAL_SHIFT = 0.40;
+
+function getMaxSingleDriverShift(signalCount: number): number {
+  if (signalCount <= 2) return 0.30;
+  if (signalCount <= 4) return 0.25;
+  if (signalCount <= 6) return 0.20;
+  return 0.15;
+}
 const GATE_WEAK_PROBABILITY_CAP = 0.70;
 
 export interface GuardrailLog {
@@ -180,6 +187,7 @@ export function capSingleDriverShift(
 ): number {
   if (signalDetails.length === 0) return engineProbability;
 
+  const capLimit = getMaxSingleDriverShift(signalDetails.length);
   const totalShift = engineProbability - priorProbability;
   let largestSingleShift = 0;
   let needsCapping = false;
@@ -194,7 +202,7 @@ export function capSingleDriverShift(
     const singleShift = Math.abs(engineProbability - probWithout);
     if (singleShift > largestSingleShift) largestSingleShift = singleShift;
 
-    if (singleShift > MAX_SINGLE_DRIVER_SHIFT) {
+    if (singleShift > capLimit) {
       log.driver_shift_capped.push(s.signalId);
       needsCapping = true;
     }
@@ -206,15 +214,10 @@ export function capSingleDriverShift(
   if (needsCapping) {
     let cappedOdds = priorOdds;
     for (const s of signalDetails) {
-      const lrWithout = totalLR / s.effectiveLikelihoodRatio;
-      const oddsWithout = priorOdds * lrWithout;
-      const probWithout = oddsWithout / (1 + oddsWithout);
-      const marginalShift = engineProbability - probWithout;
-      const cappedMarginalShift = Math.sign(marginalShift) * Math.min(Math.abs(marginalShift), MAX_SINGLE_DRIVER_SHIFT);
       const direction = s.effectiveLikelihoodRatio >= 1 ? 1 : -1;
       const maxLR = direction > 0
-        ? Math.min(s.effectiveLikelihoodRatio, 1 + MAX_SINGLE_DRIVER_SHIFT * 4)
-        : Math.max(s.effectiveLikelihoodRatio, 1 / (1 + MAX_SINGLE_DRIVER_SHIFT * 4));
+        ? Math.min(s.effectiveLikelihoodRatio, 1 + capLimit * 4)
+        : Math.max(s.effectiveLikelihoodRatio, 1 / (1 + capLimit * 4));
       cappedOdds *= maxLR;
     }
     const cappedProb = cappedOdds / (1 + cappedOdds);
