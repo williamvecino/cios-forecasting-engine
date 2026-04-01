@@ -109,7 +109,7 @@ For EACH fact provided, produce an interpretation object with these fields:
     - If recommendedSignal is true, explain in one sentence why this fact qualifies as a signal.
     - If recommendedSignal is false, explain in one sentence why this fact was rejected.
 
-12. suggestedSignalType: One of: "Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Payer / coverage", "Market adoption / utilization", "Capacity / infrastructure", "Competitor countermove"
+12. suggestedSignalType: One of: "Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Experience infrastructure", "Payer / coverage", "Market adoption / utilization", "Capacity / infrastructure", "Competitor countermove", "Safety / tolerability", "Guideline consensus", "Epidemiology / population", "Prescriber behavior", "Access / reimbursement", "Real-world evidence"
     - The most appropriate signal category if this fact were to become a signal.
 
 13. suggestedStrength: integer 1-5
@@ -237,7 +237,7 @@ Respond with valid JSON only. No markdown, no explanation outside the JSON.
     const validImpact = ["high", "moderate", "low", "negligible"];
     const validIndependence = ["independent", "partially_dependent", "dependent", "redundant"];
     const validConfidence = ["high", "moderate", "low"];
-    const validSignalTypes = ["Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Payer / coverage", "Market adoption / utilization", "Capacity / infrastructure", "Competitor countermove"];
+    const validSignalTypes = ["Phase III clinical", "Guideline inclusion", "KOL endorsement", "Field intelligence", "Operational friction", "Competitor counteraction", "Access / commercial", "Regulatory / clinical", "Access friction", "Experience infrastructure", "Payer / coverage", "Market adoption / utilization", "Capacity / infrastructure", "Competitor countermove", "Safety / tolerability", "Guideline consensus", "Epidemiology / population", "Prescriber behavior", "Access / reimbursement", "Real-world evidence"];
     const validSignalFamilies = ["Clinical Efficacy", "Safety / Tolerability", "Regulatory Status", "Manufacturing / Readiness", "Access / Payer", "Guideline / KOL", "Field Adoption Behavior", "Competitive Moves", "Operational Execution", "Message / Perception"];
     const validLineageTypes = ["Root", "Direct Derivative", "Second-Order Derivative", "Duplicate", "Independent Parallel Evidence", "Unclear"];
     const validSourceClusters = ["Trial Result", "Press Release", "Congress Presentation", "KOL Commentary", "Payer Action", "Regulatory Filing", "Company Guidance", "Field Intelligence", "Media / Trade Press"];

@@ -13,6 +13,12 @@ export const SIGNAL_TYPES = [
   "Market adoption / utilization",
   "Capacity / infrastructure",
   "Competitor countermove",
+  "Safety / tolerability",
+  "Guideline consensus",
+  "Epidemiology / population",
+  "Prescriber behavior",
+  "Access / reimbursement",
+  "Real-world evidence",
   "GUIDELINE_INCLUSION",
   "COMPETITOR_COUNTERMOVE",
   "REGULATORY_CLINICAL",
@@ -23,6 +29,12 @@ export const SIGNAL_TYPES = [
   "PAYER_ACCESS",
   "MARKET_ADOPTION",
   "CAPACITY_INFRASTRUCTURE",
+  "SAFETY_TOLERABILITY",
+  "GUIDELINE_CONSENSUS",
+  "EPIDEMIOLOGY_POPULATION",
+  "PRESCRIBER_BEHAVIOR",
+  "ACCESS_REIMBURSEMENT",
+  "REAL_WORLD_EVIDENCE",
 ] as const;
 
 export type SignalType = (typeof SIGNAL_TYPES)[number];
@@ -79,6 +91,18 @@ export const LR_RANGES: Record<SignalType, LRRange> = {
   "PAYER_ACCESS":                { min: 1.2, max: 1.8 },
   "MARKET_ADOPTION":             { min: 1.3, max: 2.0 },
   "CAPACITY_INFRASTRUCTURE":    { min: 0.7, max: 1.3 },
+  "Safety / tolerability":       { min: 0.55, max: 0.85 },
+  "Guideline consensus":         { min: 1.3, max: 1.8 },
+  "Epidemiology / population":   { min: 0.6, max: 0.9 },
+  "Prescriber behavior":         { min: 0.6, max: 0.85 },
+  "Access / reimbursement":      { min: 0.65, max: 0.9 },
+  "Real-world evidence":         { min: 0.75, max: 1.4 },
+  "SAFETY_TOLERABILITY":         { min: 0.55, max: 0.85 },
+  "GUIDELINE_CONSENSUS":         { min: 1.3, max: 1.8 },
+  "EPIDEMIOLOGY_POPULATION":     { min: 0.6, max: 0.9 },
+  "PRESCRIBER_BEHAVIOR":         { min: 0.6, max: 0.85 },
+  "ACCESS_REIMBURSEMENT":        { min: 0.65, max: 0.9 },
+  "REAL_WORLD_EVIDENCE":         { min: 0.75, max: 1.4 },
 };
 
 const ATTRIBUTE_WEIGHTS = {

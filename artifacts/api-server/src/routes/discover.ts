@@ -19,6 +19,16 @@ const SIGNAL_TYPES = [
   "Regulatory / clinical",
   "Access friction",
   "Experience infrastructure",
+  "Payer / coverage",
+  "Market adoption / utilization",
+  "Capacity / infrastructure",
+  "Competitor countermove",
+  "Safety / tolerability",
+  "Guideline consensus",
+  "Epidemiology / population",
+  "Prescriber behavior",
+  "Access / reimbursement",
+  "Real-world evidence",
 ] as const;
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a pharmaceutical and medtech market intelligence analyst specializing in HCP adoption forecasting.

@@ -89,7 +89,7 @@ CIOS is a monorepo utilizing pnpm workspaces. The frontend is built with React, 
 **Controlled Demo Cases (5 cases — do not expand until all pass stability checks):**
 | Case ID | Pattern | Asset | Specialty Profile | Signals | Prior |
 |---|---|---|---|---|---|
-| CASE-DEMO-01 | Early adoption forecast | ARIKAYCE | Pulmonology / rare disease | 3 (clinical, operational, access) | 0.45 |
+| CASE-DEMO-01 | Early adoption forecast | ARIKAYCE | Pulmonology / rare disease | 10 (clinical, safety×2, guideline, epidemiology, operational, prescriber behavior, access×2, real-world evidence) | 0.45 |
 | CASE-DEMO-02 | Competitive share risk | CardioAsset X | Cardiology / mixed specialist | 4 (clinical, prescriber, guideline, access) | 0.35 |
 | CASE-DEMO-03 | Policy / access impact | NeuroModulator Z | Psychiatry / access-sensitive | 4 (policy, access×2, advocacy) | 0.30 |
 | CASE-DEMO-04 | Portfolio resource allocation | Bispecific-401 | Oncology / academic-led | 4 (clinical, competitive, manufacturing, timeline) | 0.50 |
