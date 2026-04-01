@@ -1063,10 +1063,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   }, []);
 
   const [viewMode, setViewMode] = useState<"minimal" | "full">("full");
+  const [diagnosticsUserOverride, setDiagnosticsUserOverride] = useState<boolean | null>(null);
   const prevViewModeCaseRef = useRef(caseId);
   if (prevViewModeCaseRef.current !== caseId) {
     prevViewModeCaseRef.current = caseId;
     setViewMode("full");
+    setDiagnosticsUserOverride(null);
   }
   const [apiLoadAttempted, setApiLoadAttempted] = useState(false);
   const [apiLoadDone, setApiLoadDone] = useState(false);
@@ -1115,6 +1117,32 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     enabled: !!caseId,
     staleTime: 30 * 1000,
   });
+
+  const forecastDiagTriggers = useMemo(() => {
+    if (!forecast) return { lowConfidence: false, largeShift: false, signalConflict: false };
+    const ff = forecast as any;
+    const conf = (ff.confidenceLevel || "").toLowerCase();
+    const lowConfidence = conf === "low" || conf === "very low";
+    const prior = ff.priorProbability ?? 0.5;
+    const current = ff.currentProbability ?? prior;
+    const shiftPp = Math.abs((current - prior) * 100);
+    const largeShift = shiftPp >= 10;
+    const sigs = ff.signalDetails || [];
+    const posCount = sigs.filter((s: any) => (s.pointContribution ?? 0) > 0).length;
+    const negCount = sigs.filter((s: any) => (s.pointContribution ?? 0) < 0).length;
+    const signalConflict = posCount >= 2 && negCount >= 2;
+    return { lowConfidence, largeShift, signalConflict };
+  }, [forecast]);
+  const diagAutoOpen = forecastDiagTriggers.lowConfidence || forecastDiagTriggers.largeShift || forecastDiagTriggers.signalConflict;
+  const diagVisible = diagnosticsUserOverride !== null ? diagnosticsUserOverride : diagAutoOpen;
+
+  function handleDiagToggle() {
+    if (diagnosticsUserOverride !== null) {
+      setDiagnosticsUserOverride(prev => !prev);
+    } else {
+      setDiagnosticsUserOverride(!diagAutoOpen);
+    }
+  }
 
   if (needsApiLoad) {
     return (
@@ -1389,6 +1417,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     );
   }
 
+  const diagShiftPp = Math.round(Math.abs(delta) * 100);
+  const diagTriggerReasons: string[] = [];
+  if (forecastDiagTriggers.lowConfidence) diagTriggerReasons.push("Low confidence");
+  if (forecastDiagTriggers.largeShift) diagTriggerReasons.push(`Large probability shift (${delta >= 0 ? "+" : "-"}${diagShiftPp}pp)`);
+  if (forecastDiagTriggers.signalConflict) diagTriggerReasons.push("Conflicting signals detected");
+
   return (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -1413,7 +1447,134 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         </div>
       </div>
 
-      {coreLoopStrip}
+      {/* === SECTION 1: DECISION SNAPSHOT (always visible) === */}
+      <section data-testid="section-decision-snapshot">
+        <div className="flex items-center gap-2 mb-4">
+          <CircleAlert className="w-4 h-4 text-blue-400" />
+          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Decision Snapshot</h2>
+        </div>
+        {coreLoopStrip}
+      </section>
+
+      <div className="border-t border-white/10" />
+
+      {/* === SECTION 2: INTERPRETATION (always visible) === */}
+      <section data-testid="section-interpretation">
+        <div className="flex items-center gap-2 mb-4">
+          <BookOpen className="w-4 h-4 text-violet-400" />
+          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Interpretation</h2>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5">
+            <div className="text-sm font-medium text-slate-300">System Interpretation</div>
+            <p className="mt-3 text-base leading-7 text-slate-200">
+              {topDriver ? (
+                <>
+                  This forecast is currently most sensitive to{" "}
+                  <span className="font-semibold text-white">{topDriver.name}</span>. The model is not
+                  saying only one thing matters. It is saying this driver is the fastest lever for
+                  changing the trajectory meaningfully.
+                </>
+              ) : (
+                "Confirm drivers in Step 2 to generate a sensitivity analysis."
+              )}
+            </p>
+          </div>
+
+          {interpretation && (
+            <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <Zap className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+                <div className="flex-1 space-y-3">
+                  <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Recommended Action</div>
+                  <div className="text-base font-semibold text-white">
+                    {interpretation.recommendedAction || "Monitor signals and reassess."}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {interpretation.confidenceTags?.map((tag: string, i: number) => (
+                      <span key={i} className="rounded-full bg-blue-500/10 border border-blue-400/20 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">{tag}</span>
+                    ))}
+                    {interpretation.forecastInterpretation && (
+                      <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] text-slate-400">{interpretation.forecastInterpretation}</span>
+                    )}
+                  </div>
+                  <div className="text-sm text-slate-300 leading-relaxed">
+                    {interpretation.primaryStatement}
+                  </div>
+
+                  {f.confidenceLevel === "Low" && (
+                    <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-400/30 bg-amber-400/5">
+                      <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-300 leading-relaxed">
+                        Low confidence — this forecast has limited signal support. Treat all outputs as preliminary and avoid high-commitment decisions until the evidence base strengthens.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {interpretation.suggestedNextSteps?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider flex items-center gap-1">
+                          <Zap className="w-3 h-3" /> Next Actions
+                        </div>
+                        {interpretation.suggestedNextSteps.map((step: string, i: number) => (
+                          <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                            <span className="text-emerald-400 shrink-0">&gt;</span>
+                            <span>{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {interpretation.questionRefinements?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider flex items-center gap-1">
+                          <Zap className="w-3 h-3" /> Question Refinement
+                        </div>
+                        {interpretation.questionRefinements.map((q: string, i: number) => (
+                          <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                            <span className="text-blue-400 shrink-0">&gt;</span>
+                            <span>{q}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {interpretation.monitorItems?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Monitor</div>
+                        {interpretation.monitorItems.map((item: string, i: number) => (
+                          <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                            <span className="text-amber-400 shrink-0">&gt;</span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {interpretation.riskStatement && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider">Risk</div>
+                        <div className="text-xs text-slate-400 leading-relaxed">{interpretation.riskStatement}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-[10px] text-slate-500">
+                <span>Derived from probability band</span>
+                <span>·</span>
+                <span>{f.confidenceLevel} confidence</span>
+                <span>·</span>
+                <span>adapter v1</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="border-t border-white/10" />
 
       {(() => {
         const caseKey = activeQuestion?.caseId || "unknown";
@@ -1517,117 +1678,142 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         const gateDomination = (f?.distributionForecast?.gateDomination as GateDominationDiagnostic | undefined) ?? localDistResult?.gateDomination ?? null;
         const readinessScore = (f?.distributionForecast?.readinessScore as number | undefined) ?? localDistResult?.readinessScore ?? 1.0;
 
-        return (
-          <>
-            {hasGates && (() => {
-              const brandPct = Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100);
-              const finalPct = displayProbPct ?? Math.round((f.currentProbability ?? 0.5) * 100);
-              const priorPct = Math.round((f.priorProbability ?? 0.5) * 100);
-              const minGateCapPct = finalPct;
-              const executionGapPts = Math.abs(brandPct - finalPct);
+        if (hasGates) {
+          const brandPct = Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100);
+          const finalPct = displayProbPct ?? Math.round((f.currentProbability ?? 0.5) * 100);
+          const priorPct = Math.round((f.priorProbability ?? 0.5) * 100);
+          const minGateCapPct = finalPct;
+          const executionGapPts = Math.abs(brandPct - finalPct);
 
-              const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount);
-              const individualScenarios = gateScenarios.filter(s => !s.id.startsWith("upgrade_all") && !s.id.startsWith("regress_all"));
-              const gateUpside = individualScenarios.filter(s => s.delta > 0).reduce((sum, s) => sum + s.delta, 0);
-              const gateDownside = individualScenarios.filter(s => s.delta < 0).reduce((sum, s) => sum + Math.abs(s.delta), 0);
-              const topGateDriver = gateScenarios.length > 0
-                ? [...gateScenarios].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
-                : null;
+          const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount);
+          const individualScenarios = gateScenarios.filter(s => !s.id.startsWith("upgrade_all") && !s.id.startsWith("regress_all"));
+          const gateUpside = individualScenarios.filter(s => s.delta > 0).reduce((sum, s) => sum + s.delta, 0);
+          const gateDownside = individualScenarios.filter(s => s.delta < 0).reduce((sum, s) => sum + Math.abs(s.delta), 0);
+          const topGateDriver = gateScenarios.length > 0
+            ? [...gateScenarios].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
+            : null;
 
-              const judgmentResult = generateExecutiveJudgment({
-                priorPct,
-                brandOutlookPct: brandPct,
-                finalForecastPct: finalPct,
-                minGateCapPct,
-                executionGapPts,
-                gates: decomp!.event_gates,
-                drivers,
-                analogContext: analogContext ?? null,
-                questionText: activeQuestion?.text || "",
-                outcomeDefinition: activeQuestion?.outcome ? activeQuestion.outcome.charAt(0).toUpperCase() + activeQuestion.outcome.slice(1) : undefined,
-                outcomeThreshold: activeQuestion?.threshold || (f as any).outcomeThreshold || undefined,
-                subject: activeQuestion?.subject || undefined,
-                timeHorizon: activeQuestion?.timeHorizon || undefined,
-                compositeScenarios: activeQuestion?.compositeScenarios?.map(s => ({
-                  id: s.id,
-                  label: s.label,
-                  dimensions: s.dimensions,
-                })),
-              });
+          const judgmentResult = generateExecutiveJudgment({
+            priorPct,
+            brandOutlookPct: brandPct,
+            finalForecastPct: finalPct,
+            minGateCapPct,
+            executionGapPts,
+            gates: decomp!.event_gates,
+            drivers,
+            analogContext: analogContext ?? null,
+            questionText: activeQuestion?.text || "",
+            outcomeDefinition: activeQuestion?.outcome ? activeQuestion.outcome.charAt(0).toUpperCase() + activeQuestion.outcome.slice(1) : undefined,
+            outcomeThreshold: activeQuestion?.threshold || (f as any).outcomeThreshold || undefined,
+            subject: activeQuestion?.subject || undefined,
+            timeHorizon: activeQuestion?.timeHorizon || undefined,
+            compositeScenarios: activeQuestion?.compositeScenarios?.map(s => ({
+              id: s.id,
+              label: s.label,
+              dimensions: s.dimensions,
+            })),
+          });
 
-              let priorProbability: number | null = null;
-              try {
-                const cid = activeQuestion?.caseId || "unknown";
-                const prev = localStorage.getItem(`cios.judgmentResult:${cid}`);
-                if (prev) {
-                  const parsed = JSON.parse(prev);
-                  if (typeof parsed.probability === "number") priorProbability = parsed.probability;
-                }
-                localStorage.setItem(`cios.judgmentResult:${cid}`, JSON.stringify(judgmentResult));
-              } catch {}
+          let priorProbability: number | null = null;
+          try {
+            const cid = activeQuestion?.caseId || "unknown";
+            const prev = localStorage.getItem(`cios.judgmentResult:${cid}`);
+            if (prev) {
+              const parsed = JSON.parse(prev);
+              if (typeof parsed.probability === "number") priorProbability = parsed.probability;
+            }
+            localStorage.setItem(`cios.judgmentResult:${cid}`, JSON.stringify(judgmentResult));
+          } catch {}
 
-              const audit = judgmentResult._audit;
+          const audit = judgmentResult._audit;
 
-              const caseCtxForExplain = {
-                questionText: activeQuestion?.text || "",
-                gates: decomp!.event_gates.map(g => {
-                  const upgradeScenario = gateScenarios.find(s => s.id === `upgrade_${g.gate_id}`);
-                  const downgradeScenario = gateScenarios.find(s => s.id === `regress_${g.gate_id}`);
-                  return {
-                    gateLabel: g.gate_label,
-                    gateStatus: g.status,
-                    upgradedProbability: upgradeScenario ? upgradeScenario.newProbability : null,
-                    downgradedProbability: downgradeScenario ? downgradeScenario.newProbability : null,
-                    baseProbability: finalPct,
-                    delta: upgradeScenario ? upgradeScenario.delta : null,
-                  };
-                }),
-                drivers: drivers.map(d => ({
-                  name: d.name,
-                  direction: d.direction as "Upward" | "Downward",
-                  strength: d.strength,
-                  contributionPoints: d.contributionPoints,
-                })),
+          const caseCtxForExplain = {
+            questionText: activeQuestion?.text || "",
+            gates: decomp!.event_gates.map(g => {
+              const upgradeScenario = gateScenarios.find(s => s.id === `upgrade_${g.gate_id}`);
+              const downgradeScenario = gateScenarios.find(s => s.id === `regress_${g.gate_id}`);
+              return {
+                gateLabel: g.gate_label,
+                gateStatus: g.status,
+                upgradedProbability: upgradeScenario ? upgradeScenario.newProbability : null,
+                downgradedProbability: downgradeScenario ? downgradeScenario.newProbability : null,
+                baseProbability: finalPct,
+                delta: upgradeScenario ? upgradeScenario.delta : null,
               };
+            }),
+            drivers: drivers.map(d => ({
+              name: d.name,
+              direction: d.direction as "Upward" | "Downward",
+              strength: d.strength,
+              contributionPoints: d.contributionPoints,
+            })),
+          };
 
-              return (
-                <>
-                  <ExplainBox judgment={judgmentResult} caseContext={caseCtxForExplain} />
-                  <PanelConnectionLabel label="Updates probability based on weighted signal evidence and constraint status">
-                    <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} priorProbability={priorProbability} />
-                  </PanelConnectionLabel>
+          return (
+            <>
+              {/* === SECTION 2 (cont.): ForecastMeaningPanel within Interpretation context === */}
+              <PanelConnectionLabel label="Explains the probability in plain language with key conditions">
+                <ForecastMeaningPanel
+                  interpretation={judgmentResult.reasoning}
+                  weakestGate={decomp!.event_gates.sort((a, b) => {
+                    const rank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
+                    return (rank[a.status] ?? 0) - (rank[b.status] ?? 0);
+                  })[0]}
+                  strongestUnresolved={(() => {
+                    const uw = decomp!.event_gates.filter(g => g.status === "unresolved" || g.status === "weak");
+                    return uw.length > 0
+                      ? [...uw].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
+                      : decomp!.event_gates.find(g => g.status === "moderate") || decomp!.event_gates[0];
+                  })()}
+                  brandPct={brandPct}
+                />
+              </PanelConnectionLabel>
 
-                  {activeQuestion?.caseId && (
-                    <PanelConnectionLabel label="Explains reliability and diversity of the evidence feeding the forecast">
-                      <EvidenceHealthPanel caseId={activeQuestion.caseId} />
+              <div className="border-t border-white/10" />
+
+              {/* === SECTION 3: NEEDLE MOVEMENT (visible) === */}
+              <section data-testid="section-needle-movement">
+                <div className="flex items-center gap-2 mb-4">
+                  <Zap className="w-4 h-4 text-emerald-400" />
+                  <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Needle Movement</h2>
+                </div>
+
+                <div className="space-y-4">
+                  {drivers.length > 0 && (
+                    <PanelConnectionLabel label="Updates probability by showing each driver's directional point contribution">
+                      <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
                     </PanelConnectionLabel>
                   )}
 
-                  <PanelConnectionLabel label="Monitors probability stability across successive forecast runs">
-                    <ConsistencyPanel
-                      consistency={f._consistency ?? null}
-                      drift={f._drift ?? null}
-                      snapshots={snapshotsData?.snapshots ?? []}
+                  <div className="grid grid-cols-12 gap-4">
+                    <InfoCard
+                      title="Most Sensitive Gate"
+                      value={topGateDriver?.primaryDriver || "\u2014"}
+                      body={topGateDriver ? `${topGateDriver.name}: ${topGateDriver.delta > 0 ? "+" : ""}${topGateDriver.delta} pts potential impact` : "No gate scenarios identified."}
                     />
-                  </PanelConnectionLabel>
-
-                  <PanelConnectionLabel label="Explains shift between prior, signal strength, and final probability">
-                    <ForecastComparisonCircles
-                      brandOutlookProb={brandOutlookProb ?? (f as any).posteriorProbability ?? f.currentProbability ?? 0.5}
-                      finalForecastProb={displayProb}
-                      priorProbability={f.priorProbability}
-                      delta={delta}
-                      confidence={confidence}
-                      outcomeThreshold={outcomeThresholdStr}
-                      distributionComputed={apiDistributionComputed}
-                      consecutiveEqualityWarning={apiConsecutiveEqualityWarning}
-                      thresholdSource={(f as any).outcomeThresholdResolution?.source ?? null}
+                    <InfoCard
+                      title="Total Upward Pressure"
+                      value={`+${gateUpside} pts`}
+                      body="Combined estimated upside if constraining gates are resolved."
                     />
-                  </PanelConnectionLabel>
+                    <InfoCard
+                      title="Total Downward Pressure"
+                      value={`-${gateDownside} pts`}
+                      body="Combined estimated downside if strong gates regress."
+                    />
+                  </div>
 
-                  <PanelConnectionLabel label="Constrains maximum achievable probability until conditions are met">
-                    <EventGatesPanel gates={decomp!.event_gates} />
-                  </PanelConnectionLabel>
+                  <DecisionLabSummary
+                    brandOutlookPct={brandPct}
+                    finalForecastPct={finalPct}
+                    executionGap={executionGapPts}
+                    gates={decomp!.event_gates}
+                    drivers={drivers}
+                    upsideTotal={upsideTotal}
+                    downsideTotal={downsideTotal}
+                    topGateDriverName={topGateDriver?.primaryDriver || null}
+                    topGateDriverDelta={topGateDriver?.delta || 0}
+                  />
 
                   {gateDomination && gateDomination.gateDominated && (
                     <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.04] p-4 flex items-start gap-3">
@@ -1669,388 +1855,395 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       </div>
                     </div>
                   )}
+                </div>
+              </section>
 
-                  <details className="rounded-2xl border border-white/10 bg-[#0A1736]/60 overflow-hidden" data-testid="judgment-audit-block">
-                    <summary className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-slate-200 select-none">
-                      Judgment Audit Trail
-                    </summary>
-                    <div className="px-5 pb-4 space-y-4 text-xs text-slate-300">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Prior</div>
-                          <div className="text-base font-bold text-slate-100">{audit.inputs.priorPct}%</div>
-                        </div>
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Signal Strength (Pre-Gate)</div>
-                          <div className="text-base font-bold text-cyan-300">{audit.inputs.brandOutlookPct}%</div>
-                        </div>
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Min Gate Cap</div>
-                          <div className="text-base font-bold text-amber-300">{audit.inputs.minGateCapPct}%</div>
-                        </div>
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Final Forecast</div>
-                          <div className="text-base font-bold text-emerald-300">{audit.inputs.finalForecastPct}%</div>
+              <div className="border-t border-white/10" />
+
+              {/* === SECTION 4: DIAGNOSTICS (hidden by default) === */}
+              <section data-testid="section-diagnostics">
+                <button
+                  onClick={handleDiagToggle}
+                  className="w-full flex items-center gap-2 mb-3 group"
+                >
+                  <AlertTriangle className="w-4 h-4 text-slate-400 group-hover:text-slate-300 transition" />
+                  <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-200 transition">
+                    Diagnostics
+                  </h2>
+                  {diagAutoOpen && diagTriggerReasons.length > 0 && (
+                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-amber-500/20 text-amber-400 ml-1">
+                      auto-revealed
+                    </span>
+                  )}
+                  <div className="flex-1" />
+                  {!diagVisible ? (
+                    <span className="text-[10px] text-slate-500 group-hover:text-slate-200 transition flex items-center gap-1">
+                      <BookOpen className="w-3 h-3" /> Explain
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 group-hover:text-slate-200 transition">▲ Collapse</span>
+                  )}
+                </button>
+
+                {diagVisible && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    {diagTriggerReasons.length > 0 && (
+                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 flex items-start gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="text-[11px] text-amber-400/90">
+                          Diagnostics visible because: {diagTriggerReasons.join(" · ")}
                         </div>
                       </div>
+                    )}
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Constraint Gap</div>
-                          <div className="text-base font-bold text-red-300">{audit.inputs.executionGapPts} pts</div>
-                        </div>
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Confidence</div>
-                          <div className="text-base font-bold">{confidence}</div>
-                        </div>
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Upward Drivers</div>
-                          <div className="text-base font-bold text-green-300">{audit.inputs.upwardDriverCount}</div>
-                        </div>
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Downward Drivers</div>
-                          <div className="text-base font-bold text-red-300">{audit.inputs.downwardDriverCount}</div>
-                        </div>
-                      </div>
+                    <ExplainBox judgment={judgmentResult} caseContext={caseCtxForExplain} />
 
-                      {audit.inputs.topPositiveDrivers.length > 0 && (
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Top Positive Drivers</div>
-                          <div className="text-sm text-green-300">{audit.inputs.topPositiveDrivers.join(", ")}</div>
-                        </div>
-                      )}
-                      {audit.inputs.topNegativeDrivers.length > 0 && (
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Top Negative Drivers</div>
-                          <div className="text-sm text-red-300">{audit.inputs.topNegativeDrivers.join(", ")}</div>
-                        </div>
-                      )}
+                    <PanelConnectionLabel label="Updates probability based on weighted signal evidence and constraint status">
+                      <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} priorProbability={priorProbability} />
+                    </PanelConnectionLabel>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {audit.inputs.gateStates.map((g) => (
-                          <div key={g.label} className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{g.label}</div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-sm font-bold ${g.status === "strong" ? "text-green-400" : g.status === "moderate" ? "text-amber-400" : "text-red-400"}`}>
-                                {g.status.toUpperCase()}
-                              </span>
-                              <span className="text-slate-400">→ caps at ≤{g.capPct}%</span>
-                            </div>
+                    {activeQuestion?.caseId && (
+                      <PanelConnectionLabel label="Explains reliability and diversity of the evidence feeding the forecast">
+                        <EvidenceHealthPanel caseId={activeQuestion.caseId} />
+                      </PanelConnectionLabel>
+                    )}
+
+                    <PanelConnectionLabel label="Monitors probability stability across successive forecast runs">
+                      <ConsistencyPanel
+                        consistency={f._consistency ?? null}
+                        drift={f._drift ?? null}
+                        snapshots={snapshotsData?.snapshots ?? []}
+                      />
+                    </PanelConnectionLabel>
+
+                    <PanelConnectionLabel label="Explains shift between prior, signal strength, and final probability">
+                      <ForecastComparisonCircles
+                        brandOutlookProb={brandOutlookProb ?? (f as any).posteriorProbability ?? f.currentProbability ?? 0.5}
+                        finalForecastProb={displayProb}
+                        priorProbability={f.priorProbability}
+                        delta={delta}
+                        confidence={confidence}
+                        outcomeThreshold={outcomeThresholdStr}
+                        distributionComputed={apiDistributionComputed}
+                        consecutiveEqualityWarning={apiConsecutiveEqualityWarning}
+                        thresholdSource={(f as any).outcomeThresholdResolution?.source ?? null}
+                      />
+                    </PanelConnectionLabel>
+
+                    <PanelConnectionLabel label="Constrains maximum achievable probability until conditions are met">
+                      <EventGatesPanel gates={decomp!.event_gates} />
+                    </PanelConnectionLabel>
+
+                    <details className="rounded-2xl border border-white/10 bg-[#0A1736]/60 overflow-hidden" data-testid="judgment-audit-block">
+                      <summary className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-slate-200 select-none">
+                        Judgment Audit Trail
+                      </summary>
+                      <div className="px-5 pb-4 space-y-4 text-xs text-slate-300">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Prior</div>
+                            <div className="text-base font-bold text-slate-100">{audit.inputs.priorPct}%</div>
                           </div>
-                        ))}
-                      </div>
-
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Confidence Breakdown</div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                          <div>Gate Resolution: <span className="font-bold text-slate-100">+{audit.confidenceAudit.gateResolutionScore}</span></div>
-                          <div>Analog Evidence: <span className="font-bold text-slate-100">+{audit.confidenceAudit.analogScore}</span></div>
-                          <div>Convergence: <span className="font-bold text-slate-100">+{audit.confidenceAudit.convergenceScore}</span></div>
-                          <div>Gate Count: <span className="font-bold text-slate-100">+{audit.confidenceAudit.gateCountScore}</span></div>
-                          {audit.confidenceAudit.gapPenalty > 0 && <div>Gap Penalty: <span className="font-bold text-red-400">-{audit.confidenceAudit.gapPenalty}</span></div>}
-                          {audit.confidenceAudit.conflictPenalty > 0 && <div>Conflict Penalty: <span className="font-bold text-red-400">-{audit.confidenceAudit.conflictPenalty}</span></div>}
-                          <div>Raw Total: <span className="font-bold text-slate-100">{audit.confidenceAudit.rawTotal}</span> → <span className="font-bold">{audit.confidenceAudit.finalLevel}</span></div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Signal Strength (Pre-Gate)</div>
+                            <div className="text-base font-bold text-cyan-300">{audit.inputs.brandOutlookPct}%</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Min Gate Cap</div>
+                            <div className="text-base font-bold text-amber-300">{audit.inputs.minGateCapPct}%</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Final Forecast</div>
+                            <div className="text-base font-bold text-emerald-300">{audit.inputs.finalForecastPct}%</div>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Outcome Rule</div>
-                        <div className="text-xs">
-                          <span className="text-slate-400">Category:</span> <span className="text-slate-100">{audit.outcomeAudit.questionCategory}</span>
-                          <span className="mx-2 text-slate-600">|</span>
-                          <span className="text-slate-400">Band:</span> <span className="text-slate-100">{audit.outcomeAudit.probabilityBand}</span>
-                          <span className="mx-2 text-slate-600">|</span>
-                          <span className="text-slate-400">Rule:</span> <span className="text-slate-100">{audit.outcomeAudit.ruleTriggered}</span>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Constraint Gap</div>
+                            <div className="text-base font-bold text-red-300">{audit.inputs.executionGapPts} pts</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Confidence</div>
+                            <div className="text-base font-bold">{confidence}</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Upward Drivers</div>
+                            <div className="text-base font-bold text-green-300">{audit.inputs.upwardDriverCount}</div>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Downward Drivers</div>
+                            <div className="text-base font-bold text-red-300">{audit.inputs.downwardDriverCount}</div>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Decision Posture Rule</div>
-                        <div className="text-xs">
-                          <span className="text-slate-400">Case Type:</span> <span className="text-slate-100">{audit.postureAudit.caseType}</span>
-                          <span className="mx-2 text-slate-600">|</span>
-                          <span className="text-slate-400">Rule:</span> <span className="text-slate-100">{audit.postureAudit.ruleTriggered}</span>
-                        </div>
-                      </div>
+                        {audit.inputs.topPositiveDrivers.length > 0 && (
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Top Positive Drivers</div>
+                            <div className="text-sm text-green-300">{audit.inputs.topPositiveDrivers.join(", ")}</div>
+                          </div>
+                        )}
+                        {audit.inputs.topNegativeDrivers.length > 0 && (
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Top Negative Drivers</div>
+                            <div className="text-sm text-red-300">{audit.inputs.topNegativeDrivers.join(", ")}</div>
+                          </div>
+                        )}
 
-                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-500">Integrity Checks</div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${audit.integrityPassed ? "bg-green-900/40 text-green-400" : "bg-red-900/40 text-red-400"}`}>
-                            {audit.integrityPassed ? "ALL PASSED" : "CORRECTIONS APPLIED"}
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          {audit.integrityChecks.map((check, i) => (
-                            <div key={i} className="flex items-start gap-2 text-xs">
-                              <span className={check.passed ? "text-green-400" : "text-red-400"}>{check.passed ? "✓" : "✗"}</span>
-                              <span className="text-slate-400">{check.rule.replace(/_/g, " ")}</span>
-                              {!check.passed && <span className="text-red-300 text-[10px]">— {check.detail}</span>}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {audit.inputs.gateStates.map((g) => (
+                            <div key={g.label} className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{g.label}</div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${g.status === "strong" ? "text-green-400" : g.status === "moderate" ? "text-amber-400" : "text-red-400"}`}>
+                                  {g.status.toUpperCase()}
+                                </span>
+                                <span className="text-slate-400">→ caps at ≤{g.capPct}%</span>
+                              </div>
                             </div>
                           ))}
                         </div>
+
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Confidence Breakdown</div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                            <div>Gate Resolution: <span className="font-bold text-slate-100">+{audit.confidenceAudit.gateResolutionScore}</span></div>
+                            <div>Analog Evidence: <span className="font-bold text-slate-100">+{audit.confidenceAudit.analogScore}</span></div>
+                            <div>Convergence: <span className="font-bold text-slate-100">+{audit.confidenceAudit.convergenceScore}</span></div>
+                            <div>Gate Count: <span className="font-bold text-slate-100">+{audit.confidenceAudit.gateCountScore}</span></div>
+                            {audit.confidenceAudit.gapPenalty > 0 && <div>Gap Penalty: <span className="font-bold text-red-400">-{audit.confidenceAudit.gapPenalty}</span></div>}
+                            {audit.confidenceAudit.conflictPenalty > 0 && <div>Conflict Penalty: <span className="font-bold text-red-400">-{audit.confidenceAudit.conflictPenalty}</span></div>}
+                            <div>Raw Total: <span className="font-bold text-slate-100">{audit.confidenceAudit.rawTotal}</span> → <span className="font-bold">{audit.confidenceAudit.finalLevel}</span></div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Outcome Rule</div>
+                          <div className="text-xs">
+                            <span className="text-slate-400">Category:</span> <span className="text-slate-100">{audit.outcomeAudit.questionCategory}</span>
+                            <span className="mx-2 text-slate-600">|</span>
+                            <span className="text-slate-400">Band:</span> <span className="text-slate-100">{audit.outcomeAudit.probabilityBand}</span>
+                            <span className="mx-2 text-slate-600">|</span>
+                            <span className="text-slate-400">Rule:</span> <span className="text-slate-100">{audit.outcomeAudit.ruleTriggered}</span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Decision Posture Rule</div>
+                          <div className="text-xs">
+                            <span className="text-slate-400">Case Type:</span> <span className="text-slate-100">{audit.postureAudit.caseType}</span>
+                            <span className="mx-2 text-slate-600">|</span>
+                            <span className="text-slate-400">Rule:</span> <span className="text-slate-100">{audit.postureAudit.ruleTriggered}</span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500">Integrity Checks</div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${audit.integrityPassed ? "bg-green-900/40 text-green-400" : "bg-red-900/40 text-red-400"}`}>
+                              {audit.integrityPassed ? "ALL PASSED" : "CORRECTIONS APPLIED"}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            {audit.integrityChecks.map((check, i) => (
+                              <div key={i} className="flex items-start gap-2 text-xs">
+                                <span className={check.passed ? "text-green-400" : "text-red-400"}>{check.passed ? "✓" : "✗"}</span>
+                                <span className="text-slate-400">{check.rule.replace(/_/g, " ")}</span>
+                                {!check.passed && <span className="text-red-300 text-[10px]">— {check.detail}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </details>
+                    </details>
 
-                  <PanelConnectionLabel label="Explains the probability in plain language with key conditions">
-                    <ForecastMeaningPanel
-                      interpretation={judgmentResult.reasoning}
-                      weakestGate={decomp!.event_gates.sort((a, b) => {
-                        const rank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
-                        return (rank[a.status] ?? 0) - (rank[b.status] ?? 0);
-                      })[0]}
-                      strongestUnresolved={(() => {
-                        const uw = decomp!.event_gates.filter(g => g.status === "unresolved" || g.status === "weak");
-                        return uw.length > 0
-                          ? [...uw].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
-                          : decomp!.event_gates.find(g => g.status === "moderate") || decomp!.event_gates[0];
-                      })()}
-                      brandPct={brandPct}
-                    />
-                  </PanelConnectionLabel>
-
-                  {drivers.length > 0 && (
-                    <PanelConnectionLabel label="Updates probability by showing each driver's directional point contribution">
-                      <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
+                    <PanelConnectionLabel label="Monitors forecast calibration, ceiling enforcement, and safety bounds">
+                      <CalibrationChecksPanel data={(f as any)._calibrationChecks} />
                     </PanelConnectionLabel>
-                  )}
 
-                  <div className="grid grid-cols-12 gap-4">
-                    <InfoCard
-                      title="Most Sensitive Gate"
-                      value={topGateDriver?.primaryDriver || "\u2014"}
-                      body={topGateDriver ? `${topGateDriver.name}: ${topGateDriver.delta > 0 ? "+" : ""}${topGateDriver.delta} pts potential impact` : "No gate scenarios identified."}
+                    <CaseComparatorPanel
+                      question={activeQuestion?.text || ""}
+                      brand={activeQuestion?.subject}
+                      therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
+                      signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
+                      context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
                     />
-                    <InfoCard
-                      title="Total Upward Pressure"
-                      value={`+${gateUpside} pts`}
-                      body="Combined estimated upside if constraining gates are resolved."
-                    />
-                    <InfoCard
-                      title="Total Downward Pressure"
-                      value={`-${gateDownside} pts`}
-                      body="Combined estimated downside if strong gates regress."
+
+                    <IntegrityPanel
+                      question={activeQuestion?.text || ""}
+                      probability={f?.currentProbability ? Math.round(f.currentProbability * 100) : undefined}
+                      signals={f?.signals?.map((s: any) => ({
+                        text: s.name || s.text,
+                        direction: s.direction || "neutral",
+                        strength: s.strength || "Medium",
+                        confidence: s.reliability || s.confidence || "Probable",
+                      }))}
+                      gates={f?.eventDecomposition?.event_gates?.map((g: any) => ({
+                        label: g.gate_label || g.label,
+                        status: g.status || "open",
+                        constrains_to: typeof g.constrains_probability_to === "number" ? Math.round(g.constrains_probability_to * 100) : 100,
+                      }))}
+                      judgment={f?.judgment ? {
+                        headline: f.judgment.headline,
+                        narrative: f.judgment.narrative,
+                        recommendation: f.judgment.recommendation,
+                        confidenceLevel: f.judgment.confidence_level,
+                      } : undefined}
                     />
                   </div>
+                )}
+              </section>
+            </>
+          );
+        }
 
-                  <DecisionLabSummary
-                    brandOutlookPct={brandPct}
-                    finalForecastPct={finalPct}
-                    executionGap={executionGapPts}
-                    gates={decomp!.event_gates}
-                    drivers={drivers}
-                    upsideTotal={upsideTotal}
-                    downsideTotal={downsideTotal}
-                    topGateDriverName={topGateDriver?.primaryDriver || null}
-                    topGateDriverDelta={topGateDriver?.delta || 0}
-                  />
-                </>
-              );
-            })()}
+        return (
+          <>
+            {/* === SECTION 3: NEEDLE MOVEMENT (no-gates fallback) === */}
+            <section data-testid="section-needle-movement">
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Needle Movement</h2>
+              </div>
 
-            {!hasGates && ( <>
-              <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-                <div className="grid grid-cols-12 gap-6">
-                  <div className="col-span-12 xl:col-span-4">
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5 flex flex-col items-center">
-                      <div className="text-sm font-medium text-slate-300 self-start">Current Probability</div>
-                      <div className="mt-4">
-                        <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={200} />
-                      </div>
-                      <div className="flex items-center gap-4 mt-4 text-sm">
-                        <div className="text-slate-400">
-                          PRIOR{" "}
-                          <span className="text-white font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+                  <div className="grid grid-cols-12 gap-6">
+                    <div className="col-span-12 xl:col-span-4">
+                      <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5 flex flex-col items-center">
+                        <div className="text-sm font-medium text-slate-300 self-start">Current Probability</div>
+                        <div className="mt-4">
+                          <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={200} />
                         </div>
-                        <ArrowRight className="w-4 h-4 text-slate-600" />
-                        <div className="text-slate-400">
-                          SHIFT{" "}
-                          <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                            {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
-                          </span>
+                        <div className="flex items-center gap-4 mt-4 text-sm">
+                          <div className="text-slate-400">
+                            PRIOR{" "}
+                            <span className="text-white font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-slate-600" />
+                          <div className="text-slate-400">
+                            SHIFT{" "}
+                            <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                              {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
+                            </span>
+                          </div>
                         </div>
+                        <div className={cn(
+                          "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                          confidenceBadgeClass[confidence]
+                        )}>
+                          Confidence: {confidence}
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-slate-300 text-center">{summary}</p>
+                        <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Probability Model</div>
                       </div>
-                      <div className={cn(
-                        "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                        confidenceBadgeClass[confidence]
-                      )}>
-                        Confidence: {confidence}
-                      </div>
-                      <p className="mt-3 text-sm leading-6 text-slate-300 text-center">{summary}</p>
-                      <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Probability Model</div>
                     </div>
-                  </div>
 
-                  <div className="col-span-12 xl:col-span-8 space-y-4">
-                    <div className="grid grid-cols-12 gap-4">
-                      <InfoCard
-                        title="Most Sensitive Driver"
-                        value={topDriver?.name || "—"}
-                        body={topDriver ? `Largest estimated movement: ${topDriver.contributionPoints > 0 ? "+" : ""}${topDriver.contributionPoints} points` : "No drivers identified yet."}
-                      />
-                      <InfoCard
-                        title="Total Upward Pressure"
-                        value={`+${upsideTotal} pts`}
-                        body="Combined estimated upside effect if favorable drivers strengthen."
-                      />
-                      <InfoCard
-                        title="Total Downward Pressure"
-                        value={`-${downsideTotal} pts`}
-                        body="Combined estimated downside effect if resistance drivers intensify."
-                      />
+                    <div className="col-span-12 xl:col-span-8 space-y-4">
+                      <div className="grid grid-cols-12 gap-4">
+                        <InfoCard
+                          title="Most Sensitive Driver"
+                          value={topDriver?.name || "—"}
+                          body={topDriver ? `Largest estimated movement: ${topDriver.contributionPoints > 0 ? "+" : ""}${topDriver.contributionPoints} points` : "No drivers identified yet."}
+                        />
+                        <InfoCard
+                          title="Total Upward Pressure"
+                          value={`+${upsideTotal} pts`}
+                          body="Combined estimated upside effect if favorable drivers strengthen."
+                        />
+                        <InfoCard
+                          title="Total Downward Pressure"
+                          value={`-${downsideTotal} pts`}
+                          body="Combined estimated downside effect if resistance drivers intensify."
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {drivers.length > 0 && (
-                <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
-              )}
-            </> )}
-
-            <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5">
-              <div className="text-sm font-medium text-slate-300">System Interpretation</div>
-              <p className="mt-3 text-base leading-7 text-slate-200">
-                {topDriver ? (
-                  <>
-                    This forecast is currently most sensitive to{" "}
-                    <span className="font-semibold text-white">{topDriver.name}</span>. The model is not
-                    saying only one thing matters. It is saying this driver is the fastest lever for
-                    changing the trajectory meaningfully.
-                  </>
-                ) : (
-                  "Confirm drivers in Step 2 to generate a sensitivity analysis."
+                {drivers.length > 0 && (
+                  <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
                 )}
-              </p>
-            </div>
+              </div>
+            </section>
 
-            <PanelConnectionLabel label="Monitors forecast calibration, ceiling enforcement, and safety bounds">
-              <CalibrationChecksPanel data={(f as any)._calibrationChecks} />
-            </PanelConnectionLabel>
+            <div className="border-t border-white/10" />
+
+            {/* === SECTION 4: DIAGNOSTICS (no-gates fallback) === */}
+            <section data-testid="section-diagnostics">
+              <button
+                onClick={handleDiagToggle}
+                className="w-full flex items-center gap-2 mb-3 group"
+              >
+                <AlertTriangle className="w-4 h-4 text-slate-400 group-hover:text-slate-300 transition" />
+                <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-200 transition">
+                  Diagnostics
+                </h2>
+                {diagAutoOpen && diagTriggerReasons.length > 0 && (
+                  <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-amber-500/20 text-amber-400 ml-1">
+                    auto-revealed
+                  </span>
+                )}
+                <div className="flex-1" />
+                {!diagVisible ? (
+                  <span className="text-[10px] text-slate-500 group-hover:text-slate-200 transition flex items-center gap-1">
+                    <BookOpen className="w-3 h-3" /> Explain
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 group-hover:text-slate-200 transition">▲ Collapse</span>
+                )}
+              </button>
+
+              {diagVisible && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  {diagTriggerReasons.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 flex items-start gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="text-[11px] text-amber-400/90">
+                        Diagnostics visible because: {diagTriggerReasons.join(" · ")}
+                      </div>
+                    </div>
+                  )}
+
+                  <PanelConnectionLabel label="Monitors forecast calibration, ceiling enforcement, and safety bounds">
+                    <CalibrationChecksPanel data={(f as any)._calibrationChecks} />
+                  </PanelConnectionLabel>
+
+                  <CaseComparatorPanel
+                    question={activeQuestion?.text || ""}
+                    brand={activeQuestion?.subject}
+                    therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
+                    signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
+                    context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
+                  />
+
+                  <IntegrityPanel
+                    question={activeQuestion?.text || ""}
+                    probability={f?.currentProbability ? Math.round(f.currentProbability * 100) : undefined}
+                    signals={f?.signals?.map((s: any) => ({
+                      text: s.name || s.text,
+                      direction: s.direction || "neutral",
+                      strength: s.strength || "Medium",
+                      confidence: s.reliability || s.confidence || "Probable",
+                    }))}
+                    gates={f?.eventDecomposition?.event_gates?.map((g: any) => ({
+                      label: g.gate_label || g.label,
+                      status: g.status || "open",
+                      constrains_to: typeof g.constrains_probability_to === "number" ? Math.round(g.constrains_probability_to * 100) : 100,
+                    }))}
+                    judgment={f?.judgment ? {
+                      headline: f.judgment.headline,
+                      narrative: f.judgment.narrative,
+                      recommendation: f.judgment.recommendation,
+                      confidenceLevel: f.judgment.confidence_level,
+                    } : undefined}
+                  />
+                </div>
+              )}
+            </section>
           </>
         );
       })()}
-
-      {interpretation && (
-        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 space-y-4">
-          <div className="flex items-start gap-3">
-            <Zap className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
-            <div className="flex-1 space-y-3">
-              <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Recommended Action</div>
-              <div className="text-base font-semibold text-white">
-                {interpretation.recommendedAction || "Monitor signals and reassess."}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {interpretation.confidenceTags?.map((tag: string, i: number) => (
-                  <span key={i} className="rounded-full bg-blue-500/10 border border-blue-400/20 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">{tag}</span>
-                ))}
-                {interpretation.forecastInterpretation && (
-                  <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] text-slate-400">{interpretation.forecastInterpretation}</span>
-                )}
-              </div>
-              <div className="text-sm text-slate-300 leading-relaxed">
-                {interpretation.primaryStatement}
-              </div>
-
-              {f.confidenceLevel === "Low" && (
-                <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-400/30 bg-amber-400/5">
-                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <div className="text-xs text-amber-300 leading-relaxed">
-                    Low confidence — this forecast has limited signal support. Treat all outputs as preliminary and avoid high-commitment decisions until the evidence base strengthens.
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {interpretation.suggestedNextSteps?.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <Zap className="w-3 h-3" /> Next Actions
-                    </div>
-                    {interpretation.suggestedNextSteps.map((step: string, i: number) => (
-                      <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
-                        <span className="text-emerald-400 shrink-0">&gt;</span>
-                        <span>{step}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {interpretation.questionRefinements?.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <Zap className="w-3 h-3" /> Question Refinement
-                    </div>
-                    {interpretation.questionRefinements.map((q: string, i: number) => (
-                      <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
-                        <span className="text-blue-400 shrink-0">&gt;</span>
-                        <span>{q}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {interpretation.monitorItems?.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Monitor</div>
-                    {interpretation.monitorItems.map((item: string, i: number) => (
-                      <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
-                        <span className="text-amber-400 shrink-0">&gt;</span>
-                        <span>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {interpretation.riskStatement && (
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider">Risk</div>
-                    <div className="text-xs text-slate-400 leading-relaxed">{interpretation.riskStatement}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-[10px] text-slate-500">
-            <span>Derived from probability band</span>
-            <span>·</span>
-            <span>{f.confidenceLevel} confidence</span>
-            <span>·</span>
-            <span>adapter v1</span>
-          </div>
-        </div>
-      )}
-
-      <CaseComparatorPanel
-        question={activeQuestion?.text || ""}
-        brand={activeQuestion?.subject}
-        therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
-        signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
-        context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
-      />
-
-      <IntegrityPanel
-        question={activeQuestion?.text || ""}
-        probability={f?.currentProbability ? Math.round(f.currentProbability * 100) : undefined}
-        signals={f?.signals?.map((s: any) => ({
-          text: s.name || s.text,
-          direction: s.direction || "neutral",
-          strength: s.strength || "Medium",
-          confidence: s.reliability || s.confidence || "Probable",
-        }))}
-        gates={f?.eventDecomposition?.event_gates?.map((g: any) => ({
-          label: g.gate_label || g.label,
-          status: g.status || "open",
-          constrains_to: typeof g.constrains_probability_to === "number" ? Math.round(g.constrains_probability_to * 100) : 100,
-        }))}
-        judgment={f?.judgment ? {
-          headline: f.judgment.headline,
-          narrative: f.judgment.narrative,
-          recommendation: f.judgment.recommendation,
-          confidenceLevel: f.judgment.confidence_level,
-        } : undefined}
-      />
 
       <BottomLinks forecastData={f} />
     </>
