@@ -1453,6 +1453,63 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           <CircleAlert className="w-4 h-4 text-blue-400" />
           <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Decision Snapshot</h2>
         </div>
+
+        {(() => {
+          const outcomeVar = activeQuestion?.outcome || (f as any).outcomeDefinition || null;
+          const thresholdVal = activeQuestion?.threshold || (f as any).outcomeThreshold || null;
+          const populationVal = activeQuestion?.subject || (f as any).primaryBrand || null;
+          const horizonVal = activeQuestion?.timeHorizon || (f as any).timeHorizon || null;
+          const unitVal = (() => {
+            const t = (thresholdVal || "").toLowerCase();
+            if (/rx\/quarter/.test(t)) return "Rx/quarter";
+            if (/patient start/.test(t)) return "patient starts";
+            if (/formulari/.test(t)) return "formulary listings";
+            if (/site/.test(t)) return "sites";
+            if (/orr|%/.test(t)) return "%";
+            if (/market share/.test(t)) return "market share";
+            if (/phase/.test(t)) return "milestone";
+            return null;
+          })();
+          if (!outcomeVar && !thresholdVal) return null;
+          return (
+            <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-4 mb-4" data-testid="forecast-definition">
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Forecast Definition</div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {outcomeVar && (
+                  <div className="col-span-2">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">Outcome Variable</div>
+                    <div className="text-sm text-slate-200 mt-0.5 leading-snug">{outcomeVar}</div>
+                  </div>
+                )}
+                {thresholdVal && (
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">Threshold</div>
+                    <div className="text-sm font-semibold text-white mt-0.5">{thresholdVal}</div>
+                  </div>
+                )}
+                {populationVal && (
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">Population</div>
+                    <div className="text-sm text-slate-200 mt-0.5">{populationVal}</div>
+                  </div>
+                )}
+                {horizonVal && (
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">Time Horizon</div>
+                    <div className="text-sm text-slate-200 mt-0.5">{horizonVal}</div>
+                  </div>
+                )}
+                {unitVal && (
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">Unit</div>
+                    <div className="text-sm text-slate-200 mt-0.5">{unitVal}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {coreLoopStrip}
       </section>
 
