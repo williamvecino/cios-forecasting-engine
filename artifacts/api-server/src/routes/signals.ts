@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { computeLR, type Scope, type Timing } from "@workspace/db";
 import { logAudit } from "../lib/audit-service.js";
 import { isSafetyRiskCase, getProfileForQuestion } from "../lib/case-type-router.js";
+import { runCaseScoringEngine } from "../services/recalculateCaseScore.js";
 import { verifySignalEvidence } from "../lib/evidence-verification.js";
 
 interface CaseDirectionContext {
@@ -460,6 +461,12 @@ router.put("/signals/:signalId", async (req, res) => {
     afterState: updated as any,
   });
 
+  if (updated.caseId) {
+    runCaseScoringEngine(updated.caseId).catch((err: any) =>
+      console.error("[signals/put] auto-recalculate failed:", err?.message)
+    );
+  }
+
   res.json(updated);
 });
 
@@ -492,6 +499,12 @@ router.patch("/signals/:signalId", async (req, res) => {
     afterState: updated as any,
   });
 
+  if (updated.caseId) {
+    runCaseScoringEngine(updated.caseId).catch((err: any) =>
+      console.error("[signals/patch] auto-recalculate failed:", err?.message)
+    );
+  }
+
   res.json(updated);
 });
 
@@ -509,6 +522,12 @@ router.delete("/signals/:signalId", async (req, res) => {
     performedById: (req.body?.performedById as string) || null,
     beforeState: existing as any,
   });
+
+  if (existing.caseId) {
+    runCaseScoringEngine(existing.caseId).catch((err: any) =>
+      console.error("[signals/delete] auto-recalculate failed:", err?.message)
+    );
+  }
 
   res.status(204).send();
 });
@@ -610,6 +629,52 @@ router.put("/cases/:caseId/signal-state", async (req, res) => {
           updatedAt: new Date(),
         },
       });
+
+    const strengthToScore: Record<string, number> = { "High": 5, "Medium": 3, "Low": 1 };
+    const reliabilityToScore: Record<string, number> = { "Confirmed": 5, "Probable": 3, "Speculative": 1 };
+    const directionMap: Record<string, string> = { "Positive": "Positive", "Negative": "Negative", "Neutral": "Neutral", "positive": "Positive", "negative": "Negative", "neutral": "Neutral" };
+
+    const dbSignals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, caseId));
+    const dbMap = new Map(dbSignals.map(s => [s.signalId, s]));
+
+    for (const uiSig of signals) {
+      const dbSig = dbMap.get(uiSig.id);
+      if (!dbSig) continue;
+
+      const newStrength = uiSig.strength ? (strengthToScore[uiSig.strength] ?? dbSig.strengthScore) : dbSig.strengthScore;
+      const newReliability = uiSig.reliability ? (reliabilityToScore[uiSig.reliability] ?? dbSig.reliabilityScore) : dbSig.reliabilityScore;
+      const newDirection = uiSig.direction ? (directionMap[uiSig.direction] ?? dbSig.direction) : dbSig.direction;
+
+      const changed =
+        newStrength !== dbSig.strengthScore ||
+        newReliability !== dbSig.reliabilityScore ||
+        newDirection !== dbSig.direction;
+
+      if (changed) {
+        const lr = computeLR(
+          dbSig.signalType || "market_data",
+          newStrength as number,
+          newReliability as number,
+          (dbSig.scope || "direct") as Scope,
+          (dbSig.timing || "recent") as Timing,
+          newDirection as "Positive" | "Negative",
+        );
+        await db.update(signalsTable).set({
+          strengthScore: newStrength,
+          reliabilityScore: newReliability,
+          direction: newDirection,
+          strength: uiSig.strength || dbSig.strength,
+          reliability: uiSig.reliability || dbSig.reliability,
+          likelihoodRatio: lr,
+          weightedSignalScore: (newStrength as number) * (newReliability as number),
+          updatedAt: new Date(),
+        }).where(eq(signalsTable.signalId, dbSig.signalId));
+      }
+    }
+
+    runCaseScoringEngine(caseId).catch((err2: any) =>
+      console.error("[signal-state] auto-recalculate failed:", err2?.message)
+    );
     res.json({ ok: true });
   } catch (err: any) {
     console.error("[signal-state] save error:", err);
