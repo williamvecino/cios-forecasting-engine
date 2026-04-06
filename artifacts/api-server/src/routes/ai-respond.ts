@@ -66,7 +66,7 @@ router.post("/ai-respond/generate", async (req, res) => {
     const posteriorPct = body.posteriorProbability != null ? Math.round(body.posteriorProbability * 100) : null;
     const thresholdPct = body.thresholdProbability != null ? Math.round(body.thresholdProbability * 100) : null;
     const fallbackProb = body.constrainedProbability ?? body.probability ?? null;
-    const displayPct = thresholdPct ?? (fallbackProb != null ? Math.round(fallbackProb * 100) : null);
+    const displayPct = posteriorPct ?? thresholdPct ?? (fallbackProb != null ? Math.round(fallbackProb * 100) : null);
 
     let probabilityFrame = "";
     if (displayPct != null) {

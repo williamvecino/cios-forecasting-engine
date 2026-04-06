@@ -399,7 +399,7 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
     if (f.caseId && f.caseId !== activeCaseId) return [];
     const sa = f.sensitivityAnalysis;
     const signalDetails = f.signalDetails || [];
-    const totalShift = Math.round(((f.currentProbability ?? 0) - (f.priorProbability ?? 0)) * 100);
+    const totalShift = Math.round(((f.posteriorProbability ?? f.currentProbability ?? 0) - (f.priorProbability ?? 0)) * 100);
 
     const rawSignals: Array<{
       id: string;
@@ -579,7 +579,7 @@ function useDriversFromForecast(forecast: any, activeCaseId: string) {
     setDriverCache(stateHash, sorted);
 
     const largestShift = sorted.length > 0 ? Math.abs(sorted[0].contributionPoints) : 0;
-    logForecastRun(sorted.length, largestShift, f.currentProbability ?? 0);
+    logForecastRun(sorted.length, largestShift, f.posteriorProbability ?? f.currentProbability ?? 0);
 
     return sorted;
   }, [forecast, activeCaseId]);
@@ -1124,7 +1124,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
     const conf = (ff.confidenceLevel || "").toLowerCase();
     const lowConfidence = conf === "low" || conf === "very low";
     const prior = ff.priorProbability ?? 0.5;
-    const current = ff.currentProbability ?? prior;
+    const current = ff.posteriorProbability ?? ff.currentProbability ?? prior;
     const shiftPp = Math.abs((current - prior) * 100);
     const largeShift = shiftPp >= 10;
     const sigs = ff.signalDetails || [];
@@ -1222,7 +1222,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   }
 
   const f = forecast as any;
-  const delta = (f.currentProbability ?? 0) - (f.priorProbability ?? 0);
+  const delta = (f.posteriorProbability ?? f.currentProbability ?? 0) - (f.priorProbability ?? 0);
   const confidence: Confidence = (f.confidenceLevel ?? "Moderate") as Confidence;
   const interpretation = f.interpretation;
   const summary = interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window.";
@@ -1257,7 +1257,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         </div>
         <div className="p-4 border-r border-white/10">
           <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Forecast</div>
-          <div className="text-3xl font-bold text-white">{Math.round((f.currentProbability ?? 0) * 100)}%</div>
+          <div className="text-3xl font-bold text-white">{Math.round(((f as any).posteriorProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0) * 100)}%</div>
           <div className={cn("text-xs font-semibold mt-1", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
             {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts from prior ({Math.round((f.priorProbability ?? 0.5) * 100)}%)
           </div>
@@ -1324,8 +1324,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
   if (viewMode === "minimal") {
     const signalDetails: Array<{ signalId: string; description: string; direction: string; likelihoodRatio: number; effectiveLikelihoodRatio: number; correlationDampened?: boolean; signalType?: string }> = f.signalDetails || [];
-    const rawProb = f.rawProbability ?? f.currentProbability ?? 0;
-    const finalProb = f.currentProbability ?? 0;
+    const rawProb = f.rawProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0;
+    const finalProb = f.posteriorProbability ?? f.currentProbability ?? 0;
     const priorProb = f.priorProbability ?? 0.5;
     const shift = finalProb - priorProb;
     const topContributors = drivers.slice(0, 8);
@@ -1523,10 +1523,10 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         const hasGatesLocal = decomp && decomp.event_gates && decomp.event_gates.length > 0;
         const brandProb = hasGatesLocal
           ? decomp.brand_outlook_probability
-          : ((f as any).brandOutlookProbability ?? f.currentProbability ?? 0.5);
+          : ((f as any).brandOutlookProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0.5);
         const apiThreshold: number | null = (f as any).thresholdProbability ?? null;
         const apiDistComputed = (f as any).distributionComputed ?? true;
-        const dispProb = apiDistComputed ? (apiThreshold ?? f.currentProbability ?? 0.5) : null;
+        const dispProb = apiDistComputed ? (apiThreshold ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) : null;
         let storedPrior: number | null = null;
         try {
           const prev = localStorage.getItem(`cios.judgmentResult:${caseKey}`);
@@ -1535,11 +1535,11 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             if (typeof parsed.probability === "number") storedPrior = parsed.probability;
           }
         } catch {}
-        const circDelta = (brandProb ?? f.currentProbability ?? 0.5) - (storedPrior ?? f.priorProbability ?? 0.5);
+        const circDelta = (brandProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) - (storedPrior ?? f.priorProbability ?? 0.5);
         return (
           <div className="mt-4">
             <ForecastComparisonCircles
-              brandOutlookProb={brandProb ?? (f as any).posteriorProbability ?? f.currentProbability ?? 0.5}
+              brandOutlookProb={brandProb ?? (f as any).posteriorProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0.5}
               finalForecastProb={dispProb}
               priorProbability={storedPrior ?? f.priorProbability ?? 0.5}
               delta={circDelta}
@@ -1690,7 +1690,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         }
 
         if (!hasGates) {
-          const currentProb = f.currentProbability ?? 0.5;
+          const currentProb = f.posteriorProbability ?? f.currentProbability ?? 0.5;
           const defaultGates = [
             {
               gate_id: "clinical_evidence",
@@ -1746,7 +1746,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         const apiConsecutiveEqualityWarning = (f as any).consecutiveEqualityWarning ?? null;
         const apiThresholdProbability: number | null = (f as any).thresholdProbability ?? null;
         const displayProb = apiDistributionComputed
-          ? (apiThresholdProbability ?? f.currentProbability ?? 0.5)
+          ? (apiThresholdProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0.5)
           : null;
         const displayProbPct = displayProb != null ? Math.round(displayProb * 100) : null;
 
@@ -1760,7 +1760,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           : [];
         const localDistResult = hasGates
           ? computeDistributionForecast(
-              brandOutlookProb ?? f.currentProbability ?? 0.5,
+              brandOutlookProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5,
               confidenceLvl,
               sigCount,
               0.5,
@@ -1772,13 +1772,13 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         const readinessScore = (f?.distributionForecast?.readinessScore as number | undefined) ?? localDistResult?.readinessScore ?? 1.0;
 
         if (hasGates) {
-          const brandPct = Math.round((brandOutlookProb ?? f.currentProbability ?? 0.5) * 100);
-          const finalPct = displayProbPct ?? Math.round((f.currentProbability ?? 0.5) * 100);
+          const brandPct = Math.round((brandOutlookProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) * 100);
+          const finalPct = displayProbPct ?? Math.round((f.posteriorProbability ?? f.currentProbability ?? 0.5) * 100);
           const priorPct = Math.round((f.priorProbability ?? 0.5) * 100);
           const minGateCapPct = finalPct;
           const executionGapPts = Math.abs(brandPct - finalPct);
 
-          const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount);
+          const gateScenarios = generateGateScenarios(decomp!.event_gates, brandOutlookProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5, outcomeThresholdStr, confidenceLvl, sigCount);
           const individualScenarios = gateScenarios.filter(s => !s.id.startsWith("upgrade_all") && !s.id.startsWith("regress_all"));
           const gateUpside = individualScenarios.filter(s => s.delta > 0).reduce((sum, s) => sum + s.delta, 0);
           const gateDownside = individualScenarios.filter(s => s.delta < 0).reduce((sum, s) => sum + Math.abs(s.delta), 0);
@@ -2145,12 +2145,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       brand={activeQuestion?.subject}
                       therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
                       signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
-                      context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
+                      context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${(f?.posteriorProbability ?? f?.currentProbability) ? Math.round((f.posteriorProbability ?? f.currentProbability) * 100) : "unknown"}%.`}
                     />
 
                     <IntegrityPanel
                       question={activeQuestion?.text || ""}
-                      probability={f?.currentProbability ? Math.round(f.currentProbability * 100) : undefined}
+                      probability={(f?.posteriorProbability ?? f?.currentProbability) ? Math.round((f.posteriorProbability ?? f.currentProbability) * 100) : undefined}
                       signals={f?.signals?.map((s: any) => ({
                         text: s.name || s.text,
                         direction: s.direction || "neutral",
@@ -2192,7 +2192,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5 flex flex-col items-center">
                         <div className="text-sm font-medium text-slate-300 self-start">Current Probability</div>
                         <div className="mt-4">
-                          <ProbabilityGauge value={f.currentProbability} label="Likelihood Assessment" size={200} />
+                          <ProbabilityGauge value={f.posteriorProbability ?? f.currentProbability} label="Likelihood Assessment" size={200} />
                         </div>
                         <div className="flex items-center gap-4 mt-4 text-sm">
                           <div className="text-slate-400">
@@ -2293,12 +2293,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                     brand={activeQuestion?.subject}
                     therapeuticArea={typeof window !== "undefined" ? localStorage.getItem("cios.therapeuticArea") || undefined : undefined}
                     signals={f?.signals?.map((s: any) => ({ text: s.name || s.text, direction: s.direction || "neutral" }))}
-                    context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${f?.currentProbability ? Math.round(f.currentProbability * 100) : "unknown"}%.`}
+                    context={`Therapeutic area: ${activeQuestion?.subject || "unspecified"}. Current probability: ${(f?.posteriorProbability ?? f?.currentProbability) ? Math.round((f.posteriorProbability ?? f.currentProbability) * 100) : "unknown"}%.`}
                   />
 
                   <IntegrityPanel
                     question={activeQuestion?.text || ""}
-                    probability={f?.currentProbability ? Math.round(f.currentProbability * 100) : undefined}
+                    probability={(f?.posteriorProbability ?? f?.currentProbability) ? Math.round((f.posteriorProbability ?? f.currentProbability) * 100) : undefined}
                     signals={f?.signals?.map((s: any) => ({
                       text: s.name || s.text,
                       direction: s.direction || "neutral",

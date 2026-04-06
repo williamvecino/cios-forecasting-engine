@@ -378,7 +378,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     : null;
 
   const posteriorProbability = environmentAdjustedProbability;
-  const finalProbability = distributionProbability ?? posteriorProbability;
+  const finalProbability = posteriorProbability;
 
   const metricsIdentical = distributionComputed && distributionProbability != null
     && Math.abs(posteriorProbability - distributionProbability) < 0.001;

@@ -323,7 +323,7 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     caseData.outcomeThreshold,
   );
 
-  let finalProbability = distributionResult.thresholdProbability;
+  let finalProbability = environmentAdjustedProbability;
 
   const calculatedAt = new Date();
 

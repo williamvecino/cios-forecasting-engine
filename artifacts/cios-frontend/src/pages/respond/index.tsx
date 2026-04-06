@@ -174,7 +174,7 @@ function computeDiagnosticTriggers(forecastData: ForecastData): DiagnosticTrigge
   const lowConfidence = confidence === "low" || confidence === "very low";
 
   const prior = forecastData.priorProbability ?? 0.5;
-  const current = forecastData.currentProbability ?? forecastData.posteriorProbability ?? prior;
+  const current = forecastData.posteriorProbability ?? forecastData.currentProbability ?? prior;
   const shiftPp = Math.abs((current - prior) * 100);
   const largeShift = shiftPp >= 10;
 
@@ -648,7 +648,7 @@ function DiagnosticsSection({
   const independentCount = integrityMetrics?.independentSignalCount ?? signals.length;
 
   const prior = forecastData.priorProbability ?? 0.5;
-  const current = forecastData.currentProbability ?? forecastData.posteriorProbability ?? prior;
+  const current = forecastData.posteriorProbability ?? forecastData.currentProbability ?? prior;
   const shiftPp = Math.round((current - prior) * 100);
 
   const triggerReasons: string[] = [];
