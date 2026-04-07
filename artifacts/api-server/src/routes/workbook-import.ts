@@ -192,6 +192,10 @@ router.post(
           notes: `Imported from CIOS_Signal_Export sheet. Program: ${row.ProgramID}. Original label: ${row.SignalLabel}.`,
           strength: strength >= 0.7 ? "High" : strength >= 0.4 ? "Medium" : "Low",
           reliability: confidence >= 0.7 ? "High" : confidence >= 0.4 ? "Medium" : "Low",
+          dependencyRole: "Independent parallel evidence",
+          rootEvidenceId: randomUUID(),
+          novelInformationFlag: "Yes",
+          observedAt: new Date(),
         };
 
         const cls = classifyEvidence({

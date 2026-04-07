@@ -241,6 +241,10 @@ router.post("/candidates/:id/approve", async (req, res) => {
     createdByType: "human",
     evidenceClass: cls.evidenceClass,
     countTowardPosterior: cls.countTowardPosterior,
+    dependencyRole: "Independent parallel evidence",
+    rootEvidenceId: randomUUID(),
+    novelInformationFlag: "Yes",
+    observedAt: new Date(),
   }).returning();
 
   await db.update(candidateSignalsTable)

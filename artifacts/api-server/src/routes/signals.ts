@@ -68,6 +68,22 @@ function validateSignalInput(body: Record<string, any>): ValidationError[] {
     errors.push({ field: "correlationGroup", message: "Must be a string if provided." });
   }
 
+  if (!body.dependencyRole || typeof body.dependencyRole !== "string" || body.dependencyRole.trim().length === 0) {
+    errors.push({ field: "dependencyRole", message: "Required per integrity spec Rule 3. Must be one of: Root, Direct derivative, Independent parallel evidence." });
+  }
+
+  if (!body.rootEvidenceId || typeof body.rootEvidenceId !== "string" || body.rootEvidenceId.trim().length === 0) {
+    errors.push({ field: "rootEvidenceId", message: "Required per integrity spec Rule 3. Must reference the originating evidence source." });
+  }
+
+  if (!body.novelInformationFlag || typeof body.novelInformationFlag !== "string" || body.novelInformationFlag.trim().length === 0) {
+    errors.push({ field: "novelInformationFlag", message: "Required per integrity spec Rule 3. Must be 'Yes' or 'No'." });
+  }
+
+  if (!body.observedAt) {
+    errors.push({ field: "observedAt", message: "Required per integrity spec Rule 3. Must be a valid timestamp for when the signal was observed." });
+  }
+
   return errors;
 }
 
@@ -329,6 +345,8 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     notes: body.notes || null,
     interpretationId: body.interpretationId || null,
     rootEvidenceId: body.rootEvidenceId || null,
+    dependencyRole: body.dependencyRole || null,
+    novelInformationFlag: body.novelInformationFlag || null,
     signalFamily: body.signalFamily || null,
     lineageType: body.lineageType || null,
     sourceCluster: body.sourceCluster || null,
@@ -520,6 +538,9 @@ router.put("/signals/:signalId", async (req, res) => {
       sourceUrl: body.sourceUrl ?? undefined,
       evidenceSnippet: body.evidenceSnippet ?? undefined,
       observedAt: body.observedAt ? new Date(body.observedAt) : undefined,
+      dependencyRole: body.dependencyRole ?? undefined,
+      rootEvidenceId: body.rootEvidenceId ?? undefined,
+      novelInformationFlag: body.novelInformationFlag ?? undefined,
       evidenceStatus: updatedEvidence.status,
       notes: body.notes ?? undefined,
       evidenceClass: reclassification.evidenceClass,
@@ -553,8 +574,8 @@ router.patch("/signals/:signalId", async (req, res) => {
   if (!existing) return res.status(404).json({ error: "Not found" });
 
   const body = req.body;
-  const eligibilityFields = ["signalDescription", "sourceLabel", "sourceUrl", "observedAt"];
-  const allowedFields = ["signalDescription", "sourceLabel", "sourceUrl", "evidenceSnippet", "observedAt", "notes", "strength", "reliability", "correlationGroup"] as const;
+  const eligibilityFields = ["signalDescription", "sourceLabel", "sourceUrl", "observedAt", "dependencyRole", "rootEvidenceId", "novelInformationFlag"];
+  const allowedFields = ["signalDescription", "sourceLabel", "sourceUrl", "evidenceSnippet", "observedAt", "notes", "strength", "reliability", "correlationGroup", "dependencyRole", "rootEvidenceId", "novelInformationFlag"] as const;
   const updates: Record<string, any> = { updatedAt: new Date() };
 
   for (const field of allowedFields) {

@@ -124,6 +124,18 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
   if (!caseRow[0]) throw new Error(`Case not found: ${caseId}`);
   const caseData = caseRow[0];
 
+  const missingCaseFields: string[] = [];
+  if (!caseData.strategicQuestion) missingCaseFields.push("Decision Question");
+  if (!caseData.outcomeDefinition) missingCaseFields.push("Outcome Variable");
+  if (!caseData.outcomeThreshold) missingCaseFields.push("Threshold");
+  if (!caseData.timeHorizon) missingCaseFields.push("Time Horizon");
+  if (!caseData.priorProbability && caseData.priorProbability !== 0) missingCaseFields.push("Base Prior");
+  const hasSegment = caseData.specialty || caseData.targetType || caseData.geography;
+  if (!hasSegment) missingCaseFields.push("Segment Definition");
+  if (missingCaseFields.length > 0) {
+    throw new Error(`Case definition incomplete — forecast blocked (Rule 3). Missing: ${missingCaseFields.join(", ")}`);
+  }
+
   const allSignals = await db.select().from(signalsTable).where(
     and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
   );

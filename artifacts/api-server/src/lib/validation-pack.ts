@@ -280,6 +280,10 @@ export function buildSignalInserts(caseId: string, signals: SignalSpec[]) {
       sourceLabel: s.sourceLabel || null,
       evidenceSnippet: s.evidenceSnippet || null,
       signalScope: "market" as const,
+      dependencyRole: "Independent parallel evidence",
+      rootEvidenceId: randomUUID(),
+      novelInformationFlag: "Yes",
+      observedAt: new Date(),
       ...classifyEvidence({
         signalDescription: s.signalDescription,
         sourceLabel: s.sourceLabel || null,

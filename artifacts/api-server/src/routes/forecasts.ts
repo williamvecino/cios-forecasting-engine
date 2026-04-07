@@ -150,6 +150,22 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
   const caseData = caseRow[0];
 
+  const missingCaseFields: string[] = [];
+  if (!caseData.strategicQuestion) missingCaseFields.push("Decision Question (strategicQuestion)");
+  if (!caseData.outcomeDefinition) missingCaseFields.push("Outcome Variable (outcomeDefinition)");
+  if (!caseData.outcomeThreshold) missingCaseFields.push("Threshold (outcomeThreshold)");
+  if (!caseData.timeHorizon) missingCaseFields.push("Time Horizon (timeHorizon)");
+  if (!caseData.priorProbability && caseData.priorProbability !== 0) missingCaseFields.push("Base Prior (priorProbability)");
+  const hasSegment = caseData.specialty || caseData.targetType || caseData.geography;
+  if (!hasSegment) missingCaseFields.push("Segment Definition (specialty, targetType, or geography)");
+  if (missingCaseFields.length > 0) {
+    return res.status(422).json({
+      error: "Case definition incomplete — forecast blocked per integrity spec Rule 3.",
+      missingFields: missingCaseFields,
+      remedy: "Update the case to populate all required fields before running a forecast.",
+    });
+  }
+
   const allSignalsRaw = await db.select().from(signalsTable).where(
     and(eq(signalsTable.caseId, req.params.caseId), eq(signalsTable.status, "active"))
   ).orderBy(signalsTable.signalId);
