@@ -91,9 +91,9 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           )}
           <div className={cn(
             "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-            confidenceBadgeClass[confidence]
+            confidenceBadgeClass[confidence] || "bg-slate-500/15 text-slate-200 border border-slate-400/30"
           )}>
-            Confidence: {confidence}
+            Confidence: {confidence || "Pending"}
           </div>
           <div className="text-[10px] text-slate-600 leading-snug max-w-[220px]">
             {confidence === "High"
@@ -134,7 +134,7 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           </div>
           <div>
             <div className="text-[10px] text-slate-600 uppercase tracking-wider">Confidence</div>
-            <div className={cn("text-sm font-bold mt-0.5", confidenceBadgeClass[confidence].split(" ").find(c => c.startsWith("text-")) || "text-white")}>{confidence}</div>
+            <div className={cn("text-sm font-bold mt-0.5", (confidenceBadgeClass[confidence] || "text-white").split(" ").find(c => c.startsWith("text-")) || "text-white")}>{confidence || "Pending"}</div>
           </div>
           <div>
             <div className="text-[10px] text-slate-600 uppercase tracking-wider">Verdict</div>
