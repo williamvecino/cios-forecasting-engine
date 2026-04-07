@@ -70,6 +70,33 @@ function validateSignalInput(body: Record<string, any>): ValidationError[] {
   return errors;
 }
 
+function isValidUrl(str: string): boolean {
+  try {
+    const u = new URL(str);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch { return false; }
+}
+
+function computeEvidenceStatus(body: Record<string, any>): { status: "Verified" | "Rejected"; rejectionReasons: string[] } {
+  const reasons: string[] = [];
+
+  const sourceUrl = (body.sourceUrl ?? "").trim();
+  if (!sourceUrl || !isValidUrl(sourceUrl)) {
+    reasons.push("Missing or invalid source link");
+  }
+
+  const observedAt = body.observedAt ? new Date(body.observedAt) : null;
+  if (!observedAt || isNaN(observedAt.getTime())) {
+    reasons.push("Missing publication/event date");
+  } else if (observedAt.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
+    reasons.push("Event date is in the future");
+  }
+
+  return reasons.length === 0
+    ? { status: "Verified", rejectionReasons: [] }
+    : { status: "Rejected", rejectionReasons: reasons };
+}
+
 function validateForStatus(signal: Record<string, any>, targetStatus: string): ValidationError[] {
   const errors: ValidationError[] = [];
 
@@ -156,6 +183,16 @@ router.post("/cases/:caseId/signals", async (req, res) => {
       error: "Signal validation failed",
       violations: validationErrors,
       rule: "Signals must be structured and validated before entering the engine",
+    });
+  }
+
+  const evidence = computeEvidenceStatus(body);
+  if (evidence.status === "Rejected") {
+    return res.status(400).json({
+      error: "Evidence gate failed",
+      evidenceStatus: "Rejected",
+      rejectionReasons: evidence.rejectionReasons,
+      rule: "Signals require a verifiable source link, publication date, and a non-future event date to enter the register.",
     });
   }
 
@@ -273,6 +310,7 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     sourceUrl: body.sourceUrl || null,
     evidenceSnippet: body.evidenceSnippet || null,
     observedAt: body.observedAt ? new Date(body.observedAt) : null,
+    evidenceStatus: evidence.status,
     notes: body.notes || null,
     interpretationId: body.interpretationId || null,
     rootEvidenceId: body.rootEvidenceId || null,
@@ -415,6 +453,7 @@ router.put("/signals/:signalId", async (req, res) => {
   if (!existing) return res.status(404).json({ error: "Not found" });
 
   const lr = deriveDirectionSafeLR(body);
+  const updatedEvidence = computeEvidenceStatus(body);
 
   const [updated] = await db.update(signalsTable)
     .set({
@@ -445,6 +484,7 @@ router.put("/signals/:signalId", async (req, res) => {
       sourceUrl: body.sourceUrl ?? undefined,
       evidenceSnippet: body.evidenceSnippet ?? undefined,
       observedAt: body.observedAt ? new Date(body.observedAt) : undefined,
+      evidenceStatus: updatedEvidence.status,
       notes: body.notes ?? undefined,
       updatedAt: new Date(),
     })

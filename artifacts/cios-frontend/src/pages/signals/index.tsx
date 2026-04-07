@@ -409,6 +409,7 @@ interface Signal {
   superseded?: boolean;
   workbook_meta?: WorkbookMeta;
   verificationStatus?: string;
+  evidenceStatus?: string;
   identifierType?: string;
   identifierValue?: string;
   registryMatch?: boolean;
@@ -984,6 +985,32 @@ export default function SignalsPage() {
     if (persisted) return persisted;
     return [...fallbackSuggestions];
   });
+  useEffect(() => {
+    if (!caseKey) return;
+    const API = import.meta.env.VITE_API_URL || "";
+    fetch(`${API}/api/cases/${caseKey}/signals`)
+      .then((r) => r.json())
+      .then((dbSignals: any[]) => {
+        if (!Array.isArray(dbSignals) || dbSignals.length === 0) return;
+        const statusById = new Map<string, string>();
+        const statusByDesc = new Map<string, string>();
+        for (const ds of dbSignals) {
+          if (!ds.evidenceStatus) continue;
+          if (ds.signalId) {
+            statusById.set(ds.signalId, ds.evidenceStatus);
+            if (ds.signalId.startsWith("SIG-")) statusById.set(ds.signalId.slice(4), ds.evidenceStatus);
+          }
+          if (ds.signalDescription) statusByDesc.set(ds.signalDescription.slice(0, 80), ds.evidenceStatus);
+        }
+        if (statusById.size === 0 && statusByDesc.size === 0) return;
+        setSignals((prev) => prev.map((s) => {
+          const es = statusById.get(`SIG-${s.id}`) || statusById.get(s.id) || statusByDesc.get(s.text?.slice(0, 80) || "");
+          return es ? { ...s, evidenceStatus: es } : s;
+        }));
+      })
+      .catch(() => {});
+  }, [caseKey]);
+
   const [incomingEvents, setIncomingEvents] = useState<IncomingEvent[]>(fallbackEvents);
   const [aiLoading, setAiLoading] = useState(false);
   const [processingPhase, setProcessingPhase] = useState<"searching" | "collecting" | "normalizing" | "assessing" | "preparing" | "processing" | "ready" | null>(null);
@@ -1708,12 +1735,22 @@ export default function SignalsPage() {
         timing: "current",
         status: "active",
         sourceLabel: signal.source === "user" ? "User input" : "CIOS research",
+        sourceUrl: signal.source_url || "https://cios.internal/user-reported",
         evidenceSnippet: signal.text,
         signalScope: "market",
         observedAt: new Date().toISOString(),
         createdByType: "human",
         brand: subject || "",
       }),
+    }).then(async (resp) => {
+      if (resp && resp.ok) {
+        const data = await resp.json();
+        if (data.evidenceStatus) {
+          setSignals((prev) => prev.map((s) =>
+            s.id === signal.id ? { ...s, evidenceStatus: data.evidenceStatus } : s
+          ));
+        }
+      }
     }).catch(() => {});
   }
 
@@ -3318,6 +3355,19 @@ function MinimalSignalCard({
                 <span className="text-[9px] text-amber-400 font-semibold uppercase tracking-wider">Active Trigger Rule</span>
               </div>
               <div className="text-[10px] text-amber-400/80 mt-1">{signal.trigger_rules[0].condition}</div>
+            </div>
+          )}
+          {signal.evidenceStatus && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                signal.evidenceStatus === "Verified" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
+                signal.evidenceStatus === "Rejected" ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                "text-slate-400 bg-slate-500/10 border-slate-500/20"
+              }`}>
+                {signal.evidenceStatus === "Verified" ? "✓ Evidence Verified" :
+                 signal.evidenceStatus === "Rejected" ? "✗ Evidence Rejected" :
+                 "Evidence Pending"}
+              </span>
             </div>
           )}
           {signal.verificationStatus && (

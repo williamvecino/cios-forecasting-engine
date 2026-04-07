@@ -202,6 +202,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Clinical Evidence Strength",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -229,6 +232,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Operational / Delivery Friction",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
         correlationGroup: "TREATMENT_COMPLEXITY_ARIKAYCE",
       },
       {
@@ -257,6 +263,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Access / Reimbursement",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
 
       {
@@ -285,6 +294,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Safety / Pharmacovigilance",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
         correlationGroup: "SAFETY_TOLERABILITY_ARIKAYCE",
       },
       {
@@ -313,6 +325,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Safety / Pharmacovigilance",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
         correlationGroup: "SAFETY_TOLERABILITY_ARIKAYCE",
       },
       {
@@ -341,6 +356,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Market Access / Commercial",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
         correlationGroup: "SMALL_POPULATION_ARIKAYCE",
       },
       {
@@ -369,6 +387,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Prescriber Behavior",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
         correlationGroup: "SMALL_POPULATION_ARIKAYCE",
       },
       {
@@ -397,6 +418,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Prescriber Behavior",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
         correlationGroup: "TREATMENT_COMPLEXITY_ARIKAYCE",
       },
       {
@@ -425,6 +449,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Competitive / Standard-of-Care Pressure",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
 
       {
@@ -453,6 +480,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Clinical Evidence Strength",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -480,6 +510,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Prescriber Behavior",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -507,6 +540,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Guideline / SOC Movement",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -534,6 +570,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Access / Reimbursement",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
 
       {
@@ -562,6 +601,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Access / Reimbursement",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -589,6 +631,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Access / Reimbursement",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -616,6 +661,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Launch / Market Signals",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -643,6 +691,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Access / Reimbursement",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
 
       {
@@ -671,6 +722,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Clinical Evidence Strength",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -698,6 +752,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Competitive / SOC Pressure",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -725,6 +782,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Operational / Delivery Friction",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -752,6 +812,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Clinical Evidence Strength",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
 
       {
@@ -780,6 +843,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Operational / Delivery Friction",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -807,6 +873,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Operational / Delivery Friction",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -834,6 +903,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Clinical Evidence Strength",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
       {
         id: randomUUID(),
@@ -861,6 +933,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         status: "active",
         createdByType: "human",
         signalFamily: "Operational / Delivery Friction",
+        sourceUrl: "https://www.fda.gov/drugs/resources-information-approved-drugs",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
       },
     ]);
 
