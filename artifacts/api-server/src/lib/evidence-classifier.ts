@@ -62,6 +62,37 @@ function hasSpecificEvent(description: string): boolean {
   return eventIndicators.some((re) => re.test(description));
 }
 
+function isVagueDescription(description: string, signalType: string): boolean {
+  const words = description.split(/\s+/).filter(Boolean);
+  if (words.length <= 5) {
+    if (!hasNamedEntity(description) && !hasSpecificEvent(description)) {
+      return true;
+    }
+  }
+
+  if (signalType) {
+    const normalizedDesc = description.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+    const normalizedType = signalType.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+    if (normalizedDesc === normalizedType ||
+        normalizedDesc === `${normalizedType} signal` ||
+        normalizedDesc === `${normalizedType} signals` ||
+        normalizedDesc === `${normalizedType} indicator` ||
+        normalizedDesc === `${normalizedType} flag`) {
+      return true;
+    }
+  }
+
+  const vaguePatterns = [
+    /^(?:general|generic|misc|various|other|unspecified)\s/i,
+    /^(?:signal|indicator|flag|marker|data\s*point)\s*$/i,
+  ];
+  if (vaguePatterns.some(re => re.test(description.trim()))) {
+    return true;
+  }
+
+  return false;
+}
+
 export function classifyEvidence(input: ClassificationInput): ClassificationResult {
   const reasons: string[] = [];
   const desc = (input.signalDescription || "").trim();
@@ -90,6 +121,12 @@ export function classifyEvidence(input: ClassificationInput): ClassificationResu
   if (sourceIsAnalysis) {
     reasons.push("Source is 'Analysis' — analytical content excluded from probability calculation");
     return { evidenceClass: "ContextOnly", countTowardPosterior: false, classificationReasons: reasons };
+  }
+
+  const isVague = isVagueDescription(desc, input.signalType ?? "");
+  if (isVague) {
+    reasons.push("Description is too vague — restates signal type without specific claim, entity, or event");
+    return { evidenceClass: "Rejected", countTowardPosterior: false, classificationReasons: reasons };
   }
 
   const entity = hasNamedEntity(desc);
