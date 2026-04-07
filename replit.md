@@ -16,6 +16,36 @@ CIOS is a monorepo using pnpm workspaces. The frontend uses React, Vite, Tailwin
 - The system employs 17 bounded, deterministic, single-purpose AI agents with fixed I/O schemas and a `ProgramID` scope constraint.
 - A 7-agent chain registry defines the canonical forecasting pipeline: Question Structuring → Signal Identification → Signal Validation → Dependency Control → Forecast Engine → Interpretation → Scenario Simulation.
 
+**⛔ CORE FORECASTING ENGINE FREEZE (Default Operating State):**
+The following engine components are FROZEN. No modifications permitted during stabilization:
+- **Priors:** Prior probability values, environment-based prior multipliers.
+- **Posterior updating:** Bayesian odds multiplication, `applySignalsToPrior`, `oddsToProbability`, `probabilityToOdds`.
+- **Likelihood ratio weighting:** LR computation (`computeLR`), signal-type weighting, pharma multipliers.
+- **Dependency compression:** Correlation group dampening logic (`1 / (idx + 1)`), `dependencyRole` effects.
+- **Barrier / gate constraint formulas:** `computeReadinessScore`, `computeAchievableCeiling`, Beta distribution CDF, gate domination detection.
+- **Actor behavioral factor:** Net actor translation to Bayesian multiplier (`Math.exp(netActorTranslation / 4)`).
+- **Calibration weighting:** `lrCorrections`, `bucketCorrections`, `computeDecay`, overconfidence/volatility checks.
+- **Sensitivity analysis:** `deltaIfRemoved`, `deltaIfReversed` calculations.
+
+Frozen files (DO NOT MODIFY):
+- `artifacts/api-server/src/lib/forecast-engine.ts`
+- `artifacts/api-server/src/lib/core-forecast-engine.ts`
+- `artifacts/api-server/src/lib/adoption-distribution.ts`
+- `artifacts/api-server/src/lib/calibration-utils.ts`
+- `artifacts/api-server/src/lib/calibration-checks.ts`
+- `artifacts/api-server/src/lib/agent-engine.ts`
+- `artifacts/api-server/src/lib/signal-dependency-engine.ts`
+- `artifacts/api-server/src/lib/pharma-logic.ts`
+- `artifacts/cios-frontend/src/lib/core-forecast-engine.ts`
+- `artifacts/cios-frontend/src/lib/adoption-distribution.ts`
+
+Unfreeze conditions (ALL must be met):
+1. Input governance (Signal Eligibility Gate, evidence classification) confirmed stable.
+2. Output synchronization (pipeline reconciliation, forecast-result endpoint) confirmed stable.
+3. Repeated calibration failure observed across multiple cleaned cases (not a single case anomaly).
+4. Explicit versioned review process initiated — freeze cannot be silently bypassed.
+Changes to signal inputs, UI display, eligibility classification, or explanation layers are permitted and do not violate the freeze.
+
 **Key Features and Design Principles:**
 - **Bayesian Forecast Engine:** Transparent probability calculation.
 - **AI-Powered Signal Detection & Review:** AI for signal extraction with human oversight.
