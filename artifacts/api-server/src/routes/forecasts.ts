@@ -958,4 +958,109 @@ router.post("/forecast/recalculate", async (req, res) => {
   }
 });
 
+router.get("/pipeline-reconciliation", async (_req, res) => {
+  try {
+    const { runCaseScoringEngine } = await import("../services/recalculateCaseScore.js");
+    const cases = await db.select().from(casesTable);
+    const rows: any[] = [];
+
+    for (const c of cases) {
+      const caseId = c.caseId;
+      const storedBefore = c.currentProbability;
+
+      const allSignals = await db.select().from(signalsTable).where(
+        and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
+      );
+      const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
+      if (actors.length === 0) continue;
+
+      const corrections = await getLrCorrections();
+      const now = Date.now();
+      const adjusted = allSignals.map((s) => {
+        const correction = corrections[s.signalType ?? ""] ?? 1.0;
+        const ageMonths = s.createdAt ? (now - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30) : 0;
+        const decayFactor = computeDecay(s.signalType ?? "", ageMonths);
+        return { ...s, likelihoodRatio: Number(((s.likelihoodRatio ?? 1) * correction * decayFactor).toFixed(4)) };
+      });
+
+      let agentSim: Parameters<typeof runForecastEngine>[8] = undefined;
+      if (adjusted.length > 0) {
+        const { agentResults, agentDerivedActorTranslation } = simulateAgents(adjusted);
+        const enriched = agentResults.map((r) => {
+          const arch = AGENT_ARCHETYPES.find((a) => a.id === r.agentId);
+          return { ...r, influenceScore: arch?.influenceScore ?? 1 };
+        });
+        agentSim = { agentDerivedActorTranslation, agentResults: enriched };
+      }
+
+      const result = runForecastEngine(
+        caseId,
+        c.priorProbability,
+        adjusted,
+        actors.map((a) => ({
+          actorName: a.actorName, influenceWeight: a.influenceWeight,
+          positiveResponseFactor: a.positiveResponseFactor, negativeResponseFactor: a.negativeResponseFactor,
+          outcomeOrientation: a.outcomeOrientation, slotIndex: a.slotIndex,
+        })),
+        c.primarySpecialtyProfile ?? "General",
+        c.payerEnvironment ?? "Balanced",
+        c.guidelineLeverage ?? "Medium",
+        c.competitorProfile ?? "Entrenched standard of care",
+        agentSim
+      );
+
+      const prior = c.priorProbability;
+      const priorOdds = prior / (1 - prior);
+      const combinedLR = result.signalLrProduct;
+      const actorFactor = result.actorAdjustmentFactor;
+      const rawPosterior = result.currentProbability;
+      const expectedPosteriorOdds = priorOdds * combinedLR * actorFactor;
+      const expectedPosterior = expectedPosteriorOdds / (1 + expectedPosteriorOdds);
+      const posteriorReconciles = Math.abs(expectedPosterior - rawPosterior) < 0.0001;
+
+      const recalcResult = await runCaseScoringEngine(caseId);
+      const liveScore = recalcResult.score;
+
+      const [freshCase] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId));
+      const storedAfter = freshCase?.currentProbability ?? null;
+
+      const storedMatchesLive = Math.abs((storedAfter ?? 0) - liveScore) < 0.001;
+      const driftFromPrior = storedBefore !== null ? Number(Math.abs(storedBefore - liveScore).toFixed(4)) : null;
+
+      rows.push({
+        caseId,
+        brand: c.brand,
+        signalCount: allSignals.length,
+        prior: Number(prior.toFixed(4)),
+        combinedLR: Number(combinedLR.toFixed(4)),
+        actorFactor: Number(actorFactor.toFixed(4)),
+        actorSource: result.actorSource,
+        posterior: Number(rawPosterior.toFixed(4)),
+        posteriorReconciles,
+        targetLikelihood: Number(combinedLR.toFixed(4)),
+        barrierAdjustedProbability: Number(liveScore.toFixed(4)),
+        storedBeforeReconciliation: storedBefore ? Number(storedBefore.toFixed(4)) : null,
+        storedAfterReconciliation: storedAfter ? Number(storedAfter.toFixed(4)) : null,
+        driftFromPrior,
+        pipelineSynchronized: posteriorReconciles && storedMatchesLive,
+      });
+    }
+
+    const allSynced = rows.every((r) => r.pipelineSynchronized);
+
+    res.json({
+      status: allSynced ? "SYNCHRONIZED" : "DESYNCHRONIZED",
+      cases: rows,
+      summary: {
+        totalCases: rows.length,
+        synchronized: rows.filter((r) => r.pipelineSynchronized).length,
+        desynchronized: rows.filter((r) => !r.pipelineSynchronized).length,
+      },
+    });
+  } catch (err: unknown) {
+    console.error("[pipeline-reconciliation] Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to compute reconciliation" });
+  }
+});
+
 export default router;
