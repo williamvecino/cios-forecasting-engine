@@ -49,7 +49,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         specialty: "Pulmonology / Infectious Disease",
         geography: "US",
         strategicQuestion:
-          "Will ARIKAYCE achieve first-line adoption of >4 prescriptions within 12 months given current validated signals?",
+          "Will ARIKAYCE achieve first-line adoption of >4 prescriptions within 12 months?",
         outcomeDefinition:
           "ARIKAYCE achieves >4 first-line prescriptions within forecast horizon.",
         outcomeThreshold: ">4 first-line prescriptions",
