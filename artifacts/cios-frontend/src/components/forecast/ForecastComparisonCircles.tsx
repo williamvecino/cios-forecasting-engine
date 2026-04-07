@@ -45,7 +45,8 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
 }: ForecastComparisonCirclesProps) {
   const thresholdAvailable = finalForecastProb != null && distributionComputed;
   const displayedPct = thresholdAvailable ? Math.round(finalForecastProb * 100) : null;
-  const verdict = displayedPct != null ? deriveVerdictFromProbability(displayedPct) : null;
+  const posteriorPct = Math.round(brandOutlookProb * 100);
+  const verdict = deriveVerdictFromProbability(posteriorPct);
   return (
     <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center">

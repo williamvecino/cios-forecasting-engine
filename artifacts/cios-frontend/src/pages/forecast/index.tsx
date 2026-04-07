@@ -1532,7 +1532,9 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           const prev = localStorage.getItem(`cios.judgmentResult:${caseKey}`);
           if (prev) {
             const parsed = JSON.parse(prev);
-            if (typeof parsed.probability === "number") storedPrior = parsed.probability;
+            if (typeof parsed.probability === "number") {
+              storedPrior = parsed.probability > 1 ? parsed.probability / 100 : parsed.probability;
+            }
           }
         } catch {}
         const circDelta = (brandProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) - (storedPrior ?? f.priorProbability ?? 0.5);
