@@ -37,6 +37,7 @@ import { buildCanonicalCase } from "../lib/canonical-case.js";
 import { computeDistributionForecast, computeThresholdSensitivity, type DistributionResult } from "../lib/adoption-distribution.js";
 import { runAllIntegrityTests, buildForecastSnapshotForIntegrity, type IntegrityRunSummary } from "../lib/integrity-tests.js";
 import { integrityTestResultsTable } from "@workspace/db";
+import { lookupPrecedentLr, ENGINE_VERSION } from "../lib/precedent-lookup.js";
 
 interface SafetyCeilingResult {
   applied: boolean;
@@ -260,7 +261,9 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
       ? (now - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30)
       : 0;
     const decayFactor = computeDecay(s.signalType ?? "", ageMonths);
-    const adjusted = (s.likelihoodRatio ?? 1) * correction * decayFactor;
+    const precedent = lookupPrecedentLr(s.signalType ?? "", s.direction ?? "negative");
+    const baseLr = precedent.matched ? precedent.assignedLr : (s.likelihoodRatio ?? 1);
+    const adjusted = baseLr * correction * decayFactor;
     return { ...s, likelihoodRatio: Number(adjusted.toFixed(4)) };
   });
 
@@ -600,6 +603,7 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
     topConstrainingActor: result.topConstrainingActor,
     miosRoutingCheck: result.interpretation.miosRoutingCheck,
     ohosRoutingCheck: result.interpretation.ohosRoutingCheck,
+    engineVersion: ENGINE_VERSION,
     lastUpdate: new Date(),
   }).where(eq(casesTable.caseId, req.params.caseId));
 
@@ -998,10 +1002,15 @@ router.get("/pipeline-reconciliation", async (_req, res) => {
       const corrections = await getLrCorrections();
       const now = Date.now();
       const adjusted = allSignals.map((s) => {
+        if (s.direction === "Neutral") {
+          return { ...s, likelihoodRatio: 1.0 };
+        }
         const correction = corrections[s.signalType ?? ""] ?? 1.0;
         const ageMonths = s.createdAt ? (now - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30) : 0;
         const decayFactor = computeDecay(s.signalType ?? "", ageMonths);
-        return { ...s, likelihoodRatio: Number(((s.likelihoodRatio ?? 1) * correction * decayFactor).toFixed(4)) };
+        const precedent = lookupPrecedentLr(s.signalType ?? "", s.direction ?? "negative");
+        const baseLr = precedent.matched ? precedent.assignedLr : (s.likelihoodRatio ?? 1);
+        return { ...s, likelihoodRatio: Number((baseLr * correction * decayFactor).toFixed(4)) };
       });
 
       let agentSim: Parameters<typeof runForecastEngine>[8] = undefined;

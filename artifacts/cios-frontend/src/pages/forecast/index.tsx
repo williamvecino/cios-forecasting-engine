@@ -1527,6 +1527,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         const apiThreshold: number | null = (f as any).thresholdProbability ?? null;
         const apiDistComputed = (f as any).distributionComputed ?? true;
         const dispProb = apiDistComputed ? (apiThreshold ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) : null;
+        const apiPrior = f.priorProbability ?? 0.5;
         let storedPrior: number | null = null;
         try {
           const prev = localStorage.getItem(`cios.judgmentResult:${caseKey}`);
@@ -1537,13 +1538,14 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             }
           }
         } catch {}
-        const circDelta = (brandProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) - (storedPrior ?? f.priorProbability ?? 0.5);
+        const effectivePrior = apiPrior;
+        const circDelta = (brandProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) - effectivePrior;
         return (
           <div className="mt-4">
             <ForecastComparisonCircles
               brandOutlookProb={brandProb ?? (f as any).posteriorProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0.5}
               finalForecastProb={dispProb}
-              priorProbability={storedPrior ?? f.priorProbability ?? 0.5}
+              priorProbability={effectivePrior}
               delta={circDelta}
               confidence={confidence}
               outcomeThreshold={activeQuestion?.threshold || (f as any).outcomeThreshold || null}

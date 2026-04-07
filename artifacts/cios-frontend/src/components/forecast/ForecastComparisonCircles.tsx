@@ -52,7 +52,7 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Evidence Strength</div>
-          <ProbabilityGauge value={brandOutlookProb} label="Before Barriers" size={180} />
+          <ProbabilityGauge value={brandOutlookProb} label="Based on Evidence" size={180} />
           <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
             How strong the case looks based on all evidence collected so far
           </div>
@@ -79,7 +79,7 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
           <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Target Likelihood</div>
           {thresholdAvailable ? (
             <>
-              <ProbabilityGauge value={finalForecastProb} label="After Barriers" size={180} />
+              <ProbabilityGauge value={finalForecastProb} label="After Constraints" size={180} />
               <div className="text-xs text-slate-400 leading-relaxed max-w-[220px]">
                 How likely the target will actually be reached once real-world barriers are factored in
               </div>
@@ -154,16 +154,18 @@ export const ForecastComparisonCircles = memo(function ForecastComparisonCircles
 });
 
 function ExecutionGapIndicator({ brandPct, finalPct }: { brandPct: number; finalPct: number }) {
-  const gap = brandPct - finalPct;
+  const barrierDelta = finalPct - brandPct;
 
-  if (gap === 0) return null;
+  if (barrierDelta === 0) return null;
 
-  const absGap = Math.abs(gap);
-  const isNegative = gap < 0;
+  const absDelta = Math.abs(barrierDelta);
+  const barriersReduced = barrierDelta < 0;
 
   let severity: "low" | "moderate" | "high" = "low";
-  if (absGap >= 30) severity = "high";
-  else if (absGap >= 15) severity = "moderate";
+  if (barriersReduced) {
+    if (absDelta >= 30) severity = "high";
+    else if (absDelta >= 15) severity = "moderate";
+  }
 
   const severityStyles = {
     low: "border-slate-500/30 bg-slate-500/5 text-slate-300",
@@ -177,26 +179,40 @@ function ExecutionGapIndicator({ brandPct, finalPct }: { brandPct: number; final
     high: "text-red-400",
   };
 
+  const label = barriersReduced ? "Constraint Gap" : "Threshold Gap";
+
+  let description: string;
+  let displaySign: string;
+  let arrow: string;
+
+  if (barriersReduced) {
+    displaySign = `\u2212${absDelta}`;
+    arrow = "▼";
+    description = absDelta >= 15
+      ? `Real-world constraints are reducing the forecast by ${absDelta} points — check the barriers below`
+      : "Constraints are having a small effect on the forecast";
+  } else {
+    displaySign = `+${absDelta}`;
+    arrow = "▲";
+    severity = "low";
+    description = `The target threshold is below the expected outcome — the ${absDelta}-point gap reflects achievability, not a barrier effect`;
+  }
+
   return (
     <div className="flex flex-col items-center justify-center px-4 py-3">
       <div className={`rounded-2xl border px-5 py-4 text-center space-y-2 min-w-[140px] ${severityStyles[severity]}`}>
-        <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">Barrier Impact</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</div>
         <div className={`text-2xl font-bold ${arrowColor[severity]}`}>
-          {isNegative ? "+" : ""}{absGap}
+          {displaySign}
           <span className="text-sm font-normal ml-1">pts</span>
         </div>
         <div className="flex items-center justify-center gap-1">
           <span className={`text-lg ${arrowColor[severity]}`}>
-            {isNegative ? "▲" : "▼"}
+            {arrow}
           </span>
         </div>
-        <div className="text-[10px] text-slate-500 leading-snug max-w-[140px]">
-          {isNegative
-            ? "Conditions are better than expected — the forecast is higher than the evidence alone would suggest"
-            : absGap >= 15
-            ? `Real-world barriers are reducing the forecast by ${absGap} points — check the constraints below to understand why`
-            : "Barriers are having a small effect on the forecast"
-          }
+        <div className="text-[10px] text-slate-500 leading-snug max-w-[160px]">
+          {description}
         </div>
       </div>
     </div>
