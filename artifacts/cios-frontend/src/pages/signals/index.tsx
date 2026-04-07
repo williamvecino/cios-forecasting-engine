@@ -410,6 +410,8 @@ interface Signal {
   workbook_meta?: WorkbookMeta;
   verificationStatus?: string;
   evidenceStatus?: string;
+  evidenceClass?: string;
+  countTowardPosterior?: boolean;
   identifierType?: string;
   identifierValue?: string;
   registryMatch?: boolean;
@@ -992,20 +994,24 @@ export default function SignalsPage() {
       .then((r) => r.json())
       .then((dbSignals: any[]) => {
         if (!Array.isArray(dbSignals) || dbSignals.length === 0) return;
-        const statusById = new Map<string, string>();
-        const statusByDesc = new Map<string, string>();
+        const enrichById = new Map<string, { evidenceStatus?: string; evidenceClass?: string; countTowardPosterior?: boolean }>();
+        const enrichByDesc = new Map<string, { evidenceStatus?: string; evidenceClass?: string; countTowardPosterior?: boolean }>();
         for (const ds of dbSignals) {
-          if (!ds.evidenceStatus) continue;
+          const data: { evidenceStatus?: string; evidenceClass?: string; countTowardPosterior?: boolean } = {};
+          if (ds.evidenceStatus) data.evidenceStatus = ds.evidenceStatus;
+          if (ds.evidenceClass) data.evidenceClass = ds.evidenceClass;
+          if (typeof ds.countTowardPosterior === "boolean") data.countTowardPosterior = ds.countTowardPosterior;
+          if (Object.keys(data).length === 0) continue;
           if (ds.signalId) {
-            statusById.set(ds.signalId, ds.evidenceStatus);
-            if (ds.signalId.startsWith("SIG-")) statusById.set(ds.signalId.slice(4), ds.evidenceStatus);
+            enrichById.set(ds.signalId, data);
+            if (ds.signalId.startsWith("SIG-")) enrichById.set(ds.signalId.slice(4), data);
           }
-          if (ds.signalDescription) statusByDesc.set(ds.signalDescription.slice(0, 80), ds.evidenceStatus);
+          if (ds.signalDescription) enrichByDesc.set(ds.signalDescription.slice(0, 80), data);
         }
-        if (statusById.size === 0 && statusByDesc.size === 0) return;
+        if (enrichById.size === 0 && enrichByDesc.size === 0) return;
         setSignals((prev) => prev.map((s) => {
-          const es = statusById.get(`SIG-${s.id}`) || statusById.get(s.id) || statusByDesc.get(s.text?.slice(0, 80) || "");
-          return es ? { ...s, evidenceStatus: es } : s;
+          const enrichment = enrichById.get(`SIG-${s.id}`) || enrichById.get(s.id) || enrichByDesc.get(s.text?.slice(0, 80) || "");
+          return enrichment ? { ...s, ...enrichment } : s;
         }));
       })
       .catch(() => {});
@@ -1745,9 +1751,17 @@ export default function SignalsPage() {
     }).then(async (resp) => {
       if (resp && resp.ok) {
         const data = await resp.json();
-        if (data.evidenceStatus) {
+        const updates: Partial<Signal> = {};
+        if (data.evidenceStatus) updates.evidenceStatus = data.evidenceStatus;
+        if (data.evidenceClass) updates.evidenceClass = data.evidenceClass;
+        if (typeof data.countTowardPosterior === "boolean") updates.countTowardPosterior = data.countTowardPosterior;
+        if (data._classification) {
+          updates.evidenceClass = data._classification.evidenceClass;
+          updates.countTowardPosterior = data._classification.countTowardPosterior;
+        }
+        if (Object.keys(updates).length > 0) {
           setSignals((prev) => prev.map((s) =>
-            s.id === signal.id ? { ...s, evidenceStatus: data.evidenceStatus } : s
+            s.id === signal.id ? { ...s, ...updates } : s
           ));
         }
       }
@@ -3357,17 +3371,44 @@ function MinimalSignalCard({
               <div className="text-[10px] text-amber-400/80 mt-1">{signal.trigger_rules[0].condition}</div>
             </div>
           )}
-          {signal.evidenceStatus && (
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
-                signal.evidenceStatus === "Verified" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
-                signal.evidenceStatus === "Rejected" ? "text-red-400 bg-red-500/10 border-red-500/20" :
-                "text-slate-400 bg-slate-500/10 border-slate-500/20"
-              }`}>
-                {signal.evidenceStatus === "Verified" ? "✓ Evidence Verified" :
-                 signal.evidenceStatus === "Rejected" ? "✗ Evidence Rejected" :
-                 "Evidence Pending"}
-              </span>
+          {(signal.evidenceClass || signal.evidenceStatus) && (
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {signal.evidenceClass && (
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                  signal.evidenceClass === "DynamicSignal" ? "text-blue-400 bg-blue-500/10 border-blue-500/20" :
+                  signal.evidenceClass === "StructuralContext" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
+                  signal.evidenceClass === "InterpretationNote" ? "text-slate-400 bg-slate-500/10 border-slate-500/20" :
+                  signal.evidenceClass === "RejectedArtifact" ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                  "text-slate-400 bg-slate-500/10 border-slate-500/20"
+                }`}>
+                  {signal.evidenceClass === "DynamicSignal" ? "◆ Dynamic Signal" :
+                   signal.evidenceClass === "StructuralContext" ? "◇ Context" :
+                   signal.evidenceClass === "InterpretationNote" ? "◈ Interpretation" :
+                   signal.evidenceClass === "RejectedArtifact" ? "✗ Rejected" :
+                   signal.evidenceClass}
+                </span>
+              )}
+              {signal.countTowardPosterior === true && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 uppercase tracking-wider">
+                  ✓ Counts Toward Forecast
+                </span>
+              )}
+              {signal.countTowardPosterior === false && signal.evidenceClass !== "RejectedArtifact" && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-500/5 px-2 py-0.5 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Explanation Only
+                </span>
+              )}
+              {signal.evidenceStatus && (
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                  signal.evidenceStatus === "Verified" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
+                  signal.evidenceStatus === "Rejected" ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                  "text-slate-400 bg-slate-500/10 border-slate-500/20"
+                }`}>
+                  {signal.evidenceStatus === "Verified" ? "✓ Evidence Verified" :
+                   signal.evidenceStatus === "Rejected" ? "✗ Evidence Rejected" :
+                   "Evidence Pending"}
+                </span>
+              )}
             </div>
           )}
           {signal.verificationStatus && (

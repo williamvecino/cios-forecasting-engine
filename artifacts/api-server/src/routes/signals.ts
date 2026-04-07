@@ -8,6 +8,7 @@ import { logAudit } from "../lib/audit-service.js";
 import { isSafetyRiskCase, getProfileForQuestion } from "../lib/case-type-router.js";
 import { runCaseScoringEngine } from "../services/recalculateCaseScore.js";
 import { verifySignalEvidence } from "../lib/evidence-verification.js";
+import { classifyEvidence } from "../lib/evidence-classifier.js";
 
 interface CaseDirectionContext {
   strategicQuestion: string | null;
@@ -196,6 +197,19 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     });
   }
 
+  const classification = classifyEvidence({
+    signalDescription: body.signalDescription,
+    sourceUrl: body.sourceUrl,
+    observedAt: body.observedAt,
+    noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
+    echoVsTranslation: body.echoVsTranslation || null,
+    dependencyRole: body.dependencyRole || null,
+    lineageType: body.lineageType || null,
+    signalType: body.signalType,
+    evidenceStatus: evidence.status,
+    direction: body.direction,
+  });
+
   const id = randomUUID();
   const signalId = body.signalId || `SIG-${Date.now()}`;
   const weightedScore = Number(body.strengthScore) * Number(body.reliabilityScore);
@@ -318,6 +332,8 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     lineageType: body.lineageType || null,
     sourceCluster: body.sourceCluster || null,
     noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
+    evidenceClass: classification.evidenceClass,
+    countTowardPosterior: classification.countTowardPosterior,
   }).returning();
 
   if (initialStatus === "active" || initialStatus === "validated") {
@@ -351,6 +367,11 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   });
 
   const response: Record<string, any> = { ...created };
+  response._classification = {
+    evidenceClass: classification.evidenceClass,
+    countTowardPosterior: classification.countTowardPosterior,
+    reasons: classification.classificationReasons,
+  };
   if (duplicateWarnings.length > 0) {
     response._integrityWarnings = {
       potentialDuplicates: duplicateWarnings,
@@ -455,6 +476,19 @@ router.put("/signals/:signalId", async (req, res) => {
   const lr = deriveDirectionSafeLR(body);
   const updatedEvidence = computeEvidenceStatus(body);
 
+  const reclassification = classifyEvidence({
+    signalDescription: body.signalDescription,
+    sourceUrl: body.sourceUrl,
+    observedAt: body.observedAt,
+    noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : (existing.noveltyFlag ?? true),
+    echoVsTranslation: body.echoVsTranslation || existing.echoVsTranslation || null,
+    dependencyRole: body.dependencyRole || existing.dependencyRole || null,
+    lineageType: body.lineageType || existing.lineageType || null,
+    signalType: body.signalType,
+    evidenceStatus: updatedEvidence.status,
+    direction: body.direction,
+  });
+
   const [updated] = await db.update(signalsTable)
     .set({
       signalDescription: body.signalDescription,
@@ -486,6 +520,8 @@ router.put("/signals/:signalId", async (req, res) => {
       observedAt: body.observedAt ? new Date(body.observedAt) : undefined,
       evidenceStatus: updatedEvidence.status,
       notes: body.notes ?? undefined,
+      evidenceClass: reclassification.evidenceClass,
+      countTowardPosterior: reclassification.countTowardPosterior,
       updatedAt: new Date(),
     })
     .where(eq(signalsTable.signalId, req.params.signalId))

@@ -241,7 +241,7 @@ export function recalculateGatesFromSignals(
     signalsByGate.get(targetGateId)!.push(mapping);
   }
 
-  const previousForecast = Math.round(computeConstrainedProbability(baseGates, brandOutlook, outcomeThreshold) * 100);
+  const previousForecast = Math.round(brandOutlook * 100);
 
   const updatedGates: EventGate[] = [];
   const gateImpacts: GateImpact[] = [];
@@ -298,7 +298,7 @@ export function recalculateGatesFromSignals(
     });
   }
 
-  const newForecast = Math.round(computeConstrainedProbability(updatedGates, brandOutlook, outcomeThreshold) * 100);
+  const newForecast = previousForecast;
 
   const diagnostics: SignalDiagnostic[] = allMappings.map(mapping => {
     const impact = gateImpacts.find(gi => gi.gate_id === mapping.target_gate_id);

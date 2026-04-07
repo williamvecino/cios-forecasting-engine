@@ -127,6 +127,13 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
   const allSignals = await db.select().from(signalsTable).where(
     and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
   );
+
+  const posteriorEligible = allSignals.filter(s => s.countTowardPosterior === true);
+  const excludedFromPosterior = allSignals.filter(s => s.countTowardPosterior !== true);
+  if (excludedFromPosterior.length > 0) {
+    console.log(`[recalc-evidence-gate] caseId=${caseId} total=${allSignals.length} posteriorEligible=${posteriorEligible.length} excluded=${excludedFromPosterior.length} (${excludedFromPosterior.map(s => s.evidenceClass).join(",")})`);
+  }
+
   const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
 
   if (actors.length === 0) throw new Error("No actors configured.");
@@ -139,7 +146,7 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     institutionName: caseData.institutionName ?? null,
     geography: caseData.geography ?? null,
   };
-  const eligibleSignals = filterEligibleSignals(allSignals, caseTargetContext);
+  const eligibleSignals = filterEligibleSignals(posteriorEligible, caseTargetContext);
   const guardedSignals = applyEventFamilyGuardrail(eligibleSignals);
   const dedupedSignals = deduplicateSignals(guardedSignals);
   const limitedSignals = enforceSignalLimit(dedupedSignals);

@@ -150,9 +150,13 @@ router.get("/cases/:caseId/forecast", async (req, res) => {
   if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
   const caseData = caseRow[0];
 
-  const allSignals = await db.select().from(signalsTable).where(
+  const allSignalsRaw = await db.select().from(signalsTable).where(
     and(eq(signalsTable.caseId, req.params.caseId), eq(signalsTable.status, "active"))
   ).orderBy(signalsTable.signalId);
+
+  const allSignals = allSignalsRaw.filter(s => s.countTowardPosterior === true);
+  const excludedSignals = allSignalsRaw.filter(s => s.countTowardPosterior !== true);
+
   const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
 
   if (actors.length === 0) {
@@ -968,9 +972,10 @@ router.get("/pipeline-reconciliation", async (_req, res) => {
       const caseId = c.caseId;
       const storedBefore = c.currentProbability;
 
-      const allSignals = await db.select().from(signalsTable).where(
+      const allSignalsRaw2 = await db.select().from(signalsTable).where(
         and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
       );
+      const allSignals = allSignalsRaw2.filter(s => s.countTowardPosterior === true);
       const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
       if (actors.length === 0) continue;
 
@@ -1060,6 +1065,63 @@ router.get("/pipeline-reconciliation", async (_req, res) => {
   } catch (err: unknown) {
     console.error("[pipeline-reconciliation] Error:", err);
     res.status(500).json({ error: err instanceof Error ? err.message : "Failed to compute reconciliation" });
+  }
+});
+
+router.get("/cases/:caseId/forecast-result", async (req, res) => {
+  try {
+    const caseRow = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
+    if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
+    const caseData = caseRow[0];
+
+    const allSignalsRaw = await db.select().from(signalsTable).where(
+      and(eq(signalsTable.caseId, req.params.caseId), eq(signalsTable.status, "active"))
+    ).orderBy(signalsTable.signalId);
+
+    const signalsByClass = {
+      DynamicSignal: allSignalsRaw.filter(s => s.evidenceClass === "DynamicSignal"),
+      StructuralContext: allSignalsRaw.filter(s => s.evidenceClass === "StructuralContext"),
+      InterpretationNote: allSignalsRaw.filter(s => s.evidenceClass === "InterpretationNote"),
+      RejectedArtifact: allSignalsRaw.filter(s => s.evidenceClass === "RejectedArtifact"),
+    };
+
+    const posteriorSignals = allSignalsRaw.filter(s => s.countTowardPosterior === true);
+
+    res.json({
+      caseId: caseData.caseId,
+      brand: caseData.brand,
+      strategicQuestion: caseData.strategicQuestion,
+      probability: caseData.currentProbability,
+      priorProbability: caseData.priorProbability,
+      confidenceLevel: caseData.confidenceLevel,
+      lastUpdate: caseData.lastUpdate,
+      evidenceGate: {
+        totalSignals: allSignalsRaw.length,
+        posteriorEligible: posteriorSignals.length,
+        excluded: allSignalsRaw.length - posteriorSignals.length,
+        byClass: {
+          DynamicSignal: signalsByClass.DynamicSignal.length,
+          StructuralContext: signalsByClass.StructuralContext.length,
+          InterpretationNote: signalsByClass.InterpretationNote.length,
+          RejectedArtifact: signalsByClass.RejectedArtifact.length,
+        },
+      },
+      signals: allSignalsRaw.map(s => ({
+        signalId: s.signalId,
+        description: (s.signalDescription || "").slice(0, 120),
+        direction: s.direction,
+        signalType: s.signalType,
+        evidenceClass: s.evidenceClass,
+        countTowardPosterior: s.countTowardPosterior,
+        likelihoodRatio: s.likelihoodRatio,
+        strengthScore: s.strengthScore,
+        reliabilityScore: s.reliabilityScore,
+        evidenceStatus: s.evidenceStatus,
+      })),
+    });
+  } catch (err: unknown) {
+    console.error("[forecast-result] Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to get forecast result" });
   }
 });
 
