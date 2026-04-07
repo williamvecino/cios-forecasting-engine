@@ -776,4 +776,39 @@ router.get("/cases/:caseId/signal-state", async (req, res) => {
   }
 });
 
+router.post("/signals/reclassify-all", async (_req, res) => {
+  try {
+    const allSignals = await db.select().from(signalsTable);
+    let updated = 0;
+    const changes: Array<{ signalId: string; caseId: string | null; from: string | null; to: string; reasons: string[] }> = [];
+    for (const s of allSignals) {
+      const result = classifyEvidence({
+        signalDescription: s.signalDescription ?? "",
+        sourceUrl: s.sourceUrl,
+        observedAt: s.observedAt,
+        noveltyFlag: (s as any).noveltyFlag ?? null,
+        echoVsTranslation: (s as any).echoVsTranslation ?? null,
+        dependencyRole: (s as any).dependencyRole ?? null,
+        lineageType: (s as any).lineageType ?? null,
+        signalType: s.signalType,
+        evidenceStatus: s.evidenceStatus,
+        direction: s.direction,
+      });
+      if (s.evidenceClass !== result.evidenceClass || s.countTowardPosterior !== result.countTowardPosterior) {
+        await db.update(signalsTable).set({
+          evidenceClass: result.evidenceClass,
+          countTowardPosterior: result.countTowardPosterior,
+        }).where(eq(signalsTable.signalId, s.signalId));
+        updated++;
+        changes.push({ signalId: s.signalId, caseId: s.caseId, from: s.evidenceClass, to: result.evidenceClass, reasons: result.classificationReasons });
+        console.log(`[reclassify] ${s.signalId}: ${s.evidenceClass} → ${result.evidenceClass} (${result.classificationReasons.join("; ")})`);
+      }
+    }
+    res.json({ total: allSignals.length, updated, changes, message: "Reclassification complete" });
+  } catch (err: any) {
+    console.error("[reclassify] error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

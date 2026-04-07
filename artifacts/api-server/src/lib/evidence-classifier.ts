@@ -9,6 +9,9 @@ const STRUCTURAL_KEYWORDS = [
   "referral pathway", "treatment algorithm", "clinical pathway",
   "demographic", "comorbidity profile", "baseline", "historical rate",
   "established practice", "current standard", "market dynamics",
+  "is concentrated among", "specialists at", "community pulmonologist",
+  "have never prescribed", "prescribing is", "prevalence at",
+  "subset eligible", "addressable market",
 ];
 
 const INTERPRETATION_KEYWORDS = [
@@ -51,12 +54,16 @@ function isValidUrl(str: string): boolean {
 
 function hasEventSpecificity(description: string): boolean {
   const eventIndicators = [
-    /\b(approved|rejected|submitted|filed|granted|launched|announced|reported|published|released|completed|initiated|enrolled|achieved|failed|withdrew|suspended|terminated|received|issued)\b/i,
+    /\b(approved|rejected|submitted|filed|granted|launched|announced|reported|reports|published|released|completed|initiated|enrolled|achieved|failed|withdrew|suspended|terminated|received|issued|demonstrated|shows|showed)\b/i,
     /\b(Q[1-4]\s*20\d{2}|January|February|March|April|May|June|July|August|September|October|November|December)\b/i,
     /\b(Phase\s*[I]{1,3}[ab]?|Phase\s*[1-4][ab]?|PDUFA|NDA|BLA|sNDA|sBLA|MAA|EMA|FDA)\b/i,
     /\b(trial|study|data|results|endpoint|p-value|hazard ratio|response rate|efficacy|safety)\b/i,
     /\b(contract|agreement|partnership|acquisition|licensing|deal|investment)\b/i,
     /\b(coverage|formulary|access|restriction|step therapy|prior authorization)\b/i,
+    /\b(discontinuation|adverse events?|tolerability|open-label|extension|conversion rate|sputum culture|monitoring|REMS)\b/i,
+    /\b(label change|label update|guideline update|guideline revision|practice guideline)\b/i,
+    /\b(real-world|registry|post-marketing|pharmacovigilance|observational)\b/i,
+    /\b(market entry|market withdrawal|approval|launch|filing|designation|breakthrough therapy)\b/i,
   ];
   return eventIndicators.some((re) => re.test(description));
 }
