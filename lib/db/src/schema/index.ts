@@ -37,3 +37,4 @@ export * from "./gold-set-cases";
 export * from "./forecast-snapshots";
 export * from "./case-signal-state";
 export * from "./integrity-test-results";
+export * from "./signal-precedent-library";

@@ -71,6 +71,7 @@ import gapGuardRouter from "./gap-guard.js";
 import integrityRouter from "./integrity.js";
 import agentCoherenceVerifierRouter from "./agent-coherence-verifier.js";
 import agentRegistryRouter from "./agent-registry.js";
+import precedentLibraryRouter from "./precedent-library.js";
 
 const router: IRouter = Router();
 
@@ -146,5 +147,6 @@ router.use(gapGuardRouter);
 router.use(integrityRouter);
 router.use(agentCoherenceVerifierRouter);
 router.use(agentRegistryRouter);
+router.use(precedentLibraryRouter);
 
 export default router;

@@ -28,6 +28,7 @@ import {
   type AdoptionPhase,
   type ForecastHorizonMonths,
 } from "../lib/forecast-environment.js";
+import { lookupPrecedentLr, ENGINE_VERSION, PRECEDENT_LIBRARY_VERSION, SIGNAL_SET_VERSION, CALCULATION_RULE_VERSION } from "../lib/precedent-lookup.js";
 
 const MAX_ACTIVE_SIGNALS = 25;
 
@@ -174,15 +175,35 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
 
   const corrections = await getLrCorrections();
   const now = Date.now();
+  const precedentMappings: Array<{ signalId: string; originalLr: number; precedentLr: number; precedentType: string; tier: string; matched: boolean; directionCorrected: boolean }> = [];
   const signalsWithAdjustedLR = signals.map((s) => {
     const correction = corrections[s.signalType ?? ""] ?? 1.0;
     const ageMonths = s.createdAt
       ? (now - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30)
       : 0;
     const decayFactor = computeDecay(s.signalType ?? "", ageMonths);
-    const adjusted = (s.likelihoodRatio ?? 1) * correction * decayFactor;
+
+    const precedent = lookupPrecedentLr(s.signalType ?? "", s.direction ?? "negative");
+    const baseLr = precedent.matched ? precedent.assignedLr : (s.likelihoodRatio ?? 1);
+    const adjusted = baseLr * correction * decayFactor;
+
+    precedentMappings.push({
+      signalId: s.signalId,
+      originalLr: s.likelihoodRatio ?? 1,
+      precedentLr: precedent.assignedLr,
+      precedentType: precedent.precedentType,
+      tier: precedent.reliabilityTier,
+      matched: precedent.matched,
+      directionCorrected: precedent.directionCorrected,
+    });
+
     return { ...s, likelihoodRatio: Number(adjusted.toFixed(4)) };
   });
+
+  if (precedentMappings.some(p => p.matched)) {
+    const matchCount = precedentMappings.filter(p => p.matched).length;
+    console.log(`[recalc-precedent] caseId=${caseId} matched=${matchCount}/${precedentMappings.length} engine=${ENGINE_VERSION} library=${PRECEDENT_LIBRARY_VERSION}`);
+  }
 
   const envHashFields = {
     specialty: caseData.primarySpecialtyProfile,
@@ -353,6 +374,7 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
     topConstrainingActor: result.topConstrainingActor,
     miosRoutingCheck: result.interpretation.miosRoutingCheck,
     ohosRoutingCheck: result.interpretation.ohosRoutingCheck,
+    engineVersion: ENGINE_VERSION,
     lastUpdate: calculatedAt,
   }).where(eq(casesTable.caseId, caseId));
 
@@ -379,6 +401,13 @@ export async function runCaseScoringEngine(caseId: string): Promise<RecalcResult
       largestShift: Number(largestShift.toFixed(4)),
       finalProbability,
     },
+    _engineVersion: {
+      engine: ENGINE_VERSION,
+      precedentLibrary: PRECEDENT_LIBRARY_VERSION,
+      signalSet: SIGNAL_SET_VERSION,
+      calculationRules: CALCULATION_RULE_VERSION,
+    },
+    _precedentMappings: precedentMappings,
     _dependencyAnalysis: {
       metrics: dependencyAnalysis.metrics,
       warnings: dependencyAnalysis.warnings,

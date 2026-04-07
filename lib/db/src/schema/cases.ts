@@ -48,6 +48,8 @@ export const casesTable = pgTable("cases", {
   miosRoutingCheck: text("mios_routing_check"),
   ohosRoutingCheck: text("ohos_routing_check"),
 
+  engineVersion: text("engine_version").default("CIOS_v17"),
+
   // Backward-compat alias kept for codegen consumers
   primaryBrand: text("primary_brand"),
 
