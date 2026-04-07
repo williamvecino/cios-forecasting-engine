@@ -240,6 +240,28 @@ ${body.entities?.length ? `**Groups**: ${body.entities.join(", ")}` : ""}${resea
         body.brandOutlookProbability ?? null,
         body.constrainedProbability ?? null,
       );
+    } else {
+      const barrierDecomp = aiContext.barrier_decomposition || {};
+      const entries = Object.entries(barrierDecomp);
+      let priorityBase = 80;
+      for (const [category, drivers] of entries) {
+        if (!Array.isArray(drivers)) continue;
+        for (const d of drivers) {
+          if (!d || typeof d !== "object") continue;
+          const action: DecisionAction = {
+            gateName: d.driver || category.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+            blockingCondition: d.current_state || "Unresolved barrier identified",
+            requiredAction: d.what_would_improve_it || "Develop mitigation strategy",
+            owner: "Strategy Lead",
+            timeline: "3-6 months",
+            resolutionMetric: d.expected_effect || "Measurable improvement in forecast probability",
+            forecastImpact: d.impact_on_adoption || d.impact_on_approval || d.impact_on_endpoint || "Moderate",
+            priorityScore: Math.max(20, priorityBase),
+          };
+          decisionActions.push(action);
+          priorityBase = Math.max(20, priorityBase - 10);
+        }
+      }
     }
 
     if (hasGates && derived && integrity) {
