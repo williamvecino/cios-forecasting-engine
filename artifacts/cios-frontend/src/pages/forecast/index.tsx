@@ -983,7 +983,12 @@ async function tryLoadSignalsFromApi(caseId: string): Promise<boolean> {
     const res = await fetch(`${baseUrl}api/cases/${caseId}/signals`);
     if (!res.ok) return false;
     const apiSignals = await res.json();
-    if (!Array.isArray(apiSignals) || apiSignals.length === 0) return false;
+    if (!Array.isArray(apiSignals)) return false;
+    if (apiSignals.length === 0) {
+      localStorage.setItem(`cios.signals:${caseId}`, JSON.stringify([]));
+      localStorage.setItem(`cios.signalsLocked:${caseId}`, "true");
+      return true;
+    }
 
     const signals = apiSignals.map((s: any) => ({
       id: s.signalId || s.id,
@@ -1015,11 +1020,15 @@ function checkForecastGate(caseId: string): { ready: boolean; failures: string[]
       if (hasSignals) {
         try {
           const parsed = JSON.parse(hasSignals);
-          const accepted = Array.isArray(parsed) ? parsed.filter((s: any) => s.accepted) : [];
-          if (accepted.length > 0) {
+          if (Array.isArray(parsed) && parsed.length === 0) {
             localStorage.setItem(`cios.signalsLocked:${caseId}`, "true");
           } else {
-            failures.push("No accepted signals found. Go to the Add Information step to review and accept signals.");
+            const accepted = Array.isArray(parsed) ? parsed.filter((s: any) => s.accepted) : [];
+            if (accepted.length > 0) {
+              localStorage.setItem(`cios.signalsLocked:${caseId}`, "true");
+            } else {
+              failures.push("No accepted signals found. Go to the Add Information step to review and accept signals.");
+            }
           }
         } catch {
           failures.push("Signals must be locked before running a forecast.");
