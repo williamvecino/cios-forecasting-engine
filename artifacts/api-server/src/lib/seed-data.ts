@@ -1,4 +1,5 @@
 import { db } from "@workspace/db";
+import { classifyEvidence } from "./evidence-classifier.js";
 import {
   casesTable,
   signalsTable,
@@ -175,7 +176,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
       },
     ]);
 
-    await db.insert(signalsTable).values([
+    const rawSignals = [
       {
         id: randomUUID(),
         signalId: "CS-001",
@@ -937,7 +938,20 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         observedAt: new Date("2025-12-15"),
         evidenceStatus: "Verified",
       },
-    ]);
+    ];
+
+    const classifiedSignals = rawSignals.map((s: any) => ({
+      ...s,
+      ...classifyEvidence({
+        signalDescription: s.signalDescription ?? "",
+        sourceUrl: s.sourceUrl ?? null,
+        sourceLabel: s.sourceLabel ?? null,
+        observedAt: s.observedAt ?? null,
+        signalType: s.signalType ?? null,
+        direction: s.direction ?? null,
+      }),
+    }));
+    await db.insert(signalsTable).values(classifiedSignals);
 
     await db.insert(actorsTable).values([
       {

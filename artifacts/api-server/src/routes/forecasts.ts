@@ -1079,10 +1079,9 @@ router.get("/cases/:caseId/forecast-result", async (req, res) => {
     ).orderBy(signalsTable.signalId);
 
     const signalsByClass = {
-      DynamicSignal: allSignalsRaw.filter(s => s.evidenceClass === "DynamicSignal"),
-      StructuralContext: allSignalsRaw.filter(s => s.evidenceClass === "StructuralContext"),
-      InterpretationNote: allSignalsRaw.filter(s => s.evidenceClass === "InterpretationNote"),
-      RejectedArtifact: allSignalsRaw.filter(s => s.evidenceClass === "RejectedArtifact"),
+      Eligible: allSignalsRaw.filter(s => s.evidenceClass === "Eligible"),
+      ContextOnly: allSignalsRaw.filter(s => s.evidenceClass === "ContextOnly"),
+      Rejected: allSignalsRaw.filter(s => s.evidenceClass === "Rejected"),
     };
 
     const posteriorSignals = allSignalsRaw.filter(s => s.countTowardPosterior === true);
@@ -1100,10 +1099,9 @@ router.get("/cases/:caseId/forecast-result", async (req, res) => {
         posteriorEligible: posteriorSignals.length,
         excluded: allSignalsRaw.length - posteriorSignals.length,
         byClass: {
-          DynamicSignal: signalsByClass.DynamicSignal.length,
-          StructuralContext: signalsByClass.StructuralContext.length,
-          InterpretationNote: signalsByClass.InterpretationNote.length,
-          RejectedArtifact: signalsByClass.RejectedArtifact.length,
+          Eligible: signalsByClass.Eligible.length,
+          ContextOnly: signalsByClass.ContextOnly.length,
+          Rejected: signalsByClass.Rejected.length,
         },
       },
       signals: allSignalsRaw.map(s => ({

@@ -3375,16 +3375,14 @@ function MinimalSignalCard({
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               {signal.evidenceClass && (
                 <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
-                  signal.evidenceClass === "DynamicSignal" ? "text-blue-400 bg-blue-500/10 border-blue-500/20" :
-                  signal.evidenceClass === "StructuralContext" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
-                  signal.evidenceClass === "InterpretationNote" ? "text-slate-400 bg-slate-500/10 border-slate-500/20" :
-                  signal.evidenceClass === "RejectedArtifact" ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                  signal.evidenceClass === "Eligible" ? "text-blue-400 bg-blue-500/10 border-blue-500/20" :
+                  signal.evidenceClass === "ContextOnly" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
+                  signal.evidenceClass === "Rejected" ? "text-red-400 bg-red-500/10 border-red-500/20" :
                   "text-slate-400 bg-slate-500/10 border-slate-500/20"
                 }`}>
-                  {signal.evidenceClass === "DynamicSignal" ? "◆ Dynamic Signal" :
-                   signal.evidenceClass === "StructuralContext" ? "◇ Context" :
-                   signal.evidenceClass === "InterpretationNote" ? "◈ Interpretation" :
-                   signal.evidenceClass === "RejectedArtifact" ? "✗ Rejected" :
+                  {signal.evidenceClass === "Eligible" ? "◆ Eligible" :
+                   signal.evidenceClass === "ContextOnly" ? "◇ Context Only" :
+                   signal.evidenceClass === "Rejected" ? "✗ Rejected" :
                    signal.evidenceClass}
                 </span>
               )}
@@ -3393,9 +3391,9 @@ function MinimalSignalCard({
                   ✓ Counts Toward Forecast
                 </span>
               )}
-              {signal.countTowardPosterior === false && signal.evidenceClass !== "RejectedArtifact" && (
+              {signal.countTowardPosterior === false && signal.evidenceClass !== "Rejected" && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-500/5 px-2 py-0.5 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Explanation Only
+                  Context Only
                 </span>
               )}
               {signal.evidenceStatus && (

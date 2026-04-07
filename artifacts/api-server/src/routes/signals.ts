@@ -200,6 +200,7 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   const classification = classifyEvidence({
     signalDescription: body.signalDescription,
     sourceUrl: body.sourceUrl,
+    sourceLabel: body.sourceLabel || null,
     observedAt: body.observedAt,
     noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
     echoVsTranslation: body.echoVsTranslation || null,
@@ -479,6 +480,7 @@ router.put("/signals/:signalId", async (req, res) => {
   const reclassification = classifyEvidence({
     signalDescription: body.signalDescription,
     sourceUrl: body.sourceUrl,
+    sourceLabel: body.sourceLabel || existing.sourceLabel || null,
     observedAt: body.observedAt,
     noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : (existing.noveltyFlag ?? true),
     echoVsTranslation: body.echoVsTranslation || existing.echoVsTranslation || null,
@@ -551,6 +553,7 @@ router.patch("/signals/:signalId", async (req, res) => {
   if (!existing) return res.status(404).json({ error: "Not found" });
 
   const body = req.body;
+  const eligibilityFields = ["signalDescription", "sourceLabel", "sourceUrl", "observedAt"];
   const allowedFields = ["signalDescription", "sourceLabel", "sourceUrl", "evidenceSnippet", "observedAt", "notes", "strength", "reliability", "correlationGroup"] as const;
   const updates: Record<string, any> = { updatedAt: new Date() };
 
@@ -558,6 +561,29 @@ router.patch("/signals/:signalId", async (req, res) => {
     if (body[field] !== undefined) {
       updates[field] = field === "observedAt" && body[field] ? new Date(body[field]) : body[field];
     }
+  }
+
+  const eligibilityChanged = eligibilityFields.some(f => body[f] !== undefined);
+  if (eligibilityChanged) {
+    const mergedDesc = body.signalDescription ?? existing.signalDescription ?? "";
+    const mergedSourceUrl = body.sourceUrl ?? existing.sourceUrl;
+    const mergedSourceLabel = body.sourceLabel ?? existing.sourceLabel;
+    const mergedObservedAt = body.observedAt ? new Date(body.observedAt) : existing.observedAt;
+    const reclass = classifyEvidence({
+      signalDescription: mergedDesc,
+      sourceUrl: mergedSourceUrl,
+      sourceLabel: mergedSourceLabel,
+      observedAt: mergedObservedAt,
+      noveltyFlag: (existing as any).noveltyFlag ?? null,
+      echoVsTranslation: (existing as any).echoVsTranslation ?? null,
+      dependencyRole: (existing as any).dependencyRole ?? null,
+      signalType: existing.signalType,
+      evidenceStatus: existing.evidenceStatus,
+      direction: existing.direction,
+    });
+    updates.evidenceClass = reclass.evidenceClass;
+    updates.countTowardPosterior = reclass.countTowardPosterior;
+    console.log(`[signals/patch] ${req.params.signalId} reclassified: ${existing.evidenceClass} → ${reclass.evidenceClass} (${reclass.classificationReasons.join("; ")})`);
   }
 
   const [updated] = await db.update(signalsTable)
@@ -785,6 +811,7 @@ router.post("/signals/reclassify-all", async (_req, res) => {
       const result = classifyEvidence({
         signalDescription: s.signalDescription ?? "",
         sourceUrl: s.sourceUrl,
+        sourceLabel: s.sourceLabel ?? null,
         observedAt: s.observedAt,
         noveltyFlag: (s as any).noveltyFlag ?? null,
         echoVsTranslation: (s as any).echoVsTranslation ?? null,

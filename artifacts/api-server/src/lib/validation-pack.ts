@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { computeLR, type Scope, type Timing } from "@workspace/db";
+import { classifyEvidence } from "./evidence-classifier.js";
 
 interface CaseSpec {
   caseId: string;
@@ -279,6 +280,12 @@ export function buildSignalInserts(caseId: string, signals: SignalSpec[]) {
       sourceLabel: s.sourceLabel || null,
       evidenceSnippet: s.evidenceSnippet || null,
       signalScope: "market" as const,
+      ...classifyEvidence({
+        signalDescription: s.signalDescription,
+        sourceLabel: s.sourceLabel || null,
+        signalType: s.signalType,
+        direction: s.direction,
+      }),
     };
   });
 }

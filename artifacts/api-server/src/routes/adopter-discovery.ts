@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { runDiscovery } from "../lib/adopter-discovery.js";
+import { classifyEvidence } from "../lib/evidence-classifier.js";
 
 
 const router = Router();
@@ -193,21 +194,30 @@ router.post("/discovery-candidates/:candidateId/send-to-cios", async (req, res) 
     const reliabilityNum = vs.reliability === "high" ? 5 : vs.reliability === "medium" ? 3 : 2;
     const direction = vs.direction === "positive" ? "Positive" : vs.direction === "negative" ? "Negative" : "Neutral";
 
+    const signalDesc = vs.evidenceSnippet || vs.signalType;
+    const mappedType = vs.signalType === "Specialty match" ? "Field intelligence"
+      : vs.signalType === "Trial participation" ? "Phase III clinical"
+      : vs.signalType === "Publication activity" ? "KOL endorsement"
+      : vs.signalType === "Conference faculty" ? "KOL endorsement"
+      : vs.signalType === "Institutional readiness" ? "Field intelligence"
+      : vs.signalType === "Formulary openness" ? "Access / commercial"
+      : vs.signalType === "Innovation adoption history" ? "Field intelligence"
+      : vs.signalType === "Procedural capability" ? "Field intelligence"
+      : vs.signalType === "Patient volume indicator" ? "Field intelligence"
+      : "Field intelligence";
+    const cls = classifyEvidence({
+      signalDescription: signalDesc,
+      sourceLabel: vs.sourceLabel || null,
+      signalType: mappedType,
+      direction,
+    });
+
     await db.insert(signalsTable).values({
       id: randomUUID(),
       signalId,
       caseId,
-      signalDescription: vs.evidenceSnippet || vs.signalType,
-      signalType: vs.signalType === "Specialty match" ? "Field intelligence"
-        : vs.signalType === "Trial participation" ? "Phase III clinical"
-        : vs.signalType === "Publication activity" ? "KOL endorsement"
-        : vs.signalType === "Conference faculty" ? "KOL endorsement"
-        : vs.signalType === "Institutional readiness" ? "Field intelligence"
-        : vs.signalType === "Formulary openness" ? "Access / commercial"
-        : vs.signalType === "Innovation adoption history" ? "Field intelligence"
-        : vs.signalType === "Procedural capability" ? "Field intelligence"
-        : vs.signalType === "Patient volume indicator" ? "Field intelligence"
-        : "Field intelligence",
+      signalDescription: signalDesc,
+      signalType: mappedType,
       direction,
       strengthScore: strengthNum,
       reliabilityScore: reliabilityNum,
@@ -219,6 +229,8 @@ router.post("/discovery-candidates/:candidateId/send-to-cios", async (req, res) 
       createdByType: "system",
       sourceLabel: vs.sourceLabel || null,
       evidenceSnippet: vs.evidenceSnippet || null,
+      evidenceClass: cls.evidenceClass,
+      countTowardPosterior: cls.countTowardPosterior,
     });
   }
 

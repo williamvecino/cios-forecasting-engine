@@ -8,7 +8,7 @@ export const timingEnum = pgEnum("signal_timing", ["early", "current", "late"]);
 export const SIGNAL_STATUSES = ["candidate", "reviewed", "validated", "active", "archived", "rejected"] as const;
 export type SignalStatus = typeof SIGNAL_STATUSES[number];
 
-export const EVIDENCE_CLASSES = ["DynamicSignal", "StructuralContext", "InterpretationNote", "RejectedArtifact"] as const;
+export const EVIDENCE_CLASSES = ["Eligible", "ContextOnly", "Rejected"] as const;
 export type EvidenceClass = typeof EVIDENCE_CLASSES[number];
 
 export const CREATED_BY_TYPES = ["human", "agent", "system"] as const;
@@ -94,7 +94,7 @@ export const signalsTable = pgTable("signals", {
   lineageType: text("lineage_type"),
   noveltyFlag: boolean("novelty_flag").default(true),
 
-  evidenceClass: text("evidence_class").default("DynamicSignal"),
+  evidenceClass: text("evidence_class").default("Eligible"),
   countTowardPosterior: boolean("count_toward_posterior").default(true),
 
   createdAt: timestamp("created_at").defaultNow(),

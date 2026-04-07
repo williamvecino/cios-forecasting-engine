@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import * as XLSX from "xlsx";
+import { classifyEvidence } from "../lib/evidence-classifier.js";
 
 const router = Router();
 
@@ -192,6 +193,17 @@ router.post(
           strength: strength >= 0.7 ? "High" : strength >= 0.4 ? "Medium" : "Low",
           reliability: confidence >= 0.7 ? "High" : confidence >= 0.4 ? "Medium" : "Low",
         };
+
+        const cls = classifyEvidence({
+          signalDescription: signal.signalDescription ?? "",
+          sourceUrl: signal.sourceUrl ?? null,
+          sourceLabel: signal.sourceLabel ?? null,
+          observedAt: signal.observedAt ?? null,
+          signalType: signal.signalType ?? null,
+          direction: signal.direction ?? null,
+        });
+        signal.evidenceClass = cls.evidenceClass;
+        signal.countTowardPosterior = cls.countTowardPosterior;
 
         importedSignals.push(signal);
       }

@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { computeLR, type Scope, type Timing } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { classifyEvidence } from "../lib/evidence-classifier.js";
 
 const router = Router();
 
@@ -179,6 +180,14 @@ router.patch("/candidates/:id", async (req, res) => {
   if (updated.status === "approved" && updated.promotedSignalId) {
     const rawTiming = (updated.timing ?? "current").toLowerCase();
     const timingMap: Record<string, string> = { past: "early", early: "early", current: "current", emerging: "late", late: "late" };
+    const cls = classifyEvidence({
+      signalDescription: updated.signalDescription ?? "",
+      sourceUrl: (updated as any).sourceUrl ?? null,
+      sourceLabel: (updated as any).sourceLabel ?? null,
+      observedAt: (updated as any).observedAt ?? null,
+      signalType: updated.signalType,
+      direction: updated.direction,
+    });
     await db.update(signalsTable).set({
       signalDescription: updated.signalDescription,
       signalType: updated.signalType,
@@ -188,6 +197,8 @@ router.patch("/candidates/:id", async (req, res) => {
       scope: updated.scope as any,
       timing: (timingMap[rawTiming] ?? "current") as any,
       likelihoodRatio: updated.likelihoodRatio ?? 1,
+      evidenceClass: cls.evidenceClass,
+      countTowardPosterior: cls.countTowardPosterior,
     }).where(eq(signalsTable.signalId, updated.promotedSignalId));
   }
 
@@ -205,6 +216,15 @@ router.post("/candidates/:id/approve", async (req, res) => {
   const normalizedTiming = timingMap[rawTiming] ?? "current";
   const safeLR = isNaN(candidate.likelihoodRatio ?? NaN) ? 1.0 : candidate.likelihoodRatio;
 
+  const cls = classifyEvidence({
+    signalDescription: candidate.signalDescription ?? "",
+    sourceUrl: (candidate as any).sourceUrl ?? null,
+    sourceLabel: (candidate as any).sourceLabel ?? null,
+    observedAt: (candidate as any).observedAt ?? null,
+    signalType: candidate.signalType,
+    direction: candidate.direction,
+  });
+
   const [newSignal] = await db.insert(signalsTable).values({
     id: randomUUID(),
     caseId: candidate.caseId,
@@ -219,6 +239,8 @@ router.post("/candidates/:id/approve", async (req, res) => {
     likelihoodRatio: safeLR,
     status: "active",
     createdByType: "human",
+    evidenceClass: cls.evidenceClass,
+    countTowardPosterior: cls.countTowardPosterior,
   }).returning();
 
   await db.update(candidateSignalsTable)
