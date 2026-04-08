@@ -422,7 +422,7 @@ export default function ForecastLedger() {
           <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-4 text-center">
             <Clock className="w-4 h-4 text-amber-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-amber-400">{pending.length}</div>
-            <div className="text-[10px] text-slate-500 mt-1">Open</div>
+            <div className="text-[10px] text-slate-500 mt-1">In Progress</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-4 text-center">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 mx-auto mb-2" />
