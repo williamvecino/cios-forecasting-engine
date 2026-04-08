@@ -9,6 +9,33 @@ import { lookupPrecedentLr } from "../lib/precedent-lookup.js";
 const router = Router();
 
 const MAX_APPROVE_BATCH = 20;
+
+function verifyTrialNamesNoCorpus(findings: any[]): any[] {
+  return findings.map((f) => {
+    const result = { ...f };
+
+    if (!result.trialName || typeof result.trialName !== "string" || result.trialName.trim().length === 0) {
+      result.trialName = null;
+      return result;
+    }
+
+    const originalTrialName = result.trialName;
+    console.log(`[PIVOTAL-SEARCH] UNVERIFIED TRIAL: "${originalTrialName}" — no source corpus available to verify. Flagging.`);
+
+    if (result.finding && typeof result.finding === "string") {
+      result.finding = result.finding.replace(
+        new RegExp(originalTrialName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
+        "[trial name unverified — confirm before approving]"
+      );
+    }
+
+    result.trialName = null;
+    result._trialVerification = "no_corpus_available";
+    result._originalTrialName = originalTrialName;
+
+    return result;
+  });
+}
 const SEARCH_RESULT_TTL_MS = 30 * 60 * 1000;
 
 interface StoredCandidate {
@@ -183,9 +210,15 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
       return res.status(502).json({ error: "Evidence search returned an unexpected format. Please try again." });
     }
 
+    console.log("[PIVOTAL-SEARCH] Raw LLM findings (pre-verification):", JSON.stringify(findings, null, 2));
+
+    const verifiedFindings = verifyTrialNamesNoCorpus(findings);
+
+    console.log("[PIVOTAL-SEARCH] Verified findings (post-processing):", JSON.stringify(verifiedFindings, null, 2));
+
     const candidateMap = new Map<string, StoredCandidate>();
 
-    for (const f of findings) {
+    for (const f of verifiedFindings) {
       const signalType = ALLOWED_SIGNAL_TYPES.has(f.signalType) ? f.signalType : "Field intelligence";
       const direction = f.direction === "Negative" ? "Negative" : "Positive";
       const strength = Math.min(5, Math.max(1, Number(f.strengthScore) || 3));
@@ -198,7 +231,7 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
       const candidate: StoredCandidate = {
         tempId: randomUUID(),
         category,
-        trialName: typeof f.trialName === "string" ? f.trialName.slice(0, 200) : null,
+        trialName: typeof f.trialName === "string" && f.trialName.length > 0 ? f.trialName.slice(0, 200) : null,
         pmid: pmid || null,
         sourceUrl: isSafeUrl(f.sourceUrl),
         finding: typeof f.finding === "string" ? f.finding.slice(0, 500) : "",

@@ -266,8 +266,10 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              {c.trialName && (
+                              {c.trialName ? (
                                 <span className="font-medium text-sm text-foreground">{c.trialName}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/50 italic">Trial not identified in sources</span>
                               )}
                               {c.pmid && (
                                 <span className="text-xs text-muted-foreground font-mono">PMID: {c.pmid}</span>
