@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import TopNav from "@/components/top-nav";
+import ExtractionServiceConfig from "@/components/system/ExtractionServiceConfig";
 import {
   BarChart3,
   BookOpen,
@@ -59,6 +60,13 @@ export default function SystemPage() {
             Advanced infrastructure, validation tools, and intelligence modules.
           </p>
         </div>
+
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-3">
+            Configuration
+          </h2>
+          <ExtractionServiceConfig />
+        </section>
 
         {SYSTEM_MODULES.map((section) => (
           <section key={section.section}>

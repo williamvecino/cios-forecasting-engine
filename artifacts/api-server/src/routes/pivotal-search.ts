@@ -543,6 +543,84 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
   });
 });
 
+router.get("/extraction-service/status", async (_req, res) => {
+  const { getExternalServiceUrl } = await import("../lib/document-fetcher.js");
+  const serviceUrl = getExternalServiceUrl();
+
+  if (!serviceUrl) {
+    return res.json({
+      configured: false,
+      url: null,
+      status: "not_configured",
+    });
+  }
+
+  try {
+    const healthUrl = `${serviceUrl.replace(/\/$/, "")}/health`;
+    const resp = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+    if (resp.ok) {
+      const data = await resp.json() as any;
+      return res.json({
+        configured: true,
+        url: serviceUrl,
+        status: "connected",
+        service: data.service || "unknown",
+      });
+    }
+    return res.json({ configured: true, url: serviceUrl, status: "unreachable" });
+  } catch {
+    return res.json({ configured: true, url: serviceUrl, status: "unreachable" });
+  }
+});
+
+router.post("/extraction-service/configure", async (req, res) => {
+  const { url } = req.body as { url?: string };
+  const { isExternalServiceUrlSafe } = await import("../lib/document-fetcher.js");
+
+  if (!url || !url.trim()) {
+    delete process.env.CIOS_EXTRACTION_SERVICE_URL;
+    return res.json({ configured: false, url: null, message: "Extraction service URL cleared." });
+  }
+
+  const cleaned = url.trim().replace(/\/$/, "");
+  if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+    return res.status(400).json({ error: "URL must start with http:// or https://" });
+  }
+
+  if (!isExternalServiceUrlSafe(cleaned)) {
+    return res.status(400).json({
+      error: "URL not allowed. Only ngrok, Cloudflare Tunnel, localtunnel, and Google Colab URLs are permitted.",
+    });
+  }
+
+  process.env.CIOS_EXTRACTION_SERVICE_URL = cleaned;
+
+  try {
+    const healthResp = await fetch(`${cleaned}/health`, { signal: AbortSignal.timeout(5000) });
+    if (healthResp.ok) {
+      return res.json({
+        configured: true,
+        url: cleaned,
+        status: "connected",
+        message: "Extraction service connected successfully.",
+      });
+    }
+    return res.json({
+      configured: true,
+      url: cleaned,
+      status: "unreachable",
+      message: "URL saved but service is not responding. Check that the Colab notebook is running.",
+    });
+  } catch {
+    return res.json({
+      configured: true,
+      url: cleaned,
+      status: "unreachable",
+      message: "URL saved but service is not responding. Start the Colab notebook and try again.",
+    });
+  }
+});
+
 router.post("/cases/:caseId/evidence-pipeline", async (req, res) => {
   const { caseId } = req.params;
   const { timeFilterMonths } = req.body as { timeFilterMonths?: number };

@@ -2,8 +2,105 @@ import * as cheerio from "cheerio";
 
 const FETCH_TIMEOUT_MS = 12000;
 const MAX_TEXT_LENGTH = 15000;
+const EXTERNAL_SERVICE_TIMEOUT_MS = 30000;
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+const BLOCKED_HOSTS = new Set([
+  "localhost", "127.0.0.1", "0.0.0.0", "::1",
+  "metadata.google.internal", "169.254.169.254",
+]);
+
+const ALLOWED_EXTRACTION_HOST_PATTERNS = [
+  /\.ngrok-free\.app$/,
+  /\.ngrok\.io$/,
+  /\.trycloudflare\.com$/,
+  /\.loca\.lt$/,
+];
+
+export function isExternalServiceUrlSafe(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    if (BLOCKED_HOSTS.has(parsed.hostname)) return false;
+    if (parsed.hostname.endsWith(".local") || parsed.hostname.endsWith(".internal")) return false;
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(parsed.hostname)) return false;
+    if (parsed.hostname.startsWith("169.254.")) return false;
+    if (ALLOWED_EXTRACTION_HOST_PATTERNS.some(p => p.test(parsed.hostname))) return true;
+    if (parsed.hostname.includes("colab") || parsed.hostname.includes("google")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export function getExternalServiceUrl(): string | null {
+  const url = process.env.CIOS_EXTRACTION_SERVICE_URL || null;
+  if (url && !isExternalServiceUrlSafe(url)) {
+    console.log(`[DOC-FETCH] External service URL blocked by safety check: ${url}`);
+    return null;
+  }
+  return url;
+}
+
+async function fetchViaExternalService(url: string): Promise<FetchedDocument | null> {
+  const serviceUrl = getExternalServiceUrl();
+  if (!serviceUrl) return null;
+
+  try {
+    const endpoint = `${serviceUrl.replace(/\/$/, "")}/extract`;
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(EXTERNAL_SERVICE_TIMEOUT_MS),
+    });
+
+    if (!resp.ok) return null;
+    const data = await resp.json() as any;
+
+    if (data.status === "error" || !data.text || data.text.length < 50) return null;
+
+    return {
+      url: data.url || url,
+      text: data.text.slice(0, MAX_TEXT_LENGTH * 3),
+      title: data.title || "",
+      contentType: `${data.type || "unknown"} (external service)`,
+      byteLength: data.length || data.text.length,
+      fetchedAt: new Date().toISOString(),
+    };
+  } catch (err: any) {
+    console.log(`[DOC-FETCH] External service failed for ${url}: ${err?.message}`);
+    return null;
+  }
+}
+
+async function fetchPubMedViaExternalService(pmid: string): Promise<{ text: string; title: string } | null> {
+  const serviceUrl = getExternalServiceUrl();
+  if (!serviceUrl) return null;
+
+  try {
+    const endpoint = `${serviceUrl.replace(/\/$/, "")}/pubmed`;
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pmid }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!resp.ok) return null;
+    const data = await resp.json() as any;
+
+    if (data.status === "error" || !data.text || data.text.length < 50) return null;
+
+    return {
+      text: data.text,
+      title: data.title || `PMID ${pmid}`,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export interface FetchedDocument {
   url: string;
@@ -189,11 +286,6 @@ async function fetchClinicalTrialsStudy(nctId: string): Promise<{ text: string; 
   }
 }
 
-const BLOCKED_HOSTS = new Set([
-  "localhost", "127.0.0.1", "0.0.0.0", "::1",
-  "metadata.google.internal", "169.254.169.254",
-]);
-
 function isUrlSafe(urlStr: string): boolean {
   try {
     const parsed = new URL(urlStr);
@@ -244,17 +336,37 @@ export async function fetchDocument(rawUrl: string): Promise<FetchedDocument> {
     fetchedAt: new Date().toISOString(),
   };
 
+  const isPdf = url.toLowerCase().endsWith(".pdf") || url.includes("/pdf/");
+  if (isPdf || url.includes("sec.gov/") || url.includes("edgar/")) {
+    const externalResult = await fetchViaExternalService(url);
+    if (externalResult) {
+      console.log(`[DOC-FETCH] External service: ${externalResult.text.length} chars for ${url.slice(0, 60)}`);
+      return externalResult;
+    }
+  }
+
   const pubmedMatch = url.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/);
   if (pubmedMatch) {
     const pmid = pubmedMatch[1];
-    console.log(`[DOC-FETCH] PubMed API path for PMID ${pmid}`);
+    console.log(`[DOC-FETCH] PubMed path for PMID ${pmid}`);
+
+    const externalPubmed = await fetchPubMedViaExternalService(pmid);
+    if (externalPubmed && externalPubmed.text.length > 50) {
+      result.text = externalPubmed.text;
+      result.title = externalPubmed.title;
+      result.contentType = "text/plain (PubMed via external service)";
+      result.byteLength = externalPubmed.text.length;
+      console.log(`[DOC-FETCH] PubMed external service: ${externalPubmed.text.length} chars for PMID ${pmid}`);
+      return result;
+    }
+
     const abstract = await fetchPubMedAbstract(pmid);
     if (abstract && abstract.text.length > 50) {
       result.text = abstract.text;
       result.title = abstract.title;
       result.contentType = "text/plain (PubMed API)";
       result.byteLength = abstract.text.length;
-      console.log(`[DOC-FETCH] PubMed API success: ${abstract.text.length} chars for PMID ${pmid}`);
+      console.log(`[DOC-FETCH] PubMed API: ${abstract.text.length} chars for PMID ${pmid}`);
       return result;
     }
     console.log(`[DOC-FETCH] PubMed API failed for PMID ${pmid}, falling through to web`);
@@ -330,6 +442,14 @@ export async function fetchDocument(rawUrl: string): Promise<FetchedDocument> {
     }
   } catch (err: any) {
     result.error = err?.message || "Fetch failed";
+  }
+
+  if (result.text.length < 200 && getExternalServiceUrl()) {
+    const externalFallback = await fetchViaExternalService(url);
+    if (externalFallback && externalFallback.text.length > result.text.length) {
+      console.log(`[DOC-FETCH] External fallback: ${externalFallback.text.length} chars for ${url.slice(0, 60)}`);
+      return externalFallback;
+    }
   }
 
   return result;
