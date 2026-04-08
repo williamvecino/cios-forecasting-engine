@@ -72,6 +72,7 @@ import integrityRouter from "./integrity.js";
 import agentCoherenceVerifierRouter from "./agent-coherence-verifier.js";
 import agentRegistryRouter from "./agent-registry.js";
 import precedentLibraryRouter from "./precedent-library.js";
+import pivotalSearchRouter from "./pivotal-search.js";
 
 const router: IRouter = Router();
 
@@ -148,5 +149,6 @@ router.use(integrityRouter);
 router.use(agentCoherenceVerifierRouter);
 router.use(agentRegistryRouter);
 router.use(precedentLibraryRouter);
+router.use(pivotalSearchRouter);
 
 export default router;

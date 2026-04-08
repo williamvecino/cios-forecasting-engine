@@ -64,6 +64,7 @@ import SignalDependencyPanel, { type SignalLineageInfo } from "@/components/sign
 import SignalMapPanel from "@/components/signals/SignalMapPanel";
 import DriverCoveragePanel from "@/components/signals/DriverCoveragePanel";
 import SignalCompletenessPanel from "@/components/signals/SignalCompletenessPanel";
+import PivotalEvidenceSearch from "@/components/signals/PivotalEvidenceSearch";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 function isMiosBaosSignal(s: any): boolean {
@@ -953,6 +954,16 @@ export default function SignalsPage() {
   );
 
   const caseKey = activeQuestion?.caseId || "unknown";
+
+  const [caseDetails, setCaseDetails] = useState<{ assetName?: string; diseaseState?: string; therapeuticArea?: string } | null>(null);
+  useEffect(() => {
+    if (!caseKey || caseKey === "unknown") return;
+    const API = import.meta.env.VITE_API_URL || "";
+    fetch(`${API}/api/cases/${caseKey}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setCaseDetails(data); })
+      .catch(() => {});
+  }, [caseKey]);
 
   const loadPersistedSignals = useCallback((): Signal[] | null => {
     try {
@@ -2243,6 +2254,50 @@ export default function SignalsPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {caseDetails?.assetName && (
+            <PivotalEvidenceSearch
+              caseId={caseKey}
+              drugName={caseDetails.assetName}
+              indication={caseDetails.diseaseState || caseDetails.therapeuticArea || ""}
+              onSignalsApproved={() => {
+                const API = import.meta.env.VITE_API_URL || "";
+                fetch(`${API}/api/cases/${caseKey}/signals`)
+                  .then((r) => r.json())
+                  .then((dbSignals: any[]) => {
+                    if (!Array.isArray(dbSignals) || dbSignals.length === 0) return;
+                    const newSignals: Signal[] = dbSignals
+                      .filter((ds: any) => ds.signalFamily === "structured-evidence" || ds.signalFamily === "pivotal-trial")
+                      .map((ds: any) => enrichSignalFields({
+                        id: ds.signalId?.replace(/^SIG-/, "") || ds.id,
+                        text: ds.signalDescription || "",
+                        caveat: "",
+                        direction: (ds.direction || "positive").toLowerCase() as any,
+                        strength: ds.strengthScore >= 4 ? "High" : ds.strengthScore >= 2 ? "Moderate" : "Low",
+                        reliability: ds.reliabilityScore >= 4 ? "Confirmed" : ds.reliabilityScore >= 2 ? "Credible" : "Anecdotal",
+                        impact: "moderate",
+                        category: "evidence",
+                        source: "user",
+                        accepted: true,
+                        source_url: ds.sourceUrl || null,
+                        countTowardPosterior: ds.countTowardPosterior ?? true,
+                        signal_family: ds.signalFamily || undefined,
+                        evidenceStatus: ds.evidenceStatus || "verified",
+                        evidenceClass: ds.evidenceClass || "Eligible",
+                      }, questionText, outcome));
+                    setSignals((prev) => {
+                      const existingIds = new Set(prev.map((s) => s.id));
+                      const toAdd = newSignals.filter((s) => !existingIds.has(s.id));
+                      if (toAdd.length === 0) return prev;
+                      const updated = [...prev, ...toAdd];
+                      persistSignals(updated);
+                      return updated;
+                    });
+                  })
+                  .catch(() => {});
+              }}
+            />
           )}
 
           {!showFindPanel ? (
