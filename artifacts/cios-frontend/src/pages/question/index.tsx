@@ -145,11 +145,9 @@ function generateScenariosFromDimensions(dims: OutcomeDimension[]): CompositeSce
 }
 
 const DEMO_CASES = [
-  { caseId: "CASE-DEMO-01", label: "Early adoption", question: "Will ARIKAYCE achieve target specialist adoption (≥4 Rx/quarter) within 12 months?" },
-  { caseId: "CASE-DEMO-02", label: "Competitive share", question: "Will CardioAsset X displace entrenched beta-blocker combinations in target cardiologist accounts over 18 months?" },
-  { caseId: "CASE-DEMO-03", label: "Policy / access", question: "Will NeuroModulator Z achieve formulary access in ≥3 major payer plans within 12 months?" },
-  { caseId: "CASE-DEMO-04", label: "Portfolio allocation", question: "Should portfolio investment prioritize Bispecific-401 over the PD-L1 combination program?" },
-  { caseId: "CASE-DEMO-05", label: "Operational readiness", question: "Will InfusionPlatform V achieve deployment readiness across ≥20 academic cancer centers within 18 months?" },
+  { caseId: "CASE-002", label: "HIGH ADOPTION", question: "Will Trikafta achieve >60% of new CF modulator starts in F508del patients within 24 months of approval?" },
+  { caseId: "CASE-003", label: "UNCERTAIN OUTCOME", question: "Will Arikayce achieve >30% of new MAC lung disease starts within 24 months of first-line FDA approval?" },
+  { caseId: "CASE-001", label: "STRUCTURAL BARRIERS", question: "Will veligrotug achieve ≥40% share of new TED biologic starts within 24 months at Tepezza-standard centers?" },
 ];
 
 interface Interpretation {
