@@ -457,6 +457,18 @@ router.post("/signals/:signalId/transition", async (req, res) => {
       updateFields.registryMatch = primary.registryMatch;
       updateFields.verificationTimestamp = new Date();
       updateFields.verificationRedFlags = primary.redFlags.length > 0 ? JSON.stringify(primary.redFlags) : null;
+
+      // Block activation if verification found an invalid identifier (anti-hallucination gate)
+      if (targetStatus === "active" && primary.verificationStatus === "invalid") {
+        return res.status(400).json({
+          error: "Evidence verification failed — cannot activate signal with invalid source identifier",
+          verificationStatus: primary.verificationStatus,
+          identifierType: primary.identifierType,
+          identifierValue: primary.identifierValue,
+          redFlags: primary.redFlags,
+          rule: "Signals with identifiers (PMID/DOI/NCT) that fail registry lookup cannot be activated. This prevents hallucinated citations from influencing forecasts. Fix the citation or remove the invalid identifier before activating.",
+        });
+      }
     }
   }
 
@@ -510,6 +522,17 @@ router.put("/signals/:signalId", async (req, res) => {
     direction: body.direction,
   });
 
+  // Anti-hallucination gate: verify evidence before allowing countTowardPosterior
+  let verifiedCountTowardPosterior = reclassification.countTowardPosterior;
+  if (reclassification.countTowardPosterior) {
+    const combinedText = `${body.evidenceSnippet || ""} ${body.sourceLabel || ""} ${body.notes || ""}`;
+    const verifications = await verifySignalEvidence(combinedText, body.sourceLabel);
+    const primary = verifications[0];
+    if (primary && primary.verificationStatus === "invalid") {
+      verifiedCountTowardPosterior = false;
+    }
+  }
+
   const [updated] = await db.update(signalsTable)
     .set({
       signalDescription: body.signalDescription,
@@ -545,7 +568,7 @@ router.put("/signals/:signalId", async (req, res) => {
       evidenceStatus: updatedEvidence.status,
       notes: body.notes ?? undefined,
       evidenceClass: reclassification.evidenceClass,
-      countTowardPosterior: reclassification.countTowardPosterior,
+      countTowardPosterior: verifiedCountTowardPosterior,
       updatedAt: new Date(),
     })
     .where(eq(signalsTable.signalId, req.params.signalId))
@@ -605,6 +628,17 @@ router.patch("/signals/:signalId", async (req, res) => {
     });
     updates.evidenceClass = reclass.evidenceClass;
     updates.countTowardPosterior = reclass.countTowardPosterior;
+
+    // Anti-hallucination gate: verify evidence before allowing countTowardPosterior
+    if (reclass.countTowardPosterior) {
+      const combinedText = `${body.evidenceSnippet ?? existing.evidenceSnippet ?? ""} ${mergedSourceLabel ?? ""} ${body.notes ?? existing.notes ?? ""}`;
+      const verifications = await verifySignalEvidence(combinedText, mergedSourceLabel ?? undefined);
+      const primary = verifications[0];
+      if (primary && primary.verificationStatus === "invalid") {
+        updates.countTowardPosterior = false;
+      }
+    }
+
     console.log(`[signals/patch] ${req.params.signalId} reclassified: ${existing.evidenceClass} → ${reclass.evidenceClass} (${reclass.classificationReasons.join("; ")})`);
   }
 
