@@ -1,7 +1,7 @@
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { lookupPrecedentLr } from "./precedent-lookup.js";
 import { randomUUID } from "crypto";
-import { classifyUrlTier, buildAuthoritativeQueries, TIER0_DOMAINS, lookupSocietyDomains, lookupSponsor, type SponsorProfile } from "./authoritative-sources.js";
+import { classifyUrlTier, buildAuthoritativeQueries, TIER0_DOMAINS, lookupSocietyDomains, lookupSponsor, lookupKnownTrials as lookupKnownTrialsShared, type SponsorProfile } from "./authoritative-sources.js";
 
 export interface EvidenceCandidate {
   tempId: string;
@@ -320,20 +320,6 @@ Return JSON with this structure:
   ]
 }`;
 
-const KNOWN_TRIALS: Record<string, string[]> = {
-  "veligrotug": ["THRIVE"],
-  "vrdn-001": ["THRIVE"],
-  "trikafta": ["AURORA"],
-  "elexacaftor": ["AURORA"],
-  "arikayce": ["ENCORE", "CONVERT", "ARISE"],
-  "amikacin liposome": ["ENCORE", "CONVERT", "ARISE"],
-  "leqembi": ["CLARITY AD"],
-  "lecanemab": ["CLARITY AD"],
-  "sublocade": ["NCT02357901"],
-  "buprenorphine sq": ["NCT02357901"],
-  "beovu": ["HAWK", "HARRIER"],
-  "brolucizumab": ["HAWK", "HARRIER"],
-};
 
 function buildSourceCorpus(searchResults: { category: string; results: NewsItem[] }[]): string {
   const parts: string[] = [];
@@ -348,11 +334,7 @@ function buildSourceCorpus(searchResults: { category: string; results: NewsItem[
 }
 
 function lookupKnownTrials(drugName: string): string[] | null {
-  const lower = drugName.toLowerCase();
-  for (const [key, trials] of Object.entries(KNOWN_TRIALS)) {
-    if (lower.includes(key)) return trials;
-  }
-  return null;
+  return lookupKnownTrialsShared(drugName);
 }
 
 const COMMON_ACRONYMS = new Set([
@@ -491,7 +473,12 @@ export async function runStructuredEvidenceSearch(
       { role: "system", content: EXTRACTION_PROMPT },
       {
         role: "user",
-        content: `Drug: ${drugName}\nIndication: ${indication}\n\nSearch results by category:\n${searchContext}\n\nExtract structured evidence findings as a JSON array.`,
+        content: `Drug: ${drugName}\nIndication: ${indication}${
+          (() => {
+            const kt = lookupKnownTrials(drugName);
+            return kt ? `\n\nKNOWN PIVOTAL TRIALS for ${drugName}: ${kt.join(", ")}. You MUST include a finding for EACH of these trials if the source text contains information about them.` : "";
+          })()
+        }\n\nSearch results by category:\n${searchContext}\n\nExtract structured evidence findings as a JSON array.`,
       },
     ],
     response_format: { type: "json_object" },

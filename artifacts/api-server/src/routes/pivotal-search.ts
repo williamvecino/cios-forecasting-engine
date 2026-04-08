@@ -6,33 +6,14 @@ import { randomUUID } from "crypto";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { lookupPrecedentLr } from "../lib/precedent-lookup.js";
 import { verifyPmid, verifyDoi, verifyNct, detectRedFlags } from "../lib/evidence-verification.js";
-import { classifyUrlTier, buildAuthoritativeQueries, lookupSponsor, type SponsorProfile } from "../lib/authoritative-sources.js";
+import { classifyUrlTier, buildAuthoritativeQueries, lookupSponsor, lookupKnownTrials as lookupKnownTrialsShared, type SponsorProfile } from "../lib/authoritative-sources.js";
 
 const router = Router();
 
 const MAX_APPROVE_BATCH = 20;
 
-const KNOWN_TRIALS: Record<string, string[]> = {
-  "veligrotug": ["THRIVE"],
-  "vrdn-001": ["THRIVE"],
-  "trikafta": ["AURORA"],
-  "elexacaftor": ["AURORA"],
-  "arikayce": ["ENCORE", "CONVERT", "ARISE"],
-  "amikacin liposome": ["ENCORE", "CONVERT", "ARISE"],
-  "leqembi": ["CLARITY AD"],
-  "lecanemab": ["CLARITY AD"],
-  "sublocade": ["NCT02357901"],
-  "buprenorphine sq": ["NCT02357901"],
-  "beovu": ["HAWK", "HARRIER"],
-  "brolucizumab": ["HAWK", "HARRIER"],
-};
-
 function lookupKnownTrials(drugName: string): string[] | null {
-  const lower = drugName.toLowerCase();
-  for (const [key, trials] of Object.entries(KNOWN_TRIALS)) {
-    if (lower.includes(key)) return trials;
-  }
-  return null;
+  return lookupKnownTrialsShared(drugName);
 }
 
 const COMMON_ACRONYMS = new Set([
@@ -311,6 +292,11 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
     .map((cat) => `## ${cat.category}\n${cat.queries.map((q) => `- "${q}"`).join("\n")}`)
     .join("\n\n");
 
+  const knownTrialsList = lookupKnownTrials(drugName);
+  const knownTrialsContext = knownTrialsList
+    ? `\n\nKNOWN PIVOTAL TRIALS for ${drugName}: ${knownTrialsList.join(", ")}. You MUST include a finding for EACH of these trials if you have real, verifiable data about them. Each trial should have its own separate finding entry with the trial name in the trialName field.`
+    : "";
+
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -321,7 +307,7 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
         { role: "system", content: PIVOTAL_SEARCH_PROMPT },
         {
           role: "user",
-          content: `Drug: ${drugName}\nIndication: ${indication}\n\nSearch queries by category:\n\n${queryListing}\n\nReturn a JSON array of the top findings across all categories.`,
+          content: `Drug: ${drugName}\nIndication: ${indication}${knownTrialsContext}\n\nSearch queries by category:\n\n${queryListing}\n\nReturn a JSON array of the top findings across all categories.`,
         },
       ],
     });

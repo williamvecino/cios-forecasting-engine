@@ -82,6 +82,29 @@ export const SPONSOR_LOOKUP: Record<string, { company: string; irUrl: string; ti
   "pegvaliase": { company: "BioMarin", irUrl: "ir.biomarin.com", ticker: "BMRN" },
 };
 
+export const KNOWN_TRIALS: Record<string, string[]> = {
+  "veligrotug": ["THRIVE"],
+  "vrdn-001": ["THRIVE"],
+  "trikafta": ["AURORA"],
+  "elexacaftor": ["AURORA"],
+  "arikayce": ["ENCORE", "CONVERT", "ARISE"],
+  "amikacin liposome": ["ENCORE", "CONVERT", "ARISE"],
+  "leqembi": ["CLARITY AD"],
+  "lecanemab": ["CLARITY AD"],
+  "sublocade": ["NCT02357901"],
+  "buprenorphine sq": ["NCT02357901"],
+  "beovu": ["HAWK", "HARRIER"],
+  "brolucizumab": ["HAWK", "HARRIER"],
+};
+
+export function lookupKnownTrials(drugName: string): string[] | null {
+  const lower = drugName.toLowerCase();
+  for (const [key, trials] of Object.entries(KNOWN_TRIALS)) {
+    if (lower.includes(key)) return trials;
+  }
+  return null;
+}
+
 export interface SponsorProfile {
   company: string;
   irUrl: string;
@@ -226,6 +249,21 @@ export function buildAuthoritativeQueries(
     (d) => `site:${d} ${drugName} ${indication}`,
   );
 
+  const knownTrials = lookupKnownTrials(drugName);
+  const trialSpecificQueries: string[] = [];
+  if (knownTrials) {
+    for (const trial of knownTrials) {
+      if (trial.startsWith("NCT")) {
+        trialSpecificQueries.push(`site:clinicaltrials.gov ${trial}`);
+        trialSpecificQueries.push(`site:pubmed.ncbi.nlm.nih.gov ${trial} ${drugName}`);
+      } else {
+        trialSpecificQueries.push(`"${trial}" trial ${drugName} results site:pubmed.ncbi.nlm.nih.gov`);
+        trialSpecificQueries.push(`"${trial}" trial ${drugName} ${indication}`);
+        trialSpecificQueries.push(`site:clinicaltrials.gov "${trial}" ${drugName}`);
+      }
+    }
+  }
+
   function buildSponsorQueries(categoryId: string): string[] {
     if (!sponsor) return [];
     const keywords = SPONSOR_CATEGORY_KEYWORDS[categoryId] || "";
@@ -248,6 +286,7 @@ export function buildAuthoritativeQueries(
       id: "clinical_auth",
       label: "Clinical Evidence",
       authoritativeQueries: [
+        ...trialSpecificQueries,
         `site:clinicaltrials.gov "${drugName}" "${indication}"`,
         `site:pubmed.ncbi.nlm.nih.gov ${drugName} ${indication}`,
         `${drugName} ${indication} phase 3 results pubmed after:${afterDate}`,
