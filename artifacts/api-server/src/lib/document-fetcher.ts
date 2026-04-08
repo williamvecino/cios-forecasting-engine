@@ -300,6 +300,13 @@ function isUrlSafe(urlStr: string): boolean {
   }
 }
 
+const SEC_USER_AGENT = "CIOS Research Tool cios-research@example.com";
+
+function getUserAgentForUrl(url: string): string {
+  if (url.includes("sec.gov") || url.includes("edgar")) return SEC_USER_AGENT;
+  return USER_AGENT;
+}
+
 async function fetchWithRedirectHandling(url: string): Promise<{ resp: Response; finalUrl: string } | { error: string }> {
   if (!isUrlSafe(url)) {
     return { error: "URL blocked by safety check" };
@@ -308,7 +315,7 @@ async function fetchWithRedirectHandling(url: string): Promise<{ resp: Response;
   const resp = await fetch(url, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     headers: {
-      "User-Agent": USER_AGENT,
+      "User-Agent": getUserAgentForUrl(url),
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     },
     redirect: "follow",
@@ -336,13 +343,14 @@ export async function fetchDocument(rawUrl: string): Promise<FetchedDocument> {
     fetchedAt: new Date().toISOString(),
   };
 
-  const isPdf = url.toLowerCase().endsWith(".pdf") || url.includes("/pdf/");
-  if (isPdf || url.includes("sec.gov/") || url.includes("edgar/")) {
+  const isPdf = url.toLowerCase().endsWith(".pdf") || url.includes("/pdf/") || url.includes("application/pdf");
+  if (isPdf) {
     const externalResult = await fetchViaExternalService(url);
     if (externalResult) {
-      console.log(`[DOC-FETCH] External service: ${externalResult.text.length} chars for ${url.slice(0, 60)}`);
+      console.log(`[DOC-FETCH] External service (PDF): ${externalResult.text.length} chars for ${url.slice(0, 60)}`);
       return externalResult;
     }
+    console.log(`[DOC-FETCH] External service unavailable for PDF, falling through to local fetch`);
   }
 
   const pubmedMatch = url.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/);
@@ -444,10 +452,10 @@ export async function fetchDocument(rawUrl: string): Promise<FetchedDocument> {
     result.error = err?.message || "Fetch failed";
   }
 
-  if (result.text.length < 200 && getExternalServiceUrl()) {
+  if (result.text.length < 200 && isPdf && getExternalServiceUrl()) {
     const externalFallback = await fetchViaExternalService(url);
     if (externalFallback && externalFallback.text.length > result.text.length) {
-      console.log(`[DOC-FETCH] External fallback: ${externalFallback.text.length} chars for ${url.slice(0, 60)}`);
+      console.log(`[DOC-FETCH] External PDF fallback: ${externalFallback.text.length} chars for ${url.slice(0, 60)}`);
       return externalFallback;
     }
   }

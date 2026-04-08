@@ -543,6 +543,26 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
   });
 });
 
+router.post("/test-fetch", async (req, res) => {
+  const { fetchDocument } = await import("../lib/document-fetcher.js");
+  const { url } = req.body as { url: string };
+  if (!url) return res.status(400).json({ error: "Missing url" });
+  try {
+    const doc = await fetchDocument(url);
+    return res.json({
+      url: doc.url,
+      title: doc.title,
+      contentType: doc.contentType,
+      textLength: doc.text.length,
+      byteLength: doc.byteLength,
+      first300: doc.text.slice(0, 300),
+      error: doc.error,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message });
+  }
+});
+
 router.get("/extraction-service/status", async (_req, res) => {
   const { getExternalServiceUrl } = await import("../lib/document-fetcher.js");
   const serviceUrl = getExternalServiceUrl();
