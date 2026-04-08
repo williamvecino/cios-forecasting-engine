@@ -73,6 +73,7 @@ import agentCoherenceVerifierRouter from "./agent-coherence-verifier.js";
 import agentRegistryRouter from "./agent-registry.js";
 import precedentLibraryRouter from "./precedent-library.js";
 import pivotalSearchRouter from "./pivotal-search.js";
+import completenessCheckRouter from "./completeness-check.js";
 
 const router: IRouter = Router();
 
@@ -150,5 +151,6 @@ router.use(agentCoherenceVerifierRouter);
 router.use(agentRegistryRouter);
 router.use(precedentLibraryRouter);
 router.use(pivotalSearchRouter);
+router.use(completenessCheckRouter);
 
 export default router;

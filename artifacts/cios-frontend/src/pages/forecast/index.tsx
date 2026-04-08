@@ -41,6 +41,7 @@ import {
   logForecastRun,
 } from "@/lib/forecast-performance";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
+import SignalCompletenessGate from "@/components/forecast/SignalCompletenessGate";
 
 interface IntegrityData {
   runId: string;
@@ -1247,6 +1248,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const confidenceCeiling = (f as any)._calibrationChecks?.confidenceCeiling ?? (f as any).distributionForecast?.achievableCeiling ?? null;
   const fragilityScore = (f as any)._calibrationChecks?.posteriorFragility ?? (f as any)._guardrailLog?.diagnostics?.largest_single_shift ?? null;
 
+  const [completenessBlocked, setCompletenessBlocked] = useState(false);
+
   const coreLoopStrip = (
     <div className="space-y-0" data-testid="core-loop-strip">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-0 rounded-2xl border border-white/10 bg-[#0A1736] overflow-hidden">
@@ -1443,18 +1446,22 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           >
             Minimal View
           </button>
-          <RecalculateForecastButton
-            caseId={caseId}
-            onComplete={() => {
-              queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
-              queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
-            }}
-          />
+          <div className={completenessBlocked ? "opacity-40 pointer-events-none" : ""}>
+            <RecalculateForecastButton
+              caseId={caseId}
+              onComplete={() => {
+                queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/forecast`] });
+                queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+              }}
+            />
+          </div>
           <Link href="/signals" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">
             <Zap className="w-3.5 h-3.5" /> Add Signals
           </Link>
         </div>
       </div>
+
+      <SignalCompletenessGate caseId={caseId} onBlockedChange={setCompletenessBlocked} />
 
       {/* === SECTION 1: DECISION SNAPSHOT (always visible) === */}
       <section data-testid="section-decision-snapshot">
