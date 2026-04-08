@@ -5,7 +5,13 @@ interface LifecycleDetection {
   rationale: string;
   fdaApprovalDate: string | null;
   searchedName: string;
+  rawStage: DrugStage;
+  overrideNote: string | null;
 }
+
+const NEW_INDICATION_KEYWORDS = ["first-line", "first line", "frontline", "treatment-naive", "treatment-naïve", "treatment naive", "newly diagnosed"];
+const INVESTIGATIONAL_KEYWORDS = ["phase 2", "phase 3", "phase ii", "phase iii", "investigational", "pending approval", "pre-approval"];
+const BIOSIMILAR_KEYWORDS = ["biosimilar", "generic"];
 
 function extractGenericName(drugName: string): string {
   const parenMatch = drugName.match(/\(([^)]+)\)/);
@@ -19,8 +25,52 @@ function extractGenericName(drugName: string): string {
   return drugName.split(/[\s(,]+/)[0].toLowerCase();
 }
 
+function applyIndicationOverride(
+  baseStage: DrugStage,
+  strategicQuestion: string,
+  fdaApprovalDate: string | null,
+): { stage: DrugStage; overrideNote: string | null; rationale: string } {
+  if (!strategicQuestion || strategicQuestion.trim().length === 0) {
+    return { stage: baseStage, overrideNote: null, rationale: "" };
+  }
+
+  const q = strategicQuestion.toLowerCase();
+
+  const isBiosimilar = BIOSIMILAR_KEYWORDS.some(kw => q.includes(kw));
+  if (isBiosimilar) {
+    return {
+      stage: "MATURE" as DrugStage,
+      overrideNote: "Stage overridden — question asks about biosimilar/generic entry",
+      rationale: "Question references biosimilar or generic. Stage set to Mature (biosimilar context).",
+    };
+  }
+
+  const isInvestigational = INVESTIGATIONAL_KEYWORDS.some(kw => q.includes(kw));
+  if (isInvestigational) {
+    return {
+      stage: "INVESTIGATIONAL",
+      overrideNote: "Stage overridden — question references investigational/pre-approval context",
+      rationale: "Question references investigational or pre-approval context. Stage set to Investigational.",
+    };
+  }
+
+  const isNewIndication = NEW_INDICATION_KEYWORDS.some(kw => q.includes(kw));
+  if (isNewIndication && (baseStage === "ESTABLISHED" || baseStage === "RECENTLY_APPROVED")) {
+    const approvalNote = fdaApprovalDate ? `drug approved ${fdaApprovalDate}` : "drug has existing approval";
+    const matchedKeyword = NEW_INDICATION_KEYWORDS.find(kw => q.includes(kw)) || "new indication";
+    return {
+      stage: "RECENTLY_APPROVED",
+      overrideNote: `Stage overridden — question asks about new indication not yet approved for this line (${approvalNote}, ${matchedKeyword} indication pending)`,
+      rationale: `New indication detected: question references "${matchedKeyword}" but drug has existing approval for a different line. Stage set to Recently Approved (new indication context).`,
+    };
+  }
+
+  return { stage: baseStage, overrideNote: null, rationale: "" };
+}
+
 export async function detectLifecycleStageFromFDA(
   drugName: string,
+  strategicQuestion?: string,
 ): Promise<LifecycleDetection | null> {
   if (!drugName || drugName.trim().length < 2) return null;
 
@@ -40,11 +90,19 @@ export async function detectLifecycleStageFromFDA(
     if (!resp.ok) {
       if (resp.status === 404) {
         console.log(`[lifecycle-detect] No FDA record for "${searchName}" — classifying as INVESTIGATIONAL`);
+        const rawStage: DrugStage = "INVESTIGATIONAL";
+        const override = strategicQuestion
+          ? applyIndicationOverride(rawStage, strategicQuestion, null)
+          : { stage: rawStage, overrideNote: null, rationale: "" };
         return {
-          stage: "INVESTIGATIONAL",
-          rationale: `No FDA approval record found for "${searchName}". Classified as investigational.`,
+          stage: override.stage,
+          rationale: override.overrideNote
+            ? `${override.rationale} (Original: No FDA approval record found for "${searchName}".)`
+            : `No FDA approval record found for "${searchName}". Classified as investigational.`,
           fdaApprovalDate: null,
           searchedName: searchName,
+          rawStage,
+          overrideNote: override.overrideNote,
         };
       }
       console.error(`[lifecycle-detect] openFDA returned ${resp.status}`);
@@ -75,11 +133,19 @@ export async function detectLifecycleStageFromFDA(
 
     if (!earliestApproval) {
       console.log(`[lifecycle-detect] FDA records found but no approval date for "${searchName}" — INVESTIGATIONAL`);
+      const rawStage: DrugStage = "INVESTIGATIONAL";
+      const override = strategicQuestion
+        ? applyIndicationOverride(rawStage, strategicQuestion, null)
+        : { stage: rawStage, overrideNote: null, rationale: "" };
       return {
-        stage: "INVESTIGATIONAL",
-        rationale: `FDA records exist for "${searchName}" but no original approval date found. Classified as investigational.`,
+        stage: override.stage,
+        rationale: override.overrideNote
+          ? `${override.rationale} (Original: FDA records exist but no approval date found.)`
+          : `FDA records exist for "${searchName}" but no original approval date found. Classified as investigational.`,
         fdaApprovalDate: null,
         searchedName: searchName,
+        rawStage,
+        overrideNote: override.overrideNote,
       };
     }
 
@@ -87,24 +153,35 @@ export async function detectLifecycleStageFromFDA(
     const yearsSinceApproval = (now.getTime() - earliestApproval.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
     const formattedDate = earliestApproval.toISOString().split("T")[0];
 
-    let stage: DrugStage;
-    let rationale: string;
+    let rawStage: DrugStage;
+    let rawRationale: string;
 
     if (yearsSinceApproval < 3) {
-      stage = "RECENTLY_APPROVED";
-      rationale = `FDA approval date: ${formattedDate} (${yearsSinceApproval.toFixed(1)} years ago). Recently approved.`;
+      rawStage = "RECENTLY_APPROVED";
+      rawRationale = `FDA approval date: ${formattedDate} (${yearsSinceApproval.toFixed(1)} years ago). Recently approved.`;
     } else {
-      stage = "ESTABLISHED";
-      rationale = `FDA approval date: ${formattedDate} (${yearsSinceApproval.toFixed(1)} years ago). Established product.`;
+      rawStage = "ESTABLISHED";
+      rawRationale = `FDA approval date: ${formattedDate} (${yearsSinceApproval.toFixed(1)} years ago). Established product.`;
     }
 
-    console.log(`[lifecycle-detect] "${searchName}" → ${stage} (approved ${formattedDate}, ${yearsSinceApproval.toFixed(1)} years ago)`);
+    const override = strategicQuestion
+      ? applyIndicationOverride(rawStage, strategicQuestion, formattedDate)
+      : { stage: rawStage, overrideNote: null, rationale: "" };
+
+    const finalStage = override.stage;
+    const finalRationale = override.overrideNote
+      ? `${override.rationale} (Original: ${rawRationale})`
+      : rawRationale;
+
+    console.log(`[lifecycle-detect] "${searchName}" → raw=${rawStage}, final=${finalStage} (approved ${formattedDate}, ${yearsSinceApproval.toFixed(1)} years ago)${override.overrideNote ? ` [OVERRIDE: ${override.overrideNote}]` : ""}`);
 
     return {
-      stage,
-      rationale,
+      stage: finalStage,
+      rationale: finalRationale,
       fdaApprovalDate: formattedDate,
       searchedName: searchName,
+      rawStage,
+      overrideNote: override.overrideNote,
     };
   } catch (err: any) {
     if (err.name === "AbortError") {

@@ -118,16 +118,20 @@ router.post("/cases", async (req, res) => {
     });
   }
 
-  let stageDetection: { stage: string; rationale: string } | null = null;
+  let stageDetection: { stage: string; rationale: string; rawStage?: string; overrideNote?: string | null } | null = null;
   try {
-    stageDetection = await detectLifecycleStageFromFDA(assetName);
+    stageDetection = await detectLifecycleStageFromFDA(assetName, body.strategicQuestion || "");
     if (stageDetection) {
       await db.update(casesTable).set({
         drugStage: stageDetection.stage,
         drugStageRationale: stageDetection.rationale,
+        drugStageRaw: stageDetection.rawStage || stageDetection.stage,
+        drugStageNote: stageDetection.overrideNote || null,
       }).where(eq(casesTable.caseId, caseId));
       (created as any).drugStage = stageDetection.stage;
       (created as any).drugStageRationale = stageDetection.rationale;
+      (created as any).drugStageRaw = stageDetection.rawStage || stageDetection.stage;
+      (created as any).drugStageNote = stageDetection.overrideNote || null;
     }
   } catch (err: any) {
     console.error("[lifecycle-detect] FDA lookup failed:", err.message);
@@ -140,6 +144,34 @@ router.get("/cases/:caseId", async (req, res) => {
   const row = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
   if (!row[0]) return res.status(404).json({ error: "Not found" });
   res.json(mapCase(row[0]));
+});
+
+router.post("/cases/:caseId/re-detect-stage", async (req, res) => {
+  try {
+    const [existing] = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
+    if (!existing) return res.status(404).json({ error: "Case not found" });
+
+    const detection = await detectLifecycleStageFromFDA(existing.assetName || "", existing.strategicQuestion || "");
+    if (!detection) return res.status(500).json({ error: "FDA lookup failed or timed out" });
+
+    await db.update(casesTable).set({
+      drugStage: detection.stage,
+      drugStageRationale: detection.rationale,
+      drugStageRaw: (detection as any).rawStage || detection.stage,
+      drugStageNote: (detection as any).overrideNote || null,
+    }).where(eq(casesTable.caseId, req.params.caseId));
+
+    return res.json({
+      caseId: req.params.caseId,
+      drugStage: detection.stage,
+      drugStageRationale: detection.rationale,
+      drugStageRaw: (detection as any).rawStage || detection.stage,
+      drugStageNote: (detection as any).overrideNote || null,
+      fdaApprovalDate: detection.fdaApprovalDate,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 router.patch("/cases/:caseId/lifecycle-stage", async (req, res) => {
@@ -384,6 +416,8 @@ function mapCase(c: typeof casesTable.$inferSelect) {
     lastUpdate: c.lastUpdate,
     drugStage: (c as any).drugStage || null,
     drugStageRationale: (c as any).drugStageRationale || null,
+    drugStageRaw: (c as any).drugStageRaw || null,
+    drugStageNote: (c as any).drugStageNote || null,
     signalCount: 0,
   };
 }

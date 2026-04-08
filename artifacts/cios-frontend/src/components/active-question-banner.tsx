@@ -55,6 +55,8 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
   const [showStageDropdown, setShowStageDropdown] = useState(false);
   const [localStage, setLocalStage] = useState<string | null>(null);
   const [localRationale, setLocalRationale] = useState<string | null>(null);
+  const [localStageRaw, setLocalStageRaw] = useState<string | null>(null);
+  const [localStageNote, setLocalStageNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeQuestion?.caseId || activeQuestion?.lifecycleStage || localStage) return;
@@ -65,6 +67,8 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
         if (data?.drugStage) {
           setLocalStage(data.drugStage);
           setLocalRationale(data.drugStageRationale || null);
+          setLocalStageRaw(data.drugStageRaw || null);
+          setLocalStageNote(data.drugStageNote || null);
           const stored = getStoredActiveQuestion();
           if (stored) {
             stored.lifecycleStage = data.drugStage;
@@ -78,6 +82,8 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
 
   const stage = localStage || activeQuestion?.lifecycleStage;
   const rationale = localRationale || activeQuestion?.lifecycleStageRationale;
+  const stageNote = localStageNote;
+  const stageRaw = localStageRaw;
   const badgeConfig = stage ? STAGE_BADGE_CONFIG[stage] : null;
 
   const handleStageOverride = useCallback(async (newStage: string) => {
@@ -156,7 +162,7 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
                       className={`rounded-full border px-3 py-1 font-medium flex items-center gap-1 hover:opacity-80 transition-opacity ${badgeConfig.style}`}
                       title={rationale || "Click to change lifecycle stage"}
                     >
-                      {badgeConfig.label}
+                      {stageNote ? `${badgeConfig.shortLabel} — New Indication` : badgeConfig.label}
                       <ChevronDown className="w-3 h-3" />
                     </button>
                     {showStageDropdown && (
@@ -177,8 +183,16 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
                             {opt.label}
                           </button>
                         ))}
-                        {rationale && (
+                        {stageNote && (
                           <div className="border-t border-border/50 px-3 py-2 mt-1">
+                            <div className="text-[10px] font-medium text-blue-400/80">{stageNote}</div>
+                            {stageRaw && stageRaw !== stage && (
+                              <div className="text-[10px] text-muted-foreground/50 mt-0.5">Drug-level stage: {STAGE_BADGE_CONFIG[stageRaw]?.label || stageRaw}</div>
+                            )}
+                          </div>
+                        )}
+                        {rationale && (
+                          <div className={`${stageNote ? "" : "border-t border-border/50 mt-1"} px-3 py-2`}>
                             <div className="text-[10px] text-muted-foreground/60">{rationale}</div>
                           </div>
                         )}
