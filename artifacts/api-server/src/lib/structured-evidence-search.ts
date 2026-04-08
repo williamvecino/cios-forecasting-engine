@@ -1,6 +1,7 @@
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { lookupPrecedentLr } from "./precedent-lookup.js";
 import { randomUUID } from "crypto";
+import { classifyUrlTier, buildAuthoritativeQueries, TIER0_DOMAINS, lookupSocietyDomains } from "./authoritative-sources.js";
 
 export interface EvidenceCandidate {
   tempId: string;
@@ -105,58 +106,16 @@ interface SearchCategory {
 }
 
 export function buildFullSearchQueries(drugName: string, indication: string): SearchCategory[] {
-  return [
-    {
-      id: "registry",
-      label: "ClinicalTrials.gov Registry",
-      queries: [
-        `site:clinicaltrials.gov "${drugName}" "${indication}"`,
-        `${drugName} NCT clinicaltrials ${indication}`,
-      ],
-    },
-    {
-      id: "clinical",
-      label: "Clinical Evidence",
-      queries: [
-        `${drugName} phase 3 trial ${indication}`,
-        `${drugName} pivotal trial results ${indication}`,
-        `${drugName} FDA approval trial ${indication}`,
-        `${drugName} first line ${indication} phase 3`,
-      ],
-    },
-    {
-      id: "label_regulatory",
-      label: "Label / Regulatory",
-      queries: [
-        `${drugName} FDA approval ${indication}`,
-        `${drugName} prescribing information label`,
-      ],
-    },
-    {
-      id: "guidelines",
-      label: "Guidelines",
-      queries: [
-        `${indication} treatment guidelines ${drugName}`,
-        `${drugName} guideline recommendation`,
-      ],
-    },
-    {
-      id: "safety",
-      label: "Safety",
-      queries: [
-        `${drugName} safety ${indication}`,
-        `${drugName} FDA safety warning`,
-      ],
-    },
-    {
-      id: "payer",
-      label: "Payer / Access",
-      queries: [
-        `${drugName} coverage ${indication}`,
-        `${drugName} prior authorization formulary`,
-      ],
-    },
-  ];
+  const authCategories = buildAuthoritativeQueries(drugName, indication);
+  const categories: SearchCategory[] = [];
+  for (const ac of authCategories) {
+    categories.push({
+      id: ac.id,
+      label: ac.label,
+      queries: [...ac.authoritativeQueries, ...ac.generalQueries],
+    });
+  }
+  return categories;
 }
 
 export function buildGapSearchQueries(drugName: string, indication: string, missingFamilies: string[]): SearchCategory[] {
@@ -320,26 +279,29 @@ function buildSearchContext(searchResults: { category: string; results: NewsItem
 
 const EXTRACTION_PROMPT = `You are a medical evidence extractor.
 You receive search result titles, descriptions, and URLs.
-Your job is to extract — NOT generate — findings from the text provided.
+Your ONLY job is to extract findings from the source text provided. You do NOT generate, infer, or complete missing information.
 
-Rules:
-- Only report information that appears verbatim or near-verbatim in the source text above
+STRICT RULES:
+- ONLY report information that appears verbatim or near-verbatim in the source text
 - If a trial name is not mentioned in the source text, return trialName: null
 - If a statistic is not in the source text, do not include it
-- If you cannot find a specific finding for a field, return null — never invent
-- Quote the exact phrase from the source that supports each finding in a sourceQuote field
+- If you cannot find a specific finding for a field, return null — NEVER invent
+- Quote the exact phrase from the source that supports each finding in sourceQuote
 - If no relevant finding exists in the sources, return an empty findings array
-- Maximum 12 findings total, prioritizing the most impactful
+- If the source text does not contain information for a category, return NO findings for that category — do not fill the gap with your knowledge
+- Null is correct. Invention is not.
+- Maximum 15 findings total, prioritizing authoritative sources (.gov, journals, society sites)
 - Deduplicate — do not return the same finding twice
+- Preserve the original sourceUrl from the search results — do not fabricate URLs
 
 Return JSON with this structure:
 {
   "findings": [
     {
-      "category": "the evidence category (e.g. Clinical Evidence, Label / Regulatory, Guidelines, Safety, Payer / Access)",
+      "category": "the evidence category (e.g. Clinical Evidence, Regulatory / Label, Guidelines, Safety, Payer / Access, Competitive / Market)",
       "trialName": "string | null — only if explicitly named in source text",
       "pmid": "string (numbers only) | null",
-      "sourceUrl": "string — from the search results provided",
+      "sourceUrl": "string — MUST be from the search results provided, never invented",
       "sourceTitle": "string — from the search results provided",
       "finding": "ONE sentence extracted from or closely paraphrasing the source text",
       "sourceQuote": "exact phrase from the source text that supports this finding, or null if none",
@@ -392,22 +354,8 @@ const COMMON_ACRONYMS = new Set([
   "PMID", "DOI", "URL", "PDF", "CSV", "JSON",
 ]);
 
-const REGISTRY_DOMAINS = new Set([
-  "clinicaltrials.gov",
-  "pubmed.ncbi.nlm.nih.gov",
-  "fda.gov",
-  "nejm.org",
-  "thelancet.com",
-  "nature.com",
-]);
-
 function isRegistrySource(url: string | null | undefined): boolean {
-  if (!url || typeof url !== "string") return false;
-  const lower = url.toLowerCase();
-  for (const domain of REGISTRY_DOMAINS) {
-    if (lower.includes(domain)) return true;
-  }
-  return false;
+  return classifyUrlTier(url) === 0;
 }
 
 function extractNctNumber(text: string): string | null {

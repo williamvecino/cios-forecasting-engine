@@ -52,14 +52,16 @@ interface Props {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  "ClinicalTrials.gov Registry": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  "Pivotal Trials": "bg-blue-500/20 text-blue-400 border-blue-500/30",
   "Clinical Evidence": "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  "Label / Approval Data": "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  "Label / Regulatory": "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  "Regulatory / Label": "bg-purple-500/20 text-purple-400 border-purple-500/30",
   "Guidelines": "bg-green-500/20 text-green-400 border-green-500/30",
   "Safety": "bg-amber-500/20 text-amber-400 border-amber-500/30",
   "Payer / Access": "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  "Competitive / Market": "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  "ClinicalTrials.gov Registry": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  "Pivotal Trials": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "Label / Approval Data": "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  "Label / Regulatory": "bg-purple-500/20 text-purple-400 border-purple-500/30",
 };
 
 export default function PivotalEvidenceSearch({ caseId, drugName, indication, onSignalsApproved }: Props) {

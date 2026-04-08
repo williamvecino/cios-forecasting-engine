@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { lookupPrecedentLr } from "../lib/precedent-lookup.js";
 import { verifyPmid, verifyDoi, verifyNct, detectRedFlags } from "../lib/evidence-verification.js";
+import { classifyUrlTier, buildAuthoritativeQueries } from "../lib/authoritative-sources.js";
 
 const router = Router();
 
@@ -47,22 +48,8 @@ function matchesKnownTrial(trialName: string, knownTrials: string[]): boolean {
   );
 }
 
-const REGISTRY_DOMAINS = new Set([
-  "clinicaltrials.gov",
-  "pubmed.ncbi.nlm.nih.gov",
-  "fda.gov",
-  "nejm.org",
-  "thelancet.com",
-  "nature.com",
-]);
-
 function isRegistrySource(url: string | null | undefined): boolean {
-  if (!url || typeof url !== "string") return false;
-  const lower = url.toLowerCase();
-  for (const domain of REGISTRY_DOMAINS) {
-    if (lower.includes(domain)) return true;
-  }
-  return false;
+  return classifyUrlTier(url) === 0;
 }
 
 function extractNctNumber(text: string): string | null {
@@ -231,92 +218,53 @@ const ALLOWED_SIGNAL_TYPES = new Set([
 ]);
 
 const ALLOWED_CATEGORIES = new Set([
-  "ClinicalTrials.gov Registry",
-  "Pivotal Trials",
-  "Label / Approval Data",
+  "Clinical Evidence",
+  "Regulatory / Label",
   "Guidelines",
   "Safety",
   "Payer / Access",
+  "Competitive / Market",
+  "ClinicalTrials.gov Registry",
+  "Pivotal Trials",
+  "Label / Approval Data",
 ]);
 
-function buildSearchQueries(drugName: string, indication: string, year: string) {
-  return [
-    {
-      category: "ClinicalTrials.gov Registry",
-      queries: [
-        `site:clinicaltrials.gov "${drugName}" "${indication}"`,
-        `${drugName} NCT clinicaltrials ${indication}`,
-      ],
-    },
-    {
-      category: "Pivotal Trials",
-      queries: [
-        `${drugName} phase 3 trial ${indication}`,
-        `${drugName} pivotal trial results ${indication}`,
-        `${drugName} FDA approval trial ${indication}`,
-        `${drugName} first line ${indication} phase 3`,
-      ],
-    },
-    {
-      category: "Label / Approval Data",
-      queries: [
-        `${drugName} FDA label`,
-        `${drugName} prescribing information`,
-        `${drugName} package insert`,
-      ],
-    },
-    {
-      category: "Guidelines",
-      queries: [
-        `${indication} treatment guidelines ${year}`,
-        `${indication} society recommendations`,
-        `${drugName} guideline recommendation`,
-      ],
-    },
-    {
-      category: "Safety",
-      queries: [
-        `${drugName} adverse events`,
-        `${drugName} post-marketing safety`,
-        `${drugName} FDA safety communication`,
-      ],
-    },
-    {
-      category: "Payer / Access",
-      queries: [
-        `${drugName} coverage criteria`,
-        `${drugName} prior authorization`,
-        `${drugName} Medicare Medicaid coverage`,
-      ],
-    },
-  ];
+function buildSearchQueries(drugName: string, indication: string, _year: string) {
+  const authCategories = buildAuthoritativeQueries(drugName, indication);
+  return authCategories.map((ac) => ({
+    category: ac.label,
+    queries: [...ac.authoritativeQueries, ...ac.generalQueries],
+  }));
 }
 
 const PIVOTAL_SEARCH_PROMPT = `You are a medical evidence extractor.
 You receive a drug name, indication, and structured search query categories.
-Your job is to extract — NOT generate — findings that a real analyst would discover from these queries.
+Your ONLY job is to extract findings that a real analyst would discover from these queries. You do NOT generate, infer, or complete missing information.
 
-Rules:
+STRICT RULES:
 - Only report information that is real, published, and verifiable
 - If a trial name is not a real, published trial for this drug, return trialName: null
 - If a statistic cannot be verified, do not include it
-- If you cannot find a specific finding for a field, return null — never invent
-- Quote the exact phrase or key data point that supports each finding in a sourceQuote field
-- If no relevant finding exists for a category, skip it
+- If you cannot find a specific finding for a field, return null — NEVER invent
+- Quote the exact phrase or key data point supporting each finding in sourceQuote
+- If no relevant finding exists for a category, skip it — do NOT fill gaps with your knowledge
+- Null is correct. Invention is not.
 - Return 10-15 findings total across all categories
+- Prioritize findings from authoritative sources: .gov, journals, professional society sites
+- For sourceUrl, use only real, verifiable URLs — never fabricate
 
 Return ONLY a valid JSON object (no markdown, no preamble) with this structure:
 {
   "findings": [
     {
-      "category": "the search category (e.g. Pivotal Trials, Label / Approval Data)",
+      "category": "the search category (e.g. Clinical Evidence, Regulatory / Label, Guidelines, Safety, Payer / Access, Competitive / Market)",
       "trialName": "string | null — only if a real, named trial",
       "pmid": "string (numbers only) | null",
-      "sourceUrl": "string | null",
+      "sourceUrl": "string | null — must be a real URL, never invented",
       "sourceTitle": "string | null",
       "finding": "ONE sentence summarizing the key result or conclusion",
       "sourceQuote": "exact phrase or data point supporting this finding, or null",
-      "signalType": "one of: Phase III clinical trial, FDA approval, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescribing information",
+      "signalType": "one of: Phase III clinical trial, FDA approval, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescribing information, Competitor counteraction",
       "direction": "Positive or Negative",
       "strengthScore": "1-5 (1=weak, 5=strong)",
       "reliabilityScore": "1-5 (1=anecdotal, 5=verified/published)"
