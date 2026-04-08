@@ -641,27 +641,76 @@ export default function SimulatePage() {
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.text || "";
 
+  // Pre-populate scenario from Respond page's top needle movement driver
   useEffect(() => {
     if (!caseId || scenarioName.trim()) return;
-    const defaults: Record<string, { name: string; description: string }> = {
-      "CASE-001": {
-        name: "Head-to-head superiority data published vs teprotumumab",
-        description: "Phase 3 trial demonstrates veligrotug superiority over Tepezza on proptosis and CAS endpoints",
-      },
-      "CASE-002": {
-        name: "Biosimilar modulator enters F508del market",
-        description: "",
-      },
-      "CASE-003": {
-        name: "ATS/IDSA guideline endorses first-line Arikayce",
-        description: "",
-      },
-    };
-    const d = defaults[caseId];
-    if (d) {
-      setScenarioName(d.name);
-      if (d.description) setScenarioDescription(d.description);
-    }
+
+    // Check for pre-populated scenario from Respond page
+    try {
+      const prePopRaw = localStorage.getItem(`cios.simulatePrePop:${caseId}`);
+      if (prePopRaw) {
+        const prePop = JSON.parse(prePopRaw);
+        if (prePop.scenarioName) setScenarioName(prePop.scenarioName);
+        if (prePop.scenarioDescription) setScenarioDescription(prePop.scenarioDescription);
+        if (prePop.scenarioType) setScenarioType(prePop.scenarioType);
+        if (prePop.scenarioPolarity) setScenarioPolarity(prePop.scenarioPolarity);
+        if (prePop.messageSource) setMessageSource(prePop.messageSource);
+        if (prePop.evidenceBasis) setEvidenceBasis(prePop.evidenceBasis);
+        if (prePop.primaryTarget) setPrimaryTarget(prePop.primaryTarget);
+        if (prePop.expectedEffect) setExpectedEffect(prePop.expectedEffect);
+        if (prePop.impactLevel) setImpactLevel(prePop.impactLevel);
+        if (prePop.timeFrame) setTimeFrame(prePop.timeFrame);
+        if (prePop.confidenceLevel) setConfidenceLevel(prePop.confidenceLevel);
+        localStorage.removeItem(`cios.simulatePrePop:${caseId}`);
+        return;
+      }
+    } catch {}
+
+    // Fall back to needle movement data from Respond page
+    try {
+      const respondRaw = localStorage.getItem(`cios.respondResult:${caseId}`);
+      if (respondRaw) {
+        const respond = JSON.parse(respondRaw);
+        const topDriver = respond?.needle_movement?.moves_up?.[0];
+        if (topDriver?.name) {
+          setScenarioName(topDriver.name);
+          if (respond.highest_impact_lever) {
+            setScenarioDescription(respond.highest_impact_lever);
+          }
+
+          // Map needle movement category to scenario dropdowns
+          const cat = (topDriver.category || "").toLowerCase();
+          const categoryMap: Record<string, { type: string; target: string; basis: string; source: string }> = {
+            clinical: { type: "new_evidence", target: "prescribers", basis: "peer_reviewed_study", source: "journal" },
+            access: { type: "payer_decision", target: "payers", basis: "regulatory_communication", source: "payer" },
+            operational: { type: "regulatory_update", target: "regulators", basis: "regulatory_communication", source: "fda" },
+            behavioral: { type: "new_evidence", target: "prescribers", basis: "peer_reviewed_study", source: "journal" },
+            competitive: { type: "competitor_action", target: "competitors", basis: "internal_hypothesis", source: "manufacturer" },
+          };
+          const mapped = categoryMap[cat] || categoryMap.clinical;
+          setScenarioType(mapped.type);
+          setPrimaryTarget(mapped.target);
+          setEvidenceBasis(mapped.basis);
+          setMessageSource(mapped.source);
+
+          // Map direction and impact
+          const dir = (topDriver.direction || "").toLowerCase();
+          if (dir.includes("increase")) setExpectedEffect("increases");
+          else if (dir.includes("decrease")) setExpectedEffect("decreases");
+          else setExpectedEffect("increases");
+
+          setScenarioPolarity(dir.includes("decrease") ? "negative" : "positive");
+
+          const impact = (topDriver.impact || "").toLowerCase();
+          if (impact === "high") setImpactLevel("high");
+          else if (impact === "moderate") setImpactLevel("moderate");
+          else setImpactLevel("moderate");
+
+          setTimeFrame("12mo");
+          setConfidenceLevel("moderate");
+        }
+      }
+    } catch {}
   }, [caseId]);
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
