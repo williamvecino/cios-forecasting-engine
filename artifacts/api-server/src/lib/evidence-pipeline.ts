@@ -13,6 +13,12 @@ import {
   discoverAllSources,
   type FetchedDocument,
 } from "./document-fetcher.js";
+import {
+  classifyDrugStage,
+  buildPrioritizedFetchOrder,
+  type DrugStage,
+  type StageClassification,
+} from "./drug-lifecycle.js";
 
 export interface PipelineCandidate {
   tempId: string;
@@ -49,6 +55,7 @@ export interface PipelineResult {
   drugName: string;
   indication: string;
   sponsorProfile: SponsorProfile | null;
+  stageClassification: StageClassification;
   sourcesFound: { url: string; category: string; query: string }[];
   documentsFetched: { url: string; title: string; textLength: number; contentType: string; error?: string }[];
   candidates: PipelineCandidate[];
@@ -124,6 +131,10 @@ export async function runEvidencePipeline(
   indication: string,
   sponsorProfile: SponsorProfile | null,
   timeFilterMonths: number = 12,
+  overrideStage: DrugStage | null = null,
+  question: string = "",
+  trialName: string | null = null,
+  trialResult: string | null = null,
 ): Promise<PipelineResult> {
   const startTime = Date.now();
   const phases: PipelineProgress[] = [];
@@ -131,6 +142,13 @@ export async function runEvidencePipeline(
     phases.push({ phase, detail, timestamp: new Date().toISOString() });
     console.log(`[EVIDENCE-PIPELINE] ${phase}: ${detail}`);
   };
+
+  const stageClassification = classifyDrugStage(
+    drugName, indication, question, trialName, trialResult, overrideStage,
+  );
+  log("PHASE 0", `Drug stage: ${stageClassification.stage} — ${stageClassification.label}`);
+  log("PHASE 0", `Rationale: ${stageClassification.rationale}`);
+  log("PHASE 0", `Source priority: ${stageClassification.sourcePriority.map(s => `${s.rank}. ${s.sourceType}`).join(", ")}`);
 
   log("PHASE 1", `Sponsor: ${sponsorProfile ? `${sponsorProfile.company} (${sponsorProfile.ticker}) — ${sponsorProfile.irUrl}` : "Not identified"}`);
 
@@ -167,10 +185,21 @@ export async function runEvidencePipeline(
     }
   }
 
+  if (sponsorProfile?.ticker && stageClassification.sourcePriority.some(s => s.sourceType === "sec_8k")) {
+    addSource(
+      `https://efts.sec.gov/LATEST/search-index?q=%22${encodeURIComponent(drugName)}%22&forms=8-K&dateRange=custom&startdt=${new Date(Date.now() - timeFilterMonths * 30 * 86400000).toISOString().slice(0, 10)}&enddt=${new Date().toISOString().slice(0, 10)}`,
+      "SEC 8-K",
+      `SEC EDGAR: ${sponsorProfile.company} 8-K filings for ${drugName}`,
+    );
+  }
+
   log("PHASE 2", `Found ${sourcesFound.length} unique source URLs across ${new Set(sourcesFound.map(s => s.category)).size} categories`);
 
+  const prioritized = buildPrioritizedFetchOrder(sourcesFound, stageClassification.stage);
+  log("PHASE 2", `Reordered by ${stageClassification.stage} priority: ${prioritized.slice(0, 5).map(s => `[${s.priorityRank}] ${s.category}`).join(", ")}...`);
+
   const maxDocs = 12;
-  const urlsToFetch = sourcesFound.slice(0, maxDocs).map((s) => s.url);
+  const urlsToFetch = prioritized.slice(0, maxDocs).map((s) => s.url);
 
   log("PHASE 3", `Fetching full text from ${urlsToFetch.length} documents...`);
 
@@ -349,6 +378,7 @@ ${doc.text.slice(0, 5000)}
     drugName,
     indication,
     sponsorProfile,
+    stageClassification,
     sourcesFound,
     documentsFetched,
     candidates: deduped,

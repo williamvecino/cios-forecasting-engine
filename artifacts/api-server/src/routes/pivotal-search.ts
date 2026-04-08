@@ -543,6 +543,63 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
   });
 });
 
+router.get("/cases/:caseId/drug-stage", async (req, res) => {
+  const { caseId } = req.params;
+  const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
+  if (!caseRow) return res.status(404).json({ error: "Case not found" });
+
+  const { classifyDrugStage } = await import("../lib/drug-lifecycle.js");
+  const drugName = caseRow.assetName || caseRow.primaryBrand || "";
+  const indication = caseRow.diseaseState || caseRow.therapeuticArea || "";
+
+  const existingStage = (caseRow as any).drugStage;
+  const classification = classifyDrugStage(
+    drugName,
+    indication,
+    caseRow.strategicQuestion || "",
+    caseRow.primaryTrialName || null,
+    caseRow.primaryTrialResult || null,
+    existingStage || null,
+  );
+
+  return res.json({
+    caseId,
+    drugName,
+    ...classification,
+  });
+});
+
+router.post("/cases/:caseId/drug-stage", async (req, res) => {
+  const { caseId } = req.params;
+  const { stage } = req.body as { stage?: string };
+
+  const validStages = ["INVESTIGATIONAL", "RECENTLY_APPROVED", "ESTABLISHED", "MATURE"];
+  if (!stage || !validStages.includes(stage)) {
+    return res.status(400).json({ error: `Invalid stage. Must be one of: ${validStages.join(", ")}` });
+  }
+
+  const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
+  if (!caseRow) return res.status(404).json({ error: "Case not found" });
+
+  const { classifyDrugStage } = await import("../lib/drug-lifecycle.js");
+  const drugName = caseRow.assetName || caseRow.primaryBrand || "";
+  const indication = caseRow.diseaseState || caseRow.therapeuticArea || "";
+
+  const classification = classifyDrugStage(drugName, indication, "", null, null, stage as any);
+
+  await db.update(casesTable).set({
+    drugStage: stage,
+    drugStageRationale: "Manually set by analyst.",
+  }).where(eq(casesTable.caseId, caseId));
+
+  return res.json({
+    caseId,
+    drugName,
+    ...classification,
+    message: `Stage set to ${stage}.`,
+  });
+});
+
 router.post("/test-fetch", async (req, res) => {
   const { fetchDocument } = await import("../lib/document-fetcher.js");
   const { url } = req.body as { url: string };
@@ -643,7 +700,7 @@ router.post("/extraction-service/configure", async (req, res) => {
 
 router.post("/cases/:caseId/evidence-pipeline", async (req, res) => {
   const { caseId } = req.params;
-  const { timeFilterMonths } = req.body as { timeFilterMonths?: number };
+  const { timeFilterMonths, overrideStage } = req.body as { timeFilterMonths?: number; overrideStage?: string };
 
   const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
   if (!caseRow) {
@@ -664,9 +721,28 @@ router.post("/cases/:caseId/evidence-pipeline", async (req, res) => {
     ticker: caseRow.sponsorTicker || "",
   } : null);
 
+  const validStages = ["INVESTIGATIONAL", "RECENTLY_APPROVED", "ESTABLISHED", "MATURE"];
+  const stageOverride = overrideStage && validStages.includes(overrideStage) ? overrideStage as any : (caseRow as any).drugStage || null;
+
   try {
     const { runEvidencePipeline } = await import("../lib/evidence-pipeline.js");
-    const result = await runEvidencePipeline(drugName, indication, sponsorProfile, timeFilterMonths || 12);
+    const result = await runEvidencePipeline(
+      drugName,
+      indication,
+      sponsorProfile,
+      timeFilterMonths || 12,
+      stageOverride,
+      caseRow.strategicQuestion || "",
+      caseRow.primaryTrialName || null,
+      caseRow.primaryTrialResult || null,
+    );
+
+    if (result.stageClassification) {
+      await db.update(casesTable).set({
+        drugStage: result.stageClassification.stage,
+        drugStageRationale: result.stageClassification.rationale,
+      }).where(eq(casesTable.caseId, caseId));
+    }
 
     pruneExpiredResults();
     const candidateMap = new Map<string, any>();

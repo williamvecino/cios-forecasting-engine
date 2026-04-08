@@ -60,11 +60,19 @@ interface DocumentFetched {
   error?: string;
 }
 
+interface StageClassification {
+  stage: string;
+  label: string;
+  rationale: string;
+  sourcePriority: { rank: number; sourceType: string; description: string }[];
+}
+
 interface PivotalSearchResult {
   caseId?: string;
   drugName: string;
   indication: string;
   sponsorProfile?: SponsorProfile | null;
+  stageClassification?: StageClassification;
   searchCategories?: string[];
   categoriesSearched?: string[];
   candidates: EvidenceCandidate[];
@@ -273,6 +281,19 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
               {rejected.size > 0 && <>, <span className="text-red-400">{rejected.size} rejected</span></>}
               {undecided.length > 0 && <>, <span className="text-muted-foreground">{undecided.length} pending</span></>}
             </p>
+            {result.stageClassification && (
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                  result.stageClassification.stage === "INVESTIGATIONAL" ? "bg-violet-500/15 text-violet-400 border-violet-500/30" :
+                  result.stageClassification.stage === "RECENTLY_APPROVED" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
+                  result.stageClassification.stage === "ESTABLISHED" ? "bg-blue-500/15 text-blue-400 border-blue-500/30" :
+                  "bg-gray-500/15 text-gray-400 border-gray-500/30"
+                }`}>
+                  {result.stageClassification.stage.replace("_", " ")}
+                </span>
+                <span className="text-[10px] text-muted-foreground/60">{result.stageClassification.rationale}</span>
+              </div>
+            )}
             <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
               {result.sponsorProfile && (
                 <span className="text-blue-400">
@@ -319,6 +340,20 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
         </div>
         {showPipelineDetails && (
           <div className="mt-3 space-y-3">
+            {result.stageClassification && (
+              <div className="rounded-lg border border-border/30 bg-background/50 p-3">
+                <div className="text-xs font-medium text-muted-foreground mb-2">Source Priority ({result.stageClassification.stage.replace("_", " ")})</div>
+                <div className="space-y-1">
+                  {result.stageClassification.sourcePriority.map((sp, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="text-blue-400 font-mono w-4 text-right shrink-0">{sp.rank}.</span>
+                      <span className="font-medium text-foreground/80">{sp.sourceType.replace(/_/g, " ")}</span>
+                      <span className="text-muted-foreground/60">— {sp.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {result.phases && result.phases.length > 0 && (
               <div className="rounded-lg border border-border/30 bg-background/50 p-3">
                 <div className="text-xs font-medium text-muted-foreground mb-2">Pipeline Log</div>
