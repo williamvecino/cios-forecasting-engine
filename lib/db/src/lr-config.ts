@@ -160,17 +160,10 @@ function normalizeTiming(timing: Timing): number {
 }
 
 /**
- * Compute the Bayesian likelihood ratio for a signal.
- *
- * Direction semantics:
- *   - "Positive": LR > 1.0 (signal increases posterior probability).
- *   - "Negative": LR < 1.0 (signal decreases posterior probability).
- *
- * The LR_RANGES define evidence magnitude. Direction determines whether
- * the raw LR is used as-is or inverted (1/LR) to place it on the
- * correct side of 1.0. For inherently constraining types (Operational
- * friction, Competitor counteraction) whose ranges are already < 1.0,
- * inversion only applies if direction = "Positive" is somehow selected.
+ * @deprecated Use lookupPrecedentLr() from precedent-lookup.ts instead.
+ * This function calculates LR from strength/reliability scores and LR_RANGES.
+ * All new code must use the Signal Precedent Library for LR assignment.
+ * Retained only for backward compatibility with validation-pack and discover routes.
  */
 export function computeLR(
   signalType: string,

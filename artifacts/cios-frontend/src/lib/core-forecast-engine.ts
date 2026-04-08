@@ -23,14 +23,6 @@ function sortSignalsDeterministically(signals: SignalInput[]): SignalInput[] {
   return [...signals].map(normalizeSignal).sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function signalToEffectiveLikelihoodRatio(signal: SignalInput): number {
-  if (!signal.enabled) return 1;
-  const centered = signal.likelihoodRatio - 1;
-  const weightingFactor = signal.reliability * signal.strength;
-  const effective = 1 + centered * weightingFactor;
-  return round4(clamp(effective, 0.5, 2.5));
-}
-
 function probabilityToOdds(p: number): number {
   const normalized = normalizeProbability(p);
   return normalized / (1 - normalized);
@@ -53,17 +45,17 @@ function applySignalsToPrior(
   let effectiveSignalCount = 0;
 
   for (const signal of signals) {
-    const effectiveLR = signalToEffectiveLikelihoodRatio(signal);
+    const rawLR = signal.enabled ? signal.likelihoodRatio : 1;
     appliedSignals.push({
       id: signal.id,
       label: signal.label,
       enabled: !!signal.enabled,
-      effectiveLikelihoodRatio: effectiveLR,
+      effectiveLikelihoodRatio: rawLR,
       direction: signal.direction,
     });
     if (signal.enabled) {
-      odds *= effectiveLR;
-      effectiveSignalCount += effectiveLR !== 1 ? 1 : 0;
+      odds *= rawLR;
+      effectiveSignalCount += rawLR !== 1 ? 1 : 0;
     }
   }
 

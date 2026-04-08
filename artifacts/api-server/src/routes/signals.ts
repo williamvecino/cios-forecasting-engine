@@ -3,7 +3,8 @@ import { db } from "@workspace/db";
 import { signalsTable, casesTable, SIGNAL_TYPES, VALID_TRANSITIONS, caseSignalStateTable } from "@workspace/db";
 import { eq, and, inArray, gte, lte, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { computeLR, type Scope, type Timing } from "@workspace/db";
+import { type Scope, type Timing } from "@workspace/db";
+import { lookupPrecedentLr } from "../lib/precedent-lookup.js";
 import { logAudit } from "../lib/audit-service.js";
 import { isSafetyRiskCase, getProfileForQuestion } from "../lib/case-type-router.js";
 import { runCaseScoringEngine } from "../services/recalculateCaseScore.js";
@@ -152,12 +153,12 @@ function computeDescriptionSimilarity(a: string, b: string): number {
 function deriveDirectionSafeLR(body: Record<string, any>): number {
   if (body.direction === "Neutral") return 1.0;
   const signalType = body.signalType ?? "";
-  const strength = Number(body.strengthScore ?? 3);
-  const credibility = Number(body.reliabilityScore ?? 3);
-  const scope = ((body.scope ?? "national") as string).toLowerCase() as Scope;
-  const timing = ((body.timing ?? "current") as string).toLowerCase() as Timing;
-  const direction = (body.direction ?? "Positive") as "Positive" | "Negative";
-  return computeLR(signalType, strength, credibility, scope, timing, direction);
+  const direction = (body.direction ?? "Positive") as string;
+  const precedent = lookupPrecedentLr(signalType, direction);
+  if (!precedent.matched) {
+    throw new Error(`Signal type "${signalType}" not found in precedent library. Cannot assign LR.`);
+  }
+  return precedent.assignedLr;
 }
 
 function numToLabel(n: number): string {
@@ -774,21 +775,18 @@ router.put("/cases/:caseId/signal-state", async (req, res) => {
         newDirection !== dbSig.direction;
 
       if (changed) {
-        const lr = computeLR(
-          dbSig.signalType || "market_data",
-          newStrength as number,
-          newReliability as number,
-          (dbSig.scope || "direct") as Scope,
-          (dbSig.timing || "recent") as Timing,
-          newDirection as "Positive" | "Negative",
-        );
+        const signalType = dbSig.signalType || "";
+        const precedent = lookupPrecedentLr(signalType, newDirection as string);
+        if (!precedent.matched) {
+          throw new Error(`Signal type "${signalType}" not found in precedent library. Cannot assign LR.`);
+        }
         await db.update(signalsTable).set({
           strengthScore: newStrength,
           reliabilityScore: newReliability,
           direction: newDirection,
           strength: uiSig.strength || dbSig.strength,
           reliability: uiSig.reliability || dbSig.reliability,
-          likelihoodRatio: lr,
+          likelihoodRatio: precedent.assignedLr,
           weightedSignalScore: (newStrength as number) * (newReliability as number),
           updatedAt: new Date(),
         }).where(eq(signalsTable.signalId, dbSig.signalId));
