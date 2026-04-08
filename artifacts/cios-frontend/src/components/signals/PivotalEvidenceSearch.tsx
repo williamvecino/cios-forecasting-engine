@@ -60,11 +60,30 @@ interface DocumentFetched {
   error?: string;
 }
 
+interface CategorySourceEntry {
+  rank: number;
+  sourceId: string;
+  label: string;
+  queryTemplate: string;
+  fetchStrategy: string;
+  isProxy: boolean;
+  proxyNote: string | null;
+  noDataFlag: string | null;
+}
+
+interface CategorySourceMap {
+  category: string;
+  categoryLabel: string;
+  sources: CategorySourceEntry[];
+  analystNote: string | null;
+}
+
 interface StageClassification {
   stage: string;
   label: string;
   rationale: string;
   sourcePriority: { rank: number; sourceType: string; description: string }[];
+  categoryMap?: CategorySourceMap[];
 }
 
 interface PivotalSearchResult {
@@ -340,7 +359,54 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
         </div>
         {showPipelineDetails && (
           <div className="mt-3 space-y-3">
-            {result.stageClassification && (
+            {result.stageClassification?.categoryMap && result.stageClassification.categoryMap.length > 0 && (
+              <div className="rounded-lg border border-border/30 bg-background/50 p-3">
+                <div className="text-xs font-medium text-muted-foreground mb-2">
+                  Source Map — {result.stageClassification.stage.replace(/_/g, " ")}
+                </div>
+                <div className="space-y-3">
+                  {result.stageClassification.categoryMap.map((cat) => {
+                    const catColor = CATEGORY_COLORS[cat.categoryLabel] || "bg-gray-500/20 text-gray-400 border-gray-500/30";
+                    return (
+                      <div key={cat.category} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${catColor}`}>
+                            {cat.categoryLabel}
+                          </span>
+                          {cat.analystNote && (
+                            <span className="text-[10px] text-amber-400/70 italic">{cat.analystNote}</span>
+                          )}
+                        </div>
+                        {cat.sources.map((src) => (
+                          <div key={src.sourceId} className="flex items-start gap-2 text-xs pl-2">
+                            <span className="text-blue-400 font-mono w-4 text-right shrink-0">{src.rank}.</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium text-foreground/80">{src.label}</span>
+                                {src.isProxy && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">PROXY</span>
+                                )}
+                                {src.noDataFlag && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">NO DATA</span>
+                                )}
+                              </div>
+                              {src.proxyNote && (
+                                <div className="text-[10px] text-amber-400/60 mt-0.5">{src.proxyNote}</div>
+                              )}
+                              {src.noDataFlag && !src.proxyNote && (
+                                <div className="text-[10px] text-red-400/60 mt-0.5">{src.noDataFlag}</div>
+                              )}
+                            </div>
+                            <span className="text-muted-foreground/40 text-[10px] shrink-0">{src.fetchStrategy.replace(/_/g, " ")}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {result.stageClassification && !result.stageClassification.categoryMap && result.stageClassification.sourcePriority.length > 0 && (
               <div className="rounded-lg border border-border/30 bg-background/50 p-3">
                 <div className="text-xs font-medium text-muted-foreground mb-2">Source Priority ({result.stageClassification.stage.replace("_", " ")})</div>
                 <div className="space-y-1">

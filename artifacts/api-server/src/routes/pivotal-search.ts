@@ -600,6 +600,32 @@ router.post("/cases/:caseId/drug-stage", async (req, res) => {
   });
 });
 
+router.get("/source-map/:stage", async (req, res) => {
+  const { stage } = req.params;
+  const validStages = ["INVESTIGATIONAL", "RECENTLY_APPROVED", "ESTABLISHED", "MATURE"];
+  if (!validStages.includes(stage)) {
+    return res.status(400).json({ error: `Invalid stage. Must be one of: ${validStages.join(", ")}` });
+  }
+  const { getStageSourceMap } = await import("../lib/drug-lifecycle.js");
+  const map = getStageSourceMap(stage as any);
+  return res.json(map);
+});
+
+router.get("/source-map/:stage/:category", async (req, res) => {
+  const { stage, category } = req.params;
+  const validStages = ["INVESTIGATIONAL", "RECENTLY_APPROVED", "ESTABLISHED", "MATURE"];
+  const validCategories = ["clinical", "regulatory", "payer", "safety", "guidelines", "competitive"];
+  if (!validStages.includes(stage)) {
+    return res.status(400).json({ error: `Invalid stage.` });
+  }
+  if (!validCategories.includes(category)) {
+    return res.status(400).json({ error: `Invalid category. Must be one of: ${validCategories.join(", ")}` });
+  }
+  const { getCategorySourceMap } = await import("../lib/drug-lifecycle.js");
+  const map = getCategorySourceMap(stage as any, category as any);
+  return res.json(map);
+});
+
 router.post("/test-fetch", async (req, res) => {
   const { fetchDocument } = await import("../lib/document-fetcher.js");
   const { url } = req.body as { url: string };
