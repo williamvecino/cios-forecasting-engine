@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText, AlertTriangle, ShieldAlert, Quote, ShieldCheck, Database } from "lucide-react";
+import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText, AlertTriangle, ShieldAlert, Quote, ShieldCheck, Database, Globe, Clock } from "lucide-react";
 
 interface EvidenceCandidate {
   tempId: string;
@@ -7,6 +7,7 @@ interface EvidenceCandidate {
   trialName: string | null;
   pmid: string | null;
   sourceUrl: string | null;
+  sourceTitle: string | null;
   finding: string;
   signalType: string;
   direction: "Positive" | "Negative";
@@ -45,13 +46,32 @@ interface SponsorProfile {
   ticker: string;
 }
 
+interface PipelinePhase {
+  phase: string;
+  detail: string;
+  timestamp: string;
+}
+
+interface DocumentFetched {
+  url: string;
+  title: string;
+  textLength: number;
+  contentType: string;
+  error?: string;
+}
+
 interface PivotalSearchResult {
-  caseId: string;
+  caseId?: string;
   drugName: string;
   indication: string;
   sponsorProfile?: SponsorProfile | null;
-  searchCategories: string[];
+  searchCategories?: string[];
+  categoriesSearched?: string[];
   candidates: EvidenceCandidate[];
+  sourcesFound?: { url: string; category: string; query: string }[];
+  documentsFetched?: DocumentFetched[];
+  phases?: PipelinePhase[];
+  totalTimeMs?: number;
 }
 
 interface Props {
@@ -83,6 +103,7 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [showPipelineDetails, setShowPipelineDetails] = useState(false);
 
   const runSearch = async () => {
     setSearching(true);
@@ -91,12 +112,14 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
     setApproved(new Set());
     setRejected(new Set());
     setSubmitted(false);
+    setShowPipelineDetails(false);
 
     const API = import.meta.env.VITE_API_URL || "";
     try {
-      const resp = await fetch(`${API}/api/cases/${caseId}/pivotal-search`, {
+      const resp = await fetch(`${API}/api/cases/${caseId}/evidence-pipeline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timeFilterMonths: 12 }),
       });
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({ error: "Search failed" }));
@@ -193,11 +216,27 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
           <div>
             <div className="flex items-center gap-2 text-sm font-medium">
               <Search className="w-4 h-4 text-blue-400" />
-              Find Pivotal Evidence
+              Find Evidence
             </div>
             <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-              Structured search across pivotal trials, FDA labels, guidelines, safety data, and payer coverage for <span className="text-foreground font-medium">{drugName}</span>{indication ? ` in ${indication}` : ""}.
+              Automatically discovers, fetches, and extracts evidence from authoritative sources for <span className="text-foreground font-medium">{drugName}</span>{indication ? ` in ${indication}` : ""}.
             </p>
+            {searching && (
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-blue-400">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Searching sponsor IR, FDA, ClinicalTrials.gov, PubMed, society guidelines, SEC EDGAR...</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Globe className="w-3 h-3" />
+                  <span>Fetching full document text from discovered sources...</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <FileText className="w-3 h-3" />
+                  <span>Extracting signal candidates with exact source quotes...</span>
+                </div>
+              </div>
+            )}
           </div>
           <button
             onClick={runSearch}
@@ -205,7 +244,7 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
           >
             {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {searching ? "Searching..." : "Search Evidence"}
+            {searching ? "Running pipeline..." : "Find Evidence"}
           </button>
         </div>
         {error && (
@@ -225,7 +264,7 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
           <div>
             <div className="flex items-center gap-2 text-sm font-medium">
               <FileText className="w-4 h-4 text-blue-400" />
-              Structured Evidence Search — {result.drugName}
+              Evidence Pipeline — {result.drugName}
               {result.indication ? ` / ${result.indication}` : ""}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -234,23 +273,39 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
               {rejected.size > 0 && <>, <span className="text-red-400">{rejected.size} rejected</span></>}
               {undecided.length > 0 && <>, <span className="text-muted-foreground">{undecided.length} pending</span></>}
             </p>
-            {result.sponsorProfile && (
-              <div className="flex items-center gap-2 mt-1.5 text-xs text-blue-400">
-                <FileText className="w-3 h-3" />
-                <span>Sponsor: <span className="font-medium">{result.sponsorProfile.company}</span></span>
-                {result.sponsorProfile.ticker && <span className="text-muted-foreground">({result.sponsorProfile.ticker})</span>}
-                <span className="text-muted-foreground">IR: {result.sponsorProfile.irUrl}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
+              {result.sponsorProfile && (
+                <span className="text-blue-400">
+                  Sponsor: <span className="font-medium">{result.sponsorProfile.company}</span>
+                  {result.sponsorProfile.ticker && ` (${result.sponsorProfile.ticker})`}
+                </span>
+              )}
+              {result.sourcesFound && (
+                <span><Globe className="w-3 h-3 inline mr-1" />{result.sourcesFound.length} sources discovered</span>
+              )}
+              {result.documentsFetched && (
+                <span><FileText className="w-3 h-3 inline mr-1" />{result.documentsFetched.filter(d => !d.error && d.textLength > 100).length} documents fetched</span>
+              )}
+              {result.totalTimeMs && (
+                <span><Clock className="w-3 h-3 inline mr-1" />{(result.totalTimeMs / 1000).toFixed(1)}s</span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPipelineDetails(!showPipelineDetails)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border/50 text-xs hover:bg-accent/50 transition-colors"
+            >
+              {showPipelineDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              Pipeline
+            </button>
             <button
               onClick={runSearch}
               disabled={searching}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border/50 text-xs hover:bg-accent/50 transition-colors"
             >
               {searching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-              Re-search
+              Re-run
             </button>
             <button
               onClick={submitApproved}
@@ -262,6 +317,45 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
             </button>
           </div>
         </div>
+        {showPipelineDetails && (
+          <div className="mt-3 space-y-3">
+            {result.phases && result.phases.length > 0 && (
+              <div className="rounded-lg border border-border/30 bg-background/50 p-3">
+                <div className="text-xs font-medium text-muted-foreground mb-2">Pipeline Log</div>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {result.phases.map((p, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs">
+                      <span className="text-blue-400 font-mono shrink-0">{p.phase}</span>
+                      <span className="text-muted-foreground">{p.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {result.documentsFetched && result.documentsFetched.length > 0 && (
+              <div className="rounded-lg border border-border/30 bg-background/50 p-3">
+                <div className="text-xs font-medium text-muted-foreground mb-2">Fetched Documents</div>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {result.documentsFetched.map((d, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      {d.error ? (
+                        <X className="w-3 h-3 text-red-400 shrink-0" />
+                      ) : (
+                        <Check className="w-3 h-3 text-green-400 shrink-0" />
+                      )}
+                      <span className="truncate max-w-md text-muted-foreground" title={d.url}>
+                        {d.title || new URL(d.url).hostname}
+                      </span>
+                      <span className="text-muted-foreground/60 shrink-0">
+                        {d.textLength > 0 ? `${(d.textLength / 1000).toFixed(1)}k chars` : d.error || "empty"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="divide-y divide-border/20">
@@ -383,7 +477,7 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                                 className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-1"
                               >
                                 <ExternalLink className="w-3 h-3" />
-                                {c.pmid ? `PubMed ${c.pmid}` : "Source"}
+                                {c.pmid ? `PubMed ${c.pmid}` : c.sourceTitle ? c.sourceTitle.slice(0, 80) : "Source"}
                               </a>
                             )}
                           </div>

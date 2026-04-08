@@ -543,4 +543,48 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
   });
 });
 
+router.post("/cases/:caseId/evidence-pipeline", async (req, res) => {
+  const { caseId } = req.params;
+  const { timeFilterMonths } = req.body as { timeFilterMonths?: number };
+
+  const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
+  if (!caseRow) {
+    return res.status(404).json({ error: "Case not found" });
+  }
+
+  const drugName = caseRow.assetName || caseRow.primaryBrand || "";
+  const indication = caseRow.diseaseState || caseRow.therapeuticArea || "";
+
+  if (!drugName.trim()) {
+    return res.status(400).json({ error: "Case has no drug name. Cannot run evidence pipeline." });
+  }
+
+  const { lookupSponsor: ls } = await import("../lib/authoritative-sources.js");
+  const sponsorProfile = ls(drugName) || (caseRow.sponsorCompany ? {
+    company: caseRow.sponsorCompany,
+    irUrl: caseRow.sponsorIRUrl || "",
+    ticker: caseRow.sponsorTicker || "",
+  } : null);
+
+  try {
+    const { runEvidencePipeline } = await import("../lib/evidence-pipeline.js");
+    const result = await runEvidencePipeline(drugName, indication, sponsorProfile, timeFilterMonths || 12);
+
+    pruneExpiredResults();
+    const candidateMap = new Map<string, any>();
+    for (const c of result.candidates) {
+      candidateMap.set(c.tempId, c);
+    }
+    searchResultStore.set(caseId, {
+      candidates: candidateMap,
+      createdAt: Date.now(),
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("Evidence pipeline error:", err);
+    res.status(500).json({ error: "Evidence pipeline failed. Please try again." });
+  }
+});
+
 export default router;
