@@ -48,10 +48,10 @@ CIOS is structured as a monorepo utilizing pnpm workspaces. The frontend is buil
 - **Strategic Relevance Page Hierarchy (Respond + Forecast pages):** 4-section layout with visibility rules applied to both Respond and Forecast pages, simplifying UI language.
 - **Consistency and Determinism System:** Uses a Canonical Case Object (`canonicalFields` JSONB) and `forecast_snapshots` for drift detection and consistency scoring.
 - **System Integrity Test Layer:** Internal validation module that tests 10 engine invariants on every forecast run, logging results and flagging unreliable forecasts.
-- **Signal Precedent Library (CIOS v18):** Precedent-based signal weighting with governance controls, 10 fixed signal types across A/B/C reliability tiers with assigned LRs. All signal LR assignment now exclusively uses `lookupPrecedentLr()` — `computeLR()` is fully deprecated and has zero active call sites.
+- **Signal Precedent Library (CIOS v18):** Precedent-based signal weighting with governance controls, 29 fixed signal types across A/B/C reliability tiers with assigned LRs. All signal LR assignment now exclusively uses `lookupPrecedentLr()` — `computeLR()` is fully deprecated and has zero active call sites.
 - **Signal Eligibility Gate:** Mandatory 3-tier classification (`Eligible`, `ContextOnly`, `Rejected`) before posterior calculation, ensuring only eligible signals contribute to the forecast.
 - **Validation Pack (5 cases):** VP-REGULATORY-001 through VP-BARRIER-005 with 57 signals, all using precedent-locked LRs. Seeded via `/api/validation-pack/seed` endpoint.
-- **Veligrotug Acceptance Test:** ACCEPT-VELIGROTUG-001 with 6 precedent-locked signals, verifying posterior=0.078±0.002 with dependency compression.
+- **Veligrotug Acceptance Test:** ACCEPT-VELIGROTUG-001 with 6 precedent-locked signals, verifying posterior=0.0669±0.002 with dependency compression.
 - **Authoritative ForecastResult Endpoint:** `GET /api/cases/:caseId/forecast-result` returns one canonical probability with evidence gate summary.
 - **Integrity Spec Enforcement (Rule 3 — Required Inputs):** Blocks forecasts if essential case or signal fields are missing, returning HTTP 422 with specific missing fields.
 
