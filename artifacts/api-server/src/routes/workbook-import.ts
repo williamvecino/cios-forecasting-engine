@@ -87,6 +87,13 @@ router.post(
         return res.status(404).json({ error: "Case not found" });
       }
 
+      const caseRow = caseRows[0];
+      if (caseRow.isDemo !== "true" && !caseRow.primaryTrialName) {
+        return res.status(400).json({
+          error: "Pivotal evidence is required before signal discovery can run. Add the primary trial name, PMID, and result summary to this case first.",
+        });
+      }
+
       const workbook = XLSX.read(file.buffer, { type: "buffer" });
 
       const sheetName = "CIOS_Signal_Export";
@@ -213,12 +220,16 @@ router.post(
       }
 
       await db.transaction(async (tx) => {
-        await tx.delete(signalsTable).where(
+        const existingSystem = await tx.select().from(signalsTable).where(
           and(
             eq(signalsTable.caseId, caseId),
             eq(signalsTable.createdByType, "system"),
           )
         );
+        const deletable = existingSystem.filter(s => s.signalFamily !== "pivotal-trial");
+        for (const s of deletable) {
+          await tx.delete(signalsTable).where(eq(signalsTable.id, s.id));
+        }
         await tx.insert(signalsTable).values(importedSignals);
       });
 

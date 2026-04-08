@@ -636,6 +636,10 @@ router.delete("/signals/:signalId", async (req, res) => {
   const [existing] = await db.select().from(signalsTable).where(eq(signalsTable.signalId, req.params.signalId));
   if (!existing) return res.status(404).json({ error: "Not found" });
 
+  if (existing.signalFamily === "pivotal-trial") {
+    return res.status(403).json({ error: "Pivotal trial signals are analyst-locked and cannot be deleted" });
+  }
+
   await db.delete(signalsTable).where(eq(signalsTable.signalId, req.params.signalId));
 
   await logAudit({

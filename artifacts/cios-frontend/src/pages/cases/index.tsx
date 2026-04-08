@@ -57,6 +57,10 @@ const caseSchema = z.object({
   accessFrictionIndex: z.coerce.number().min(0).max(1).default(0.5),
   adoptionPhase: z.string().default("early_adoption"),
   forecastHorizonMonths: z.coerce.number().default(12),
+  primaryTrialName: z.string().min(1, "Pivotal trial name is required"),
+  primaryTrialPmid: z.string().min(1, "PMID is required"),
+  primaryTrialResult: z.string().min(1, "Trial result summary is required"),
+  secondaryEvidence: z.string().optional(),
 });
 
 type CaseFormValues = z.infer<typeof caseSchema>;
@@ -485,6 +489,56 @@ export default function CasesList() {
                       placeholder="e.g. Oncology, Cardiology"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Section: Pivotal Evidence */}
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 pb-1 border-b border-primary/30">
+                  Pivotal Evidence
+                  <span className="normal-case font-normal ml-2 text-destructive">— required before case can run</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Anchor the most important clinical evidence first. This signal enters the register automatically and cannot be removed by automated discovery.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Primary Trial Name <span className="text-destructive">*</span></Label>
+                    <Input
+                      {...form.register("primaryTrialName")}
+                      placeholder="e.g. KEYNOTE-024, DESTINY-Breast03, ENCORE"
+                    />
+                    {form.formState.errors.primaryTrialName && (
+                      <p className="text-xs text-destructive mt-1">{form.formState.errors.primaryTrialName.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>PMID <span className="text-destructive">*</span></Label>
+                    <Input
+                      {...form.register("primaryTrialPmid")}
+                      placeholder="e.g. 27718847"
+                    />
+                    {form.formState.errors.primaryTrialPmid && (
+                      <p className="text-xs text-destructive mt-1">{form.formState.errors.primaryTrialPmid.message}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Label>Primary Trial Result <span className="text-destructive">*</span></Label>
+                  <Input
+                    {...form.register("primaryTrialResult")}
+                    placeholder="e.g. PFS 22.7 vs 6.8 months vs chemotherapy; HR 0.39 (p<0.001), favoring intervention"
+                  />
+                  {form.formState.errors.primaryTrialResult && (
+                    <p className="text-xs text-destructive mt-1">{form.formState.errors.primaryTrialResult.message}</p>
+                  )}
+                </div>
+                <div className="mt-4">
+                  <Label>Secondary Evidence PMIDs <span className="text-muted-foreground font-normal">(optional, comma-separated)</span></Label>
+                  <Input
+                    {...form.register("secondaryEvidence")}
+                    placeholder="e.g. 31562799, 33285113"
+                  />
                 </div>
               </div>
 

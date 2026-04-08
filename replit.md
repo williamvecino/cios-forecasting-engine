@@ -56,6 +56,8 @@ CIOS is structured as a monorepo utilizing pnpm workspaces. The frontend is buil
 - **Case Replacements:** CASE-DEMO-01 now Arikayce (prior=0.37, 5 signals), CASE-DEMO-05 now Sublocade/OUD (prior=0.35, 4 signals), CASE-1775022353034 now Beovu retrospective demo (prior=0.45, 5 signals). VP-ADOPTION-003 prior→0.25, CASE-LEQEMBI-01 prior→0.40.
 - **Authoritative ForecastResult Endpoint:** `GET /api/cases/:caseId/forecast-result` returns one canonical probability with evidence gate summary.
 - **Integrity Spec Enforcement (Rule 3 — Required Inputs):** Blocks forecasts if essential case or signal fields are missing, returning HTTP 422 with specific missing fields.
+- **Pivotal Evidence Gate:** Required case initialization step before MIOS/BAOS signal discovery. Cases created via Structured Input form must include Primary Trial Name, PMID, and Result Summary. Auto-creates an analyst-locked pivotal signal (`signalFamily: "pivotal-trial"`) with `countTowardPosterior: true`. Pivotal signals cannot be deleted by MIOS/BAOS import or manual deletion (403 protected). Schema columns: `primary_trial_name`, `primary_trial_pmid`, `primary_trial_result`, `secondary_evidence` on cases table.
+- **AI Signal Governance:** All signals created by non-human sources (`createdByType !== "human"`) default to `countTowardPosterior: false`. Enforced in workbook-import, discover, adopter-discovery, and signals routes.
 
 ## External Dependencies
 - **PostgreSQL:** Relational database.

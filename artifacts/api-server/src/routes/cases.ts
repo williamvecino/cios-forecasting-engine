@@ -14,6 +14,9 @@ router.get("/cases", async (_req, res) => {
 
 router.post("/cases", async (req, res) => {
   const body = req.body;
+
+  const hasPivotalEvidence = !!(body.primaryTrialName?.trim() && body.primaryTrialPmid?.trim() && body.primaryTrialResult?.trim());
+
   const id = randomUUID();
   const caseId = body.caseId || `CASE-${Date.now()}`;
   const assetName = body.assetName || body.primaryBrand || "Unknown Asset";
@@ -60,9 +63,50 @@ router.post("/cases", async (req, res) => {
     isDemo: body.isDemo || "false",
     priorArchetype: body.priorArchetype || null,
     priorRationale: body.priorRationale || null,
+    primaryTrialName: body.primaryTrialName?.trim() || null,
+    primaryTrialPmid: body.primaryTrialPmid?.trim() || null,
+    primaryTrialResult: body.primaryTrialResult?.trim() || null,
+    secondaryEvidence: body.secondaryEvidence?.trim() || null,
     canonicalFields: canonical,
     fieldsLockedAt: new Date(),
   }).returning();
+
+  if (hasPivotalEvidence) {
+    const pivotalSignalId = `PIVOTAL-${caseId}`;
+    const trialName = body.primaryTrialName.trim();
+    const pmid = body.primaryTrialPmid?.trim() || "";
+    const result = body.primaryTrialResult?.trim() || "";
+
+    await db.insert(signalsTable).values({
+      id: randomUUID(),
+      signalId: pivotalSignalId,
+      caseId,
+      brand: assetName,
+      signalDescription: `Pivotal trial: ${trialName} — ${result}`,
+      signalType: "Phase III clinical trial",
+      direction: "Positive",
+      strengthScore: 0.9,
+      reliabilityScore: 0.95,
+      likelihoodRatio: 1.0,
+      scope: "national",
+      timing: "current",
+      status: "active",
+      createdByType: "human",
+      createdById: "analyst",
+      sourceLabel: trialName,
+      sourceUrl: pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : null,
+      evidenceSnippet: result,
+      identifierType: "PMID",
+      identifierValue: pmid,
+      verificationStatus: "verified",
+      registryMatch: true,
+      evidenceClass: "Eligible",
+      countTowardPosterior: true,
+      signalFamily: "pivotal-trial",
+      noveltyFlag: true,
+    });
+  }
+
   res.status(201).json(mapCase(created));
 });
 
@@ -276,6 +320,10 @@ function mapCase(c: typeof casesTable.$inferSelect) {
     isDemo: c.isDemo,
     priorArchetype: c.priorArchetype,
     priorRationale: c.priorRationale,
+    primaryTrialName: c.primaryTrialName,
+    primaryTrialPmid: c.primaryTrialPmid,
+    primaryTrialResult: c.primaryTrialResult,
+    secondaryEvidence: c.secondaryEvidence,
     canonicalFields: c.canonicalFields,
     fieldsLockedAt: c.fieldsLockedAt,
     lastUpdate: c.lastUpdate,

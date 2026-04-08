@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { candidateSignalsTable, CANDIDATE_DOMAINS, DOMAIN_TO_SIGNAL_TYPE, DOMAIN_LABELS, signalsTable, type CandidateDomain } from "@workspace/db";
+import { candidateSignalsTable, CANDIDATE_DOMAINS, DOMAIN_TO_SIGNAL_TYPE, DOMAIN_LABELS, signalsTable, casesTable, type CandidateDomain } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { Scope, Timing } from "@workspace/db";
@@ -78,6 +78,13 @@ router.post("/cases/:caseId/discover", async (req, res) => {
 
   if (!text || text.trim().length < 20) {
     return res.status(400).json({ error: "Please provide at least 20 characters of text to analyze." });
+  }
+
+  const [caseRow] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
+  if (caseRow && caseRow.isDemo !== "true" && !caseRow.primaryTrialName) {
+    return res.status(400).json({
+      error: "Pivotal evidence is required before signal discovery can run. Add the primary trial name, PMID, and result summary to this case first.",
+    });
   }
 
   try {
