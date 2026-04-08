@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
 import { useListCases } from "@workspace/api-client-react";
 import TopNav from "@/components/top-nav";
 import {
@@ -6,11 +7,46 @@ import {
   Plus,
   Target,
   Loader2,
+  ShieldAlert,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
+
+function getApiBase() {
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+    return `https://${window.location.hostname}:443/api`;
+  }
+  return "/api";
+}
+
+interface CaseCompleteness {
+  caseId: string;
+  pass: boolean;
+  hardBlocked: boolean;
+  allChecks: { category: string; tier: number; present: boolean; message: string }[];
+}
+
+function useCompletenessAll() {
+  const [data, setData] = useState<Record<string, CaseCompleteness>>({});
+  useEffect(() => {
+    fetch(`${getApiBase()}/completeness-check/all`)
+      .then(r => r.json())
+      .then(res => {
+        const map: Record<string, CaseCompleteness> = {};
+        for (const c of res.cases || []) {
+          map[c.caseId] = c;
+        }
+        setData(map);
+      })
+      .catch(() => {});
+  }, []);
+  return data;
+}
 
 export default function ForecastsPage() {
   const { data: cases, isLoading } = useListCases();
   const allCases = (cases as any[]) || [];
+  const completeness = useCompletenessAll();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -90,6 +126,27 @@ export default function ForecastsPage() {
                     <span className="font-mono">{cid}</span>
                     {c.primaryBrand && <span>· {c.primaryBrand}</span>}
                   </div>
+
+                  {completeness[cid] && completeness[cid].hardBlocked && (
+                    <div className="flex items-center gap-1.5 rounded-lg bg-red-500/10 border border-red-500/30 px-2.5 py-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span className="text-[10px] font-semibold text-red-400">Missing Clinical Evidence</span>
+                    </div>
+                  )}
+                  {completeness[cid] && !completeness[cid].hardBlocked && !completeness[cid].pass && (
+                    <div className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="text-[10px] font-medium text-amber-400">
+                        {completeness[cid].allChecks.filter(ch => !ch.present).length} signal gap{completeness[cid].allChecks.filter(ch => !ch.present).length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {completeness[cid] && completeness[cid].pass && (
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      <span className="text-[10px] font-medium text-emerald-400">Signal coverage complete</span>
+                    </div>
+                  )}
                 </Link>
               );
             })}
