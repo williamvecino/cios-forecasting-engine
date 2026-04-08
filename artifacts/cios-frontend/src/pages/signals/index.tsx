@@ -51,7 +51,6 @@ import {
   Layers,
 } from "lucide-react";
 import DataImportDialog from "@/components/signals/DataImportDialog";
-import { WorkbookImportDialog } from "@/components/signals/WorkbookImportDialog";
 import { SignalProvenanceDrawer, buildProvenance } from "@/components/signals/SignalProvenanceDrawer";
 import ExternalSignalScoutPanel from "@/components/signals/ExternalSignalScoutPanel";
 import SignalNormalizerPanel from "@/components/signals/SignalNormalizerPanel";
@@ -59,7 +58,6 @@ import SignalQualityPanel from "@/components/signals/SignalQualityPanel";
 import ConflictResolverPanel from "@/components/signals/ConflictResolverPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
-import MiosBaosPanel from "@/components/signals/MiosBaosPanel";
 import SignalDependencyPanel, { type SignalLineageInfo } from "@/components/signals/SignalDependencyPanel";
 import SignalMapPanel from "@/components/signals/SignalMapPanel";
 import DriverCoveragePanel from "@/components/signals/DriverCoveragePanel";
@@ -67,29 +65,6 @@ import SignalCompletenessPanel from "@/components/signals/SignalCompletenessPane
 import PivotalEvidenceSearch from "@/components/signals/PivotalEvidenceSearch";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
-function isMiosBaosSignal(s: any): boolean {
-  const st = (s.source_type || "").toUpperCase();
-  if (st === "MIOS" || st === "BAOS" || st.includes("MIOS") || st.includes("BAOS")) return true;
-  const pid = (s.workbook_meta?.programId || "").toUpperCase();
-  if (pid.startsWith("MIOS-") || pid.startsWith("BAOS-")) return true;
-  const src = (s.workbook_meta?.sourceWorkbook || "").toUpperCase();
-  if (src.includes("MIOS") || src.includes("BAOS")) return true;
-  const id = (s.id || "");
-  if (id.startsWith("mios_") || id.startsWith("baos_")) return true;
-  return false;
-}
-
-function doesMiosBaosMatchBrand(s: any, currentSubject: string): boolean {
-  const brandUpper = currentSubject.toUpperCase().replace(/\s+/g, "_");
-  const brandLower = currentSubject.toLowerCase().replace(/\s+/g, "_");
-  const pid = (s.workbook_meta?.programId || "").toUpperCase();
-  if (pid && pid.includes(brandUpper)) return true;
-  const src = (s.workbook_meta?.sourceWorkbook || "").toUpperCase();
-  if (src && src.includes(currentSubject.toUpperCase())) return true;
-  const id = (s.id || "").toLowerCase();
-  if (id.startsWith(`mios_${brandLower}_`) || id.startsWith(`baos_${brandLower}_`)) return true;
-  return false;
-}
 
 const GENERIC_SIGNAL_PHRASES = [
   "launch trajectory tracking above historical comparators",
@@ -205,9 +180,7 @@ function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): 
   if (!signals || signals.length === 0) return signals;
   return signals.filter((s: any) => {
     if (isGenericTemplateSignal(s.text)) return false;
-    if (!isMiosBaosSignal(s)) return true;
-    if (!currentSubject) return false;
-    return doesMiosBaosMatchBrand(s, currentSubject);
+    return true;
   });
 }
 
@@ -1651,7 +1624,6 @@ export default function SignalsPage() {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [showWorkbookImport, setShowWorkbookImport] = useState(false);
   const [provenanceSignal, setProvenanceSignal] = useState<Signal | null>(null);
   const [showFindPanel, setShowFindPanel] = useState(false);
   const [findKeywords, setFindKeywords] = useState("");
@@ -2031,31 +2003,6 @@ export default function SignalsPage() {
     setNewStrength("Medium");
     setNewReliability("Probable");
     setShowAddForm(false);
-  }
-
-  function handleWorkbookImport(importedSignals: any[]) {
-    const cid = activeQuestion?.caseId;
-    const isServerImported = importedSignals.length > 0 && importedSignals[0]?._serverImported;
-    if (isServerImported) {
-      const uiSignals = importedSignals.map((s: any) => enrichSignalFields({
-        ...s,
-        _serverImported: undefined,
-        accepted: true,
-        source: "system" as const,
-        is_locked: true,
-      }, questionText, outcome));
-      persistSignals(uiSignals);
-      setSignals(uiSignals);
-    } else {
-      const enriched = importedSignals.map((s: any) => enrichSignalFields(s, questionText, outcome));
-      persistSignals(enriched);
-      setSignals(enriched);
-      importedSignals.forEach((sig: any) => persistSignalToDb(sig));
-    }
-    if (importedSignals.length > 0 && cid) {
-      localStorage.setItem(`cios.signalsLocked:${cid}`, "true");
-      setTimeout(() => triggerGateRecalculation(importedSignals, `Replaced with ${importedSignals.length} workbook signals`), 0);
-    }
   }
 
   function handleImportedRows(rows: ImportedRow[]) {
@@ -2553,21 +2500,6 @@ export default function SignalsPage() {
             </div>
           )}
 
-          <MiosBaosPanel
-            brand={subject || ""}
-            question={questionText}
-            onAcceptSignals={(accepted) => {
-              setSignals((prev) => {
-                const filtered = prev.filter((s) => !isMiosBaosSignal(s));
-                const updated = [...accepted as Signal[], ...filtered];
-                persistSignals(updated);
-                accepted.forEach((s) => persistSignalToDb(s as Signal));
-                setTimeout(() => triggerGateRecalculation(updated), 0);
-                return updated;
-              });
-            }}
-          />
-
           <ExternalSignalScoutPanel
             activeQuestion={questionText}
             subject={subject}
@@ -2955,14 +2887,6 @@ export default function SignalsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowWorkbookImport(true)}
-                className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/5 px-4 py-3 text-sm text-violet-300 hover:bg-violet-500/10 hover:border-violet-500/50 transition"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                Import MIOS / BAOS
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   setShowFindPanel(true);
                   if (!structuredSearchDone && structuredCandidates.length === 0 && !structuredSearchLoading) {
@@ -3278,13 +3202,6 @@ export default function SignalsPage() {
         onImport={handleImportedRows}
         activeQuestion={questionText}
       />
-      <WorkbookImportDialog
-        open={showWorkbookImport}
-        onClose={() => setShowWorkbookImport(false)}
-        onImportComplete={handleWorkbookImport}
-        caseId={activeQuestion?.caseId}
-        useServerImport={true}
-      />
       {provenanceSignal && (
         <SignalProvenanceDrawer
           open={true}
@@ -3401,7 +3318,7 @@ function MinimalSignalCard({
         >
           {signal.workbook_meta ? <FileSpreadsheet className="w-3 h-3" /> : <Info className="w-3 h-3" />}
           <span className="font-semibold uppercase tracking-wider">
-            {signal.workbook_meta ? "MIOS/BAOS" : getSourceLabel(signal)}
+            {signal.workbook_meta ? "Workbook" : getSourceLabel(signal)}
           </span>
           {signal.workbook_meta?.programId && (
             <>

@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
+import MessageStrategyPanel from "@/components/strategy/MessageStrategyPanel";
+import ObjectionHandlingPanel from "@/components/strategy/ObjectionHandlingPanel";
 
 interface GapViolation {
   phrase: string;
@@ -600,6 +602,26 @@ export default function RespondPage() {
                 onToggle={handleDiagnosticsToggle}
                 visible={diagnosticsVisible}
               />
+
+              <div className="border-t border-border/40" />
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-muted-foreground" />
+                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Post-Forecast Strategy Tools</h2>
+                </div>
+                <p className="text-xs text-muted-foreground">These tools read the forecast output to inform strategy. They do not write to the signal register or influence the forecast.</p>
+
+                <MessageStrategyPanel
+                  brand={activeQuestion?.subject || ""}
+                  question={questionText}
+                />
+
+                <ObjectionHandlingPanel
+                  brand={activeQuestion?.subject || ""}
+                  question={questionText}
+                />
+              </div>
 
               <div className="pt-2" />
 
