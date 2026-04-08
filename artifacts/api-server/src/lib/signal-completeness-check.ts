@@ -96,11 +96,13 @@ function matchesSafety(s: SignalInput): boolean {
   const f = getFamily(s);
   return (
     t.includes("safety") ||
+    t.includes("tolerability") ||
     t.includes("black box") ||
     t.includes("rems") ||
     t.includes("post-marketing") ||
     t.includes("faers") ||
     t.includes("clinical hold") ||
+    t === "regulatory / clinical" ||
     f.includes("safety") ||
     f.includes("pharmacovigilance")
   );
@@ -138,6 +140,8 @@ function matchesOperational(s: SignalInput): boolean {
     t.includes("subcutaneous") ||
     t.includes("dosing") ||
     t.includes("operational") ||
+    t.includes("capacity") ||
+    t.includes("infrastructure") ||
     f.includes("operational") ||
     f.includes("delivery")
   );
