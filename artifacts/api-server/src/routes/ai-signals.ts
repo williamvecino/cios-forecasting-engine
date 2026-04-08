@@ -642,9 +642,11 @@ router.post("/ai-signals/structured-search", async (req, res) => {
 
     const drugName = subject;
     const diseaseState = indication || "";
-    const categories = buildFullSearchQueries(drugName, diseaseState);
+    const { lookupSponsor } = await import("../lib/authoritative-sources.js");
+    const sponsorProfile = lookupSponsor(drugName);
+    const categories = buildFullSearchQueries(drugName, diseaseState, sponsorProfile);
 
-    const result = await runStructuredEvidenceSearch(drugName, diseaseState, categories);
+    const result = await runStructuredEvidenceSearch(drugName, diseaseState, categories, sponsorProfile);
 
     res.json({
       signals: result.candidates.map((c) => ({

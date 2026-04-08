@@ -82,6 +82,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         competitorProfile: "Entrenched standard of care",
         topSupportiveActor: null,
         topConstrainingActor: null,
+        sponsorCompany: "Insmed",
+        sponsorIRUrl: "ir.insmed.com",
+        sponsorTicker: "INSM",
         isDemo: "true",
       },
       {
@@ -109,6 +112,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         competitorProfile: "Own-franchise displacement (Orkambi/Symdeko)",
         topSupportiveActor: null,
         topConstrainingActor: null,
+        sponsorCompany: "Vertex Pharmaceuticals",
+        sponsorIRUrl: "ir.vrtx.com",
+        sponsorTicker: "VRTX",
         isDemo: "true",
       },
       {
@@ -136,6 +142,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         competitorProfile: "Diet-only management + Palynziq injectable",
         topSupportiveActor: null,
         topConstrainingActor: null,
+        sponsorCompany: "Viridian Therapeutics",
+        sponsorIRUrl: "ir.viridiantx.com",
+        sponsorTicker: "VRDN",
         isDemo: "true",
       },
     ]);

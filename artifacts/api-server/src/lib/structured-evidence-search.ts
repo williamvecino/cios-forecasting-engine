@@ -1,7 +1,7 @@
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { lookupPrecedentLr } from "./precedent-lookup.js";
 import { randomUUID } from "crypto";
-import { classifyUrlTier, buildAuthoritativeQueries, TIER0_DOMAINS, lookupSocietyDomains } from "./authoritative-sources.js";
+import { classifyUrlTier, buildAuthoritativeQueries, TIER0_DOMAINS, lookupSocietyDomains, lookupSponsor, type SponsorProfile } from "./authoritative-sources.js";
 
 export interface EvidenceCandidate {
   tempId: string;
@@ -22,8 +22,10 @@ export interface EvidenceCandidate {
   unverifiedTrialName: boolean;
   knownTrialHint: string | null;
   registryVerified?: boolean;
-  verificationTier?: 0 | 1 | 2 | 3;
+  verificationTier?: 0 | 1 | "1S" | 2 | 3;
   nctNumber?: string | null;
+  sponsorSource?: boolean;
+  sponsorCompany?: string | null;
 }
 
 export interface StructuredSearchResult {
@@ -105,14 +107,19 @@ interface SearchCategory {
   queries: string[];
 }
 
-export function buildFullSearchQueries(drugName: string, indication: string): SearchCategory[] {
-  const authCategories = buildAuthoritativeQueries(drugName, indication);
+export function buildFullSearchQueries(
+  drugName: string,
+  indication: string,
+  sponsor?: SponsorProfile | null,
+  timeFilterMonths: number = 12,
+): SearchCategory[] {
+  const authCategories = buildAuthoritativeQueries(drugName, indication, sponsor, timeFilterMonths);
   const categories: SearchCategory[] = [];
   for (const ac of authCategories) {
     categories.push({
       id: ac.id,
       label: ac.label,
-      queries: [...ac.authoritativeQueries, ...ac.generalQueries],
+      queries: [...ac.authoritativeQueries, ...ac.sponsorQueries, ...ac.generalQueries],
     });
   }
   return categories;
@@ -363,7 +370,7 @@ function extractNctNumber(text: string): string | null {
   return match ? match[0].toUpperCase() : null;
 }
 
-function verifyTrialNames(findings: any[], sourceCorpus: string, drugName: string): any[] {
+function verifyTrialNames(findings: any[], sourceCorpus: string, drugName: string, sponsorProfile?: SponsorProfile | null): any[] {
   const knownTrials = lookupKnownTrials(drugName);
 
   return findings.map((f) => {
@@ -372,8 +379,10 @@ function verifyTrialNames(findings: any[], sourceCorpus: string, drugName: strin
       unverifiedTrialName: false,
       knownTrialHint: null as string | null,
       registryVerified: false,
-      verificationTier: 3 as 0 | 1 | 2 | 3,
+      verificationTier: 3 as 0 | 1 | "1S" | 2 | 3,
       nctNumber: null as string | null,
+      sponsorSource: false,
+      sponsorCompany: null as string | null,
     };
 
     const nctFromFinding = extractNctNumber(
@@ -383,13 +392,22 @@ function verifyTrialNames(findings: any[], sourceCorpus: string, drugName: strin
       result.nctNumber = nctFromFinding;
     }
 
-    const hasRegistrySource = isRegistrySource(result.sourceUrl);
+    const urlTier = classifyUrlTier(result.sourceUrl, sponsorProfile);
 
-    if (hasRegistrySource) {
+    if (urlTier === 0) {
       result.registryVerified = true;
       result.verificationTier = 0;
       result.unverifiedTrialName = false;
       console.log(`[EVIDENCE-SEARCH] TIER 0 REGISTRY VERIFIED: "${result.trialName || "unnamed"}" from ${result.sourceUrl}`);
+      return result;
+    }
+
+    if (urlTier === "1S") {
+      result.verificationTier = "1S";
+      result.sponsorSource = true;
+      result.sponsorCompany = sponsorProfile?.company || null;
+      result.unverifiedTrialName = false;
+      console.log(`[EVIDENCE-SEARCH] TIER 1S SPONSOR VERIFIED: "${result.trialName || "unnamed"}" from ${result.sourceUrl} (${sponsorProfile?.company})`);
       return result;
     }
 
@@ -450,6 +468,7 @@ export async function runStructuredEvidenceSearch(
   drugName: string,
   indication: string,
   categories: SearchCategory[],
+  sponsorProfile?: SponsorProfile | null,
 ): Promise<StructuredSearchResult> {
   const searchResults = await runCategorySearches(categories);
   const searchContext = buildSearchContext(searchResults);
@@ -500,7 +519,7 @@ export async function runStructuredEvidenceSearch(
   console.log("[EVIDENCE-SEARCH] Raw LLM findings (pre-verification):", JSON.stringify(findings, null, 2));
 
   const sourceCorpus = buildSourceCorpus(searchResults);
-  const verifiedFindings = verifyTrialNames(findings, sourceCorpus, drugName);
+  const verifiedFindings = verifyTrialNames(findings, sourceCorpus, drugName, sponsorProfile);
 
   console.log("[EVIDENCE-SEARCH] Verified findings (post-processing):", JSON.stringify(verifiedFindings, null, 2));
 
@@ -540,12 +559,16 @@ export async function runStructuredEvidenceSearch(
       unverifiedTrialName: unverified,
       knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
       registryVerified: regVerified,
-      verificationTier: (typeof f.verificationTier === "number" ? f.verificationTier : 3) as 0 | 1 | 2 | 3,
+      verificationTier: (f.verificationTier === "1S" ? "1S" : typeof f.verificationTier === "number" ? f.verificationTier : 3) as 0 | 1 | "1S" | 2 | 3,
       nctNumber: typeof f.nctNumber === "string" ? f.nctNumber : null,
+      sponsorSource: !!f.sponsorSource,
+      sponsorCompany: typeof f.sponsorCompany === "string" ? f.sponsorCompany : null,
     };
   });
 
-  candidates.sort((a, b) => (a.verificationTier ?? 3) - (b.verificationTier ?? 3));
+  const tierOrder = (t: 0 | 1 | "1S" | 2 | 3 | undefined): number =>
+    t === 0 ? 0 : t === 1 ? 1 : t === "1S" ? 1.5 : t === 2 ? 2 : 3;
+  candidates.sort((a, b) => tierOrder(a.verificationTier) - tierOrder(b.verificationTier));
 
   return {
     drugName,

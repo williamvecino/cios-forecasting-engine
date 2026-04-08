@@ -61,6 +61,10 @@ export const casesTable = pgTable("cases", {
   primaryTrialResult: text("primary_trial_result"),
   secondaryEvidence: text("secondary_evidence"),
 
+  sponsorCompany: text("sponsor_company"),
+  sponsorIRUrl: text("sponsor_ir_url"),
+  sponsorTicker: text("sponsor_ticker"),
+
   canonicalFields: jsonb("canonical_fields"),
   fieldsLockedAt: timestamp("fields_locked_at"),
 

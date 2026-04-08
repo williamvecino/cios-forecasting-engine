@@ -55,7 +55,46 @@ export const INDICATION_SOCIETY_MAP: Record<string, string[]> = {
   "ophthalmology": ["aao.org"],
   "macular": ["aao.org"],
   "retinal": ["aao.org"],
+  "thyroid eye disease": ["aao.org", "thyroid.org"],
+  "ted": ["aao.org", "thyroid.org"],
+  "graves": ["thyroid.org"],
 };
+
+export const SPONSOR_LOOKUP: Record<string, { company: string; irUrl: string; ticker: string }> = {
+  "arikayce": { company: "Insmed", irUrl: "ir.insmed.com", ticker: "INSM" },
+  "amikacin liposome": { company: "Insmed", irUrl: "ir.insmed.com", ticker: "INSM" },
+  "trikafta": { company: "Vertex Pharmaceuticals", irUrl: "ir.vrtx.com", ticker: "VRTX" },
+  "elexacaftor": { company: "Vertex Pharmaceuticals", irUrl: "ir.vrtx.com", ticker: "VRTX" },
+  "veligrotug": { company: "Viridian Therapeutics", irUrl: "ir.viridiantx.com", ticker: "VRDN" },
+  "vrdn-001": { company: "Viridian Therapeutics", irUrl: "ir.viridiantx.com", ticker: "VRDN" },
+  "leqembi": { company: "Eisai", irUrl: "ir.eisai.com", ticker: "ESALY" },
+  "lecanemab": { company: "Eisai", irUrl: "ir.eisai.com", ticker: "ESALY" },
+  "sublocade": { company: "Indivior", irUrl: "ir.indivior.com", ticker: "INDV" },
+  "beovu": { company: "Novartis", irUrl: "ir.novartis.com", ticker: "NVS" },
+  "brolucizumab": { company: "Novartis", irUrl: "ir.novartis.com", ticker: "NVS" },
+  "humira": { company: "AbbVie", irUrl: "ir.abbvie.com", ticker: "ABBV" },
+  "adalimumab": { company: "AbbVie", irUrl: "ir.abbvie.com", ticker: "ABBV" },
+  "kisqali": { company: "Novartis", irUrl: "ir.novartis.com", ticker: "NVS" },
+  "ribociclib": { company: "Novartis", irUrl: "ir.novartis.com", ticker: "NVS" },
+  "xarelto": { company: "Janssen/Bayer", irUrl: "ir.bayer.com", ticker: "BAYRY" },
+  "rivaroxaban": { company: "Janssen/Bayer", irUrl: "ir.bayer.com", ticker: "BAYRY" },
+  "palynziq": { company: "BioMarin", irUrl: "ir.biomarin.com", ticker: "BMRN" },
+  "pegvaliase": { company: "BioMarin", irUrl: "ir.biomarin.com", ticker: "BMRN" },
+};
+
+export interface SponsorProfile {
+  company: string;
+  irUrl: string;
+  ticker: string;
+}
+
+export function lookupSponsor(drugName: string): SponsorProfile | null {
+  const lower = drugName.toLowerCase();
+  for (const [key, profile] of Object.entries(SPONSOR_LOOKUP)) {
+    if (lower.includes(key)) return profile;
+  }
+  return null;
+}
 
 export const TIER0_DOMAINS = new Set([
   "clinicaltrials.gov",
@@ -109,13 +148,29 @@ export const TIER2_CORPORATE_DOMAINS = new Set([
   "endpoints.news",
 ]);
 
-export function classifyUrlTier(url: string | null | undefined): 0 | 2 | 3 {
+export function classifyUrlTier(
+  url: string | null | undefined,
+  sponsorProfile?: SponsorProfile | null,
+): 0 | "1S" | 2 | 3 {
   if (!url || typeof url !== "string") return 3;
   const lower = url.toLowerCase();
+
+  if (lower.includes("sec.gov")) return 0;
+
   for (const domain of TIER0_DOMAINS) {
     if (lower.includes(domain)) return 0;
   }
   if (lower.includes(".gov") || lower.includes(".edu")) return 0;
+
+  if (sponsorProfile) {
+    const irDomain = sponsorProfile.irUrl.toLowerCase();
+    const companySlug = sponsorProfile.company.toLowerCase().replace(/\s+/g, "");
+    if (lower.includes(irDomain)) return "1S";
+    if (lower.includes(companySlug + ".com")) return "1S";
+    const irRoot = irDomain.replace(/^ir\./, "");
+    if (lower.includes(irRoot)) return "1S";
+  }
+
   for (const domain of TIER2_CORPORATE_DOMAINS) {
     if (lower.includes(domain)) return 2;
   }
@@ -134,23 +189,59 @@ export function lookupSocietyDomains(indication: string): string[] {
   return [...matched];
 }
 
+export function getTimeFilterDate(monthsBack: number = 12): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsBack);
+  return d.toISOString().slice(0, 10);
+}
+
+export const SPONSOR_CATEGORY_KEYWORDS: Record<string, string> = {
+  "clinical_auth": "trial results phase FDA",
+  "regulatory_auth": "FDA approval label REMS",
+  "payer_auth": "coverage reimbursement access formulary",
+  "safety_auth": "safety adverse events pharmacovigilance",
+  "guidelines_auth": "guideline recommendation society",
+  "competitive_auth": "market launch adoption sales",
+};
+
 export interface AuthoritativeCategory {
   id: string;
   label: string;
   authoritativeQueries: string[];
   generalQueries: string[];
+  sponsorQueries: string[];
 }
 
 export function buildAuthoritativeQueries(
   drugName: string,
   indication: string,
+  sponsor?: SponsorProfile | null,
+  timeFilterMonths: number = 12,
 ): AuthoritativeCategory[] {
   const societyDomains = lookupSocietyDomains(indication);
   const year = new Date().getFullYear().toString();
+  const afterDate = getTimeFilterDate(timeFilterMonths);
 
   const guidelineSiteQueries = societyDomains.map(
     (d) => `site:${d} ${drugName} ${indication}`,
   );
+
+  function buildSponsorQueries(categoryId: string): string[] {
+    if (!sponsor) return [];
+    const keywords = SPONSOR_CATEGORY_KEYWORDS[categoryId] || "";
+    return [
+      `${drugName} ${keywords} site:${sponsor.irUrl}`,
+      `"${drugName}" ${keywords} "${sponsor.company}" after:${afterDate}`,
+    ];
+  }
+
+  function buildSecEdgarQueries(): string[] {
+    if (!sponsor || !sponsor.ticker) return [];
+    return [
+      `site:sec.gov ${sponsor.company} 8-K "${drugName}"`,
+      `site:sec.gov/cgi-bin/browse-edgar ${sponsor.company} 8-K ${drugName}`,
+    ];
+  }
 
   return [
     {
@@ -159,13 +250,14 @@ export function buildAuthoritativeQueries(
       authoritativeQueries: [
         `site:clinicaltrials.gov "${drugName}" "${indication}"`,
         `site:pubmed.ncbi.nlm.nih.gov ${drugName} ${indication}`,
-        `${drugName} ${indication} phase 3 results pubmed`,
+        `${drugName} ${indication} phase 3 results pubmed after:${afterDate}`,
       ],
       generalQueries: [
-        `${drugName} phase 3 trial ${indication}`,
+        `${drugName} phase 3 trial ${indication} after:${afterDate}`,
         `${drugName} pivotal trial results ${indication}`,
         `${drugName} first line ${indication} phase 3`,
       ],
+      sponsorQueries: buildSponsorQueries("clinical_auth"),
     },
     {
       id: "regulatory_auth",
@@ -174,11 +266,12 @@ export function buildAuthoritativeQueries(
         `site:fda.gov ${drugName} approval ${indication}`,
         `site:accessdata.fda.gov ${drugName} label`,
         `site:fda.gov ${drugName} REMS ${indication}`,
-        `${drugName} FDA approval letter ${indication}`,
+        `${drugName} FDA approval letter ${indication} after:${afterDate}`,
       ],
       generalQueries: [
         `${drugName} prescribing information label`,
       ],
+      sponsorQueries: buildSponsorQueries("regulatory_auth"),
     },
     {
       id: "payer_auth",
@@ -186,13 +279,14 @@ export function buildAuthoritativeQueries(
       authoritativeQueries: [
         `site:cms.gov ${drugName} coverage ${indication}`,
         `site:cms.gov/medicare-coverage-database ${drugName}`,
-        `${drugName} Medicare coverage decision NCD LCD`,
+        `${drugName} Medicare coverage decision NCD LCD after:${afterDate}`,
         `${drugName} prior authorization Medicaid ${indication}`,
       ],
       generalQueries: [
-        `${drugName} formulary coverage ${indication}`,
+        `${drugName} formulary coverage ${indication} after:${afterDate}`,
         `${drugName} prior authorization commercial`,
       ],
+      sponsorQueries: buildSponsorQueries("payer_auth"),
     },
     {
       id: "safety_auth",
@@ -205,8 +299,9 @@ export function buildAuthoritativeQueries(
         `${drugName} FAERS adverse events ${indication}`,
       ],
       generalQueries: [
-        `${drugName} post-marketing safety`,
+        `${drugName} post-marketing safety after:${afterDate}`,
       ],
+      sponsorQueries: buildSponsorQueries("safety_auth"),
     },
     {
       id: "guidelines_auth",
@@ -216,9 +311,10 @@ export function buildAuthoritativeQueries(
         `${indication} treatment guidelines ${year} ${drugName}`,
       ],
       generalQueries: [
-        `${drugName} guideline recommendation ${indication}`,
+        `${drugName} guideline recommendation ${indication} after:${afterDate}`,
         `${indication} society recommendations`,
       ],
+      sponsorQueries: buildSponsorQueries("guidelines_auth"),
     },
     {
       id: "competitive_auth",
@@ -226,11 +322,13 @@ export function buildAuthoritativeQueries(
       authoritativeQueries: [
         `site:fda.gov ${indication} approved drugs`,
         `site:sec.gov ${drugName} sales ${year}`,
+        ...buildSecEdgarQueries(),
       ],
       generalQueries: [
-        `${drugName} competitors ${indication}`,
+        `${drugName} competitors ${indication} after:${afterDate}`,
         `${indication} competing treatments`,
       ],
+      sponsorQueries: buildSponsorQueries("competitive_auth"),
     },
   ];
 }

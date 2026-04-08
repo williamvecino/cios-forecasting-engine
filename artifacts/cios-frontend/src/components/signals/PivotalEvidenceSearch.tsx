@@ -19,8 +19,10 @@ interface EvidenceCandidate {
   unverifiedTrialName?: boolean;
   knownTrialHint?: string | null;
   registryVerified?: boolean;
-  verificationTier?: 0 | 1 | 2 | 3;
+  verificationTier?: 0 | 1 | "1S" | 2 | 3;
   nctNumber?: string | null;
+  sponsorSource?: boolean;
+  sponsorCompany?: string | null;
 }
 
 const CONFIDENCE_STYLES: Record<string, string> = {
@@ -29,17 +31,25 @@ const CONFIDENCE_STYLES: Record<string, string> = {
   Weak: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
-const TIER_BADGES: Record<number, { label: string; style: string; icon: "registry" | "known" | "found" | "blocked" }> = {
-  0: { label: "Registry Verified", style: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", icon: "registry" },
-  1: { label: "Known Trial", style: "bg-green-500/20 text-green-400 border-green-500/30", icon: "known" },
-  2: { label: "Found in Source", style: "bg-amber-500/20 text-amber-400 border-amber-500/30", icon: "found" },
-  3: { label: "Unverified", style: "bg-red-500/20 text-red-400 border-red-500/30", icon: "blocked" },
+const TIER_BADGES: Record<string, { label: string; style: string; icon: "registry" | "known" | "sponsor" | "found" | "blocked" }> = {
+  "0": { label: "Registry Verified", style: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", icon: "registry" },
+  "1": { label: "Known Trial", style: "bg-green-500/20 text-green-400 border-green-500/30", icon: "known" },
+  "1S": { label: "Sponsor Source", style: "bg-blue-500/20 text-blue-400 border-blue-500/30", icon: "sponsor" },
+  "2": { label: "Found in Source", style: "bg-amber-500/20 text-amber-400 border-amber-500/30", icon: "found" },
+  "3": { label: "Unverified", style: "bg-red-500/20 text-red-400 border-red-500/30", icon: "blocked" },
 };
+
+interface SponsorProfile {
+  company: string;
+  irUrl: string;
+  ticker: string;
+}
 
 interface PivotalSearchResult {
   caseId: string;
   drugName: string;
   indication: string;
+  sponsorProfile?: SponsorProfile | null;
   searchCategories: string[];
   candidates: EvidenceCandidate[];
 }
@@ -224,6 +234,14 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
               {rejected.size > 0 && <>, <span className="text-red-400">{rejected.size} rejected</span></>}
               {undecided.length > 0 && <>, <span className="text-muted-foreground">{undecided.length} pending</span></>}
             </p>
+            {result.sponsorProfile && (
+              <div className="flex items-center gap-2 mt-1.5 text-xs text-blue-400">
+                <FileText className="w-3 h-3" />
+                <span>Sponsor: <span className="font-medium">{result.sponsorProfile.company}</span></span>
+                {result.sponsorProfile.ticker && <span className="text-muted-foreground">({result.sponsorProfile.ticker})</span>}
+                <span className="text-muted-foreground">IR: {result.sponsorProfile.irUrl}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -280,8 +298,9 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                     const displayUrl = pmidUrl || c.sourceUrl;
                     const hasQuote = !!c.sourceQuote && c.sourceQuote.trim().length > 0;
                     const tier = c.verificationTier ?? (c.unverifiedTrialName ? 3 : 2);
-                    const tierBadge = TIER_BADGES[tier] || TIER_BADGES[3];
-                    const canApprove = tier <= 1 || hasQuote;
+                    const tierKey = String(tier);
+                    const tierBadge = TIER_BADGES[tierKey] || TIER_BADGES["3"];
+                    const canApprove = tier === 0 || tier === 1 || tier === "1S" || hasQuote;
                     const confidence = c.sourceConfidence || "Weak";
                     const confidenceStyle = CONFIDENCE_STYLES[confidence] || CONFIDENCE_STYLES.Weak;
 
@@ -305,6 +324,7 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                               <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border font-medium ${tierBadge.style}`}>
                                 {tierBadge.icon === "registry" ? <Database className="w-3 h-3" /> :
                                  tierBadge.icon === "known" ? <ShieldCheck className="w-3 h-3" /> :
+                                 tierBadge.icon === "sponsor" ? <FileText className="w-3 h-3" /> :
                                  tierBadge.icon === "blocked" ? <AlertTriangle className="w-3 h-3" /> : null}
                                 {tierBadge.label}
                               </span>
@@ -332,11 +352,18 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                                   Source says: "{c.sourceQuote}"
                                 </p>
                               </div>
-                            ) : tier <= 1 ? (
+                            ) : tier === 0 || tier === 1 ? (
                               <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
                                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                                 <span className="text-xs text-emerald-400 font-medium">
                                   {tier === 0 ? "Registry/journal verified source — safe to approve" : "Known trial match — safe to approve"}
+                                </span>
+                              </div>
+                            ) : tier === "1S" ? (
+                              <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded bg-blue-500/10 border border-blue-500/20">
+                                <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                <span className="text-xs text-blue-400 font-medium">
+                                  Sponsor source{c.sponsorCompany ? ` (${c.sponsorCompany})` : ""} — company-reported data. Verify against independent source before approving for posterior.
                                 </span>
                               </div>
                             ) : (
