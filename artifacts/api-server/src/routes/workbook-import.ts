@@ -207,7 +207,7 @@ router.post(
           direction: signal.direction ?? null,
         });
         signal.evidenceClass = cls.evidenceClass;
-        signal.countTowardPosterior = cls.countTowardPosterior;
+        signal.countTowardPosterior = false;
 
         importedSignals.push(signal);
       }

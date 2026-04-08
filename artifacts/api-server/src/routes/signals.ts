@@ -353,7 +353,7 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     sourceCluster: body.sourceCluster || null,
     noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
     evidenceClass: classification.evidenceClass,
-    countTowardPosterior: classification.countTowardPosterior,
+    countTowardPosterior: createdByType === "human" ? classification.countTowardPosterior : false,
   }).returning();
 
   if (initialStatus === "active" || initialStatus === "validated") {
@@ -840,10 +840,11 @@ router.post("/signals/reclassify-all", async (_req, res) => {
         evidenceStatus: s.evidenceStatus,
         direction: s.direction,
       });
-      if (s.evidenceClass !== result.evidenceClass || s.countTowardPosterior !== result.countTowardPosterior) {
+      const newCountToward = s.createdByType === "human" ? result.countTowardPosterior : false;
+      if (s.evidenceClass !== result.evidenceClass || s.countTowardPosterior !== newCountToward) {
         await db.update(signalsTable).set({
           evidenceClass: result.evidenceClass,
-          countTowardPosterior: result.countTowardPosterior,
+          countTowardPosterior: newCountToward,
         }).where(eq(signalsTable.signalId, s.signalId));
         updated++;
         changes.push({ signalId: s.signalId, caseId: s.caseId, from: s.evidenceClass, to: result.evidenceClass, reasons: result.classificationReasons });

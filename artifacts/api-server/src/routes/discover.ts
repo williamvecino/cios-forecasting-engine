@@ -204,7 +204,7 @@ router.patch("/candidates/:id", async (req, res) => {
       timing: (timingMap[rawTiming] ?? "current") as any,
       likelihoodRatio: updated.likelihoodRatio ?? 1,
       evidenceClass: cls.evidenceClass,
-      countTowardPosterior: cls.countTowardPosterior,
+      countTowardPosterior: false,
     }).where(eq(signalsTable.signalId, updated.promotedSignalId));
   }
 
@@ -246,7 +246,7 @@ router.post("/candidates/:id/approve", async (req, res) => {
     status: "active",
     createdByType: "human",
     evidenceClass: cls.evidenceClass,
-    countTowardPosterior: cls.countTowardPosterior,
+    countTowardPosterior: false,
     dependencyRole: "Independent parallel evidence",
     rootEvidenceId: randomUUID(),
     novelInformationFlag: "Yes",

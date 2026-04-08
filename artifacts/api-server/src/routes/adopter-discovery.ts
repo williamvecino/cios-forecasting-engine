@@ -230,7 +230,7 @@ router.post("/discovery-candidates/:candidateId/send-to-cios", async (req, res) 
       sourceLabel: vs.sourceLabel || null,
       evidenceSnippet: vs.evidenceSnippet || null,
       evidenceClass: cls.evidenceClass,
-      countTowardPosterior: cls.countTowardPosterior,
+      countTowardPosterior: false,
     });
   }
 
