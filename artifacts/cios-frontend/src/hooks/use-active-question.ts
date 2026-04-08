@@ -21,6 +21,8 @@ export interface CreateQuestionInput {
   threshold?: string;
   outcomeDimensions?: import("../lib/workflow").OutcomeDimension[];
   compositeScenarios?: import("../lib/workflow").CompositeScenario[];
+  lifecycleStage?: string;
+  lifecycleStageRationale?: string;
 }
 
 const questionChangeListeners = new Set<() => void>();
@@ -66,6 +68,8 @@ export function useActiveQuestion() {
       threshold: input.threshold || undefined,
       outcomeDimensions: input.outcomeDimensions || undefined,
       compositeScenarios: input.compositeScenarios || undefined,
+      lifecycleStage: input.lifecycleStage || undefined,
+      lifecycleStageRationale: input.lifecycleStageRationale || undefined,
     };
 
     storeActiveQuestion(next);
@@ -91,6 +95,8 @@ export function useActiveQuestion() {
       threshold: input.threshold || prev?.threshold || undefined,
       outcomeDimensions: input.outcomeDimensions || prev?.outcomeDimensions || undefined,
       compositeScenarios: input.compositeScenarios || prev?.compositeScenarios || undefined,
+      lifecycleStage: input.lifecycleStage || prev?.lifecycleStage || undefined,
+      lifecycleStageRationale: input.lifecycleStageRationale || prev?.lifecycleStageRationale || undefined,
     };
     storeActiveQuestion(updated);
     setActiveQuestion(updated);

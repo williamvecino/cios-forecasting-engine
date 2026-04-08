@@ -5,6 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { buildCanonicalCase } from "../lib/canonical-case.js";
 import { verifyPmid } from "../lib/evidence-verification.js";
+import { detectLifecycleStageFromFDA } from "../lib/lifecycle-detect.js";
 
 const router = Router();
 
@@ -117,6 +118,21 @@ router.post("/cases", async (req, res) => {
     });
   }
 
+  let stageDetection: { stage: string; rationale: string } | null = null;
+  try {
+    stageDetection = await detectLifecycleStageFromFDA(assetName);
+    if (stageDetection) {
+      await db.update(casesTable).set({
+        drugStage: stageDetection.stage,
+        drugStageRationale: stageDetection.rationale,
+      }).where(eq(casesTable.caseId, caseId));
+      (created as any).drugStage = stageDetection.stage;
+      (created as any).drugStageRationale = stageDetection.rationale;
+    }
+  } catch (err: any) {
+    console.error("[lifecycle-detect] FDA lookup failed:", err.message);
+  }
+
   res.status(201).json(mapCase(created));
 });
 
@@ -124,6 +140,35 @@ router.get("/cases/:caseId", async (req, res) => {
   const row = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
   if (!row[0]) return res.status(404).json({ error: "Not found" });
   res.json(mapCase(row[0]));
+});
+
+router.patch("/cases/:caseId/lifecycle-stage", async (req, res) => {
+  const { stage } = req.body as { stage?: string };
+  const validStages = ["INVESTIGATIONAL", "RECENTLY_APPROVED", "ESTABLISHED", "MATURE"];
+  if (!stage || !validStages.includes(stage)) {
+    return res.status(400).json({ error: `Invalid stage. Must be one of: ${validStages.join(", ")}` });
+  }
+
+  const [existing] = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
+  if (!existing) return res.status(404).json({ error: "Case not found" });
+
+  const STAGE_LABELS: Record<string, string> = {
+    INVESTIGATIONAL: "Investigational",
+    RECENTLY_APPROVED: "Recently Approved",
+    ESTABLISHED: "Established",
+    MATURE: "Mature",
+  };
+
+  await db.update(casesTable).set({
+    drugStage: stage,
+    drugStageRationale: `Manually overridden by analyst to: ${STAGE_LABELS[stage]}.`,
+  }).where(eq(casesTable.caseId, req.params.caseId));
+
+  return res.json({
+    caseId: req.params.caseId,
+    drugStage: stage,
+    drugStageRationale: `Manually overridden by analyst to: ${STAGE_LABELS[stage]}.`,
+  });
 });
 
 router.put("/cases/:caseId", async (req, res) => {
@@ -337,6 +382,8 @@ function mapCase(c: typeof casesTable.$inferSelect) {
     canonicalFields: c.canonicalFields,
     fieldsLockedAt: c.fieldsLockedAt,
     lastUpdate: c.lastUpdate,
+    drugStage: (c as any).drugStage || null,
+    drugStageRationale: (c as any).drugStageRationale || null,
     signalCount: 0,
   };
 }

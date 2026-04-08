@@ -531,6 +531,8 @@ export default function QuestionPage() {
         threshold: outcomeThreshold,
         outcomeDimensions: outcomeDimensions.length > 0 ? outcomeDimensions : undefined,
         compositeScenarios: compositeScenarios.length > 0 ? compositeScenarios : undefined,
+        lifecycleStage: (created as any).drugStage || undefined,
+        lifecycleStageRationale: (created as any).drugStageRationale || undefined,
       };
       createQuestion(payload);
       navigate("/comparison-groups");
@@ -644,6 +646,8 @@ export default function QuestionPage() {
         comparisonGroups: q.comparisonGroups || [],
         subject: q.subject || undefined,
         outcome: q.outcome || undefined,
+        lifecycleStage: (created as any).drugStage || undefined,
+        lifecycleStageRationale: (created as any).drugStageRationale || undefined,
       };
       createQuestion(payload);
       setShowImportProject(false);

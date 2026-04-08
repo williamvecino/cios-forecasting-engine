@@ -13,6 +13,7 @@ interface Props {
   activeQuestion: ActiveQuestion | null;
   draftText?: string;
   onClearQuestion: () => void;
+  onStageOverride?: (stage: string) => void;
   children: React.ReactNode;
 }
 
@@ -24,6 +25,7 @@ export default function WorkflowLayout({
   activeQuestion,
   draftText,
   onClearQuestion,
+  onStageOverride,
   children,
 }: Props) {
   const caseId = activeQuestion?.caseId || activeQuestion?.id;
@@ -79,6 +81,7 @@ export default function WorkflowLayout({
           activeQuestion={activeQuestion}
           draftText={draftText}
           onClear={onClearQuestion}
+          onStageOverride={onStageOverride}
         />
 
         <div className="flex gap-6">

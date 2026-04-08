@@ -1,5 +1,7 @@
-import { Target } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Target, ChevronDown } from "lucide-react";
 import type { ActiveQuestion } from "../lib/workflow";
+import { storeActiveQuestion, getStoredActiveQuestion } from "../lib/workflow";
 
 function buildOutcomeAnchor(q: ActiveQuestion): string {
   const outcome = q.outcome || "adoption";
@@ -12,13 +14,98 @@ function buildOutcomeAnchor(q: ActiveQuestion): string {
   return parts.join(" ");
 }
 
+const STAGE_BADGE_CONFIG: Record<string, { label: string; shortLabel: string; style: string }> = {
+  INVESTIGATIONAL: {
+    label: "Stage 1 — Investigational",
+    shortLabel: "Stage 1",
+    style: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  },
+  RECENTLY_APPROVED: {
+    label: "Stage 2 — Recently Approved",
+    shortLabel: "Stage 2",
+    style: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  },
+  ESTABLISHED: {
+    label: "Stage 3 — Established",
+    shortLabel: "Stage 3",
+    style: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  },
+  MATURE: {
+    label: "Stage 4 — Mature",
+    shortLabel: "Stage 4",
+    style: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+  },
+};
+
+const STAGE_OPTIONS = [
+  { value: "INVESTIGATIONAL", label: "Stage 1 — Investigational" },
+  { value: "RECENTLY_APPROVED", label: "Stage 2 — Recently Approved" },
+  { value: "ESTABLISHED", label: "Stage 3 — Established" },
+  { value: "MATURE", label: "Stage 4 — Mature" },
+];
+
 interface Props {
   activeQuestion: ActiveQuestion | null;
   draftText?: string;
   onClear: () => void;
+  onStageOverride?: (stage: string) => void;
 }
 
-export default function ActiveQuestionBanner({ activeQuestion, draftText, onClear }: Props) {
+export default function ActiveQuestionBanner({ activeQuestion, draftText, onClear, onStageOverride }: Props) {
+  const [showStageDropdown, setShowStageDropdown] = useState(false);
+  const [localStage, setLocalStage] = useState<string | null>(null);
+  const [localRationale, setLocalRationale] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeQuestion?.caseId || activeQuestion?.lifecycleStage || localStage) return;
+    const API = import.meta.env.VITE_API_URL || "";
+    fetch(`${API}/api/cases/${activeQuestion.caseId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.drugStage) {
+          setLocalStage(data.drugStage);
+          setLocalRationale(data.drugStageRationale || null);
+          const stored = getStoredActiveQuestion();
+          if (stored) {
+            stored.lifecycleStage = data.drugStage;
+            stored.lifecycleStageRationale = data.drugStageRationale || undefined;
+            storeActiveQuestion(stored);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [activeQuestion?.caseId, activeQuestion?.lifecycleStage, localStage]);
+
+  const stage = localStage || activeQuestion?.lifecycleStage;
+  const rationale = localRationale || activeQuestion?.lifecycleStageRationale;
+  const badgeConfig = stage ? STAGE_BADGE_CONFIG[stage] : null;
+
+  const handleStageOverride = useCallback(async (newStage: string) => {
+    if (!activeQuestion?.caseId) return;
+    const API = import.meta.env.VITE_API_URL || "";
+    try {
+      const resp = await fetch(`${API}/api/cases/${activeQuestion.caseId}/lifecycle-stage`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: newStage }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setLocalStage(data.drugStage);
+        setLocalRationale(data.drugStageRationale);
+        const stored = getStoredActiveQuestion();
+        if (stored) {
+          stored.lifecycleStage = data.drugStage;
+          stored.lifecycleStageRationale = data.drugStageRationale;
+          storeActiveQuestion(stored);
+        }
+        if (onStageOverride) onStageOverride(newStage);
+      }
+    } catch (err) {
+      console.error("Failed to override lifecycle stage:", err);
+    }
+  }, [activeQuestion?.caseId, onStageOverride]);
+
   return (
     <div className="space-y-0">
       {activeQuestion && (
@@ -47,7 +134,7 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
                   <span className="text-xs font-medium text-foreground">{activeQuestion.outcome}</span>
                 </div>
               )}
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="rounded-full bg-muted/30 px-3 py-1">
                   ID: {activeQuestion.id}
                 </span>
@@ -60,6 +147,44 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
                   <span className="rounded-full bg-muted/30 px-3 py-1">
                     Horizon: {activeQuestion.timeHorizon}
                   </span>
+                )}
+                {badgeConfig && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowStageDropdown(!showStageDropdown)}
+                      className={`rounded-full border px-3 py-1 font-medium flex items-center gap-1 hover:opacity-80 transition-opacity ${badgeConfig.style}`}
+                      title={rationale || "Click to change lifecycle stage"}
+                    >
+                      {badgeConfig.label}
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {showStageDropdown && (
+                      <div className="absolute top-full left-0 mt-1 z-50 rounded-lg border border-border bg-card shadow-lg py-1 min-w-[220px]">
+                        {STAGE_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setShowStageDropdown(false);
+                              if (opt.value !== stage) {
+                                handleStageOverride(opt.value);
+                              }
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-muted/30 transition-colors flex items-center gap-2 ${opt.value === stage ? "font-semibold text-foreground" : "text-muted-foreground"}`}
+                          >
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${opt.value === stage ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                            {opt.label}
+                          </button>
+                        ))}
+                        {rationale && (
+                          <div className="border-t border-border/50 px-3 py-2 mt-1">
+                            <div className="text-[10px] text-muted-foreground/60">{rationale}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </>

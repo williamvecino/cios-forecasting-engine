@@ -28,6 +28,8 @@ export interface ActiveQuestion {
   threshold?: string;
   outcomeDimensions?: OutcomeDimension[];
   compositeScenarios?: CompositeScenario[];
+  lifecycleStage?: string;
+  lifecycleStageRationale?: string;
 }
 
 const ACTIVE_QUESTION_STORAGE_KEY = "cios.activeQuestion";
