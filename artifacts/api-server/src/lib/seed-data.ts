@@ -8,7 +8,7 @@
  * CASE-DEMO-03  | NeuroModulator Z                       | 25.95%
  * CASE-DEMO-04  | Bispecific-401                         | 34.14%
  * CASE-DEMO-05  | Sublocade (buprenorphine SQ monthly)   | 11.33%
- * CASE-LEQEMBI-01 | Leqembi (lecanemab)                 | 12.12%
+ * CASE-LEQEMBI-01 | Leqembi (lecanemab)                 |  6.50%
  * CASE-LEQEMBI-02 | Leqembi (lecanemab)                 | 19.49%
  * CASE-1775022353034 | Beovu (brolucizumab) — RETRO DEMO | 14.25%
  * VP-REGULATORY-001  | Xarelto (rivaroxaban)             | 49.77%

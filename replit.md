@@ -52,8 +52,8 @@ CIOS is structured as a monorepo utilizing pnpm workspaces. The frontend is buil
 - **Signal Eligibility Gate:** Mandatory 3-tier classification (`Eligible`, `ContextOnly`, `Rejected`) before posterior calculation, ensuring only eligible signals contribute to the forecast.
 - **Validation Pack (5 cases):** VP-REGULATORY-001 through VP-BARRIER-005 with 57 signals, all using precedent-locked LRs. Seeded via `/api/validation-pack/seed` endpoint.
 - **Veligrotug Acceptance Test:** ACCEPT-VELIGROTUG-001 with 6 precedent-locked signals, verifying posterior=0.0669±0.002 with dependency compression.
-- **14-Case Baseline Suite (2026-04-08):** DEMO-01=12.79%, DEMO-02=21.17%, DEMO-03=25.95%, DEMO-04=34.14%, DEMO-05=11.33%, LEQEMBI-01=12.12%, LEQEMBI-02=19.49%, Beovu=14.25%, VP-REG=49.76%, VP-LAUNCH=11.20%, VP-ADOPT=4.97%, VP-COMP=34.35%, VP-BARRIER=46.60%, Veligrotug=6.69%.
-- **Case Replacements:** CASE-DEMO-01 now Arikayce (prior=0.37, 5 signals), CASE-DEMO-05 now Sublocade/OUD (prior=0.35, 4 signals), CASE-1775022353034 now Beovu retrospective demo (prior=0.45, 5 signals). VP-ADOPTION-003 prior→0.25, CASE-LEQEMBI-01 prior→0.28.
+- **14-Case Baseline Suite (2026-04-08):** DEMO-01=12.79%, DEMO-02=21.17%, DEMO-03=25.95%, DEMO-04=34.14%, DEMO-05=11.33%, LEQEMBI-01=6.50%, LEQEMBI-02=19.49%, Beovu=14.25%, VP-REG=49.76%, VP-LAUNCH=11.20%, VP-ADOPT=4.97%, VP-COMP=34.35%, VP-BARRIER=46.60%, Veligrotug=6.69%.
+- **Case Replacements:** CASE-DEMO-01 now Arikayce (prior=0.37, 5 signals), CASE-DEMO-05 now Sublocade/OUD (prior=0.35, 4 signals), CASE-1775022353034 now Beovu retrospective demo (prior=0.45, 5 signals). VP-ADOPTION-003 prior→0.25, CASE-LEQEMBI-01 prior→0.40.
 - **Authoritative ForecastResult Endpoint:** `GET /api/cases/:caseId/forecast-result` returns one canonical probability with evidence gate summary.
 - **Integrity Spec Enforcement (Rule 3 — Required Inputs):** Blocks forecasts if essential case or signal fields are missing, returning HTTP 422 with specific missing fields.
 
