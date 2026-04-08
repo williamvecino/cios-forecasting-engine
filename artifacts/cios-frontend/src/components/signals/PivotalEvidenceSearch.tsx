@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText } from "lucide-react";
+import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText, AlertTriangle } from "lucide-react";
 
 interface EvidenceCandidate {
   tempId: string;
@@ -14,6 +14,8 @@ interface EvidenceCandidate {
   reliabilityScore: number;
   likelihoodRatio: number;
   precedentMatched: boolean;
+  unverifiedTrialName?: boolean;
+  knownTrialHint?: string | null;
 }
 
 interface PivotalSearchResult {
@@ -271,6 +273,12 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                               ) : (
                                 <span className="text-xs text-muted-foreground/50 italic">Trial not identified in sources</span>
                               )}
+                              {c.unverifiedTrialName && (
+                                <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 font-medium">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Unverified
+                                </span>
+                              )}
                               {c.pmid && (
                                 <span className="text-xs text-muted-foreground font-mono">PMID: {c.pmid}</span>
                               )}
@@ -282,6 +290,9 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                               <span className="text-xs text-muted-foreground">{c.signalType}</span>
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">{c.finding}</p>
+                            {c.knownTrialHint && (
+                              <p className="text-xs text-amber-400/80 mt-1 italic">{c.knownTrialHint}</p>
+                            )}
                             {displayUrl && (
                               <a
                                 href={displayUrl}

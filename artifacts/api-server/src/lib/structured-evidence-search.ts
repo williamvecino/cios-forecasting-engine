@@ -16,6 +16,8 @@ export interface EvidenceCandidate {
   likelihoodRatio: number;
   precedentMatched: boolean;
   sourceTitle: string | null;
+  unverifiedTrialName: boolean;
+  knownTrialHint: string | null;
 }
 
 export interface StructuredSearchResult {
@@ -282,6 +284,21 @@ RULES:
 
 Return JSON with this structure: { "findings": [ ...array of finding objects... ] }`;
 
+const KNOWN_TRIALS: Record<string, string[]> = {
+  "veligrotug": ["THRIVE"],
+  "vrdn-001": ["THRIVE"],
+  "trikafta": ["AURORA"],
+  "elexacaftor": ["AURORA"],
+  "arikayce": ["ENCORE", "CONVERT"],
+  "amikacin liposome": ["ENCORE", "CONVERT"],
+  "leqembi": ["CLARITY AD"],
+  "lecanemab": ["CLARITY AD"],
+  "sublocade": ["NCT02357901"],
+  "buprenorphine sq": ["NCT02357901"],
+  "beovu": ["HAWK", "HARRIER"],
+  "brolucizumab": ["HAWK", "HARRIER"],
+};
+
 function buildSourceCorpus(searchResults: { category: string; results: NewsItem[] }[]): string {
   const parts: string[] = [];
   for (const group of searchResults) {
@@ -294,32 +311,39 @@ function buildSourceCorpus(searchResults: { category: string; results: NewsItem[
   return parts.join(" ").toLowerCase();
 }
 
-const TRIAL_NAME_PATTERN = /\b([A-Z][A-Z0-9-]{2,}(?:\s+\d+)?)\b/g;
-
-function isCommonWord(name: string): boolean {
-  const common = new Set([
-    "FDA", "CMS", "TED", "NDA", "BLA", "EMA", "NICE", "ATS", "IDSA",
-    "NCCN", "ASCO", "MAC", "CAS", "IGF", "USA", "REMS", "PDUFA",
-    "PMID", "DOI", "URL", "PDF", "CSV", "JSON",
-  ]);
-  return common.has(name.toUpperCase());
+function lookupKnownTrials(drugName: string): string[] | null {
+  const lower = drugName.toLowerCase();
+  for (const [key, trials] of Object.entries(KNOWN_TRIALS)) {
+    if (lower.includes(key)) return trials;
+  }
+  return null;
 }
 
-function verifyTrialNames(findings: any[], sourceCorpus: string): any[] {
+const COMMON_ACRONYMS = new Set([
+  "FDA", "CMS", "TED", "NDA", "BLA", "EMA", "NICE", "ATS", "IDSA",
+  "NCCN", "ASCO", "MAC", "CAS", "IGF", "USA", "REMS", "PDUFA",
+  "PMID", "DOI", "URL", "PDF", "CSV", "JSON",
+]);
+
+function verifyTrialNames(findings: any[], sourceCorpus: string, drugName: string): any[] {
+  const knownTrials = lookupKnownTrials(drugName);
+
   return findings.map((f) => {
-    const result = { ...f };
+    const result = { ...f, unverifiedTrialName: false, knownTrialHint: null as string | null };
 
     if (!result.trialName || typeof result.trialName !== "string" || result.trialName.trim().length === 0) {
       result.trialName = null;
-      result._trialVerification = "no_trial_name_provided";
+      if (knownTrials) {
+        result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. Consider searching for these specifically.`;
+      }
       return result;
     }
 
-    const trialNameLower = result.trialName.trim().toLowerCase();
+    const trialNameRaw = result.trialName.trim();
+    const trialNameLower = trialNameRaw.toLowerCase();
     const trialNameClean = trialNameLower.replace(/[^a-z0-9]/g, "");
 
-    if (isCommonWord(result.trialName.trim())) {
-      result._trialVerification = "skipped_common_acronym";
+    if (COMMON_ACRONYMS.has(trialNameRaw.toUpperCase())) {
       return result;
     }
 
@@ -327,24 +351,25 @@ function verifyTrialNames(findings: any[], sourceCorpus: string): any[] {
       sourceCorpus.includes(trialNameClean) ||
       sourceCorpus.replace(/[^a-z0-9\s]/g, "").includes(trialNameClean);
 
-    if (foundInSources) {
-      result._trialVerification = "verified_in_sources";
-      return result;
+    if (!foundInSources) {
+      result.unverifiedTrialName = true;
+      const warning = `\u26A0 TRIAL NAME UNVERIFIED: '${trialNameRaw}' was not found in search sources. Confirm before approving. `;
+      result.finding = warning + (result.finding || "");
+      console.log(`[EVIDENCE-SEARCH] FABRICATION BLOCKED: Trial name "${trialNameRaw}" not found in any source material.`);
     }
 
-    const originalTrialName = result.trialName;
-    console.log(`[EVIDENCE-SEARCH] FABRICATION BLOCKED: Trial name "${originalTrialName}" not found in any source material. Flagging.`);
-
-    if (result.finding && typeof result.finding === "string") {
-      result.finding = result.finding.replace(
-        new RegExp(originalTrialName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
-        "[trial name unverified — confirm before approving]"
+    if (knownTrials) {
+      const matchesKnown = knownTrials.some(
+        (kt) => trialNameLower === kt.toLowerCase() || trialNameLower.startsWith(kt.toLowerCase() + " ")
       );
+      if (!matchesKnown) {
+        result.unverifiedTrialName = true;
+        const mismatchWarning = `\u26A0 KNOWN TRIAL MISMATCH: Expected [${knownTrials.join(", ")}] for ${drugName}. Got [${trialNameRaw}]. This may be a fabricated trial name. `;
+        result.finding = mismatchWarning + (result.finding || "");
+        result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. '${trialNameRaw}' does not match — verify independently.`;
+        console.log(`[EVIDENCE-SEARCH] TRIAL MISMATCH: "${trialNameRaw}" does not match known trials [${knownTrials.join(", ")}] for ${drugName}.`);
+      }
     }
-
-    result.trialName = null;
-    result._trialVerification = "fabrication_blocked";
-    result._originalTrialName = originalTrialName;
 
     return result;
   });
@@ -404,7 +429,7 @@ export async function runStructuredEvidenceSearch(
   console.log("[EVIDENCE-SEARCH] Raw LLM findings (pre-verification):", JSON.stringify(findings, null, 2));
 
   const sourceCorpus = buildSourceCorpus(searchResults);
-  const verifiedFindings = verifyTrialNames(findings, sourceCorpus);
+  const verifiedFindings = verifyTrialNames(findings, sourceCorpus, drugName);
 
   console.log("[EVIDENCE-SEARCH] Verified findings (post-processing):", JSON.stringify(verifiedFindings, null, 2));
 
@@ -424,13 +449,15 @@ export async function runStructuredEvidenceSearch(
       pmid: pmid || null,
       sourceUrl: isSafeUrl(f.sourceUrl),
       sourceTitle: typeof f.sourceTitle === "string" ? f.sourceTitle.slice(0, 300) : null,
-      finding: typeof f.finding === "string" ? f.finding.slice(0, 500) : "",
+      finding: typeof f.finding === "string" ? f.finding.slice(0, 800) : "",
       signalType,
       direction,
       strengthScore: strength,
       reliabilityScore: reliability,
       likelihoodRatio: lr,
       precedentMatched: precedentResult.matched,
+      unverifiedTrialName: !!f.unverifiedTrialName,
+      knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
     };
   });
 

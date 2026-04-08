@@ -10,28 +10,78 @@ const router = Router();
 
 const MAX_APPROVE_BATCH = 20;
 
-function verifyTrialNamesNoCorpus(findings: any[]): any[] {
+const KNOWN_TRIALS: Record<string, string[]> = {
+  "veligrotug": ["THRIVE"],
+  "vrdn-001": ["THRIVE"],
+  "trikafta": ["AURORA"],
+  "elexacaftor": ["AURORA"],
+  "arikayce": ["ENCORE", "CONVERT"],
+  "amikacin liposome": ["ENCORE", "CONVERT"],
+  "leqembi": ["CLARITY AD"],
+  "lecanemab": ["CLARITY AD"],
+  "sublocade": ["NCT02357901"],
+  "buprenorphine sq": ["NCT02357901"],
+  "beovu": ["HAWK", "HARRIER"],
+  "brolucizumab": ["HAWK", "HARRIER"],
+};
+
+function lookupKnownTrials(drugName: string): string[] | null {
+  const lower = drugName.toLowerCase();
+  for (const [key, trials] of Object.entries(KNOWN_TRIALS)) {
+    if (lower.includes(key)) return trials;
+  }
+  return null;
+}
+
+const COMMON_ACRONYMS = new Set([
+  "FDA", "CMS", "TED", "NDA", "BLA", "EMA", "NICE", "ATS", "IDSA",
+  "NCCN", "ASCO", "MAC", "CAS", "IGF", "USA", "REMS", "PDUFA",
+  "PMID", "DOI", "URL", "PDF", "CSV", "JSON",
+]);
+
+function matchesKnownTrial(trialName: string, knownTrials: string[]): boolean {
+  const lower = trialName.toLowerCase().trim();
+  return knownTrials.some(
+    (kt) => lower === kt.toLowerCase() || lower.startsWith(kt.toLowerCase() + " ")
+  );
+}
+
+function verifyTrialNamesNoCorpus(findings: any[], drugName: string): any[] {
+  const knownTrials = lookupKnownTrials(drugName);
+
   return findings.map((f) => {
-    const result = { ...f };
+    const result = { ...f, unverifiedTrialName: false, knownTrialHint: null as string | null };
 
     if (!result.trialName || typeof result.trialName !== "string" || result.trialName.trim().length === 0) {
       result.trialName = null;
+      if (knownTrials) {
+        result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. Consider searching for these specifically.`;
+      }
       return result;
     }
 
-    const originalTrialName = result.trialName;
-    console.log(`[PIVOTAL-SEARCH] UNVERIFIED TRIAL: "${originalTrialName}" — no source corpus available to verify. Flagging.`);
+    const trialNameRaw = result.trialName.trim();
 
-    if (result.finding && typeof result.finding === "string") {
-      result.finding = result.finding.replace(
-        new RegExp(originalTrialName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
-        "[trial name unverified — confirm before approving]"
-      );
+    if (COMMON_ACRONYMS.has(trialNameRaw.toUpperCase())) {
+      return result;
     }
 
-    result.trialName = null;
-    result._trialVerification = "no_corpus_available";
-    result._originalTrialName = originalTrialName;
+    result.unverifiedTrialName = true;
+
+    const warning = `\u26A0 TRIAL NAME UNVERIFIED: '${trialNameRaw}' was not found in search sources. Confirm before approving. `;
+    result.finding = warning + (result.finding || "");
+    console.log(`[PIVOTAL-SEARCH] UNVERIFIED TRIAL: "${trialNameRaw}" — no source corpus available to verify.`);
+
+    if (knownTrials) {
+      if (!matchesKnownTrial(trialNameRaw, knownTrials)) {
+        const mismatchWarning = `\u26A0 KNOWN TRIAL MISMATCH: Expected [${knownTrials.join(", ")}] for ${drugName}. Got [${trialNameRaw}]. This may be a fabricated trial name. `;
+        result.finding = mismatchWarning + result.finding;
+        result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. '${trialNameRaw}' does not match — verify independently.`;
+        console.log(`[PIVOTAL-SEARCH] TRIAL MISMATCH: "${trialNameRaw}" does not match known trials [${knownTrials.join(", ")}] for ${drugName}.`);
+      } else {
+        result.knownTrialHint = `'${trialNameRaw}' matches a known trial for this drug, but source verification was unavailable.`;
+      }
+    }
 
     return result;
   });
@@ -51,6 +101,8 @@ interface StoredCandidate {
   reliabilityScore: number;
   likelihoodRatio: number;
   precedentMatched: boolean;
+  unverifiedTrialName: boolean;
+  knownTrialHint: string | null;
 }
 
 interface StoredSearchResult {
@@ -212,7 +264,7 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
 
     console.log("[PIVOTAL-SEARCH] Raw LLM findings (pre-verification):", JSON.stringify(findings, null, 2));
 
-    const verifiedFindings = verifyTrialNamesNoCorpus(findings);
+    const verifiedFindings = verifyTrialNamesNoCorpus(findings, drugName);
 
     console.log("[PIVOTAL-SEARCH] Verified findings (post-processing):", JSON.stringify(verifiedFindings, null, 2));
 
@@ -234,13 +286,15 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
         trialName: typeof f.trialName === "string" && f.trialName.length > 0 ? f.trialName.slice(0, 200) : null,
         pmid: pmid || null,
         sourceUrl: isSafeUrl(f.sourceUrl),
-        finding: typeof f.finding === "string" ? f.finding.slice(0, 500) : "",
+        finding: typeof f.finding === "string" ? f.finding.slice(0, 800) : "",
         signalType,
         direction,
         strengthScore: strength,
         reliabilityScore: reliability,
         likelihoodRatio: lr,
         precedentMatched: precedentResult.matched,
+        unverifiedTrialName: !!f.unverifiedTrialName,
+        knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
       };
 
       candidateMap.set(candidate.tempId, candidate);
