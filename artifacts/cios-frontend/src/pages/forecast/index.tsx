@@ -1082,6 +1082,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   }
   const [apiLoadAttempted, setApiLoadAttempted] = useState(false);
   const [apiLoadDone, setApiLoadDone] = useState(false);
+  const [completenessBlocked, setCompletenessBlocked] = useState(false);
   const gate = checkForecastGate(caseId);
 
   useEffect(() => {
@@ -1247,8 +1248,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
   const negativeDriversStrip = drivers.filter(d => d.direction === "Downward").slice(0, 3);
   const confidenceCeiling = (f as any)._calibrationChecks?.confidenceCeiling ?? (f as any).distributionForecast?.achievableCeiling ?? null;
   const fragilityScore = (f as any)._calibrationChecks?.posteriorFragility ?? (f as any)._guardrailLog?.diagnostics?.largest_single_shift ?? null;
-
-  const [completenessBlocked, setCompletenessBlocked] = useState(false);
 
   const coreLoopStrip = (
     <div className="space-y-0" data-testid="core-loop-strip">
