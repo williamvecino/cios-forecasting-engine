@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText, AlertTriangle } from "lucide-react";
+import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText, AlertTriangle, ShieldAlert, Quote } from "lucide-react";
 
 interface EvidenceCandidate {
   tempId: string;
@@ -14,9 +14,17 @@ interface EvidenceCandidate {
   reliabilityScore: number;
   likelihoodRatio: number;
   precedentMatched: boolean;
+  sourceQuote?: string | null;
+  sourceConfidence?: "Strong" | "Moderate" | "Weak";
   unverifiedTrialName?: boolean;
   knownTrialHint?: string | null;
 }
+
+const CONFIDENCE_STYLES: Record<string, string> = {
+  Strong: "bg-green-500/20 text-green-400 border-green-500/30",
+  Moderate: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  Weak: "bg-red-500/20 text-red-400 border-red-500/30",
+};
 
 interface PivotalSearchResult {
   caseId: string;
@@ -255,6 +263,10 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                     const isRejected = rejected.has(c.tempId);
                     const pmidUrl = c.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${c.pmid}/` : null;
                     const displayUrl = pmidUrl || c.sourceUrl;
+                    const hasQuote = !!c.sourceQuote && c.sourceQuote.trim().length > 0;
+                    const canApprove = hasQuote;
+                    const confidence = c.sourceConfidence || "Weak";
+                    const confidenceStyle = CONFIDENCE_STYLES[confidence] || CONFIDENCE_STYLES.Weak;
 
                     return (
                       <div
@@ -288,8 +300,24 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                                 {c.direction}
                               </span>
                               <span className="text-xs text-muted-foreground">{c.signalType}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded border font-medium ${confidenceStyle}`}>
+                                {confidence}
+                              </span>
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">{c.finding}</p>
+                            {hasQuote ? (
+                              <div className="mt-2 pl-3 border-l-2 border-blue-500/30">
+                                <p className="text-xs text-blue-300/80 italic">
+                                  <Quote className="w-3 h-3 inline mr-1 -mt-0.5" />
+                                  Source says: "{c.sourceQuote}"
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20">
+                                <ShieldAlert className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                                <span className="text-xs text-red-400 font-medium">No source quote — high fabrication risk. Do not approve.</span>
+                              </div>
+                            )}
                             {c.knownTrialHint && (
                               <p className="text-xs text-amber-400/80 mt-1 italic">{c.knownTrialHint}</p>
                             )}
@@ -307,13 +335,16 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <button
-                              onClick={() => toggleApprove(c.tempId)}
+                              onClick={() => canApprove && toggleApprove(c.tempId)}
+                              disabled={!canApprove}
                               className={`p-1.5 rounded-md transition-colors ${
-                                isApproved
+                                !canApprove
+                                  ? "opacity-30 cursor-not-allowed text-muted-foreground"
+                                  : isApproved
                                   ? "bg-green-500 text-white"
                                   : "hover:bg-green-500/20 text-muted-foreground hover:text-green-400"
                               }`}
-                              title="Approve — add to signal register"
+                              title={canApprove ? "Approve — add to signal register" : "Cannot approve — no source quote"}
                             >
                               <Check className="w-4 h-4" />
                             </button>

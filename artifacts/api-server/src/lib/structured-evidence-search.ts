@@ -16,6 +16,8 @@ export interface EvidenceCandidate {
   likelihoodRatio: number;
   precedentMatched: boolean;
   sourceTitle: string | null;
+  sourceQuote: string | null;
+  sourceConfidence: "Strong" | "Moderate" | "Weak";
   unverifiedTrialName: boolean;
   knownTrialHint: string | null;
 }
@@ -40,6 +42,36 @@ const ALLOWED_SIGNAL_TYPES = new Set([
   "Competitor counteraction",
   "Access / commercial",
 ]);
+
+const HIGH_TRUST_DOMAINS = new Set([
+  "gov", "edu", "pubmed.ncbi.nlm.nih.gov", "nejm.org", "thelancet.com",
+  "nature.com", "bmj.com", "jamanetwork.com", "fda.gov", "ema.europa.eu",
+  "clinicaltrials.gov", "cochranelibrary.com",
+]);
+
+function isHighTrustSource(url: string | null): boolean {
+  if (!url) return false;
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    for (const domain of HIGH_TRUST_DOMAINS) {
+      if (hostname === domain || hostname.endsWith("." + domain)) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function computeSourceConfidence(
+  sourceQuote: string | null,
+  sourceUrl: string | null,
+  unverifiedTrialName: boolean,
+): "Strong" | "Moderate" | "Weak" {
+  if (unverifiedTrialName) return "Weak";
+  if (!sourceQuote || sourceQuote.trim().length === 0) return "Weak";
+  if (isHighTrustSource(sourceUrl)) return "Strong";
+  return "Moderate";
+}
 
 function isSafeUrl(url: string | null | undefined): string | null {
   if (!url || typeof url !== "string") return null;
@@ -262,27 +294,38 @@ function buildSearchContext(searchResults: { category: string; results: NewsItem
   return context;
 }
 
-const EXTRACTION_PROMPT = `You are a pharmaceutical evidence analyst. You have been given categorized web search results about a specific drug and indication.
+const EXTRACTION_PROMPT = `You are a medical evidence extractor.
+You receive search result titles, descriptions, and URLs.
+Your job is to extract — NOT generate — findings from the text provided.
 
-Extract the most relevant evidence findings. For each distinct finding, return a JSON object with:
-- category: the evidence category (e.g. "Clinical Evidence", "Label / Regulatory", "Guidelines", "Safety", "Payer / Access")
-- trialName: specific trial name if applicable (e.g. "CONVERT", "KEYNOTE-024"), or null
-- pmid: PubMed ID if found (string, numbers only), or null
-- sourceUrl: URL of the source if available, or null
-- sourceTitle: title of the source document/article, or null
-- finding: ONE sentence summarizing the key result or conclusion. Must name the specific drug, trial, or guideline.
-- signalType: one of ["Phase III clinical trial", "FDA approval", "Guideline inclusion", "Safety / tolerability", "Payer / coverage", "Real-world evidence", "Prescribing information", "KOL endorsement", "Field intelligence", "Competitor counteraction", "Access / commercial"]
-- direction: "Positive" (supports adoption/efficacy) or "Negative" (hinders adoption)
-- strengthScore: 1-5 (1=weak, 5=strong)
-- reliabilityScore: 1-5 (1=anecdotal, 5=verified/published)
-
-RULES:
-- Only extract findings that are SPECIFIC to the drug — no generic statements
+Rules:
+- Only report information that appears verbatim or near-verbatim in the source text above
+- If a trial name is not mentioned in the source text, return trialName: null
+- If a statistic is not in the source text, do not include it
+- If you cannot find a specific finding for a field, return null — never invent
+- Quote the exact phrase from the source that supports each finding in a sourceQuote field
+- If no relevant finding exists in the sources, return an empty findings array
 - Maximum 12 findings total, prioritizing the most impactful
 - Deduplicate — do not return the same finding twice
-- If a search category returned no relevant results, skip it
 
-Return JSON with this structure: { "findings": [ ...array of finding objects... ] }`;
+Return JSON with this structure:
+{
+  "findings": [
+    {
+      "category": "the evidence category (e.g. Clinical Evidence, Label / Regulatory, Guidelines, Safety, Payer / Access)",
+      "trialName": "string | null — only if explicitly named in source text",
+      "pmid": "string (numbers only) | null",
+      "sourceUrl": "string — from the search results provided",
+      "sourceTitle": "string — from the search results provided",
+      "finding": "ONE sentence extracted from or closely paraphrasing the source text",
+      "sourceQuote": "exact phrase from the source text that supports this finding, or null if none",
+      "signalType": "one of: Phase III clinical trial, FDA approval, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescribing information, KOL endorsement, Field intelligence, Competitor counteraction, Access / commercial",
+      "direction": "Positive or Negative",
+      "strengthScore": "1-5 (1=weak, 5=strong)",
+      "reliabilityScore": "1-5 (1=anecdotal, 5=verified/published)"
+    }
+  ]
+}`;
 
 const KNOWN_TRIALS: Record<string, string[]> = {
   "veligrotug": ["THRIVE"],
@@ -442,21 +485,29 @@ export async function runStructuredEvidenceSearch(
     const lr = precedentResult.matched ? precedentResult.assignedLr : 1.0;
     const pmid = f.pmid ? String(f.pmid).replace(/\D/g, "") : null;
 
+    const sourceQuote = typeof f.sourceQuote === "string" && f.sourceQuote.trim().length > 0
+      ? f.sourceQuote.slice(0, 500) : null;
+    const resolvedUrl = isSafeUrl(f.sourceUrl);
+    const unverified = !!f.unverifiedTrialName;
+    const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified);
+
     return {
       tempId: randomUUID(),
       category: typeof f.category === "string" ? f.category.slice(0, 100) : "Unknown",
       trialName: typeof f.trialName === "string" && f.trialName.length > 0 ? f.trialName.slice(0, 200) : null,
       pmid: pmid || null,
-      sourceUrl: isSafeUrl(f.sourceUrl),
+      sourceUrl: resolvedUrl,
       sourceTitle: typeof f.sourceTitle === "string" ? f.sourceTitle.slice(0, 300) : null,
       finding: typeof f.finding === "string" ? f.finding.slice(0, 800) : "",
+      sourceQuote,
+      sourceConfidence,
       signalType,
       direction,
       strengthScore: strength,
       reliabilityScore: reliability,
       likelihoodRatio: lr,
       precedentMatched: precedentResult.matched,
-      unverifiedTrialName: !!f.unverifiedTrialName,
+      unverifiedTrialName: unverified,
       knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
     };
   });

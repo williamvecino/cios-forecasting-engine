@@ -88,12 +88,43 @@ function verifyTrialNamesNoCorpus(findings: any[], drugName: string): any[] {
 }
 const SEARCH_RESULT_TTL_MS = 30 * 60 * 1000;
 
+const HIGH_TRUST_DOMAINS = new Set([
+  "gov", "edu", "pubmed.ncbi.nlm.nih.gov", "nejm.org", "thelancet.com",
+  "nature.com", "bmj.com", "jamanetwork.com", "fda.gov", "ema.europa.eu",
+  "clinicaltrials.gov", "cochranelibrary.com",
+]);
+
+function isHighTrustSource(url: string | null): boolean {
+  if (!url) return false;
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    for (const domain of HIGH_TRUST_DOMAINS) {
+      if (hostname === domain || hostname.endsWith("." + domain)) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function computeSourceConfidence(
+  sourceQuote: string | null,
+  sourceUrl: string | null,
+  unverifiedTrialName: boolean,
+): "Strong" | "Moderate" | "Weak" {
+  if (unverifiedTrialName) return "Weak";
+  if (!sourceQuote || sourceQuote.trim().length === 0) return "Weak";
+  if (isHighTrustSource(sourceUrl)) return "Strong";
+  return "Moderate";
+}
+
 interface StoredCandidate {
   tempId: string;
   category: string;
   trialName: string | null;
   pmid: string | null;
   sourceUrl: string | null;
+  sourceTitle: string | null;
   finding: string;
   signalType: string;
   direction: string;
@@ -101,6 +132,8 @@ interface StoredCandidate {
   reliabilityScore: number;
   likelihoodRatio: number;
   precedentMatched: boolean;
+  sourceQuote: string | null;
+  sourceConfidence: "Strong" | "Moderate" | "Weak";
   unverifiedTrialName: boolean;
   knownTrialHint: string | null;
 }
@@ -197,22 +230,37 @@ function buildSearchQueries(drugName: string, indication: string, year: string) 
   ];
 }
 
-const PIVOTAL_SEARCH_PROMPT = `You are a pharmaceutical evidence analyst. Given a drug name, indication, and a set of structured search queries, return the most relevant evidence findings that a real analyst would discover.
+const PIVOTAL_SEARCH_PROMPT = `You are a medical evidence extractor.
+You receive a drug name, indication, and structured search query categories.
+Your job is to extract — NOT generate — findings that a real analyst would discover from these queries.
 
-For each search category and its queries, return the TOP 3 most important real-world findings. These must be real, verifiable evidence items — not hypothetical.
+Rules:
+- Only report information that is real, published, and verifiable
+- If a trial name is not a real, published trial for this drug, return trialName: null
+- If a statistic cannot be verified, do not include it
+- If you cannot find a specific finding for a field, return null — never invent
+- Quote the exact phrase or key data point that supports each finding in a sourceQuote field
+- If no relevant finding exists for a category, skip it
+- Return 10-15 findings total across all categories
 
-For each finding, return a JSON object with:
-- category: the search category (e.g. "Pivotal Trials", "Label / Approval Data")
-- trialName: the specific trial name if applicable (e.g. "ENCORE", "CONVERT"), or a descriptive title for non-trial findings
-- pmid: PubMed ID if known (string, numbers only), or null
-- sourceUrl: URL to the source if known, or null
-- finding: ONE sentence summarizing the key result or conclusion
-- signalType: one of ["Phase III clinical trial", "FDA approval", "Guideline inclusion", "Safety / tolerability", "Payer / coverage", "Real-world evidence", "Prescribing information"]
-- direction: "Positive" (supports adoption/efficacy) or "Negative" (hinders adoption)
-- strengthScore: 1-5 (1=weak, 5=strong)
-- reliabilityScore: 1-5 (1=anecdotal, 5=verified/published)
-
-Return ONLY a valid JSON array of finding objects. No markdown, no preamble. Return 10-15 findings total across all categories, focusing on the most impactful and verifiable items.`;
+Return ONLY a valid JSON object (no markdown, no preamble) with this structure:
+{
+  "findings": [
+    {
+      "category": "the search category (e.g. Pivotal Trials, Label / Approval Data)",
+      "trialName": "string | null — only if a real, named trial",
+      "pmid": "string (numbers only) | null",
+      "sourceUrl": "string | null",
+      "sourceTitle": "string | null",
+      "finding": "ONE sentence summarizing the key result or conclusion",
+      "sourceQuote": "exact phrase or data point supporting this finding, or null",
+      "signalType": "one of: Phase III clinical trial, FDA approval, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescribing information",
+      "direction": "Positive or Negative",
+      "strengthScore": "1-5 (1=weak, 5=strong)",
+      "reliabilityScore": "1-5 (1=anecdotal, 5=verified/published)"
+    }
+  ]
+}`;
 
 router.post("/cases/:caseId/pivotal-search", async (req, res) => {
   const { caseId } = req.params;
@@ -251,13 +299,22 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
       ],
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "[]";
+    const raw = completion.choices[0]?.message?.content ?? "{}";
     let findings: any[] = [];
 
     try {
       const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
       const parsed = JSON.parse(cleaned);
-      findings = Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed)) {
+        findings = parsed;
+      } else if (typeof parsed === "object" && parsed !== null) {
+        const firstArrayKey = Object.keys(parsed).find((k) => Array.isArray(parsed[k]));
+        if (firstArrayKey) {
+          findings = parsed[firstArrayKey];
+        } else if (parsed.finding && typeof parsed.finding === "string") {
+          findings = [parsed];
+        }
+      }
     } catch {
       return res.status(502).json({ error: "Evidence search returned an unexpected format. Please try again." });
     }
@@ -280,20 +337,29 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
       const category = ALLOWED_CATEGORIES.has(f.category) ? f.category : "Unknown";
       const pmid = f.pmid ? String(f.pmid).replace(/\D/g, "") : null;
 
+      const sourceQuote = typeof f.sourceQuote === "string" && f.sourceQuote.trim().length > 0
+        ? f.sourceQuote.slice(0, 500) : null;
+      const resolvedUrl = isSafeUrl(f.sourceUrl);
+      const unverified = !!f.unverifiedTrialName;
+      const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified);
+
       const candidate: StoredCandidate = {
         tempId: randomUUID(),
         category,
         trialName: typeof f.trialName === "string" && f.trialName.length > 0 ? f.trialName.slice(0, 200) : null,
         pmid: pmid || null,
-        sourceUrl: isSafeUrl(f.sourceUrl),
+        sourceUrl: resolvedUrl,
+        sourceTitle: typeof f.sourceTitle === "string" ? f.sourceTitle.slice(0, 300) : null,
         finding: typeof f.finding === "string" ? f.finding.slice(0, 800) : "",
+        sourceQuote,
+        sourceConfidence,
         signalType,
         direction,
         strengthScore: strength,
         reliabilityScore: reliability,
         likelihoodRatio: lr,
         precedentMatched: precedentResult.matched,
-        unverifiedTrialName: !!f.unverifiedTrialName,
+        unverifiedTrialName: unverified,
         knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
       };
 
