@@ -542,6 +542,36 @@ export default function RespondPage() {
                 </div>
               </section>
 
+              {/* === UNSTRUCTURED AI COMPARISON CALLOUT === */}
+              {data.decision_clarity?.targetProbability != null && (
+                <div className="rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/5 to-orange-500/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <Activity className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Why CIOS differs from unstructured AI</span>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-foreground">{Math.round(data.decision_clarity.targetProbability * 100)}%</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">CIOS Forecast</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">vs</div>
+                        <div className="text-center opacity-50">
+                          <div className="text-2xl font-bold text-muted-foreground">~44%</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Unstructured AI</div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Unstructured AI (ChatGPT, Claude, etc.) estimates adoption probability without signal decomposition, precedent-locked likelihood ratios, or eligibility gates.
+                        CIOS enforces Bayesian discipline: each signal must cite a verifiable source, pass the precedent library, and survive dependency compression before it shifts the posterior.
+                        The difference is the gap between opinion and auditable forecast.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="border-t border-border/40" />
 
               {/* === SECTION 2: INTERPRETATION (always visible) === */}
