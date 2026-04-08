@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { extractIdentifiers, detectRedFlags, verifyIdentifier } from "../lib/evidence-verification.js";
 
 const router = Router();
 
@@ -20,6 +21,9 @@ interface MiosEvidenceSignal {
   confidence: "Confirmed" | "Probable" | "Speculative";
   whyItMatters: string;
   relevanceToQuestion: string;
+  sourceGrounded: boolean;
+  redFlags: string[];
+  verificationStatus: "verified" | "invalid" | "unverified" | "flagged";
 }
 
 interface MiosOutput {
@@ -129,15 +133,32 @@ Find all relevant clinical evidence for ${input.brand} that bears on this questi
       brand: input.brand,
       beliefShiftsIdentified: Array.isArray(parsed.beliefShiftsIdentified) ? parsed.beliefShiftsIdentified : [],
       evidenceSignals: Array.isArray(parsed.evidenceSignals)
-        ? parsed.evidenceSignals.map((s: any) => ({
-            beliefShift: s.beliefShift || "",
-            evidenceText: s.evidenceText || "",
-            trialOrSource: s.trialOrSource || "",
-            direction: s.direction === "negative" ? "negative" : "positive",
-            strength: ["High", "Medium", "Low"].includes(s.strength) ? s.strength : "Medium",
-            confidence: ["Confirmed", "Probable", "Speculative"].includes(s.confidence) ? s.confidence : "Probable",
-            whyItMatters: s.whyItMatters || "",
-            relevanceToQuestion: s.relevanceToQuestion || "",
+        ? await Promise.all(parsed.evidenceSignals.map(async (s: any) => {
+            const combinedText = `${s.evidenceText || ""} ${s.trialOrSource || ""}`;
+            const { identifiers } = extractIdentifiers(combinedText);
+            const redFlags = detectRedFlags(combinedText, identifiers.length);
+
+            // Verify any extracted identifiers against registries
+            let verificationStatus: "verified" | "invalid" | "unverified" | "flagged" = redFlags.length > 0 ? "flagged" : "unverified";
+            for (const id of identifiers) {
+              const check = await verifyIdentifier(id.type, id.value);
+              if (check.outcome === "valid") { verificationStatus = "verified"; break; }
+              if (check.outcome === "invalid") { verificationStatus = "invalid"; break; }
+            }
+
+            return {
+              beliefShift: s.beliefShift || "",
+              evidenceText: s.evidenceText || "",
+              trialOrSource: s.trialOrSource || "",
+              direction: s.direction === "negative" ? "negative" : "positive",
+              strength: ["High", "Medium", "Low"].includes(s.strength) ? s.strength : "Medium",
+              confidence: ["Confirmed", "Probable", "Speculative"].includes(s.confidence) ? s.confidence : "Probable",
+              whyItMatters: s.whyItMatters || "",
+              relevanceToQuestion: s.relevanceToQuestion || "",
+              sourceGrounded: identifiers.length > 0,
+              redFlags,
+              verificationStatus,
+            };
           }))
         : [],
       searchSummary: parsed.searchSummary || "",

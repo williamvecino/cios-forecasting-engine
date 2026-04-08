@@ -4,6 +4,7 @@ import { casesTable, caseLibraryTable, signalsTable, calibrationLogTable } from 
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { buildCanonicalCase } from "../lib/canonical-case.js";
+import { verifyPmid } from "../lib/evidence-verification.js";
 
 const router = Router();
 
@@ -77,6 +78,15 @@ router.post("/cases", async (req, res) => {
     const pmid = body.primaryTrialPmid?.trim() || "";
     const result = body.primaryTrialResult?.trim() || "";
 
+    // Verify PMID against PubMed before trusting it
+    let registryMatch = false;
+    let verificationStatus: "verified" | "invalid" | "unverified" = "unverified";
+    if (pmid) {
+      const check = await verifyPmid(pmid);
+      registryMatch = check.outcome === "valid";
+      verificationStatus = check.outcome === "valid" ? "verified" : check.outcome === "invalid" ? "invalid" : "unverified";
+    }
+
     await db.insert(signalsTable).values({
       id: randomUUID(),
       signalId: pivotalSignalId,
@@ -90,18 +100,18 @@ router.post("/cases", async (req, res) => {
       likelihoodRatio: 1.0,
       scope: "national",
       timing: "current",
-      status: "active",
+      status: "candidate",
       createdByType: "human",
       createdById: "analyst",
       sourceLabel: trialName,
       sourceUrl: pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : null,
       evidenceSnippet: result,
-      identifierType: "PMID",
-      identifierValue: pmid,
-      verificationStatus: "verified",
-      registryMatch: true,
+      identifierType: pmid ? "PMID" : null,
+      identifierValue: pmid || null,
+      verificationStatus,
+      registryMatch,
       evidenceClass: "Eligible",
-      countTowardPosterior: true,
+      countTowardPosterior: false, // Must go through transition workflow to activate
       signalFamily: "pivotal-trial",
       noveltyFlag: true,
     });

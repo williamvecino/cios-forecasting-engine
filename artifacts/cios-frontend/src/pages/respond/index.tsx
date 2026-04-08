@@ -28,7 +28,7 @@ import {
   Layers,
   Search,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 import MessageStrategyPanel from "@/components/strategy/MessageStrategyPanel";
 import ObjectionHandlingPanel from "@/components/strategy/ObjectionHandlingPanel";
@@ -542,6 +542,36 @@ export default function RespondPage() {
                 </div>
               </section>
 
+              {/* === UNSTRUCTURED AI COMPARISON CALLOUT === */}
+              {data.decision_clarity?.targetProbability != null && (
+                <div className="rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/5 to-orange-500/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <Activity className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Why CIOS differs from unstructured AI</span>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-foreground">{Math.round(data.decision_clarity.targetProbability * 100)}%</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">CIOS Forecast</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">vs</div>
+                        <div className="text-center opacity-50">
+                          <div className="text-2xl font-bold text-muted-foreground">~44%</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Unstructured AI</div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Unstructured AI (ChatGPT, Claude, etc.) estimates adoption probability without signal decomposition, precedent-locked likelihood ratios, or eligibility gates.
+                        CIOS enforces Bayesian discipline: each signal must cite a verifiable source, pass the precedent library, and survive dependency compression before it shifts the posterior.
+                        The difference is the gap between opinion and auditable forecast.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="border-t border-border/40" />
 
               {/* === SECTION 2: INTERPRETATION (always visible) === */}
@@ -590,7 +620,7 @@ export default function RespondPage() {
               {/* === SECTION 3: NEEDLE MOVEMENT (visible) === */}
               {data.needle_movement && (
                 <>
-                  <NeedleMovementSection movement={data.needle_movement} />
+                  <NeedleMovementSection movement={data.needle_movement} caseId={caseId} />
                   <div className="border-t border-border/40" />
                 </>
               )}
@@ -935,7 +965,39 @@ function CategoryBadge({ category }: { category: string }) {
   );
 }
 
-function NeedleMovementSection({ movement }: { movement: NeedleMovement }) {
+function NeedleMovementSection({ movement, caseId }: { movement: NeedleMovement; caseId?: string }) {
+  const [, navigate] = useLocation();
+
+  const handleTestInSimulate = (driver: NeedleDriver) => {
+    if (!caseId) return;
+    const cat = (driver.category || "").toLowerCase();
+    const categoryMap: Record<string, { type: string; target: string; basis: string; source: string }> = {
+      clinical: { type: "new_evidence", target: "prescribers", basis: "peer_reviewed_study", source: "journal" },
+      access: { type: "payer_decision", target: "payers", basis: "regulatory_communication", source: "payer" },
+      operational: { type: "regulatory_update", target: "regulators", basis: "regulatory_communication", source: "fda" },
+      behavioral: { type: "new_evidence", target: "prescribers", basis: "peer_reviewed_study", source: "journal" },
+      competitive: { type: "competitor_action", target: "competitors", basis: "internal_hypothesis", source: "manufacturer" },
+    };
+    const mapped = categoryMap[cat] || categoryMap.clinical;
+    const dir = (driver.direction || "").toLowerCase();
+
+    const prePop = {
+      scenarioName: driver.name,
+      scenarioDescription: `Simulating impact of: ${driver.name} (${driver.contribution} contribution)`,
+      scenarioType: mapped.type,
+      scenarioPolarity: dir.includes("decrease") ? "negative" : "positive",
+      messageSource: mapped.source,
+      evidenceBasis: mapped.basis,
+      primaryTarget: mapped.target,
+      expectedEffect: dir.includes("decrease") ? "decreases" : "increases",
+      impactLevel: (driver.impact || "moderate").toLowerCase(),
+      timeFrame: "12mo",
+      confidenceLevel: "moderate",
+    };
+    localStorage.setItem(`cios.simulatePrePop:${caseId}`, JSON.stringify(prePop));
+    navigate("/simulate");
+  };
+
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
@@ -958,6 +1020,15 @@ function NeedleMovementSection({ movement }: { movement: NeedleMovement }) {
                     <div className="flex items-center gap-2 mt-1.5">
                       <CategoryBadge category={d.category} />
                       <ImpactBadge impact={d.impact} />
+                      {i === 0 && (
+                        <button
+                          onClick={() => handleTestInSimulate(d)}
+                          className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 hover:bg-emerald-500/25 transition"
+                        >
+                          <FlaskConical className="w-3 h-3" />
+                          Test in Simulate
+                        </button>
+                      )}
                     </div>
                   </div>
                   <span className="text-emerald-400 font-bold text-sm shrink-0">{d.contribution}</span>

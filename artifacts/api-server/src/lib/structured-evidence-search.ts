@@ -30,18 +30,27 @@ export interface StructuredSearchResult {
 }
 
 const ALLOWED_SIGNAL_TYPES = new Set([
-  "Phase III clinical trial",
-  "FDA approval",
+  "Phase III clinical",
+  "Regulatory / clinical",
   "Guideline inclusion",
   "Safety / tolerability",
   "Payer / coverage",
   "Real-world evidence",
-  "Prescribing information",
+  "Prescriber behavior",
   "KOL endorsement",
   "Field intelligence",
   "Competitor counteraction",
   "Access / commercial",
+  "Clinical workflow",
+  "Operational friction",
 ]);
+
+// Map LLM output types that don't match v18 library to valid types
+const SIGNAL_TYPE_NORMALIZE: Record<string, string> = {
+  "Phase III clinical trial": "Phase III clinical",
+  "FDA approval": "Regulatory / clinical",
+  "Prescribing information": "Regulatory / clinical",
+};
 
 const HIGH_TRUST_DOMAINS = new Set([
   "gov", "edu", "pubmed.ncbi.nlm.nih.gov", "nejm.org", "thelancet.com",
@@ -319,7 +328,7 @@ Return JSON with this structure:
       "sourceTitle": "string — from the search results provided",
       "finding": "ONE sentence extracted from or closely paraphrasing the source text",
       "sourceQuote": "exact phrase from the source text that supports this finding, or null if none",
-      "signalType": "one of: Phase III clinical trial, FDA approval, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescribing information, KOL endorsement, Field intelligence, Competitor counteraction, Access / commercial",
+      "signalType": "one of: Phase III clinical, Regulatory / clinical, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescriber behavior, KOL endorsement, Field intelligence, Competitor counteraction, Access / commercial, Clinical workflow, Operational friction",
       "direction": "Positive or Negative",
       "strengthScore": "1-5 (1=weak, 5=strong)",
       "reliabilityScore": "1-5 (1=anecdotal, 5=verified/published)"
@@ -477,7 +486,8 @@ export async function runStructuredEvidenceSearch(
   console.log("[EVIDENCE-SEARCH] Verified findings (post-processing):", JSON.stringify(verifiedFindings, null, 2));
 
   const candidates: EvidenceCandidate[] = verifiedFindings.map((f: any) => {
-    const signalType = ALLOWED_SIGNAL_TYPES.has(f.signalType) ? f.signalType : "Field intelligence";
+    const normalizedType = SIGNAL_TYPE_NORMALIZE[f.signalType] || f.signalType;
+    const signalType = ALLOWED_SIGNAL_TYPES.has(normalizedType) ? normalizedType : "Field intelligence";
     const direction = f.direction === "Negative" ? "Negative" : "Positive";
     const strength = Math.min(5, Math.max(1, Number(f.strengthScore) || 3));
     const reliability = Math.min(5, Math.max(1, Number(f.reliabilityScore) || 3));

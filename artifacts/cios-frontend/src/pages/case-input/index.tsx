@@ -13,6 +13,8 @@ import {
   Unlock,
   ChevronDown,
   ChevronUp,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -98,6 +100,8 @@ export default function CaseInputPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [priorSuggestion, setPriorSuggestion] = useState<any>(null);
+  const [priorLoading, setPriorLoading] = useState(false);
   const [showDeferred, setShowDeferred] = useState(false);
 
   const questionText = `Will ${actor || "[actor]"} ${action || "[action]"} in ${geography} within ${timeHorizon}?`;
@@ -446,6 +450,73 @@ export default function CaseInputPage() {
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none"
               />
             </div>
+          </div>
+
+          <div className="border-t border-border/40 pt-4">
+            <button
+              type="button"
+              disabled={priorLoading || (!caseName.trim() && !actor.trim())}
+              onClick={async () => {
+                setPriorLoading(true);
+                setPriorSuggestion(null);
+                try {
+                  const params = new URLSearchParams();
+                  if (caseName.trim()) params.set("drugName", caseName.trim());
+                  if (actor.trim()) params.set("indication", actor.trim());
+                  const r = await fetch(`${API}/api/suggest-prior?${params}`);
+                  const data = await r.json();
+                  setPriorSuggestion(data);
+                  if (data.suggestion) {
+                    setBaselineProbability(Math.round(data.suggestion.suggestedPrior * 100));
+                    setBaselineReason(data.suggestion.explanation);
+                  }
+                } catch {
+                  setPriorSuggestion({ error: true });
+                }
+                setPriorLoading(false);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/20 transition disabled:opacity-40"
+            >
+              {priorLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Suggest Prior from Reference Cases
+            </button>
+
+            {priorSuggestion?.suggestion && (
+              <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+                <div className="flex items-center gap-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-foreground">{Math.round(priorSuggestion.suggestion.rangeLow * 100)}-{Math.round(priorSuggestion.suggestion.rangeHigh * 100)}%</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Suggested Range</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-amber-400">{Math.round(priorSuggestion.suggestion.suggestedPrior * 100)}%</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Base Prior</div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">{priorSuggestion.suggestion.explanation}</p>
+                {priorSuggestion.comparators?.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Closest Comparators</div>
+                    {priorSuggestion.comparators.map((c: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-xs rounded bg-background/50 px-2 py-1.5">
+                        <div>
+                          <span className="font-medium text-foreground">{c.assetName || c.therapyArea}</span>
+                          {c.diseaseState && <span className="text-muted-foreground ml-1">({c.diseaseState})</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">{Math.round(c.finalProbability * 100)}%</span>
+                          <span className="text-[10px] text-muted-foreground">{c.confidenceBand}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {priorSuggestion && !priorSuggestion.suggestion && !priorSuggestion.error && (
+              <p className="mt-2 text-xs text-muted-foreground">{priorSuggestion.message || "No matching reference cases found."}</p>
+            )}
           </div>
         </section>
 

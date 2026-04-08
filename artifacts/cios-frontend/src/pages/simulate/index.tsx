@@ -400,8 +400,41 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
               {result.adoption_likelihood}%
             </p>
           </div>
-          <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${confidenceColor(result.confidence)}`}>
-            {result.confidence} Confidence
+          <div className="flex items-center gap-2">
+            <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${confidenceColor(result.confidence)}`}>
+              {result.confidence} Confidence
+            </div>
+            <div className="flex gap-1">
+              {(["Base", "Bull", "Bear"] as const).map((label) => (
+                <button
+                  key={label}
+                  onClick={() => {
+                    const existing = savedScenarios.findIndex((s) => s.label === label);
+                    const entry: SavedScenario = {
+                      name: scenarioName || label,
+                      label,
+                      probability: result.adoption_likelihood,
+                      reaction: result.primary_reaction,
+                      barrier: result.primary_remaining_barrier,
+                      trigger: result.strongest_trigger_for_movement,
+                      confidence: result.confidence,
+                    };
+                    if (existing >= 0) {
+                      setSavedScenarios((prev) => prev.map((s, i) => (i === existing ? entry : s)));
+                    } else {
+                      setSavedScenarios((prev) => [...prev, entry]);
+                    }
+                  }}
+                  className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${
+                    label === "Bull" ? "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" :
+                    label === "Bear" ? "border border-rose-500/30 text-rose-400 hover:bg-rose-500/10" :
+                    "border border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                  } ${savedScenarios.some((s) => s.label === label) ? "bg-opacity-20" : ""}`}
+                >
+                  Save as {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -410,6 +443,46 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
           <p className="text-[15px] text-foreground leading-relaxed">{applyVocab(result.primary_reaction)}</p>
         </div>
       </div>
+
+      {savedScenarios.length >= 2 && (
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Scenario Comparison</h3>
+          <div className={`grid gap-4 ${savedScenarios.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+            {savedScenarios.map((s) => (
+              <div
+                key={s.label}
+                className={`rounded-xl border p-4 space-y-3 ${
+                  s.label === "Bull" ? "border-emerald-500/20 bg-emerald-500/5" :
+                  s.label === "Bear" ? "border-rose-500/20 bg-rose-500/5" :
+                  "border-blue-500/20 bg-blue-500/5"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold uppercase tracking-wider ${
+                    s.label === "Bull" ? "text-emerald-400" : s.label === "Bear" ? "text-rose-400" : "text-blue-400"
+                  }`}>{s.label} Case</span>
+                  <span className={`text-2xl font-bold ${likelihoodColor(s.probability)}`}>{s.probability}%</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground font-medium">{s.name}</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Reaction</div>
+                    <p className="text-xs text-foreground/80 line-clamp-2">{s.reaction}</p>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Key Barrier</div>
+                    <p className="text-xs text-foreground/80 line-clamp-2">{s.barrier}</p>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Trigger for Movement</div>
+                    <p className="text-xs text-foreground/80 line-clamp-2">{s.trigger}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border/30">
         <div>
@@ -620,6 +693,17 @@ export default function SimulatePage() {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  interface SavedScenario {
+    name: string;
+    label: "Base" | "Bull" | "Bear" | string;
+    probability: number;
+    reaction: string;
+    barrier: string;
+    trigger: string;
+    confidence: string;
+  }
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -641,27 +725,76 @@ export default function SimulatePage() {
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.text || "";
 
+  // Pre-populate scenario from Respond page's top needle movement driver
   useEffect(() => {
     if (!caseId || scenarioName.trim()) return;
-    const defaults: Record<string, { name: string; description: string }> = {
-      "CASE-001": {
-        name: "Head-to-head superiority data published vs teprotumumab",
-        description: "Phase 3 trial demonstrates veligrotug superiority over Tepezza on proptosis and CAS endpoints",
-      },
-      "CASE-002": {
-        name: "Biosimilar modulator enters F508del market",
-        description: "",
-      },
-      "CASE-003": {
-        name: "ATS/IDSA guideline endorses first-line Arikayce",
-        description: "",
-      },
-    };
-    const d = defaults[caseId];
-    if (d) {
-      setScenarioName(d.name);
-      if (d.description) setScenarioDescription(d.description);
-    }
+
+    // Check for pre-populated scenario from Respond page
+    try {
+      const prePopRaw = localStorage.getItem(`cios.simulatePrePop:${caseId}`);
+      if (prePopRaw) {
+        const prePop = JSON.parse(prePopRaw);
+        if (prePop.scenarioName) setScenarioName(prePop.scenarioName);
+        if (prePop.scenarioDescription) setScenarioDescription(prePop.scenarioDescription);
+        if (prePop.scenarioType) setScenarioType(prePop.scenarioType);
+        if (prePop.scenarioPolarity) setScenarioPolarity(prePop.scenarioPolarity);
+        if (prePop.messageSource) setMessageSource(prePop.messageSource);
+        if (prePop.evidenceBasis) setEvidenceBasis(prePop.evidenceBasis);
+        if (prePop.primaryTarget) setPrimaryTarget(prePop.primaryTarget);
+        if (prePop.expectedEffect) setExpectedEffect(prePop.expectedEffect);
+        if (prePop.impactLevel) setImpactLevel(prePop.impactLevel);
+        if (prePop.timeFrame) setTimeFrame(prePop.timeFrame);
+        if (prePop.confidenceLevel) setConfidenceLevel(prePop.confidenceLevel);
+        localStorage.removeItem(`cios.simulatePrePop:${caseId}`);
+        return;
+      }
+    } catch {}
+
+    // Fall back to needle movement data from Respond page
+    try {
+      const respondRaw = localStorage.getItem(`cios.respondResult:${caseId}`);
+      if (respondRaw) {
+        const respond = JSON.parse(respondRaw);
+        const topDriver = respond?.needle_movement?.moves_up?.[0];
+        if (topDriver?.name) {
+          setScenarioName(topDriver.name);
+          if (respond.highest_impact_lever) {
+            setScenarioDescription(respond.highest_impact_lever);
+          }
+
+          // Map needle movement category to scenario dropdowns
+          const cat = (topDriver.category || "").toLowerCase();
+          const categoryMap: Record<string, { type: string; target: string; basis: string; source: string }> = {
+            clinical: { type: "new_evidence", target: "prescribers", basis: "peer_reviewed_study", source: "journal" },
+            access: { type: "payer_decision", target: "payers", basis: "regulatory_communication", source: "payer" },
+            operational: { type: "regulatory_update", target: "regulators", basis: "regulatory_communication", source: "fda" },
+            behavioral: { type: "new_evidence", target: "prescribers", basis: "peer_reviewed_study", source: "journal" },
+            competitive: { type: "competitor_action", target: "competitors", basis: "internal_hypothesis", source: "manufacturer" },
+          };
+          const mapped = categoryMap[cat] || categoryMap.clinical;
+          setScenarioType(mapped.type);
+          setPrimaryTarget(mapped.target);
+          setEvidenceBasis(mapped.basis);
+          setMessageSource(mapped.source);
+
+          // Map direction and impact
+          const dir = (topDriver.direction || "").toLowerCase();
+          if (dir.includes("increase")) setExpectedEffect("increases");
+          else if (dir.includes("decrease")) setExpectedEffect("decreases");
+          else setExpectedEffect("increases");
+
+          setScenarioPolarity(dir.includes("decrease") ? "negative" : "positive");
+
+          const impact = (topDriver.impact || "").toLowerCase();
+          if (impact === "high") setImpactLevel("high");
+          else if (impact === "moderate") setImpactLevel("moderate");
+          else setImpactLevel("moderate");
+
+          setTimeFrame("12mo");
+          setConfidenceLevel("moderate");
+        }
+      }
+    } catch {}
   }, [caseId]);
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
