@@ -4,6 +4,7 @@ import { researchBrand } from "../lib/web-research";
 import { isSafetyRiskCase, isRegulatoryCase } from "../lib/case-type-router.js";
 import { buildCaseFrame, buildFrameConstraintPrompt, filterSignalsByFrame, scoreSignalRelevance, type CaseFrame } from "../lib/case-framing.js";
 import { buildGapGuardPromptBlock, scanObjectForGapViolations, replaceGapPhrases } from "../lib/narrative-gap-guard.js";
+import { runStructuredEvidenceSearch, buildFullSearchQueries, buildGapSearchQueries, type EvidenceCandidate } from "../lib/structured-evidence-search.js";
 
 const router = Router();
 
@@ -632,13 +633,127 @@ ${(isSafetyRiskCase(body.questionText) || isRegulatoryCase(body.questionText)) ?
   }
 });
 
+router.post("/ai-signals/structured-search", async (req, res) => {
+  try {
+    const { subject, indication, questionText } = req.body;
+    if (!subject) {
+      return res.status(400).json({ error: "subject (drug name) is required" });
+    }
+
+    const drugName = subject;
+    const diseaseState = indication || "";
+    const categories = buildFullSearchQueries(drugName, diseaseState);
+
+    const result = await runStructuredEvidenceSearch(drugName, diseaseState, categories);
+
+    res.json({
+      signals: result.candidates.map((c) => ({
+        tempId: c.tempId,
+        text: c.finding,
+        trialName: c.trialName,
+        pmid: c.pmid,
+        source_url: c.sourceUrl,
+        source_title: c.sourceTitle,
+        category: mapCategoryToSignalCategory(c.category),
+        signal_family: mapCategoryToFamily(c.category),
+        signal_class: "observed" as const,
+        signal_source: "external" as const,
+        signal_domain: mapCategoryToDomain(c.category),
+        direction: c.direction === "Positive" ? "increases_probability" : "decreases_probability",
+        strength: c.strengthScore >= 4 ? "High" : c.strengthScore >= 2 ? "Medium" : "Low",
+        reliability: c.reliabilityScore >= 4 ? "Confirmed" : c.reliabilityScore >= 2 ? "Probable" : "Speculative",
+        evidenceCategory: c.category,
+        signalType: c.signalType,
+        brand_verified: true,
+        rationale: c.finding,
+        countTowardPosterior: false,
+      })),
+      categoriesSearched: result.categoriesSearched,
+      searchType: "structured_evidence",
+      drugName,
+      indication: diseaseState,
+    });
+  } catch (err: any) {
+    console.error("Structured search error:", err);
+    res.status(500).json({ error: "Structured evidence search failed" });
+  }
+});
+
+function mapCategoryToSignalCategory(category: string): string {
+  const lower = category.toLowerCase();
+  if (lower.includes("clinical") || lower.includes("trial")) return "evidence";
+  if (lower.includes("label") || lower.includes("regulatory") || lower.includes("fda")) return "evidence";
+  if (lower.includes("guideline")) return "guideline";
+  if (lower.includes("safety")) return "evidence";
+  if (lower.includes("payer") || lower.includes("access")) return "access";
+  if (lower.includes("launch") || lower.includes("market")) return "adoption";
+  if (lower.includes("compet")) return "competition";
+  return "evidence";
+}
+
+function mapCategoryToFamily(category: string): string {
+  const lower = category.toLowerCase();
+  if (lower.includes("clinical") || lower.includes("trial")) return "brand_clinical_regulatory";
+  if (lower.includes("label") || lower.includes("regulatory")) return "brand_clinical_regulatory";
+  if (lower.includes("guideline")) return "brand_clinical_regulatory";
+  if (lower.includes("safety")) return "brand_clinical_regulatory";
+  if (lower.includes("payer") || lower.includes("access")) return "payer_access";
+  if (lower.includes("launch") || lower.includes("market")) return "provider_behavioral";
+  if (lower.includes("compet")) return "competitor";
+  if (lower.includes("prescrib")) return "provider_behavioral";
+  if (lower.includes("operational")) return "system_operational";
+  return "brand_clinical_regulatory";
+}
+
+function mapCategoryToDomain(category: string): string {
+  const lower = category.toLowerCase();
+  if (lower.includes("clinical") || lower.includes("trial")) return "clinical_evidence";
+  if (lower.includes("label") || lower.includes("regulatory")) return "regulatory_activity";
+  if (lower.includes("guideline")) return "guideline_activity";
+  if (lower.includes("safety")) return "safety_pharmacovigilance";
+  if (lower.includes("payer") || lower.includes("access")) return "market_access";
+  if (lower.includes("launch") || lower.includes("market")) return "operational_readiness";
+  if (lower.includes("compet")) return "competitive_dynamics";
+  return "clinical_evidence";
+}
+
 router.post("/ai-signals/completeness", async (req, res) => {
   try {
-    const { question, questionType, subject, existingSignals } = req.body;
+    const { question, questionType, subject, existingSignals, missingFamilies, indication } = req.body;
     if (!question || !subject) {
       res.status(400).json({ error: "question and subject are required" });
       return;
     }
+
+    if (Array.isArray(missingFamilies) && missingFamilies.length > 0) {
+      const diseaseState = indication || "";
+      const gapCategories = buildGapSearchQueries(subject, diseaseState, missingFamilies);
+
+      if (gapCategories.length > 0) {
+        const result = await runStructuredEvidenceSearch(subject, diseaseState, gapCategories);
+
+        const suggestions = result.candidates.map((c) => ({
+          text: c.finding,
+          rationale: `Found via targeted search for missing ${c.category} coverage`,
+          category: mapCategoryToSignalCategory(c.category),
+          trialName: c.trialName,
+          pmid: c.pmid,
+          sourceUrl: c.sourceUrl,
+          sourceTitle: c.sourceTitle,
+          signalType: c.signalType,
+          direction: c.direction,
+          strengthScore: c.strengthScore,
+          reliabilityScore: c.reliabilityScore,
+          evidenceCategory: c.category,
+          isStructuredResult: true,
+          countTowardPosterior: false,
+        }));
+
+        res.json({ suggestions, searchType: "gap_targeted", gapsFilled: missingFamilies });
+        return;
+      }
+    }
+
     const signalList = (existingSignals || []).slice(0, 30).map((t: string, i: number) => `${i + 1}. ${t}`).join("\n");
     const response = await openai.chat.completions.create({
       model: "gpt-4o",

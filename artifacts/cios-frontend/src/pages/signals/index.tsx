@@ -1542,6 +1542,90 @@ export default function SignalsPage() {
     });
   }, [subject, questionText, outcome, questionType, timeHorizon, entities, caseKey, fallbackEvents, fallbackSuggestions]);
 
+  const runStructuredSearch = useCallback(() => {
+    if (!subject) return;
+    setStructuredSearchLoading(true);
+    setStructuredSearchError(null);
+    setStructuredCandidates([]);
+    setStructuredSearchDone(false);
+
+    const API = import.meta.env.VITE_API_URL || "";
+    fetch(`${API}/api/ai-signals/structured-search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject,
+        indication: caseDetails?.diseaseState || caseDetails?.therapeuticArea || outcome || "",
+        questionText: questionText || "",
+      }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`API returned ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (data.signals && Array.isArray(data.signals)) {
+          setStructuredCandidates(data.signals);
+        }
+        setStructuredSearchDone(true);
+      })
+      .catch((err) => {
+        console.error("[CIOS] Structured search failed:", err);
+        setStructuredSearchError("Evidence search failed. Please try again.");
+      })
+      .finally(() => {
+        setStructuredSearchLoading(false);
+      });
+  }, [subject, questionText, caseDetails, outcome]);
+
+  const approveStructuredCandidate = useCallback((candidate: any) => {
+    const VALID_SIGNAL_CLASSES = new Set(["observed", "derived", "uncertainty"]);
+    const VALID_SIGNAL_FAMILIES = new Set(ALL_SIGNAL_FAMILIES);
+    const direction = VALID_DIRECTIONS.has(candidate.direction) ? candidate.direction : "signals_uncertainty";
+    const strength = VALID_STRENGTHS.has(candidate.strength) ? candidate.strength : "Medium";
+    const reliability = VALID_RELIABILITIES.has(candidate.reliability) ? candidate.reliability : "Probable";
+    const signal_class = VALID_SIGNAL_CLASSES.has(candidate.signal_class) ? candidate.signal_class as SignalClass : "observed";
+    const signal_family = VALID_SIGNAL_FAMILIES.has(candidate.signal_family) ? candidate.signal_family as SignalFamily : "brand_clinical_regulatory";
+    const signal_domain = VALID_SIGNAL_DOMAINS.has(candidate.signal_domain) ? candidate.signal_domain as SignalDomain : undefined;
+
+    const newSignal = enrichSignalFields({
+      id: `evid-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      text: candidate.text,
+      caveat: candidate.rationale || "",
+      direction,
+      strength,
+      reliability,
+      impact: computeImpact({ strength, reliability }),
+      category: VALID_CATEGORIES.has(candidate.category) ? candidate.category : "evidence",
+      source: "user" as const,
+      accepted: true,
+      signal_class,
+      signal_family,
+      signal_source: "external" as SignalSource,
+      signal_domain,
+      source_url: candidate.source_url || null,
+      source_type: candidate.signalType || undefined,
+      observed_date: null,
+      citation_excerpt: null,
+      brand_verified: true,
+      countTowardPosterior: false,
+      priority_source: "human_added" as PrioritySource,
+      is_locked: false,
+    }, questionText, outcome);
+
+    setSignals((prev) => {
+      const merged = [newSignal, ...prev];
+      persistSignals(merged);
+      return merged;
+    });
+
+    setStructuredCandidates((prev) => prev.filter((c) => c.tempId !== candidate.tempId));
+  }, [questionText, outcome]);
+
+  const rejectStructuredCandidate = useCallback((tempId: string) => {
+    setStructuredCandidates((prev) => prev.filter((c) => c.tempId !== tempId));
+  }, []);
+
   useEffect(() => {
     if (!subject || !questionText) return;
     if (hasPersistedSignals()) return;
@@ -1571,6 +1655,10 @@ export default function SignalsPage() {
   const [provenanceSignal, setProvenanceSignal] = useState<Signal | null>(null);
   const [showFindPanel, setShowFindPanel] = useState(false);
   const [findKeywords, setFindKeywords] = useState("");
+  const [structuredCandidates, setStructuredCandidates] = useState<any[]>([]);
+  const [structuredSearchLoading, setStructuredSearchLoading] = useState(false);
+  const [structuredSearchError, setStructuredSearchError] = useState<string | null>(null);
+  const [structuredSearchDone, setStructuredSearchDone] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [signalLineageMap, setSignalLineageMap] = useState<Record<string, SignalLineageInfo>>({});
@@ -2303,8 +2391,13 @@ export default function SignalsPage() {
           {!showFindPanel ? (
             <button
               type="button"
-              onClick={() => setShowFindPanel(true)}
-              disabled={aiLoading || showActivityPanel}
+              onClick={() => {
+                setShowFindPanel(true);
+                if (!structuredSearchDone && structuredCandidates.length === 0 && !structuredSearchLoading) {
+                  runStructuredSearch();
+                }
+              }}
+              disabled={aiLoading || showActivityPanel || structuredSearchLoading}
               className="w-full rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-6 py-4 text-left transition hover:border-primary/50 hover:from-primary/15 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
               <div className="flex items-center gap-3">
@@ -2312,8 +2405,8 @@ export default function SignalsPage() {
                   <Search className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-semibold text-foreground">Find New Signals</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Search public sources for regulatory, clinical, market, and competitive intelligence</div>
+                  <div className="text-sm font-semibold text-foreground">Search Evidence</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Search clinical trials, regulatory filings, guidelines, safety data, and payer coverage</div>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition" />
               </div>
@@ -2326,8 +2419,8 @@ export default function SignalsPage() {
                     <Search className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground">Find New Signals</h3>
-                    <p className="text-xs text-muted-foreground">What should we look for?</p>
+                    <h3 className="text-sm font-semibold text-foreground">Evidence Search Results</h3>
+                    <p className="text-xs text-muted-foreground">Approve or dismiss each candidate</p>
                   </div>
                 </div>
                 <button type="button" onClick={() => setShowFindPanel(false)} className="text-muted-foreground hover:text-foreground">
@@ -2335,60 +2428,100 @@ export default function SignalsPage() {
                 </button>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>Searches regulatory filings, press releases, clinical trial registries, congress presentations, and news</span>
-                </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Globe className="w-3.5 h-3.5" />
+                <span>Structured search across clinical trials, label data, guidelines, safety, and payer access</span>
+              </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Focus areas (optional)</label>
-                  <input
-                    type="text"
-                    value={findKeywords}
-                    onChange={(e) => setFindKeywords(e.target.value)}
-                    placeholder={`e.g. "payer coverage, competitor launch, FDA advisory committee"`}
-                    className="w-full rounded-xl border border-border bg-muted/20 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !aiLoading) {
-                        const kws = findKeywords.trim()
-                          ? findKeywords.split(",").map(k => k.trim()).filter(Boolean)
-                          : undefined;
-                        setShowFindPanel(false);
-                        runSignalSearch(kws);
-                      }
-                    }}
-                  />
-                  <p className="text-[10px] text-muted-foreground/60">Separate multiple terms with commas. Leave blank to search based on your question.</p>
+              {structuredSearchLoading && (
+                <div className="flex items-center justify-center gap-3 py-6">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
+                  <span className="text-sm text-muted-foreground">Searching evidence sources...</span>
                 </div>
+              )}
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const kws = findKeywords.trim()
-                        ? findKeywords.split(",").map(k => k.trim()).filter(Boolean)
-                        : undefined;
-                      setShowFindPanel(false);
-                      runSignalSearch(kws);
-                    }}
-                    disabled={aiLoading || showActivityPanel}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition disabled:opacity-50"
-                  >
-                    <Search className="w-4 h-4" />
-                    Search Sources
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFindKeywords("");
-                      setShowFindPanel(false);
-                    }}
-                    className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition"
-                  >
-                    Cancel
-                  </button>
+              {structuredSearchError && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+                  {structuredSearchError}
                 </div>
+              )}
+
+              {!structuredSearchLoading && structuredSearchDone && structuredCandidates.length === 0 && (
+                <div className="text-center py-4 text-sm text-muted-foreground">No new evidence candidates found.</div>
+              )}
+
+              {structuredCandidates.length > 0 && (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                  {structuredCandidates.map((candidate) => (
+                    <div key={candidate.tempId} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          candidate.evidenceCategory?.toLowerCase().includes("clinical") ? "bg-blue-500/20 text-blue-300" :
+                          candidate.evidenceCategory?.toLowerCase().includes("safety") ? "bg-amber-500/20 text-amber-300" :
+                          candidate.evidenceCategory?.toLowerCase().includes("guideline") ? "bg-green-500/20 text-green-300" :
+                          candidate.evidenceCategory?.toLowerCase().includes("payer") || candidate.evidenceCategory?.toLowerCase().includes("access") ? "bg-purple-500/20 text-purple-300" :
+                          candidate.evidenceCategory?.toLowerCase().includes("label") || candidate.evidenceCategory?.toLowerCase().includes("regulatory") ? "bg-cyan-500/20 text-cyan-300" :
+                          "bg-muted text-muted-foreground"
+                        }`}>{candidate.evidenceCategory || "Evidence"}</span>
+                        <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                          candidate.direction === "increases_probability" ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"
+                        }`}>{candidate.direction === "increases_probability" ? "Supports" : "Constrains"}</span>
+                      </div>
+                      <p className="text-sm text-foreground leading-relaxed">{candidate.text}</p>
+                      {candidate.trialName && (
+                        <p className="text-xs text-muted-foreground">Trial: {candidate.trialName}</p>
+                      )}
+                      {candidate.source_url && (
+                        <a href={candidate.source_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline truncate block">
+                          {candidate.source_title || candidate.source_url}
+                        </a>
+                      )}
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                        <span>Strength: {candidate.strength}</span>
+                        <span>Confidence: {candidate.reliability}</span>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => approveStructuredCandidate(candidate)}
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 transition"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rejectStructuredCandidate(candidate.tempId)}
+                          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => runStructuredSearch()}
+                  disabled={structuredSearchLoading}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition disabled:opacity-50"
+                >
+                  <Search className="w-4 h-4" />
+                  {structuredSearchDone ? "Search Again" : "Search Evidence"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFindPanel(false);
+                  }}
+                  className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition"
+                >
+                  Close
+                </button>
               </div>
             </div>
           )}
@@ -2832,13 +2965,16 @@ export default function SignalsPage() {
                 type="button"
                 onClick={() => {
                   setShowFindPanel(true);
+                  if (!structuredSearchDone && structuredCandidates.length === 0 && !structuredSearchLoading) {
+                    runStructuredSearch();
+                  }
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
-                disabled={aiLoading}
+                disabled={aiLoading || structuredSearchLoading}
                 className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Search className="w-4 h-4" />
-                Find More Signals
+                Search More Evidence
               </button>
             </div>
           ) : (
@@ -2965,6 +3101,8 @@ export default function SignalsPage() {
               questionText={questionText}
               questionType={questionType || "binary"}
               subject={subject || ""}
+              missingFamilies={adoptionCoverage?.missing_families}
+              indication={caseDetails?.diseaseState || caseDetails?.therapeuticArea || ""}
               onAddSignal={(text) => {
                 const base = { strength: "Medium" as Strength, reliability: "Probable" as Reliability };
                 const sig: Signal = enrichSignalFields({

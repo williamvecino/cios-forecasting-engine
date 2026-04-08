@@ -18,12 +18,16 @@ export default function SignalCompletenessPanel({
   questionType,
   subject,
   onAddSignal,
+  missingFamilies,
+  indication,
 }: {
   signals: SignalCompletenessSignal[];
   questionText: string;
   questionType: string;
   subject: string;
   onAddSignal: (text: string) => void;
+  missingFamilies?: string[];
+  indication?: string;
 }) {
   const [suggestions, setSuggestions] = useState<SuggestedSignal[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,6 +65,8 @@ export default function SignalCompletenessPanel({
           questionType,
           subject,
           existingSignals: signals.map(s => s.text),
+          ...(missingFamilies && missingFamilies.length > 0 ? { missingFamilies } : {}),
+          ...(indication ? { indication } : {}),
         }),
       });
       if (!resp.ok) throw new Error(`API ${resp.status}`);
