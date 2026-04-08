@@ -38,17 +38,17 @@ export const DOMAIN_LABELS: Record<CandidateDomain, string> = {
 
 export const DOMAIN_TO_SIGNAL_TYPE: Record<CandidateDomain, string> = {
   clinical_efficacy: "Phase III clinical",
-  safety_tolerability: "Regulatory / clinical",
-  delivery_convenience: "Field intelligence",
-  adherence_impact: "Field intelligence",
-  physician_perception: "Field intelligence",
+  safety_tolerability: "Safety / tolerability",
+  delivery_convenience: "Clinical workflow",
+  adherence_impact: "Prescriber behavior",
+  physician_perception: "Prescriber behavior",
   specialist_concentration: "Field intelligence",
   guideline_endorsement: "Guideline inclusion",
-  payer_reimbursement: "Access / commercial",
+  payer_reimbursement: "Payer / coverage",
   hospital_workflow: "Operational friction",
   competitor_pressure: "Competitor counteraction",
   kol_endorsement: "KOL endorsement",
-  real_world_evidence: "Phase III clinical",
+  real_world_evidence: "Real-world evidence",
   regulatory_status: "Regulatory / clinical",
   patient_segmentation: "Field intelligence",
 };
