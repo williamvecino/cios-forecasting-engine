@@ -47,14 +47,60 @@ function matchesKnownTrial(trialName: string, knownTrials: string[]): boolean {
   );
 }
 
+const REGISTRY_DOMAINS = new Set([
+  "clinicaltrials.gov",
+  "pubmed.ncbi.nlm.nih.gov",
+  "fda.gov",
+  "nejm.org",
+  "thelancet.com",
+  "nature.com",
+]);
+
+function isRegistrySource(url: string | null | undefined): boolean {
+  if (!url || typeof url !== "string") return false;
+  const lower = url.toLowerCase();
+  for (const domain of REGISTRY_DOMAINS) {
+    if (lower.includes(domain)) return true;
+  }
+  return false;
+}
+
+function extractNctNumber(text: string): string | null {
+  const match = text.match(/NCT\d{6,11}/i);
+  return match ? match[0].toUpperCase() : null;
+}
+
 function verifyTrialNamesNoCorpus(findings: any[], drugName: string): any[] {
   const knownTrials = lookupKnownTrials(drugName);
 
   return findings.map((f) => {
-    const result = { ...f, unverifiedTrialName: false, knownTrialHint: null as string | null };
+    const result = {
+      ...f,
+      unverifiedTrialName: false,
+      knownTrialHint: null as string | null,
+      registryVerified: false,
+      verificationTier: 3 as 0 | 1 | 2 | 3,
+      nctNumber: null as string | null,
+    };
+
+    const nctFromFinding = extractNctNumber(
+      `${result.finding || ""} ${result.sourceUrl || ""} ${result.sourceTitle || ""} ${result.trialName || ""}`
+    );
+    if (nctFromFinding) {
+      result.nctNumber = nctFromFinding;
+    }
+
+    if (isRegistrySource(result.sourceUrl)) {
+      result.registryVerified = true;
+      result.verificationTier = 0;
+      result.unverifiedTrialName = false;
+      console.log(`[PIVOTAL-SEARCH] TIER 0 REGISTRY VERIFIED: "${result.trialName || "unnamed"}" from ${result.sourceUrl}`);
+      return result;
+    }
 
     if (!result.trialName || typeof result.trialName !== "string" || result.trialName.trim().length === 0) {
       result.trialName = null;
+      result.verificationTier = 2;
       if (knownTrials) {
         result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. Consider searching for these specifically.`;
       }
@@ -64,26 +110,28 @@ function verifyTrialNamesNoCorpus(findings: any[], drugName: string): any[] {
     const trialNameRaw = result.trialName.trim();
 
     if (COMMON_ACRONYMS.has(trialNameRaw.toUpperCase())) {
+      result.verificationTier = 2;
       return result;
     }
 
-    result.unverifiedTrialName = true;
-
-    const warning = `\u26A0 TRIAL NAME UNVERIFIED: '${trialNameRaw}' was not found in search sources. Confirm before approving. `;
-    result.finding = warning + (result.finding || "");
-    console.log(`[PIVOTAL-SEARCH] UNVERIFIED TRIAL: "${trialNameRaw}" — no source corpus available to verify.`);
-
     if (knownTrials) {
-      if (!matchesKnownTrial(trialNameRaw, knownTrials)) {
-        const mismatchWarning = `\u26A0 KNOWN TRIAL MISMATCH: Expected [${knownTrials.join(", ")}] for ${drugName}. Got [${trialNameRaw}]. This may be a fabricated trial name. `;
-        result.finding = mismatchWarning + result.finding;
-        result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. '${trialNameRaw}' does not match — verify independently.`;
-        console.log(`[PIVOTAL-SEARCH] TRIAL MISMATCH: "${trialNameRaw}" does not match known trials [${knownTrials.join(", ")}] for ${drugName}.`);
-      } else {
-        result.knownTrialHint = `'${trialNameRaw}' matches a known trial for this drug, but source verification was unavailable.`;
+      if (matchesKnownTrial(trialNameRaw, knownTrials)) {
+        result.verificationTier = 1;
+        result.unverifiedTrialName = false;
+        result.knownTrialHint = `'${trialNameRaw}' matches a known trial for this drug.`;
+        console.log(`[PIVOTAL-SEARCH] TIER 1 KNOWN TRIAL: "${trialNameRaw}" matches known trials for ${drugName}.`);
+        return result;
       }
     }
 
+    result.verificationTier = 3;
+    result.unverifiedTrialName = true;
+    const warning = `\u26A0 TRIAL NAME UNVERIFIED: '${trialNameRaw}' was not found in search sources or registries. Confirm before approving. `;
+    result.finding = warning + (result.finding || "");
+    if (knownTrials) {
+      result.knownTrialHint = `Known trials: [${knownTrials.join(", ")}]. '${trialNameRaw}' does not match — verify independently.`;
+    }
+    console.log(`[PIVOTAL-SEARCH] TIER 3 BLOCKED: Trial name "${trialNameRaw}" not found in any source or registry.`);
     return result;
   });
 }
@@ -112,7 +160,9 @@ function computeSourceConfidence(
   sourceQuote: string | null,
   sourceUrl: string | null,
   unverifiedTrialName: boolean,
+  registryVerified?: boolean,
 ): "Strong" | "Moderate" | "Weak" {
+  if (registryVerified) return "Strong";
   if (unverifiedTrialName) return "Weak";
   if (!sourceQuote || sourceQuote.trim().length === 0) return "Weak";
   if (isHighTrustSource(sourceUrl)) return "Strong";
@@ -137,6 +187,9 @@ interface StoredCandidate {
   sourceConfidence: "Strong" | "Moderate" | "Weak";
   unverifiedTrialName: boolean;
   knownTrialHint: string | null;
+  registryVerified?: boolean;
+  verificationTier?: 0 | 1 | 2 | 3;
+  nctNumber?: string | null;
 }
 
 interface StoredSearchResult {
@@ -178,6 +231,7 @@ const ALLOWED_SIGNAL_TYPES = new Set([
 ]);
 
 const ALLOWED_CATEGORIES = new Set([
+  "ClinicalTrials.gov Registry",
   "Pivotal Trials",
   "Label / Approval Data",
   "Guidelines",
@@ -188,12 +242,19 @@ const ALLOWED_CATEGORIES = new Set([
 function buildSearchQueries(drugName: string, indication: string, year: string) {
   return [
     {
+      category: "ClinicalTrials.gov Registry",
+      queries: [
+        `site:clinicaltrials.gov "${drugName}" "${indication}"`,
+        `${drugName} NCT clinicaltrials ${indication}`,
+      ],
+    },
+    {
       category: "Pivotal Trials",
       queries: [
         `${drugName} phase 3 trial ${indication}`,
-        `${drugName} randomized controlled trial`,
-        `${drugName} FDA approval ${indication}`,
-        `${drugName} clinical trial results`,
+        `${drugName} pivotal trial results ${indication}`,
+        `${drugName} FDA approval trial ${indication}`,
+        `${drugName} first line ${indication} phase 3`,
       ],
     },
     {
@@ -357,15 +418,15 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
       const findingText = typeof f.finding === "string" ? f.finding : "";
       const redFlags = detectRedFlags(findingText, pmid ? 1 : 0);
 
-      // Source confidence now accounts for PMID verification
       const pmidUnverified = pmid ? !pmidVerified : false;
-      const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified || pmidUnverified);
+      const regVerified = !!f.registryVerified;
+      const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified || pmidUnverified, regVerified);
 
       const candidate: StoredCandidate = {
         tempId: randomUUID(),
         category,
         trialName: typeof f.trialName === "string" && f.trialName.length > 0 ? f.trialName.slice(0, 200) : null,
-        pmid: pmidVerified ? pmid : null, // Only keep PMID if verified
+        pmid: pmidVerified ? pmid : null,
         sourceUrl: resolvedUrl,
         sourceTitle: typeof f.sourceTitle === "string" ? f.sourceTitle.slice(0, 300) : null,
         finding: typeof f.finding === "string" ? f.finding.slice(0, 800) : "",
@@ -379,6 +440,9 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
         precedentMatched: precedentResult.matched,
         unverifiedTrialName: unverified || (pmid != null && !pmidVerified),
         knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
+        registryVerified: regVerified,
+        verificationTier: (typeof f.verificationTier === "number" ? f.verificationTier : 3) as 0 | 1 | 2 | 3,
+        nctNumber: typeof f.nctNumber === "string" ? f.nctNumber : null,
         ...(redFlags.length > 0 ? { redFlags } : {}),
         ...(pmid && !pmidVerified ? { invalidPmid: pmid } : {}),
       };
@@ -392,12 +456,15 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
       createdAt: Date.now(),
     });
 
+    const sortedCandidates = Array.from(candidateMap.values())
+      .sort((a, b) => (a.verificationTier ?? 3) - (b.verificationTier ?? 3));
+
     res.json({
       caseId,
       drugName,
       indication,
       searchCategories: searchCategories.map((c) => c.category),
-      candidates: Array.from(candidateMap.values()),
+      candidates: sortedCandidates,
     });
   } catch (err: any) {
     console.error("Pivotal search error:", err);

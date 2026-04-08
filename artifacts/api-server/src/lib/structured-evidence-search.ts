@@ -20,6 +20,9 @@ export interface EvidenceCandidate {
   sourceConfidence: "Strong" | "Moderate" | "Weak";
   unverifiedTrialName: boolean;
   knownTrialHint: string | null;
+  registryVerified?: boolean;
+  verificationTier?: 0 | 1 | 2 | 3;
+  nctNumber?: string | null;
 }
 
 export interface StructuredSearchResult {
@@ -75,7 +78,9 @@ function computeSourceConfidence(
   sourceQuote: string | null,
   sourceUrl: string | null,
   unverifiedTrialName: boolean,
+  registryVerified?: boolean,
 ): "Strong" | "Moderate" | "Weak" {
+  if (registryVerified) return "Strong";
   if (unverifiedTrialName) return "Weak";
   if (!sourceQuote || sourceQuote.trim().length === 0) return "Weak";
   if (isHighTrustSource(sourceUrl)) return "Strong";
@@ -102,11 +107,21 @@ interface SearchCategory {
 export function buildFullSearchQueries(drugName: string, indication: string): SearchCategory[] {
   return [
     {
+      id: "registry",
+      label: "ClinicalTrials.gov Registry",
+      queries: [
+        `site:clinicaltrials.gov "${drugName}" "${indication}"`,
+        `${drugName} NCT clinicaltrials ${indication}`,
+      ],
+    },
+    {
       id: "clinical",
       label: "Clinical Evidence",
       queries: [
-        `${drugName} phase 3 trial ${indication} results`,
-        `${drugName} pivotal trial ${indication}`,
+        `${drugName} phase 3 trial ${indication}`,
+        `${drugName} pivotal trial results ${indication}`,
+        `${drugName} FDA approval trial ${indication}`,
+        `${drugName} first line ${indication} phase 3`,
       ],
     },
     {
@@ -377,14 +392,62 @@ const COMMON_ACRONYMS = new Set([
   "PMID", "DOI", "URL", "PDF", "CSV", "JSON",
 ]);
 
+const REGISTRY_DOMAINS = new Set([
+  "clinicaltrials.gov",
+  "pubmed.ncbi.nlm.nih.gov",
+  "fda.gov",
+  "nejm.org",
+  "thelancet.com",
+  "nature.com",
+]);
+
+function isRegistrySource(url: string | null | undefined): boolean {
+  if (!url || typeof url !== "string") return false;
+  const lower = url.toLowerCase();
+  for (const domain of REGISTRY_DOMAINS) {
+    if (lower.includes(domain)) return true;
+  }
+  return false;
+}
+
+function extractNctNumber(text: string): string | null {
+  const match = text.match(/NCT\d{6,11}/i);
+  return match ? match[0].toUpperCase() : null;
+}
+
 function verifyTrialNames(findings: any[], sourceCorpus: string, drugName: string): any[] {
   const knownTrials = lookupKnownTrials(drugName);
 
   return findings.map((f) => {
-    const result = { ...f, unverifiedTrialName: false, knownTrialHint: null as string | null };
+    const result = {
+      ...f,
+      unverifiedTrialName: false,
+      knownTrialHint: null as string | null,
+      registryVerified: false,
+      verificationTier: 3 as 0 | 1 | 2 | 3,
+      nctNumber: null as string | null,
+    };
+
+    const nctFromFinding = extractNctNumber(
+      `${result.finding || ""} ${result.sourceUrl || ""} ${result.sourceTitle || ""} ${result.trialName || ""}`
+    );
+    if (nctFromFinding) {
+      result.nctNumber = nctFromFinding;
+    }
+
+    const hasRegistrySource = isRegistrySource(result.sourceUrl);
+
+    if (hasRegistrySource) {
+      result.registryVerified = true;
+      result.verificationTier = 0;
+      result.unverifiedTrialName = false;
+      console.log(`[EVIDENCE-SEARCH] TIER 0 REGISTRY VERIFIED: "${result.trialName || "unnamed"}" from ${result.sourceUrl}`);
+      return result;
+    }
 
     if (!result.trialName || typeof result.trialName !== "string" || result.trialName.trim().length === 0) {
       result.trialName = null;
+      result.verificationTier = 2;
       if (knownTrials) {
         result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. Consider searching for these specifically.`;
       }
@@ -396,33 +459,41 @@ function verifyTrialNames(findings: any[], sourceCorpus: string, drugName: strin
     const trialNameClean = trialNameLower.replace(/[^a-z0-9]/g, "");
 
     if (COMMON_ACRONYMS.has(trialNameRaw.toUpperCase())) {
+      result.verificationTier = 2;
       return result;
-    }
-
-    const foundInSources = sourceCorpus.includes(trialNameLower) ||
-      sourceCorpus.includes(trialNameClean) ||
-      sourceCorpus.replace(/[^a-z0-9\s]/g, "").includes(trialNameClean);
-
-    if (!foundInSources) {
-      result.unverifiedTrialName = true;
-      const warning = `\u26A0 TRIAL NAME UNVERIFIED: '${trialNameRaw}' was not found in search sources. Confirm before approving. `;
-      result.finding = warning + (result.finding || "");
-      console.log(`[EVIDENCE-SEARCH] FABRICATION BLOCKED: Trial name "${trialNameRaw}" not found in any source material.`);
     }
 
     if (knownTrials) {
       const matchesKnown = knownTrials.some(
         (kt) => trialNameLower === kt.toLowerCase() || trialNameLower.startsWith(kt.toLowerCase() + " ")
       );
-      if (!matchesKnown) {
-        result.unverifiedTrialName = true;
-        const mismatchWarning = `\u26A0 KNOWN TRIAL MISMATCH: Expected [${knownTrials.join(", ")}] for ${drugName}. Got [${trialNameRaw}]. This may be a fabricated trial name. `;
-        result.finding = mismatchWarning + (result.finding || "");
-        result.knownTrialHint = `Known trials for this drug: [${knownTrials.join(", ")}]. '${trialNameRaw}' does not match — verify independently.`;
-        console.log(`[EVIDENCE-SEARCH] TRIAL MISMATCH: "${trialNameRaw}" does not match known trials [${knownTrials.join(", ")}] for ${drugName}.`);
+      if (matchesKnown) {
+        result.verificationTier = 1;
+        result.unverifiedTrialName = false;
+        console.log(`[EVIDENCE-SEARCH] TIER 1 KNOWN TRIAL: "${trialNameRaw}" matches known trials for ${drugName}.`);
+        return result;
       }
     }
 
+    const foundInSources = sourceCorpus.includes(trialNameLower) ||
+      sourceCorpus.includes(trialNameClean) ||
+      sourceCorpus.replace(/[^a-z0-9\s]/g, "").includes(trialNameClean);
+
+    if (foundInSources) {
+      result.verificationTier = 2;
+      result.unverifiedTrialName = false;
+      console.log(`[EVIDENCE-SEARCH] TIER 2 FOUND IN SOURCE: "${trialNameRaw}" found in search corpus for ${drugName}.`);
+      return result;
+    }
+
+    result.verificationTier = 3;
+    result.unverifiedTrialName = true;
+    const warning = `\u26A0 TRIAL NAME UNVERIFIED: '${trialNameRaw}' was not found in search sources or registries. Confirm before approving. `;
+    result.finding = warning + (result.finding || "");
+    if (knownTrials) {
+      result.knownTrialHint = `Known trials: [${knownTrials.join(", ")}]. '${trialNameRaw}' does not match — verify independently.`;
+    }
+    console.log(`[EVIDENCE-SEARCH] TIER 3 BLOCKED: Trial name "${trialNameRaw}" not found in any source material or registry.`);
     return result;
   });
 }
@@ -499,7 +570,8 @@ export async function runStructuredEvidenceSearch(
       ? f.sourceQuote.slice(0, 500) : null;
     const resolvedUrl = isSafeUrl(f.sourceUrl);
     const unverified = !!f.unverifiedTrialName;
-    const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified);
+    const regVerified = !!f.registryVerified;
+    const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified, regVerified);
 
     return {
       tempId: randomUUID(),
@@ -519,8 +591,13 @@ export async function runStructuredEvidenceSearch(
       precedentMatched: precedentResult.matched,
       unverifiedTrialName: unverified,
       knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
+      registryVerified: regVerified,
+      verificationTier: (typeof f.verificationTier === "number" ? f.verificationTier : 3) as 0 | 1 | 2 | 3,
+      nctNumber: typeof f.nctNumber === "string" ? f.nctNumber : null,
     };
   });
+
+  candidates.sort((a, b) => (a.verificationTier ?? 3) - (b.verificationTier ?? 3));
 
   return {
     drugName,

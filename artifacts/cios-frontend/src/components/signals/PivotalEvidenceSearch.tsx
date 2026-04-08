@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText, AlertTriangle, ShieldAlert, Quote } from "lucide-react";
+import { Search, Check, X, Loader2, ChevronDown, ChevronUp, ExternalLink, FileText, AlertTriangle, ShieldAlert, Quote, ShieldCheck, Database } from "lucide-react";
 
 interface EvidenceCandidate {
   tempId: string;
@@ -18,12 +18,22 @@ interface EvidenceCandidate {
   sourceConfidence?: "Strong" | "Moderate" | "Weak";
   unverifiedTrialName?: boolean;
   knownTrialHint?: string | null;
+  registryVerified?: boolean;
+  verificationTier?: 0 | 1 | 2 | 3;
+  nctNumber?: string | null;
 }
 
 const CONFIDENCE_STYLES: Record<string, string> = {
   Strong: "bg-green-500/20 text-green-400 border-green-500/30",
   Moderate: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   Weak: "bg-red-500/20 text-red-400 border-red-500/30",
+};
+
+const TIER_BADGES: Record<number, { label: string; style: string; icon: "registry" | "known" | "found" | "blocked" }> = {
+  0: { label: "Registry Verified", style: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", icon: "registry" },
+  1: { label: "Known Trial", style: "bg-green-500/20 text-green-400 border-green-500/30", icon: "known" },
+  2: { label: "Found in Source", style: "bg-amber-500/20 text-amber-400 border-amber-500/30", icon: "found" },
+  3: { label: "Unverified", style: "bg-red-500/20 text-red-400 border-red-500/30", icon: "blocked" },
 };
 
 interface PivotalSearchResult {
@@ -42,8 +52,11 @@ interface Props {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
+  "ClinicalTrials.gov Registry": "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
   "Pivotal Trials": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  "Clinical Evidence": "bg-blue-500/20 text-blue-400 border-blue-500/30",
   "Label / Approval Data": "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  "Label / Regulatory": "bg-purple-500/20 text-purple-400 border-purple-500/30",
   "Guidelines": "bg-green-500/20 text-green-400 border-green-500/30",
   "Safety": "bg-amber-500/20 text-amber-400 border-amber-500/30",
   "Payer / Access": "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
@@ -264,7 +277,9 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                     const pmidUrl = c.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${c.pmid}/` : null;
                     const displayUrl = pmidUrl || c.sourceUrl;
                     const hasQuote = !!c.sourceQuote && c.sourceQuote.trim().length > 0;
-                    const canApprove = hasQuote;
+                    const tier = c.verificationTier ?? (c.unverifiedTrialName ? 3 : 2);
+                    const tierBadge = TIER_BADGES[tier] || TIER_BADGES[3];
+                    const canApprove = tier <= 1 || hasQuote;
                     const confidence = c.sourceConfidence || "Weak";
                     const confidenceStyle = CONFIDENCE_STYLES[confidence] || CONFIDENCE_STYLES.Weak;
 
@@ -285,11 +300,14 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                               ) : (
                                 <span className="text-xs text-muted-foreground/50 italic">Trial not identified in sources</span>
                               )}
-                              {c.unverifiedTrialName && (
-                                <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 font-medium">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  Unverified
-                                </span>
+                              <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border font-medium ${tierBadge.style}`}>
+                                {tierBadge.icon === "registry" ? <Database className="w-3 h-3" /> :
+                                 tierBadge.icon === "known" ? <ShieldCheck className="w-3 h-3" /> :
+                                 tierBadge.icon === "blocked" ? <AlertTriangle className="w-3 h-3" /> : null}
+                                {tierBadge.label}
+                              </span>
+                              {c.nctNumber && (
+                                <span className="text-xs text-emerald-400 font-mono">{c.nctNumber}</span>
                               )}
                               {c.pmid && (
                                 <span className="text-xs text-muted-foreground font-mono">PMID: {c.pmid}</span>
@@ -311,6 +329,13 @@ export default function PivotalEvidenceSearch({ caseId, drugName, indication, on
                                   <Quote className="w-3 h-3 inline mr-1 -mt-0.5" />
                                   Source says: "{c.sourceQuote}"
                                 </p>
+                              </div>
+                            ) : tier <= 1 ? (
+                              <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span className="text-xs text-emerald-400 font-medium">
+                                  {tier === 0 ? "Registry/journal verified source — safe to approve" : "Known trial match — safe to approve"}
+                                </span>
                               </div>
                             ) : (
                               <div className="mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20">
