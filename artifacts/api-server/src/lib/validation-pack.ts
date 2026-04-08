@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
-import { computeLR, type Scope, type Timing } from "@workspace/db";
+import type { Scope, Timing } from "@workspace/db";
 import { classifyEvidence } from "./evidence-classifier.js";
+import { lookupPrecedentLr } from "./precedent-lookup.js";
 
 interface CaseSpec {
   caseId: string;
@@ -41,9 +42,13 @@ export interface ValidationCase {
   signals: SignalSpec[];
 }
 
-function lr(signalType: string, strength: number, reliability: number, scope: Scope, timing: Timing, direction: "Positive" | "Negative" | "Neutral"): number {
+function lr(signalType: string, _strength: number, _reliability: number, _scope: Scope, _timing: Timing, direction: "Positive" | "Negative" | "Neutral"): number {
   if (direction === "Neutral") return 1.0;
-  return computeLR(signalType, strength, reliability, scope, timing, direction);
+  const result = lookupPrecedentLr(signalType, direction);
+  if (!result.matched) {
+    throw new Error(`Signal type "${signalType}" not found in precedent library`);
+  }
+  return result.assignedLr;
 }
 
 export const VALIDATION_CASES: ValidationCase[] = [
@@ -246,6 +251,7 @@ export function buildCaseInsert(c: CaseSpec) {
     guidelineLeverage: c.guidelineLeverage,
     competitorProfile: c.competitorProfile,
     targetType: "market" as const,
+    outcomeThreshold: 0.5,
     accessFrictionIndex: c.accessFrictionIndex,
     adoptionPhase: c.adoptionPhase,
     forecastHorizonMonths: c.forecastHorizonMonths,
@@ -290,6 +296,7 @@ export function buildSignalInserts(caseId: string, signals: SignalSpec[]) {
         signalType: s.signalType,
         direction: s.direction,
       }),
+      countTowardPosterior: true,
     };
   });
 }

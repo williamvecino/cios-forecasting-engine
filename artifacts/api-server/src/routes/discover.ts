@@ -3,7 +3,8 @@ import { db } from "@workspace/db";
 import { candidateSignalsTable, CANDIDATE_DOMAINS, DOMAIN_TO_SIGNAL_TYPE, DOMAIN_LABELS, signalsTable, type CandidateDomain } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { computeLR, type Scope, type Timing } from "@workspace/db";
+import type { Scope, Timing } from "@workspace/db";
+import { lookupPrecedentLr } from "../lib/precedent-lookup.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { classifyEvidence } from "../lib/evidence-classifier.js";
 
@@ -112,7 +113,11 @@ router.post("/cases/:caseId/discover", async (req, res) => {
         const rawTiming = (c.timing ?? "current").toLowerCase();
         const timingMap: Record<string, Timing> = { past: "early", early: "early", current: "current", emerging: "late", late: "late" };
         const timing = (timingMap[rawTiming] ?? "current") as Timing;
-        const lr = computeLR(signalType, strength, reliability, scope, timing, direction as "Positive" | "Negative");
+        const precedentResult = lookupPrecedentLr(signalType, direction);
+        if (!precedentResult.matched) {
+          throw new Error(`Signal type "${signalType}" not found in precedent library`);
+        }
+        const lr = precedentResult.assignedLr;
         const domain = CANDIDATE_DOMAINS.includes(c.domain) ? c.domain : "physician_perception";
 
         const [row] = await db.insert(candidateSignalsTable).values({
@@ -167,10 +172,11 @@ router.patch("/candidates/:id", async (req, res) => {
     const current = await db.select().from(candidateSignalsTable).where(eq(candidateSignalsTable.id, id));
     if (current[0]) {
       const c = { ...current[0], ...updateData };
-      updateData.likelihoodRatio = computeLR(
-        c.signalType, c.strengthScore, c.reliabilityScore,
-        c.scope as Scope, c.timing as Timing, c.direction as "Positive" | "Negative"
-      );
+      const precResult = lookupPrecedentLr(c.signalType, c.direction);
+      if (!precResult.matched) {
+        throw new Error(`Signal type "${c.signalType}" not found in precedent library`);
+      }
+      updateData.likelihoodRatio = precResult.assignedLr;
     }
   }
 
