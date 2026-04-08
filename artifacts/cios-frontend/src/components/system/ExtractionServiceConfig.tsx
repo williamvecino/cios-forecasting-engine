@@ -98,7 +98,7 @@ export default function ExtractionServiceConfig() {
             Document Extraction Service
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            External service for PDF, SEC EDGAR, and complex HTML extraction. Run the Colab notebook to start the service.
+            External service for PDF, SEC EDGAR, and complex HTML extraction. Run the Colab notebook — no account or API key needed.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -126,7 +126,7 @@ export default function ExtractionServiceConfig() {
           type="text"
           value={inputUrl}
           onChange={(e) => setInputUrl(e.target.value)}
-          placeholder="https://your-ngrok-url.ngrok.io"
+          placeholder="https://your-tunnel-url.loca.lt"
           className="flex-1 px-3 py-2 rounded-lg bg-background border border-border/50 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
         />
         <button

@@ -589,7 +589,7 @@ router.post("/extraction-service/configure", async (req, res) => {
 
   if (!isExternalServiceUrlSafe(cleaned)) {
     return res.status(400).json({
-      error: "URL not allowed. Only ngrok, Cloudflare Tunnel, localtunnel, and Google Colab URLs are permitted.",
+      error: "URL not allowed. Only localtunnel (.loca.lt), ngrok, Cloudflare Tunnel, and Google Colab URLs are permitted.",
     });
   }
 
