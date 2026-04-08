@@ -10,7 +10,7 @@
  * CASE-DEMO-05  | Sublocade (buprenorphine SQ monthly)   | 11.33%
  * CASE-LEQEMBI-01 | Leqembi (lecanemab)                 | 12.12%
  * CASE-LEQEMBI-02 | Leqembi (lecanemab)                 | 19.49%
- * CASE-1775022353034 | Beovu (brolucizumab) — RETRO DEMO | 36.77%
+ * CASE-1775022353034 | Beovu (brolucizumab) — RETRO DEMO | 14.25%
  * VP-REGULATORY-001  | Xarelto (rivaroxaban)             | 49.77%
  * VP-LAUNCH-002      | Generic Abilify Maintena          | 11.20%
  * VP-ADOPTION-003    | Kisqali (ribociclib)              |  4.97%
