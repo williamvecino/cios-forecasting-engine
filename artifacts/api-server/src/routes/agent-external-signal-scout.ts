@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { extractIdentifiers, detectRedFlags, verifyIdentifier } from "../lib/evidence-verification.js";
 
 const router = Router();
 
@@ -25,6 +26,8 @@ interface CandidateSignal {
   relevanceScore: number;
   whyItMatters: string;
   recencyTag: "current" | "recent" | "older_but_relevant" | "outdated";
+  sourceGrounded: boolean;
+  redFlags: string[];
 }
 
 interface ExternalSignalScoutOutput {
@@ -236,6 +239,12 @@ Output schema:
             score = Math.min(score, 0.65);
           }
 
+          // Run red flag detection and identifier extraction on signal text
+          const signalText = `${c.signalLabel || ""} ${c.source || ""} ${c.whyItMatters || ""}`;
+          const { identifiers } = extractIdentifiers(signalText);
+          const redFlags = detectRedFlags(signalText, identifiers.length);
+          const sourceGrounded = identifiers.length > 0; // Has at least one verifiable identifier
+
           return {
             signalLabel: c.signalLabel || "",
             source: c.source || "Unknown",
@@ -247,6 +256,8 @@ Output schema:
             relevanceScore: score,
             whyItMatters: c.whyItMatters || "",
             recencyTag: finalTag,
+            sourceGrounded,
+            redFlags,
           };
         })
         .filter((c: CandidateSignal) => c.signalLabel)

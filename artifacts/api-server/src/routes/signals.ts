@@ -234,7 +234,9 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   const lr = deriveDirectionSafeLR(body);
 
   const createdByType = body.createdByType || "human";
-  const initialStatus = createdByType === "agent" ? "candidate" : (body.status || "active");
+  // All signals start as "candidate" — must go through transition workflow to reach "active".
+  // This prevents bypassing the candidate→reviewed→validated→active state machine.
+  const initialStatus = "candidate";
 
   const existingSignals = await db.select().from(signalsTable)
     .where(eq(signalsTable.caseId, req.params.caseId));
@@ -353,29 +355,11 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     sourceCluster: body.sourceCluster || null,
     noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
     evidenceClass: classification.evidenceClass,
-    countTowardPosterior: createdByType === "human" ? classification.countTowardPosterior : false,
+    countTowardPosterior: false, // Always false on creation — verified during transition to active
   }).returning();
 
-  if (initialStatus === "active" || initialStatus === "validated") {
-    try {
-      const combinedText = `${body.evidenceSnippet || ""} ${body.sourceLabel || ""} ${body.notes || ""}`;
-      const verifications = await verifySignalEvidence(combinedText, body.sourceLabel);
-      const primary = verifications[0];
-      if (primary) {
-        await db.update(signalsTable).set({
-          identifierType: primary.identifierType,
-          identifierValue: primary.identifierValue,
-          identifierSource: primary.identifierSource,
-          verificationStatus: primary.verificationStatus,
-          registryMatch: primary.registryMatch,
-          verificationTimestamp: new Date(),
-          verificationRedFlags: primary.redFlags.length > 0 ? JSON.stringify(primary.redFlags) : null,
-        }).where(eq(signalsTable.id, id));
-      }
-    } catch (e) {
-      console.error("Evidence verification on creation failed (non-blocking):", e);
-    }
-  }
+  // Evidence verification now runs during transition to active (not at creation time),
+  // since all signals start as "candidate" and must go through the state machine.
 
   await logAudit({
     objectType: "signal",
@@ -469,7 +453,37 @@ router.post("/signals/:signalId/transition", async (req, res) => {
           rule: "Signals with identifiers (PMID/DOI/NCT) that fail registry lookup cannot be activated. This prevents hallucinated citations from influencing forecasts. Fix the citation or remove the invalid identifier before activating.",
         });
       }
+
+      // Block activation if critical red flags are present (anti-hallucination gate)
+      if (targetStatus === "active" && primary.verificationStatus === "flagged") {
+        return res.status(400).json({
+          error: "Evidence flagged — cannot activate signal with unresolved red flags",
+          verificationStatus: primary.verificationStatus,
+          redFlags: primary.redFlags,
+          rule: "Signals with hallucination red flags (narrative citations without identifiers, fabricated-looking data) cannot be activated until the evidence is updated with a verifiable identifier (PMID, DOI, or NCT number).",
+        });
+      }
     }
+  }
+
+  // Reclassify evidence and set countTowardPosterior on activation
+  if (targetStatus === "active") {
+    const classification = classifyEvidence({
+      signalDescription: signal.signalDescription,
+      sourceUrl: signal.sourceUrl,
+      sourceLabel: signal.sourceLabel,
+      observedAt: signal.observedAt,
+      noveltyFlag: (signal as any).noveltyFlag ?? null,
+      echoVsTranslation: (signal as any).echoVsTranslation ?? null,
+      dependencyRole: signal.dependencyRole ?? null,
+      signalType: signal.signalType,
+      evidenceStatus: signal.evidenceStatus,
+      direction: signal.direction,
+    });
+    updateFields.evidenceClass = classification.evidenceClass;
+    // Only allow countTowardPosterior if classification allows AND verification is not invalid
+    const vStatus = updateFields.verificationStatus || signal.verificationStatus;
+    updateFields.countTowardPosterior = classification.countTowardPosterior && vStatus !== "invalid" && vStatus !== "flagged";
   }
 
   const [updated] = await db.update(signalsTable)

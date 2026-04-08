@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { lookupPrecedentLr } from "../lib/precedent-lookup.js";
+import { verifyPmid, verifyDoi, verifyNct, detectRedFlags } from "../lib/evidence-verification.js";
 
 const router = Router();
 
@@ -341,13 +342,30 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
         ? f.sourceQuote.slice(0, 500) : null;
       const resolvedUrl = isSafeUrl(f.sourceUrl);
       const unverified = !!f.unverifiedTrialName;
-      const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified);
+
+      // Verify PMID against PubMed registry
+      let pmidVerified = false;
+      if (pmid) {
+        const check = await verifyPmid(pmid);
+        pmidVerified = check.outcome === "valid";
+        if (check.outcome === "invalid") {
+          console.log(`[PIVOTAL-SEARCH] INVALID PMID: ${pmid} — not found in PubMed registry. Possible hallucination.`);
+        }
+      }
+
+      // Red flag detection on the finding text
+      const findingText = typeof f.finding === "string" ? f.finding : "";
+      const redFlags = detectRedFlags(findingText, pmid ? 1 : 0);
+
+      // Source confidence now accounts for PMID verification
+      const pmidUnverified = pmid ? !pmidVerified : false;
+      const sourceConfidence = computeSourceConfidence(sourceQuote, resolvedUrl, unverified || pmidUnverified);
 
       const candidate: StoredCandidate = {
         tempId: randomUUID(),
         category,
         trialName: typeof f.trialName === "string" && f.trialName.length > 0 ? f.trialName.slice(0, 200) : null,
-        pmid: pmid || null,
+        pmid: pmidVerified ? pmid : null, // Only keep PMID if verified
         sourceUrl: resolvedUrl,
         sourceTitle: typeof f.sourceTitle === "string" ? f.sourceTitle.slice(0, 300) : null,
         finding: typeof f.finding === "string" ? f.finding.slice(0, 800) : "",
@@ -359,8 +377,10 @@ router.post("/cases/:caseId/pivotal-search", async (req, res) => {
         reliabilityScore: reliability,
         likelihoodRatio: lr,
         precedentMatched: precedentResult.matched,
-        unverifiedTrialName: unverified,
+        unverifiedTrialName: unverified || (pmid != null && !pmidVerified),
         knownTrialHint: typeof f.knownTrialHint === "string" ? f.knownTrialHint : null,
+        ...(redFlags.length > 0 ? { redFlags } : {}),
+        ...(pmid && !pmidVerified ? { invalidPmid: pmid } : {}),
       };
 
       candidateMap.set(candidate.tempId, candidate);
@@ -434,6 +454,18 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
         const precedentResult = lookupPrecedentLr(c.signalType || "Field intelligence", c.direction || "Positive");
         const lr = precedentResult.matched ? precedentResult.assignedLr : 1.0;
 
+        // Verify PMID against PubMed registry before trusting it
+        let registryMatch = false;
+        let verificationStatus: "verified" | "invalid" | "unverified" = "unverified";
+        if (pmid) {
+          const check = await verifyPmid(pmid);
+          registryMatch = check.outcome === "valid";
+          verificationStatus = check.outcome === "valid" ? "verified" : check.outcome === "invalid" ? "invalid" : "unverified";
+        }
+
+        // Only count toward posterior if PMID is verified or no PMID was claimed
+        const canCountTowardPosterior = verificationStatus !== "invalid";
+
         await tx.insert(signalsTable).values({
           id: randomUUID(),
           signalId,
@@ -447,7 +479,7 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
           likelihoodRatio: lr,
           scope: "national",
           timing: "current",
-          status: "active",
+          status: "candidate",
           createdByType: "human",
           createdById: "analyst",
           sourceLabel: c.trialName || c.category || null,
@@ -455,10 +487,10 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
           evidenceSnippet: c.finding || null,
           identifierType: pmid ? "PMID" : null,
           identifierValue: pmid || null,
-          verificationStatus: "verified",
-          registryMatch: !!pmid,
+          verificationStatus,
+          registryMatch,
           evidenceClass: "Eligible",
-          countTowardPosterior: true,
+          countTowardPosterior: false,
           signalFamily: c.category === "Pivotal Trials" ? "pivotal-trial" : "structured-evidence",
           noveltyFlag: true,
         });
@@ -470,7 +502,9 @@ router.post("/cases/:caseId/pivotal-search/approve", async (req, res) => {
           trialName: c.trialName,
           category: c.category,
           finding: c.finding,
-          countTowardPosterior: true,
+          countTowardPosterior: false,
+          registryMatch,
+          verificationStatus,
         });
       }
     });
