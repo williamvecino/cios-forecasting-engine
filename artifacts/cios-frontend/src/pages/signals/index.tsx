@@ -120,29 +120,35 @@ const ADOPTION_MECHANISM_FAMILIES = [
   { id: "launch_market_signals", label: "Launch / Market Signals", keywords: ["launch", "kol", "awareness", "education", "field force", "medical affairs", "advocacy", "market shaping", "readiness"] },
 ] as const;
 
-function recomputeAdoptionCoverage(signals: { text: string; accepted: boolean; direction?: string; strength?: string; impact?: string }[]) {
-  const accepted = signals.filter((s) => s.accepted || (s as any).source === "system");
+function recomputeAdoptionCoverage(signals: { text: string; accepted: boolean; direction?: string; strength?: string; impact?: string; countTowardPosterior?: boolean }[]) {
+  const validated = signals.filter((s) => (s.accepted || (s as any).source === "system") && s.countTowardPosterior === true);
+  const candidates = signals.filter((s) => (s.accepted || (s as any).source === "system") && s.countTowardPosterior !== true);
 
   const mechanism_coverage = ADOPTION_MECHANISM_FAMILIES.map((fam) => {
-    const matching = accepted.filter((s) => {
+    const matchValidated = validated.filter((s) => {
+      const text = (s.text || "").toLowerCase();
+      return fam.keywords.some((kw) => text.includes(kw));
+    });
+    const matchCandidates = candidates.filter((s) => {
       const text = (s.text || "").toLowerCase();
       return fam.keywords.some((kw) => text.includes(kw));
     });
     return {
       family_id: fam.id,
       family_label: fam.label,
-      covered: matching.length > 0,
-      signal_count: matching.length,
+      covered: matchValidated.length > 0,
+      has_candidates: matchCandidates.length > 0,
+      signal_count: matchValidated.length,
     };
   });
 
   const covered_count = mechanism_coverage.filter((c) => c.covered).length;
   const missing_families = mechanism_coverage.filter((c) => !c.covered).map((c) => c.family_label);
 
-  const supportive = accepted.filter((s) =>
+  const supportive = validated.filter((s) =>
     s.direction === "increases_probability" || s.direction === "positive"
   );
-  const constraining = accepted.filter((s) =>
+  const constraining = validated.filter((s) =>
     s.direction === "decreases_probability" || s.direction === "negative"
   );
   const highSupportive = supportive.filter((s) => s.strength === "High" || s.impact === "High");
@@ -156,12 +162,12 @@ function recomputeAdoptionCoverage(signals: { text: string; accepted: boolean; d
     ? highConstraining[0].text
     : constraining.length > 0 ? constraining[0].text : null;
 
-  const is_under_specified = accepted.length < 6 || covered_count < 4;
+  const is_under_specified = validated.length < 6 || covered_count < 4;
 
   let sufficiency_warning: string | null = null;
-  if (accepted.length < 6) {
-    sufficiency_warning = `Signal set may be incomplete — ${accepted.length} signals generated, but adoption cases typically require 6–8 materially distinct signals across major driver families. Additional driver families should be explored.`;
-  } else if (accepted.length < 8 && missing_families.length >= 3) {
+  if (validated.length < 6) {
+    sufficiency_warning = `Signal set may be incomplete — ${validated.length} validated signals, but adoption cases typically require 6–8 materially distinct signals across major driver families. Additional driver families should be explored.`;
+  } else if (validated.length < 8 && missing_families.length >= 3) {
     sufficiency_warning = `Signal coverage is thin — ${missing_families.length} mechanism families have no signals. Consider exploring: ${missing_families.join(", ")}.`;
   }
 
@@ -2831,7 +2837,7 @@ export default function SignalsPage() {
 
           {!aiLoading && allSignals.length > 0 && (
             <DriverCoveragePanel
-              signals={allSignals.map((s) => ({ id: s.id, text: s.text, accepted: s.accepted }))}
+              signals={allSignals.map((s) => ({ id: s.id, text: s.text, accepted: s.accepted, countTowardPosterior: s.countTowardPosterior }))}
               adoptionCoverage={liveAdoptionCoverage}
               onAddSignal={(text) => {
                 const base = { strength: "Medium" as Strength, reliability: "Probable" as Reliability };

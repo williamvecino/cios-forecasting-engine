@@ -66,12 +66,14 @@ interface DriverCoverageSignal {
   id: string;
   text: string;
   accepted: boolean;
+  countTowardPosterior?: boolean;
 }
 
 interface AdoptionMechanismCoverage {
   family_id: string;
   family_label: string;
   covered: boolean;
+  has_candidates?: boolean;
   signal_count: number;
 }
 
@@ -111,30 +113,35 @@ export default function DriverCoveragePanel({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {adoptionCoverage.mechanism_coverage.map((mc) => (
-            <div
-              key={mc.family_id}
-              className={`rounded-lg border px-3 py-2 ${
-                mc.covered
-                  ? "border-emerald-500/20 bg-emerald-500/5"
-                  : "border-amber-500/20 bg-amber-500/5"
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                {mc.covered ? (
-                  <Check className="w-3 h-3 text-emerald-400" />
-                ) : (
-                  <AlertTriangle className="w-3 h-3 text-amber-400" />
-                )}
-                <span className={`text-[10px] font-semibold uppercase tracking-wider ${mc.covered ? "text-emerald-400" : "text-amber-400"}`}>
-                  {mc.family_label}
-                </span>
+          {adoptionCoverage.mechanism_coverage.map((mc) => {
+            const status = mc.covered ? "covered" : mc.has_candidates ? "pending" : "missing";
+            return (
+              <div
+                key={mc.family_id}
+                className={`rounded-lg border px-3 py-2 ${
+                  status === "covered"
+                    ? "border-emerald-500/20 bg-emerald-500/5"
+                    : "border-amber-500/20 bg-amber-500/5"
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  {status === "covered" ? (
+                    <Check className="w-3 h-3 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  )}
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${status === "covered" ? "text-emerald-400" : "text-amber-400"}`}>
+                    {mc.family_label}
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  {status === "covered" && `${mc.signal_count} signal${mc.signal_count > 1 ? "s" : ""}`}
+                  {status === "pending" && "Pending validation"}
+                  {status === "missing" && "Not covered"}
+                </div>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-1">
-                {mc.covered ? `${mc.signal_count} signal${mc.signal_count > 1 ? "s" : ""}` : "Not covered"}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {missingMechanisms.length > 0 && onAddSignal && (
@@ -171,13 +178,17 @@ export default function DriverCoveragePanel({
   }
 
   const coverage = useMemo(() => {
-    const result: Record<string, { covered: boolean; count: number }> = {};
-    const accepted = signals.filter((s) => s.accepted);
+    const result: Record<string, { covered: boolean; has_candidates: boolean; count: number }> = {};
+    const validated = signals.filter((s) => s.accepted && s.countTowardPosterior === true);
+    const candidatesOnly = signals.filter((s) => s.accepted && s.countTowardPosterior !== true);
     for (const [key, { keywords }] of Object.entries(DRIVER_CATEGORIES)) {
-      const matching = accepted.filter((s) =>
+      const matchValidated = validated.filter((s) =>
         keywords.some((kw) => s.text.toLowerCase().includes(kw))
       );
-      result[key] = { covered: matching.length > 0, count: matching.length };
+      const matchCandidates = candidatesOnly.filter((s) =>
+        keywords.some((kw) => s.text.toLowerCase().includes(kw))
+      );
+      result[key] = { covered: matchValidated.length > 0, has_candidates: matchCandidates.length > 0, count: matchValidated.length };
     }
     return result;
   }, [signals]);
@@ -211,27 +222,30 @@ export default function DriverCoveragePanel({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {Object.entries(DRIVER_CATEGORIES).map(([key, { label }]) => {
           const cat = coverage[key];
+          const status = cat?.covered ? "covered" : cat?.has_candidates ? "pending" : "missing";
           return (
             <div
               key={key}
               className={`rounded-lg border px-3 py-2 ${
-                cat?.covered
+                status === "covered"
                   ? "border-emerald-500/20 bg-emerald-500/5"
                   : "border-amber-500/20 bg-amber-500/5"
               }`}
             >
               <div className="flex items-center gap-1.5">
-                {cat?.covered ? (
+                {status === "covered" ? (
                   <Check className="w-3 h-3 text-emerald-400" />
                 ) : (
                   <AlertTriangle className="w-3 h-3 text-amber-400" />
                 )}
-                <span className={`text-[10px] font-semibold uppercase tracking-wider ${cat?.covered ? "text-emerald-400" : "text-amber-400"}`}>
+                <span className={`text-[10px] font-semibold uppercase tracking-wider ${status === "covered" ? "text-emerald-400" : "text-amber-400"}`}>
                   {label}
                 </span>
               </div>
               <div className="text-[10px] text-muted-foreground mt-1">
-                {cat?.covered ? `${cat.count} signal${cat.count > 1 ? "s" : ""}` : "Not covered"}
+                {status === "covered" && `${cat.count} signal${cat.count > 1 ? "s" : ""}`}
+                {status === "pending" && "Pending validation"}
+                {status === "missing" && "Not covered"}
               </div>
             </div>
           );
