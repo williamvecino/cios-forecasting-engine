@@ -1289,7 +1289,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
       <div className="rounded-2xl border border-white/10 border-t-0 bg-[#0B1839] p-4" data-testid="forecast-drivers-strip">
         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Forecast Drivers</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-1.5">Top Positive</div>
             {positiveDriversStrip.length === 0 ? (
@@ -1314,20 +1314,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               </div>
             ))}
           </div>
-          <div>
-            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Maximum Probability</div>
-            <div className="text-lg font-bold text-white">
-              {confidenceCeiling !== null ? `${Math.round(confidenceCeiling * 100)}%` : "None"}
-            </div>
-            <div className="text-[10px] text-slate-500">Highest the forecast can reach</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Sensitivity</div>
-            <div className="text-lg font-bold text-white">
-              {fragilityScore !== null ? fragilityScore.toFixed(2) : "—"}
-            </div>
-            <div className="text-[10px] text-slate-500">How much one signal can swing the result</div>
-          </div>
+          {/* Maximum Probability + Sensitivity — hidden for demo readiness */}
         </div>
       </div>
     </div>
@@ -1411,7 +1398,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           )}
         </div>
 
-        {activeQuestion?.caseId && (
+        {/* EvidenceHealthPanel — hidden for demo readiness */}
+        {false && activeQuestion?.caseId && (
           <EvidenceHealthPanel caseId={activeQuestion.caseId} />
         )}
 
@@ -1927,7 +1915,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                     topGateDriverDelta={topGateDriver?.delta || 0}
                   />
 
-                  {gateDomination && gateDomination.gateDominated && (
+                  {/* Constraint Domination block — hidden for demo readiness */}
+                  {false && gateDomination && gateDomination.gateDominated && (
                     <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.04] p-4 flex items-start gap-3">
                       <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                       <div className="space-y-1">
@@ -2014,7 +2003,8 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                       <ExecutiveJudgment judgment={judgmentResult} isLoading={analogLoading} priorProbability={priorProbability} />
                     </PanelConnectionLabel>
 
-                    {activeQuestion?.caseId && (
+                    {/* EvidenceHealthPanel #2 — hidden for demo readiness */}
+                    {false && activeQuestion?.caseId && (
                       <PanelConnectionLabel label="Evidence quality">
                         <EvidenceHealthPanel caseId={activeQuestion.caseId} />
                       </PanelConnectionLabel>

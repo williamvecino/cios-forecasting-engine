@@ -2588,7 +2588,8 @@ export default function SignalsPage() {
             }))}
           />
 
-          {activeQuestion?.caseId && (
+          {/* Signal Dependency Panel — hidden for demo readiness */}
+          {false && activeQuestion?.caseId && (
             <SignalDependencyPanel caseId={activeQuestion.caseId} onData={handleDependencyData} refreshKey={lineageRefreshKey} />
           )}
 
@@ -3056,7 +3057,8 @@ export default function SignalsPage() {
             />
           )}
 
-          <div className="border-t border-border pt-3">
+          {/* Show Advanced View toggle — hidden for demo readiness */}
+          <div className="border-t border-border pt-3" style={{ display: "none" }}>
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
@@ -3629,49 +3631,17 @@ function MinimalSignalCard({
               )}
             </div>
           )}
+          {/* Signal Weight section — hidden for demo readiness, kept contribution only */}
           {forecastDetail && (
             <div className="mt-2 rounded-lg border border-slate-500/15 bg-slate-500/5 p-2.5">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <BarChart3 className="w-3 h-3 text-slate-400" />
-                <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Signal Weight</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] md:grid-cols-4">
-                <div>
-                  <span className="text-[9px] text-muted-foreground uppercase">Raw Weight</span>
-                  <div className="text-foreground/90 font-mono">{forecastDetail.rawLikelihoodRatio.toFixed(2)}</div>
-                </div>
-                <div>
-                  <span className="text-[9px] text-muted-foreground uppercase">Effective Weight</span>
-                  <div className={`font-mono ${forecastDetail.correlationDampened ? "text-amber-400" : "text-foreground/90"}`}>
-                    {forecastDetail.effectiveLikelihoodRatio.toFixed(2)}
-                    {forecastDetail.correlationDampened && <span className="text-[8px] ml-1 text-amber-400/60">compressed</span>}
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-[11px]">
                 <div>
                   <span className="text-[9px] text-muted-foreground uppercase">Contribution</span>
                   <div className={`font-mono ${forecastDetail.pointContribution > 0 ? "text-emerald-400" : forecastDetail.pointContribution < 0 ? "text-red-400" : "text-foreground/90"}`}>
                     {forecastDetail.pointContribution > 0 ? "+" : ""}{(forecastDetail.pointContribution * 100).toFixed(1)}pp
                   </div>
                 </div>
-                <div>
-                  <span className="text-[9px] text-muted-foreground uppercase">Role</span>
-                  <div className="flex items-center gap-1">
-                    <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-semibold ${
-                      forecastDetail.dependencyRole === "Root" ? "text-indigo-400 bg-indigo-500/10 border-indigo-500/20" :
-                      forecastDetail.dependencyRole === "Derivative" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
-                      "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-                    }`}>
-                      {forecastDetail.dependencyRole}
-                    </span>
-                  </div>
-                </div>
               </div>
-              {forecastDetail.correlationGroup && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-                  <Layers className="w-2.5 h-2.5" />
-                  <span>Cluster: <span className="text-foreground/70 font-mono">{forecastDetail.correlationGroup.replace(/_/g, " ")}</span></span>
-                </div>
-              )}
             </div>
           )}
         </div>

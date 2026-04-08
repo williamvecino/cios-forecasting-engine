@@ -487,14 +487,15 @@ export default function RespondPage() {
                 </div>
               )}
 
-              {verifying && (
+              {/* Coherence verification + panel — hidden for demo readiness */}
+              {false && verifying && (
                 <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 flex items-center gap-3">
                   <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
                   <p className="text-sm text-blue-400">Verifying coherence...</p>
                 </div>
               )}
 
-              {coherence && !verifying && (
+              {false && coherence && !verifying && (
                 <CoherencePanel coherence={coherence} usingRevised={usingRevised} />
               )}
 
@@ -594,14 +595,16 @@ export default function RespondPage() {
                 </>
               )}
 
-              {/* === SECTION 4: DIAGNOSTICS (hidden by default) === */}
-              <DiagnosticsSection
-                forecastData={forecastData}
-                triggers={diagnosticTriggers}
-                autoOpen={diagnosticsAutoOpen}
-                onToggle={handleDiagnosticsToggle}
-                visible={diagnosticsVisible}
-              />
+              {/* === SECTION 4: DIAGNOSTICS — hidden for demo readiness === */}
+              {false && (
+                <DiagnosticsSection
+                  forecastData={forecastData}
+                  triggers={diagnosticTriggers}
+                  autoOpen={diagnosticsAutoOpen}
+                  onToggle={handleDiagnosticsToggle}
+                  visible={diagnosticsVisible}
+                />
+              )}
 
               <div className="border-t border-border/40" />
 
