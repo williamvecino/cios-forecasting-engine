@@ -640,6 +640,29 @@ export default function SimulatePage() {
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.text || "";
+
+  useEffect(() => {
+    if (!caseId || scenarioName.trim()) return;
+    const defaults: Record<string, { name: string; description: string }> = {
+      "CASE-001": {
+        name: "Head-to-head superiority data published vs teprotumumab",
+        description: "Phase 3 trial demonstrates veligrotug superiority over Tepezza on proptosis and CAS endpoints",
+      },
+      "CASE-002": {
+        name: "Biosimilar modulator enters F508del market",
+        description: "",
+      },
+      "CASE-003": {
+        name: "ATS/IDSA guideline endorses first-line Arikayce",
+        description: "",
+      },
+    };
+    const d = defaults[caseId];
+    if (d) {
+      setScenarioName(d.name);
+      if (d.description) setScenarioDescription(d.description);
+    }
+  }, [caseId]);
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
 

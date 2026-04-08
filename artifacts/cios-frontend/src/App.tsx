@@ -78,7 +78,7 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/"><Redirect to="/question" /></Route>
+      <Route path="/"><Redirect to="/forecasts" /></Route>
       <Route path="/forecasts" component={ForecastsPage} />
       <Route path="/library" component={LibraryPage} />
       <Route path="/system" component={SystemPage} />
