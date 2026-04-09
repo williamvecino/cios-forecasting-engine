@@ -29,6 +29,7 @@ export const SIGNAL_TYPES = [
   "Operational milestone",
   "Clinical workflow",
   "Development timeline",
+  "Health economics / cost offset",
   "GUIDELINE_INCLUSION",
   "COMPETITOR_COUNTERMOVE",
   "REGULATORY_CLINICAL",
@@ -123,6 +124,7 @@ export const LR_RANGES: Record<SignalType, LRRange> = {
   "Operational milestone":       { min: 1.3, max: 1.9 },
   "Clinical workflow":           { min: 1.2, max: 1.9 },
   "Development timeline":        { min: 1.2, max: 1.8 },
+  "Health economics / cost offset": { min: 1.3, max: 1.8 },
 };
 
 const ATTRIBUTE_WEIGHTS = {

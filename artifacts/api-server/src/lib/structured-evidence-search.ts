@@ -49,6 +49,7 @@ const ALLOWED_SIGNAL_TYPES = new Set([
   "Access / commercial",
   "Clinical workflow",
   "Operational friction",
+  "Health economics / cost offset",
 ]);
 
 // Map LLM output types that don't match v18 library to valid types
@@ -56,6 +57,9 @@ const SIGNAL_TYPE_NORMALIZE: Record<string, string> = {
   "Phase III clinical trial": "Phase III clinical",
   "FDA approval": "Regulatory / clinical",
   "Prescribing information": "Regulatory / clinical",
+  "Health economics": "Health economics / cost offset",
+  "Cost offset": "Health economics / cost offset",
+  "Budget impact": "Health economics / cost offset",
 };
 
 const HIGH_TRUST_DOMAINS = new Set([
@@ -312,7 +316,7 @@ Return JSON with this structure:
       "sourceTitle": "string — from the search results provided",
       "finding": "ONE sentence extracted from or closely paraphrasing the source text",
       "sourceQuote": "exact phrase from the source text that supports this finding, or null if none",
-      "signalType": "one of: Phase III clinical, Regulatory / clinical, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescriber behavior, KOL endorsement, Field intelligence, Competitor counteraction, Access / commercial, Clinical workflow, Operational friction",
+      "signalType": "one of: Phase III clinical, Regulatory / clinical, Guideline inclusion, Safety / tolerability, Payer / coverage, Real-world evidence, Prescriber behavior, KOL endorsement, Field intelligence, Competitor counteraction, Access / commercial, Clinical workflow, Operational friction, Health economics / cost offset",
       "direction": "Positive or Negative",
       "strengthScore": "1-5 (1=weak, 5=strong)",
       "reliabilityScore": "1-5 (1=anecdotal, 5=verified/published)"
