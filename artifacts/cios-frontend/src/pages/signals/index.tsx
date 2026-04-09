@@ -973,12 +973,10 @@ export default function SignalsPage() {
   }, [caseKey]);
 
   const [signals, setSignals] = useState<Signal[]>(() => {
-    const persisted = (() => { try { const raw = localStorage.getItem(`cios.signals:${caseKey}`); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return stripNonMatchingBrandSignals(p, subject) as Signal[]; } } catch {} return null; })();
-    if (persisted) return persisted;
     return [...fallbackSuggestions];
   });
   useEffect(() => {
-    if (!caseKey) return;
+    if (!caseKey || caseKey === "unknown") return;
     const API = import.meta.env.VITE_API_URL || "";
     fetch(`${API}/api/cases/${caseKey}/signals`)
       .then((r) => r.json())
@@ -1108,9 +1106,11 @@ export default function SignalsPage() {
     } catch {}
   }, [caseKey, subject]);
 
+  const signalLoadedRef = useRef(false);
   useEffect(() => {
-    if (prevCaseKeyRef.current === caseKey) return;
+    if (signalLoadedRef.current && prevCaseKeyRef.current === caseKey) return;
     prevCaseKeyRef.current = caseKey;
+    signalLoadedRef.current = true;
 
     const restoreSignals = (sigs: Signal[]) => {
       setShowActivityPanel(true);
@@ -1127,13 +1127,6 @@ export default function SignalsPage() {
 
     if (caseKey && caseKey !== "unknown") {
       const API = import.meta.env.VITE_API_URL || "";
-      const persisted = (() => {
-        try {
-          const raw = localStorage.getItem(`cios.signals:${caseKey}`);
-          if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return stripNonMatchingBrandSignals(p, subject) as Signal[]; }
-        } catch {}
-        return null;
-      })();
 
       fetch(`${API}/api/cases/${caseKey}/signal-state`)
         .then((r) => r.json())
@@ -1141,34 +1134,16 @@ export default function SignalsPage() {
           if (data?.signals && Array.isArray(data.signals) && data.signals.length > 0) {
             const apiCleaned = stripNonMatchingBrandSignals(data.signals, subject) as Signal[];
             if (apiCleaned.length > 0) {
-              let merged = apiCleaned;
-              if (persisted && persisted.length > 0) {
-                const apiIds = new Set(apiCleaned.map((s: Signal) => s.id));
-                const localExtras = persisted.filter((s: Signal) => !apiIds.has(s.id));
-                const localMap = new Map(persisted.map((s: Signal) => [s.id, s]));
-                merged = apiCleaned.map((s: Signal) => {
-                  const local = localMap.get(s.id);
-                  return local ? { ...s, ...local, text: s.text, category: s.category, direction: s.direction } : s;
-                });
-                if (localExtras.length > 0) merged = [...merged, ...localExtras];
-              }
-              try { localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(merged)); } catch {}
+              try { localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(apiCleaned)); } catch {}
               if (data.contextKey) {
                 try { localStorage.setItem(`cios.aiRequested:${caseKey}`, data.contextKey); } catch {}
               }
-              restoreSignals(merged);
+              restoreSignals(apiCleaned);
               return;
             }
           }
-          if (persisted && persisted.length > 0) {
-            restoreSignals(persisted);
-          }
         })
-        .catch(() => {
-          if (persisted && persisted.length > 0) {
-            restoreSignals(persisted);
-          }
-        });
+        .catch(() => {});
     } else {
       setSignals(fallbackSuggestions.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
     }
