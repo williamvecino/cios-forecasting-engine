@@ -507,8 +507,21 @@ export function lookupPrecedentLr(signalType: string, direction: string): {
   const normalizedType = signalType.toLowerCase().trim();
   const isPositive = direction.toLowerCase() === "positive";
 
-  const typeMap = isPositive ? POSITIVE_TYPE_MAP : NEGATIVE_TYPE_MAP;
-  let precedentType = typeMap[normalizedType];
+  const library = getPrecedentMap();
+
+  let precedentType: string | undefined;
+
+  for (const [key] of library) {
+    if (key.toLowerCase() === normalizedType) {
+      precedentType = key;
+      break;
+    }
+  }
+
+  if (!precedentType) {
+    const typeMap = isPositive ? POSITIVE_TYPE_MAP : NEGATIVE_TYPE_MAP;
+    precedentType = typeMap[normalizedType];
+  }
 
   if (!precedentType) {
     precedentType = SIGNAL_TYPE_MAP[normalizedType];
@@ -524,7 +537,6 @@ export function lookupPrecedentLr(signalType: string, direction: string): {
     };
   }
 
-  const library = getPrecedentMap();
   const entry = library.get(precedentType);
   if (!entry) {
     return {
