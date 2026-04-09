@@ -146,6 +146,168 @@ function applyThresholdToPrior(basePrior: number, threshold: string | null | und
 
 const router = Router();
 
+// ── Scenario Simulation: Base/Bull/Bear via real forecast engine ──────────
+const SEGMENT_MULTIPLIERS: Record<string, number> = {
+  "Early Adopters": 1.15,
+  "Persuadables": 1.0,
+  "Late Movers": 0.75,
+  "Resistant": 0.50,
+  "Risk Gatekeepers": 0.85,
+};
+
+router.post("/cases/:caseId/scenario-forecast", async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { bullSignalType, bearSignalType, segment } = req.body as {
+      bullSignalType?: string;
+      bearSignalType?: string;
+      segment?: string;
+    };
+
+    const [caseData] = await db.select().from(casesTable).where(eq(casesTable.caseId, caseId)).limit(1);
+    if (!caseData) return res.status(404).json({ error: "Case not found" });
+    if (!caseData.priorProbability && caseData.priorProbability !== 0) {
+      return res.status(422).json({ error: "Case has no prior probability set" });
+    }
+
+    const allSignalsRaw = await db.select().from(signalsTable).where(
+      and(eq(signalsTable.caseId, caseId), eq(signalsTable.status, "active"))
+    ).orderBy(signalsTable.signalId);
+    const baseSignals = allSignalsRaw.filter(s => s.countTowardPosterior === true);
+
+    const actors = await db.select().from(actorsTable).where(eq(actorsTable.specialtyProfile, "General")).orderBy(actorsTable.slotIndex);
+    if (actors.length === 0) return res.status(400).json({ error: "No actors configured" });
+
+    const actorConfigs = actors.map(a => ({
+      actorName: a.actorName,
+      influenceWeight: a.influenceWeight,
+      positiveResponseFactor: a.positiveResponseFactor,
+      negativeResponseFactor: a.negativeResponseFactor,
+      outcomeOrientation: a.outcomeOrientation,
+      slotIndex: a.slotIndex,
+    }));
+
+    const corrections = await getLrCorrections();
+    const now = Date.now();
+
+    function adjustSignals(sigs: typeof baseSignals) {
+      return sigs.map(s => {
+        if (s.direction === "Neutral") return { ...s, likelihoodRatio: 1.0 };
+        const correction = corrections[s.signalType ?? ""] ?? 1.0;
+        const ageMonths = s.createdAt ? (now - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 30) : 0;
+        const decayFactor = computeDecay(s.signalType ?? "", ageMonths);
+        const precedent = lookupPrecedentLr(s.signalType ?? "", s.direction ?? "Negative");
+        const baseLr = precedent.matched ? precedent.assignedLr : (s.likelihoodRatio ?? 1);
+        const adjusted = baseLr * correction * decayFactor;
+        return { ...s, likelihoodRatio: Number(adjusted.toFixed(4)) };
+      });
+    }
+
+    function makeHypotheticalSignal(signalType: string, direction: "Positive" | "Negative") {
+      const precedent = lookupPrecedentLr(signalType, direction);
+      const lr = precedent.matched ? precedent.assignedLr : 1.0;
+      return {
+        id: randomUUID(),
+        signalId: `HYPO-${direction.toUpperCase()}-${Date.now()}`,
+        caseId,
+        candidateId: null,
+        brand: caseData.assetName,
+        signalDescription: `Hypothetical: ${signalType} (${direction})`,
+        signalType,
+        direction,
+        strengthScore: 4,
+        reliabilityScore: 4,
+        likelihoodRatio: lr,
+        scope: "national" as const,
+        timing: "current" as const,
+        status: "active" as const,
+        createdByType: "system" as const,
+        createdAt: new Date(),
+        countTowardPosterior: true,
+        weightedSignalScore: 16,
+        activeLikelihoodRatio: lr,
+        signalScope: "market" as const,
+      } as any;
+    }
+
+    function runScenario(sigs: typeof baseSignals) {
+      const adjusted = adjustSignals(sigs);
+      return runForecastEngine(
+        caseId,
+        caseData.priorProbability,
+        adjusted,
+        actorConfigs,
+        caseData.primarySpecialtyProfile ?? "General",
+        caseData.payerEnvironment ?? "Balanced",
+        caseData.guidelineLeverage ?? "Medium",
+        caseData.competitorProfile ?? "Entrenched standard of care",
+      );
+    }
+
+    const segmentMultiplier = segment ? (SEGMENT_MULTIPLIERS[segment] ?? 1.0) : 1.0;
+
+    // Base case: current signal stack
+    const baseResult = runScenario(baseSignals);
+    const basePosterior = baseResult.currentProbability;
+
+    // Bull case: add positive hypothetical signal
+    let bullPosterior: number | null = null;
+    let bullSignalLr: number | null = null;
+    let bullSignalDescription: string | null = null;
+    if (bullSignalType) {
+      const bullSignal = makeHypotheticalSignal(bullSignalType, "Positive");
+      bullSignalLr = bullSignal.likelihoodRatio;
+      bullSignalDescription = `Hypothetical positive: ${bullSignalType}`;
+      const bullResult = runScenario([...baseSignals, bullSignal]);
+      bullPosterior = bullResult.currentProbability;
+    }
+
+    // Bear case: add negative hypothetical signal
+    let bearPosterior: number | null = null;
+    let bearSignalLr: number | null = null;
+    let bearSignalDescription: string | null = null;
+    if (bearSignalType) {
+      const bearSignal = makeHypotheticalSignal(bearSignalType, "Negative");
+      bearSignalLr = bearSignal.likelihoodRatio;
+      bearSignalDescription = `Hypothetical negative: ${bearSignalType}`;
+      const bearResult = runScenario([...baseSignals, bearSignal]);
+      bearPosterior = bearResult.currentProbability;
+    }
+
+    const applySegment = (p: number | null) => p != null ? Math.min(1, Math.max(0, p * segmentMultiplier)) : null;
+
+    res.json({
+      caseId,
+      prior: caseData.priorProbability,
+      segment: segment || "Persuadables",
+      segmentMultiplier,
+      signalCount: baseSignals.length,
+      base: {
+        posterior: basePosterior,
+        segmentAdjusted: applySegment(basePosterior),
+        signalCount: baseSignals.length,
+      },
+      bull: bullSignalType ? {
+        posterior: bullPosterior,
+        segmentAdjusted: applySegment(bullPosterior),
+        addedSignal: { type: bullSignalType, direction: "Positive", lr: bullSignalLr },
+        signalCount: baseSignals.length + 1,
+        delta: bullPosterior != null ? bullPosterior - basePosterior : null,
+      } : null,
+      bear: bearSignalType ? {
+        posterior: bearPosterior,
+        segmentAdjusted: applySegment(bearPosterior),
+        addedSignal: { type: bearSignalType, direction: "Negative", lr: bearSignalLr },
+        signalCount: baseSignals.length + 1,
+        delta: bearPosterior != null ? bearPosterior - basePosterior : null,
+      } : null,
+    });
+  } catch (err: any) {
+    console.error("[scenario-forecast] Error:", err?.message || err);
+    res.status(500).json({ error: "Scenario forecast failed" });
+  }
+});
+
 router.get("/cases/:caseId/forecast", async (req, res) => {
   const caseRow = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
   if (!caseRow[0]) return res.status(404).json({ error: "Case not found" });
