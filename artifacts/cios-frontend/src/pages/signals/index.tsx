@@ -1142,6 +1142,29 @@ export default function SignalsPage() {
               return;
             }
           }
+          return fetch(`${API}/api/cases/${caseKey}/signals`)
+            .then((r2) => r2.json())
+            .then((sigs) => {
+              if (Array.isArray(sigs) && sigs.length > 0) {
+                const mapped = sigs.map((s: any) => ({
+                  id: s.signalId || s.id,
+                  text: s.signalDescription || s.text || "",
+                  type: s.signalType || s.type || "",
+                  direction: s.direction || "Neutral",
+                  source: s.sourceUrl || s.source || "",
+                  sourceLabel: s.sourceLabel || "",
+                  countTowardPosterior: s.countTowardPosterior !== false,
+                  likelihoodRatio: s.likelihoodRatio ?? 1.0,
+                  strengthScore: s.strengthScore ?? 0,
+                  reliabilityScore: s.reliabilityScore ?? 0,
+                }));
+                const cleaned = stripNonMatchingBrandSignals(mapped, subject) as Signal[];
+                if (cleaned.length > 0) {
+                  try { localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(cleaned)); } catch {}
+                  restoreSignals(cleaned);
+                }
+              }
+            });
         })
         .catch(() => {});
     } else {

@@ -555,7 +555,7 @@ export default function RespondPage() {
                   },
                   "CASE-DEMO-03": {
                     chatgptPct: "~44%",
-                    note: "ChatGPT used wrong comparator. No governance. Not reproducible. CIOS enforces Bayesian discipline: each signal must cite a verifiable source, pass the precedent library, and survive dependency compression before it shifts the posterior.",
+                    note: "ChatGPT used wrong comparator, ignores biosimilar threat (Tepezza SC filing), and cannot update when new signals arrive. CIOS enforces Bayesian discipline: each signal must cite a verifiable source, pass the precedent library, and survive dependency compression before it shifts the posterior. The 8th signal (Tepezza SC) alone moved the posterior from 36.5% to 24.6% — unstructured AI cannot replicate this audit trail.",
                   },
                 };
                 const comp = chatgptComparisons[caseId] || {
