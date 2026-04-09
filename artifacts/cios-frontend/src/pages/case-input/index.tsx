@@ -41,10 +41,7 @@ interface SignalEntry {
   description: string;
   signalType: string;
   direction: string;
-  strength: number;
-  reliability: number;
   source: string;
-  rootEvidenceId: string;
 }
 
 interface DeferredQuestion {
@@ -60,10 +57,7 @@ function emptySignal(): SignalEntry {
     description: "",
     signalType: "Clinical",
     direction: "Positive",
-    strength: 3,
-    reliability: 3,
     source: "",
-    rootEvidenceId: "",
   };
 }
 
@@ -222,10 +216,7 @@ export default function CaseInputPage() {
               signalDescription: sig.description,
               signalType: SIGNAL_TYPE_MAP[sig.signalType] || sig.signalType,
               direction: sig.direction,
-              strengthScore: sig.strength,
-              reliabilityScore: sig.reliability,
               sourceLabel: sig.source || undefined,
-              rootEvidenceId: sig.rootEvidenceId || undefined,
               scope: "national",
               timing: "current",
               status: lockStatus ? "active" : "candidate",
@@ -578,7 +569,7 @@ export default function CaseInputPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Type</label>
                     <select
@@ -600,45 +591,11 @@ export default function CaseInputPage() {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Strength (1–5)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={sig.strength}
-                      onChange={e => updateSignal(sig.id, "strength", Math.max(1, Math.min(5, Number(e.target.value))))}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-center"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Reliability (1–5)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={sig.reliability}
-                      onChange={e => updateSignal(sig.id, "reliability", Math.max(1, Math.min(5, Number(e.target.value))))}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-center"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Source</label>
                     <input
                       value={sig.source}
                       onChange={e => updateSignal(sig.id, "source", e.target.value)}
                       placeholder="Specific data source"
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Root Evidence ID</label>
-                    <input
-                      value={sig.rootEvidenceId}
-                      onChange={e => updateSignal(sig.id, "rootEvidenceId", e.target.value)}
-                      placeholder="Optional — linked evidence"
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                     />
                   </div>

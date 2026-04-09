@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
-import { detectCaseType } from "@/lib/case-type-utils";
 import {
   Loader2,
   AlertTriangle,
@@ -14,141 +13,169 @@ import {
   FileJson,
   Target,
   Clock,
-  User,
   BarChart3,
-  ChevronDown,
-  ChevronUp,
-  Gauge,
+  CheckCircle2,
+  XCircle,
+  Pause,
+  ShieldAlert,
+  TrendingDown,
+  Sparkles,
 } from "lucide-react";
 import { exportToExcel, exportToPDF, exportToJSON } from "@/lib/forecast-export";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
-import ExplanationPanel from "@/components/explanation-panel";
 
-interface DecisionAction {
-  gateName: string;
-  blockingCondition: string;
-  requiredAction: string;
-  owner: string;
-  timeline: string;
-  resolutionMetric: string;
-  forecastImpact: string;
-  priorityScore: number;
+const API = import.meta.env.VITE_API_URL || "";
+
+interface ForecastData {
+  priorProbability: number;
+  posteriorProbability?: number;
+  currentProbability?: number;
+  signalDetails?: SignalDetail[];
+  sensitivityAnalysis?: SignalDetail[];
 }
 
-interface ForecastContext {
-  brand_outlook: number | null;
-  constrained_probability: number | null;
-  gate_count: number;
-  weak_gate_count: number;
+interface SignalDetail {
+  signalId: string;
+  signalDescription?: string;
+  description?: string;
+  direction: string;
+  likelihoodRatio?: number;
+  lr?: number;
+  signalType?: string;
+  contributionPp?: number;
 }
 
-interface DecideResponse {
-  mode: "forecast_derived" | "standalone";
-  decision_actions: DecisionAction[];
-  forecast_context: ForecastContext | null;
-  [key: string]: any;
+function getProbabilityInterpretation(posterior: number): { text: string; color: string; bgColor: string } {
+  if (posterior > 0.60) return {
+    text: "Evidence strongly supports adoption. Proceed with confidence.",
+    color: "text-emerald-400",
+    bgColor: "border-emerald-500/20 bg-emerald-500/5",
+  };
+  if (posterior >= 0.40) return {
+    text: "Evidence is balanced. Adoption is plausible but not certain. Address key barriers before committing full resources.",
+    color: "text-amber-400",
+    bgColor: "border-amber-500/20 bg-amber-500/5",
+  };
+  if (posterior >= 0.25) return {
+    text: "Barriers outweigh differentiation under current conditions. Targeted launch only. Monitor competitive signals closely.",
+    color: "text-orange-400",
+    bgColor: "border-orange-500/20 bg-orange-500/5",
+  };
+  return {
+    text: "Structural barriers dominate. Do not commit full launch resources until primary constraint resolves.",
+    color: "text-red-400",
+    bgColor: "border-red-500/20 bg-red-500/5",
+  };
 }
 
-interface ForecastGate {
-  gate_id: string;
-  gate_label: string;
-  description: string;
-  status: string;
-  reasoning: string;
-  constrains_probability_to: number;
+function getDecisionThreshold(posterior: number): { label: string; sublabel: string; icon: React.ReactNode; color: string; bgColor: string } {
+  if (posterior > 0.60) return {
+    label: "PROCEED",
+    sublabel: "Supports broad deployment",
+    icon: <CheckCircle2 className="w-6 h-6 text-emerald-400" />,
+    color: "text-emerald-400",
+    bgColor: "border-emerald-500/30 bg-emerald-500/10",
+  };
+  if (posterior >= 0.40) return {
+    label: "CONDITIONAL",
+    sublabel: "Targeted deployment with barrier monitoring",
+    icon: <Pause className="w-6 h-6 text-amber-400" />,
+    color: "text-amber-400",
+    bgColor: "border-amber-500/30 bg-amber-500/10",
+  };
+  if (posterior >= 0.25) return {
+    label: "HOLD",
+    sublabel: "Resolve primary constraint before committing field resources",
+    icon: <ShieldAlert className="w-6 h-6 text-orange-400" />,
+    color: "text-orange-400",
+    bgColor: "border-orange-500/30 bg-orange-500/10",
+  };
+  return {
+    label: "DEFER",
+    sublabel: "Posterior below threshold for commercial deployment",
+    icon: <XCircle className="w-6 h-6 text-red-400" />,
+    color: "text-red-400",
+    bgColor: "border-red-500/30 bg-red-500/10",
+  };
 }
 
-function loadForecastGates(caseId: string): { gates: ForecastGate[]; brandOutlook: number | null; constrained: number | null } {
-  try {
-    const raw = localStorage.getItem(`cios.eventDecomposition:${caseId}`);
-    if (!raw) return { gates: [], brandOutlook: null, constrained: null };
-    const decomp = JSON.parse(raw);
-    return {
-      gates: decomp.event_gates || [],
-      brandOutlook: decomp.brand_outlook_probability ?? null,
-      constrained: decomp.constrained_probability ?? null,
-    };
-  } catch {
-    return { gates: [], brandOutlook: null, constrained: null };
-  }
+function deriveTimeline(signalType?: string): string {
+  if (!signalType) return "Medium-term";
+  const st = signalType.toLowerCase();
+  if (st.includes("payer") || st.includes("access") || st.includes("reimbursement") || st.includes("formulary")) return "Near-term";
+  if (st.includes("safety") || st.includes("operational") || st.includes("capacity")) return "Near-term";
+  if (st.includes("competitor") || st.includes("biosimilar") || st.includes("market")) return "Medium-term";
+  if (st.includes("guideline") || st.includes("phase") || st.includes("clinical") || st.includes("label")) return "Long-term";
+  return "Medium-term";
 }
 
-function priorityColor(score: number) {
-  if (score >= 80) return { bg: "bg-red-500/10", border: "border-red-500/25", text: "text-red-400", badge: "bg-red-500/15 text-red-400 border-red-500/30" };
-  if (score >= 60) return { bg: "bg-amber-500/10", border: "border-amber-500/25", text: "text-amber-400", badge: "bg-amber-500/15 text-amber-400 border-amber-500/30" };
-  return { bg: "bg-blue-500/10", border: "border-blue-500/25", text: "text-blue-400", badge: "bg-blue-500/15 text-blue-400 border-blue-500/30" };
-}
-
-function priorityLabel(score: number) {
-  if (score >= 80) return "Critical";
-  if (score >= 60) return "High";
-  if (score >= 40) return "Medium";
-  return "Low";
+function deriveActionText(signal: SignalDetail): string {
+  const desc = signal.signalDescription || signal.description || "";
+  const type = (signal.signalType || "").toLowerCase();
+  if (type.includes("payer") || type.includes("access") || type.includes("reimbursement")) return `Secure favorable payer pathway to address: ${desc.slice(0, 80)}`;
+  if (type.includes("safety")) return `Resolve safety monitoring requirement: ${desc.slice(0, 80)}`;
+  if (type.includes("competitor") || type.includes("biosimilar")) return `Develop competitive response strategy for: ${desc.slice(0, 80)}`;
+  if (type.includes("formulary")) return `Negotiate formulary positioning to counter: ${desc.slice(0, 80)}`;
+  if (type.includes("operational") || type.includes("capacity")) return `Address operational constraint: ${desc.slice(0, 80)}`;
+  if (type.includes("guideline")) return `Seek guideline inclusion to address: ${desc.slice(0, 80)}`;
+  return `Address barrier: ${desc.slice(0, 100)}`;
 }
 
 export default function DecisionPanels() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const [, navigate] = useLocation();
-  const [data, setData] = useState<DecideResponse | null>(null);
+  const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestedRef = useRef<string | null>(null);
-  const [expandedAction, setExpandedAction] = useState<number | null>(null);
 
-  const subject = activeQuestion?.subject || "";
-  const questionText = activeQuestion?.rawInput || activeQuestion?.text || activeQuestion?.question || "";
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
-  const contextKey = `${subject}|${questionText}|${caseId}`;
-  const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
 
   useEffect(() => {
-    if (!subject || !questionText) return;
-    if (requestedRef.current === contextKey) return;
-    requestedRef.current = contextKey;
+    if (!caseId) return;
+    if (requestedRef.current === caseId) return;
+    requestedRef.current = caseId;
 
-    setData(null);
     setLoading(true);
     setError(null);
 
-    const API = import.meta.env.VITE_API_URL || "";
-    const therapeuticArea = localStorage.getItem("cios.therapeuticArea") || "general";
-    const { gates, brandOutlook: bo, constrained: cp } = loadForecastGates(caseId);
-
-    fetch(`${API}/api/ai-decide/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subject,
-        outcome: activeQuestion?.outcome || "adoption",
-        questionType: activeQuestion?.questionType || "binary",
-        questionText,
-        timeHorizon: activeQuestion?.timeHorizon || "12 months",
-        entities: activeQuestion?.entities || [],
-        therapeuticArea,
-        forecastGates: gates,
-        brandOutlookProbability: bo,
-        constrainedProbability: cp,
-      }),
-    })
+    fetch(`${API}/api/cases/${caseId}/forecast`)
       .then((r) => {
         if (!r.ok) throw new Error(`API returned ${r.status}`);
         return r.json();
       })
-      .then((result) => {
-        setData(result);
-        try {
-          localStorage.setItem(`cios.decideResult:${caseId}`, JSON.stringify(result));
-        } catch {}
-      })
+      .then((data) => setForecast(data))
       .catch((err) => {
-        console.error("[CIOS Decide] analysis failed:", err);
-        setError("Decision analysis unavailable. The analysis will appear once the system responds.");
+        console.error("[CIOS Decide] forecast fetch failed:", err);
+        setError("Forecast data unavailable. Run the forecast from the Judge step first.");
       })
       .finally(() => setLoading(false));
-  }, [contextKey, caseId]);
+  }, [caseId]);
 
-  const actions = data?.decision_actions || [];
-  const fc = data?.forecast_context;
+  const posterior = forecast?.posteriorProbability ?? forecast?.currentProbability ?? null;
+  const prior = forecast?.priorProbability ?? null;
+
+  const allSignals = useMemo(() => {
+    return forecast?.signalDetails || forecast?.sensitivityAnalysis || [];
+  }, [forecast]);
+
+  const topNegativeSignals = useMemo(() => {
+    const negatives = allSignals
+      .filter((s) => {
+        const lr = s.likelihoodRatio ?? s.lr ?? 1;
+        return lr < 1 || s.direction === "Negative";
+      })
+      .map((s) => {
+        const lr = s.likelihoodRatio ?? s.lr ?? 1;
+        const contribution = s.contributionPp ?? (lr < 1 ? Math.round((1 - lr) * prior! * 100) : 0);
+        return { ...s, contribution };
+      })
+      .sort((a, b) => b.contribution - a.contribution);
+    return negatives.slice(0, 3);
+  }, [allSignals, prior]);
+
+  const interpretation = posterior != null ? getProbabilityInterpretation(posterior) : null;
+  const threshold = posterior != null ? getDecisionThreshold(posterior) : null;
 
   return (
     <WorkflowLayout
@@ -160,58 +187,30 @@ export default function DecisionPanels() {
         <section className="space-y-5">
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Decide
+              Step 5
             </div>
             <h1 className="mt-2 text-2xl font-semibold text-foreground">
-              Priority Actions
+              Decide
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-              Executable actions derived from forecast gates — each action addresses an unresolved gate with a named owner, timeline, and resolution metric.
+              Decision recommendation derived from the Bayesian posterior and signal analysis.
             </p>
             {caseId && (
               <div className="mt-3">
                 <SavedQuestionsPanel caseId={caseId} />
               </div>
             )}
-            {caseId && (
-              <div className="mt-4">
-                <ExplanationPanel caseId={caseId} />
-              </div>
-            )}
-            <div className="mt-3 flex items-center justify-between">
-              {fc ? (
-                <div className="flex items-center gap-4 text-xs text-slate-400">
-                  <span>Gates: {fc.gate_count}</span>
-                  <span>Unresolved: {fc.weak_gate_count}</span>
-                  {fc.brand_outlook != null && <span>Signal Strength: {Math.round(fc.brand_outlook * 100)}%</span>}
-                  {fc.constrained_probability != null && <span>Forecast: {Math.round(fc.constrained_probability * 100)}%</span>}
-                </div>
-              ) : <div />}
+            <div className="mt-3 flex items-center justify-end">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Export</span>
-                <button
-                  onClick={exportToPDF}
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition"
-                  title="Export as PDF"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  PDF
+                <button onClick={exportToPDF} className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition" title="Export as PDF">
+                  <FileText className="w-3.5 h-3.5" /> PDF
                 </button>
-                <button
-                  onClick={exportToExcel}
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition"
-                  title="Export as Excel"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  Excel
+                <button onClick={exportToExcel} className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition" title="Export as Excel">
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                 </button>
-                <button
-                  onClick={exportToJSON}
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition"
-                  title="Export as JSON"
-                >
-                  <FileJson className="w-3.5 h-3.5" />
-                  JSON
+                <button onClick={exportToJSON} className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition" title="Export as JSON">
+                  <FileJson className="w-3.5 h-3.5" /> JSON
                 </button>
               </div>
             </div>
@@ -220,8 +219,7 @@ export default function DecisionPanels() {
           {loading && (
             <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-8 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-              <div className="text-sm text-blue-300 font-medium">Generating priority actions from forecast gates...</div>
-              <div className="text-xs text-slate-400">Mapping each unresolved gate to an executable action</div>
+              <div className="text-sm text-blue-300 font-medium">Loading forecast data...</div>
             </div>
           )}
 
@@ -232,116 +230,97 @@ export default function DecisionPanels() {
             </div>
           )}
 
-          {data && actions.length > 0 && (
-            <div className="space-y-3">
-              {actions.map((action, idx) => {
-                const colors = priorityColor(action.priorityScore);
-                const isExpanded = expandedAction === idx;
-                return (
-                  <div
-                    key={idx}
-                    className={`rounded-2xl border ${colors.border} bg-card overflow-hidden transition-all duration-200`}
-                  >
-                    <button
-                      onClick={() => setExpandedAction(isExpanded ? null : idx)}
-                      className="w-full flex items-center gap-4 px-5 py-4 text-left cursor-pointer hover:bg-white/[0.02] transition"
-                    >
-                      <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/5 border border-white/10">
-                        <span className={`text-sm font-bold ${colors.text}`}>{idx + 1}</span>
-                      </div>
+          {posterior != null && interpretation && threshold && (
+            <>
+              {/* COMPONENT A — Probability Interpretation */}
+              <div className={`rounded-2xl border ${interpretation.bgColor} p-6`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Probability Interpretation</span>
+                </div>
+                <div className="flex items-baseline gap-4 mb-3">
+                  <span className={`text-4xl font-bold tabular-nums ${interpretation.color}`}>
+                    {Math.round(posterior * 100)}%
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    posterior (prior: {prior != null ? Math.round(prior * 100) : "?"}%)
+                  </span>
+                </div>
+                <p className={`text-sm font-medium ${interpretation.color}`}>
+                  {interpretation.text}
+                </p>
+              </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-foreground">{action.requiredAction}</div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-[11px] text-muted-foreground">{action.gateName}</span>
-                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colors.badge}`}>
-                            <Gauge className="w-2.5 h-2.5" />
-                            {priorityLabel(action.priorityScore)}
-                          </span>
-                        </div>
-                      </div>
+              {/* COMPONENT B — Top 3 Priority Actions */}
+              <div className="rounded-2xl border border-border bg-card p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingDown className="w-4 h-4 text-red-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">Top 3 Priority Actions</span>
+                </div>
+                {topNegativeSignals.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No negative signals found — no priority actions needed.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {topNegativeSignals.map((sig, idx) => {
+                      const timeline = deriveTimeline(sig.signalType);
+                      const actionText = deriveActionText(sig);
+                      const lr = sig.likelihoodRatio ?? sig.lr ?? 1;
+                      const ppImpact = sig.contributionPp ?? Math.round((1 - lr) * (prior ?? 0.5) * 100);
+                      const timelineColor = timeline === "Near-term" ? "text-red-400 border-red-500/30 bg-red-500/10"
+                        : timeline === "Medium-term" ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                        : "text-blue-400 border-blue-500/30 bg-blue-500/10";
 
-                      <div className="flex items-center gap-3">
-                        <div className="text-right hidden sm:block">
-                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <User className="w-3 h-3" />
-                            {action.owner}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
-                            <Clock className="w-3 h-3" />
-                            {action.timeline}
-                          </div>
-                        </div>
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="px-5 pb-5 space-y-4 border-t border-white/5 pt-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="text-[10px] font-semibold uppercase tracking-wider text-red-400/80 mb-1.5">Blocking Condition</div>
-                            <div className="text-[12px] text-slate-300 leading-relaxed">{action.blockingCondition}</div>
-                          </div>
-                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80 mb-1.5">Resolution Metric</div>
-                            <div className="text-[12px] text-slate-300 leading-relaxed">{action.resolutionMetric}</div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <User className="w-3 h-3 text-blue-400/70" />
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400/80">Owner</span>
+                      return (
+                        <div key={idx} className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 shrink-0">
+                              <span className="text-sm font-bold text-red-400">{idx + 1}</span>
                             </div>
-                            <div className="text-[12px] text-foreground font-medium">{action.owner}</div>
-                          </div>
-                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <Clock className="w-3 h-3 text-amber-400/70" />
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/80">Timeline</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-foreground leading-snug">{actionText}</div>
                             </div>
-                            <div className="text-[12px] text-foreground font-medium">{action.timeline}</div>
                           </div>
-                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <BarChart3 className="w-3 h-3 text-violet-400/70" />
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-400/80">Forecast Effect</span>
+                          <div className="pl-10 space-y-2">
+                            <div className="text-xs text-muted-foreground">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Why: </span>
+                              {sig.signalDescription || sig.description || sig.signalType || "Negative signal"}
                             </div>
-                            <div className="text-[12px] text-foreground/80 leading-relaxed">{action.forecastImpact}</div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <BarChart3 className="w-3 h-3 text-red-400" />
+                                <span className="text-xs font-semibold text-red-400">+{ppImpact}pp if resolved</span>
+                              </div>
+                              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${timelineColor}`}>
+                                <Clock className="w-2.5 h-2.5" />
+                                {timeline}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+
+              {/* COMPONENT C — Decision Threshold */}
+              <div className={`rounded-2xl border ${threshold.bgColor} p-6`}>
+                <div className="flex items-center gap-4">
+                  {threshold.icon}
+                  <div>
+                    <div className={`text-xl font-bold ${threshold.color}`}>
+                      {threshold.label}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-0.5">
+                      {threshold.sublabel}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
-          {data && actions.length === 0 && (
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
-              <Target className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
-              {data.mode === "forecast_derived" && fc && fc.gate_count > 0 ? (
-                <>
-                  <div className="text-sm text-emerald-300 font-semibold">All gates are strong</div>
-                  <div className="text-xs text-slate-400 mt-1">No blocking conditions detected — the forecast is unconstrained.</div>
-                </>
-              ) : (
-                <>
-                  <div className="text-sm text-slate-300 font-semibold">No forecast gates available</div>
-                  <div className="text-xs text-slate-400 mt-1">Run the forecast from the Judge step first to generate gate-derived actions.</div>
-                </>
-              )}
-            </div>
-          )}
-
-          {data && (
+          {forecast && (
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => navigate("/respond")}
