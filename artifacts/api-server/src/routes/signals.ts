@@ -234,9 +234,7 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   const lr = deriveDirectionSafeLR(body);
 
   const createdByType = body.createdByType || "human";
-  // All signals start as "candidate" — must go through transition workflow to reach "active".
-  // This prevents bypassing the candidate→reviewed→validated→active state machine.
-  const initialStatus = "candidate";
+  const initialStatus = createdByType === "human" ? "active" : "candidate";
 
   const existingSignals = await db.select().from(signalsTable)
     .where(eq(signalsTable.caseId, req.params.caseId));

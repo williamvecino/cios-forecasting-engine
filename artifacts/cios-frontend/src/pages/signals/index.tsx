@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Link } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
@@ -845,7 +844,7 @@ function getSourceLabel(signal: { source: string; source_type?: string; category
   return map[signal.category] || "Analysis";
 }
 
-function SignalLockBar({ caseId }: { caseId?: string }) {
+function SignalLockBar({ caseId, signals, onPersistSignal }: { caseId?: string; signals?: Signal[]; onPersistSignal?: (signal: Signal) => Promise<void> }) {
   const [locked, setLocked] = useState(() => {
     try { return localStorage.getItem(`cios.signalsLocked:${caseId}`) === "true"; } catch { return false; }
   });
@@ -888,9 +887,22 @@ function SignalLockBar({ caseId }: { caseId?: string }) {
           : <><Unlock className="w-3.5 h-3.5" /> Lock Signals</>
         }
       </button>
-      <Link href="/forecast" className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+      <button
+        type="button"
+        onClick={async () => {
+          if (signals && onPersistSignal) {
+            const unpersisted = signals.filter((s) => !s.accepted && !s.superseded);
+            if (unpersisted.length > 0) {
+              await Promise.all(unpersisted.map((s) => onPersistSignal(s)));
+              await new Promise((r) => setTimeout(r, 500));
+            }
+          }
+          window.location.href = "/forecast";
+        }}
+        className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
+      >
         Continue to Judgment
-      </Link>
+      </button>
     </div>
   );
 }
@@ -1813,14 +1825,14 @@ export default function SignalsPage() {
     return updated;
   }
 
-  function persistSignalToDb(signal: Signal) {
+  function persistSignalToDb(signal: Signal): Promise<void> {
     const caseId = activeQuestion?.caseId;
-    if (!caseId) return;
+    if (!caseId) return Promise.resolve();
 
     const API = import.meta.env.VITE_API_URL || "";
     const dbDirection = isNegativeDirection(signal.direction) ? "Negative" : (signal.direction === "neutral" || signal.direction === "signals_uncertainty") ? "Neutral" : "Positive";
 
-    fetch(`${API}/api/cases/${caseId}/signals`, {
+    return fetch(`${API}/api/cases/${caseId}/signals`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1837,9 +1849,12 @@ export default function SignalsPage() {
         sourceUrl: signal.source_url || "https://cios.internal/user-reported",
         evidenceSnippet: signal.text,
         signalScope: "market",
-        observedAt: new Date().toISOString(),
+        observedAt: signal.observed_date || new Date().toISOString(),
         createdByType: "human",
         brand: subject || "",
+        dependencyRole: "Root",
+        rootEvidenceId: `SIG-${signal.id}`,
+        novelInformationFlag: "Yes",
       }),
     }).then(async (resp) => {
       if (resp && resp.ok) {
@@ -3211,7 +3226,7 @@ export default function SignalsPage() {
             </div>
           )}
 
-          <SignalLockBar caseId={activeQuestion?.caseId} />
+          <SignalLockBar caseId={activeQuestion?.caseId} signals={signals} onPersistSignal={persistSignalToDb} />
         </section>
       </QuestionGate>
       <DataImportDialog
