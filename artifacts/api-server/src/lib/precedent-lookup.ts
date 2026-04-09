@@ -339,6 +339,17 @@ const PRECEDENT_LIBRARY: PrecedentEntry[] = [
     sourceCount: 2,
     governanceNote: "Use when new diagnostics may expand access but scaling is still uncertain. Source count very low — treat as provisional. Direction safety correction applies: positive signal with assignedLr <1.0 gets flipped to 1/0.875 = 1.143.",
   },
+  {
+    signalType: "Health economics / cost offset",
+    context: "Payer value argument — avoided procedures, reduced hospitalizations, surgical cost offsets",
+    historicalImpact: "Moderate to high positive",
+    reliabilityTier: "B",
+    baseLr: 1.55,
+    tierMultiplier: 0.85,
+    assignedLr: 1.318,
+    sourceCount: 6,
+    governanceNote: "Use when a therapy demonstrates quantifiable cost offsets beyond drug acquisition cost — avoided surgeries, reduced hospitalizations, fewer ER visits, eliminated monitoring procedures. A drug that eliminates strabismus surgery or avoids hospitalization has a fundamentally different payer story than one that only shows clinical non-inferiority. Requires published HEOR data, budget impact model, or real-world cost analysis. Do not use for speculative cost arguments.",
+  },
 ];
 
 const SIGNAL_TYPE_MAP: Record<string, string> = {
@@ -364,6 +375,11 @@ const SIGNAL_TYPE_MAP: Record<string, string> = {
   "access friction": "Payer / reimbursement friction",
   "prescriber behavior": "Early launch underperformance",
   "competitor counteraction": "Early launch underperformance",
+  "health economics / cost offset": "Health economics / cost offset",
+  "health economics": "Health economics / cost offset",
+  "cost offset": "Health economics / cost offset",
+  "avoided procedures": "Health economics / cost offset",
+  "budget impact": "Health economics / cost offset",
   "competitive intelligence": "Early launch underperformance",
   "market sizing": "Early launch underperformance",
   "phase ii clinical": "Emerging biomarker / diagnostic innovation",
@@ -427,6 +443,11 @@ const POSITIVE_TYPE_MAP: Record<string, string> = {
   "experience infrastructure": "Workflow standardization / site learning",
   "market adoption / utilization": "Real-world persistence support",
   "field intelligence": "Real-world persistence support",
+  "health economics / cost offset": "Health economics / cost offset",
+  "health economics": "Health economics / cost offset",
+  "cost offset": "Health economics / cost offset",
+  "avoided procedures": "Health economics / cost offset",
+  "budget impact": "Health economics / cost offset",
 };
 
 const NEGATIVE_TYPE_MAP: Record<string, string> = {
@@ -473,6 +494,9 @@ const NEGATIVE_TYPE_MAP: Record<string, string> = {
   "guideline inclusion": "Guideline / expert support",
   "guideline / soc": "Guideline / expert support",
   "kol endorsement": "Guideline / expert support",
+  "health economics / cost offset": "Health economics / cost offset",
+  "health economics": "Health economics / cost offset",
+  "cost offset": "Health economics / cost offset",
 };
 
 let _cachedLibrary: Map<string, PrecedentEntry> | null = null;

@@ -33,6 +33,7 @@ import {
   guidanceTable,
   fieldIntelligenceTable,
   watchlistTable,
+  priorTemplatesTable,
 } from "@workspace/db";
 import { randomUUID } from "crypto";
 
@@ -47,6 +48,7 @@ async function clearAll() {
   await db.delete(casesTable);
   await db.delete(actorsTable);
   await db.delete(specialtyActorSetsTable);
+  await db.delete(priorTemplatesTable);
 }
 
 export async function seedDatabase(force = false): Promise<{ success: boolean; message: string }> {
@@ -1376,6 +1378,73 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         evidenceSource: "FDA pipeline tracker / competitor IR",
         status: "Pending",
         notes: "Monitor competitor regulatory filings and approval timeline.",
+      },
+    ]);
+
+    // ── Prior Templates with Clinical Override Governance ──
+    await db.insert(priorTemplatesTable).values([
+      {
+        id: randomUUID(),
+        archetypeName: "Same-mechanism second-in-class",
+        defaultPriorProbability: 0.25,
+        priorRationale: "Historical base rate for same-mechanism second-in-class challengers is 20-30%. Prescriber switching costs, formulary inertia, and incumbent familiarity constrain adoption. CLINICAL OVERRIDE: If the drug demonstrates superiority on a patient-relevant functional endpoint in Phase 3 (not just non-inferiority), this is no longer a same-mechanism second-in-class — it is a differentiated challenger. Override prior to 0.40-0.55 based on effect size and clinical relevance.",
+        typicalPositiveFamilies: ["Phase III clinical", "Guideline inclusion", "KOL endorsement"],
+        typicalNegativeFamilies: ["Competitor counteraction", "Operational friction", "Prescriber behavior"],
+        commonTraps: "Treating Phase 3 superiority data as incremental when it actually changes the competitive frame. A drug that shows H2H superiority on a functional endpoint (e.g., proptosis reduction, strabismus elimination) is not a me-too — apply the differentiated challenger prior, not the same-mechanism prior.",
+      },
+      {
+        id: randomUUID(),
+        archetypeName: "Differentiated challenger (H2H superiority)",
+        defaultPriorProbability: 0.45,
+        priorRationale: "Drug demonstrates statistically significant superiority vs standard of care on a patient-relevant endpoint in Phase 3. This shifts the competitive frame from 'me-too' to 'practice-changing'. Prior 0.40-0.55 depending on effect size magnitude and endpoint clinical relevance.",
+        typicalPositiveFamilies: ["Phase III clinical", "Guideline inclusion", "Real-world evidence", "KOL endorsement"],
+        typicalNegativeFamilies: ["Payer / coverage", "Operational friction", "Competitor counteraction"],
+        commonTraps: "Over-weighting the clinical differentiation without accounting for payer access barriers. Even a clearly superior drug can be blocked by formulary restrictions, step therapy requirements, or site-of-care limitations.",
+      },
+      {
+        id: randomUUID(),
+        archetypeName: "First-in-class / novel mechanism",
+        defaultPriorProbability: 0.35,
+        priorRationale: "Novel mechanism with no direct competitor. High clinical interest but adoption constrained by prescriber unfamiliarity, monitoring requirements, and payer caution on unproven long-term value. Prior 0.30-0.40.",
+        typicalPositiveFamilies: ["Phase III clinical", "Guideline inclusion", "KOL endorsement"],
+        typicalNegativeFamilies: ["Operational friction", "Payer / coverage", "Field intelligence"],
+        commonTraps: "Confusing clinical excitement with commercial adoption. KOLs may champion the drug while community prescribers wait 12-18 months for real-world data.",
+      },
+      {
+        id: randomUUID(),
+        archetypeName: "Orphan / rare disease launch",
+        defaultPriorProbability: 0.30,
+        priorRationale: "Specialty rare disease launch. Small addressable population with concentrated prescribers. Adoption depends on diagnosis rate, center access, and specialty pharmacy infrastructure. Prior 0.25-0.35.",
+        typicalPositiveFamilies: ["KOL endorsement", "Guideline inclusion", "Phase III clinical"],
+        typicalNegativeFamilies: ["Operational friction", "Payer / coverage", "Field intelligence"],
+        commonTraps: "Overestimating addressable population. Diagnosis bottleneck and center concentration often suppress year-1 adoption below model expectations.",
+      },
+      {
+        id: randomUUID(),
+        archetypeName: "Safety-constrained therapy",
+        defaultPriorProbability: 0.20,
+        priorRationale: "Therapy has a meaningful safety signal requiring REMS, black box warning, or ongoing monitoring. Prescriber risk aversion dominates early adoption. Prior 0.15-0.25.",
+        typicalPositiveFamilies: ["Phase III clinical", "Real-world evidence"],
+        typicalNegativeFamilies: ["Safety / tolerability", "Operational friction", "Prescriber behavior"],
+        commonTraps: "Assuming safety monitoring costs are absorbed without friction. REMS certification, monitoring infrastructure, and liability concern create compounding barriers.",
+      },
+      {
+        id: randomUUID(),
+        archetypeName: "Biosimilar / generic entry",
+        defaultPriorProbability: 0.40,
+        priorRationale: "Biosimilar or authorized generic entering a market with established branded product. Payer-driven switching expected but prescriber inertia and patient loyalty programs slow uptake. Prior 0.35-0.45.",
+        typicalPositiveFamilies: ["Payer / coverage", "Phase III clinical", "Guideline inclusion"],
+        typicalNegativeFamilies: ["Competitor counteraction", "Field intelligence", "Prescriber behavior"],
+        commonTraps: "Underestimating the branded manufacturer's defensive playbook (co-pay cards, authorized generics, rebate walls).",
+      },
+      {
+        id: randomUUID(),
+        archetypeName: "CNS / stigma-affected indication",
+        defaultPriorProbability: 0.15,
+        priorRationale: "CNS, addiction, or psychiatry indication where stigma and systemic access barriers suppress adoption beyond clinical merit. Medicaid restrictions, prescriber certification, and patient identification friction dominate. Prior 0.10-0.20.",
+        typicalPositiveFamilies: ["Phase III clinical", "Guideline inclusion"],
+        typicalNegativeFamilies: ["Prescriber behavior", "Payer / coverage", "Operational friction"],
+        commonTraps: "Building the forecast on clinical efficacy alone. In stigma-affected indications, operational barriers (Medicaid PA, prescriber willingness, patient identification) dominate over clinical data.",
       },
     ]);
 

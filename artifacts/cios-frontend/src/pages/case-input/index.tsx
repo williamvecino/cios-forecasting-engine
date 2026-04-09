@@ -104,6 +104,12 @@ export default function CaseInputPage() {
   const [priorLoading, setPriorLoading] = useState(false);
   const [showDeferred, setShowDeferred] = useState(false);
 
+  // Evidence Preview state — prior is locked until evidence search runs
+  const [evidencePreview, setEvidencePreview] = useState<any[] | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceSearched, setEvidenceSearched] = useState(false);
+  const [evidenceDifferentiation, setEvidenceDifferentiation] = useState<string | null>(null);
+
   const questionText = `Will ${actor || "[actor]"} ${action || "[action]"} in ${geography} within ${timeHorizon}?`;
 
   const addSignal = useCallback(() => {
@@ -416,8 +422,141 @@ export default function CaseInputPage() {
           </div>
         </section>
 
+        {/* ── EVIDENCE PREVIEW (must run before prior is set) ── */}
         <section className="rounded-2xl border border-border bg-card p-6 space-y-5">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Baseline Probability</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Evidence Preview</h2>
+            {evidenceSearched && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Completed</span>}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Run evidence search before setting the prior. Let the evidence define the competitive profile.
+          </p>
+
+          <button
+            type="button"
+            disabled={evidenceLoading || (!caseName.trim() && !actor.trim())}
+            onClick={async () => {
+              setEvidenceLoading(true);
+              setEvidencePreview(null);
+              setEvidenceDifferentiation(null);
+              try {
+                const res = await fetch(`${API}/api/ai-signals/structured-search`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    subject: caseName.trim() || actor.trim(),
+                    indication: actor.trim(),
+                    questionText: questionText,
+                  }),
+                });
+                const data = await res.json();
+                const sigs = (data.signals || []).slice(0, 5);
+                setEvidencePreview(sigs);
+                setEvidenceSearched(true);
+
+                // Assess differentiation from evidence
+                const posCount = sigs.filter((s: any) => s.direction === "increases_probability").length;
+                const negCount = sigs.filter((s: any) => s.direction === "decreases_probability").length;
+                const highStrength = sigs.filter((s: any) => s.strength === "High").length;
+
+                let diffMsg = "";
+                if (highStrength >= 3 && posCount >= 3) {
+                  diffMsg = "Evidence suggests differentiated profile — consider prior 0.45-0.55";
+                  setBaselineProbability(50);
+                } else if (posCount > negCount && highStrength >= 1) {
+                  diffMsg = "Moderate differentiation found — consider prior 0.35-0.45";
+                  setBaselineProbability(40);
+                } else if (posCount <= negCount) {
+                  diffMsg = "Limited differentiation found — consider prior 0.20-0.35";
+                  setBaselineProbability(28);
+                } else {
+                  diffMsg = "Mixed evidence — consider prior 0.30-0.40";
+                  setBaselineProbability(35);
+                }
+                setEvidenceDifferentiation(diffMsg);
+                setBaselineReason(`Evidence-informed: ${diffMsg}. ${sigs.length} signals reviewed.`);
+
+                // Also fetch prior suggestion from reference cases
+                const params = new URLSearchParams();
+                if (caseName.trim()) params.set("drugName", caseName.trim());
+                if (actor.trim()) params.set("indication", actor.trim());
+                const priorRes = await fetch(`${API}/api/suggest-prior?${params}`);
+                const priorData = await priorRes.json();
+                setPriorSuggestion(priorData);
+                if (priorData.suggestion) {
+                  setBaselineProbability(Math.round(priorData.suggestion.suggestedPrior * 100));
+                  setBaselineReason(priorData.suggestion.explanation);
+                }
+              } catch {
+                setEvidencePreview([]);
+                setEvidenceDifferentiation("Evidence search failed — set prior manually.");
+                setEvidenceSearched(true);
+              }
+              setEvidenceLoading(false);
+            }}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition disabled:opacity-40"
+          >
+            {evidenceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {evidenceSearched ? "Re-run Evidence Search" : "Run Evidence Search"}
+          </button>
+
+          {evidenceLoading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Searching clinical evidence, regulatory actions, guidelines, safety data, and payer landscape...
+            </div>
+          )}
+
+          {evidencePreview && evidencePreview.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Top {evidencePreview.length} Candidate Signals</div>
+              {evidencePreview.map((s: any, i: number) => (
+                <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${
+                  s.direction === "increases_probability"
+                    ? "border-emerald-500/15 bg-emerald-500/5"
+                    : "border-rose-500/15 bg-rose-500/5"
+                }`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <p className="text-foreground/80">{s.text || s.rationale}</p>
+                      {s.trialName && <p className="text-muted-foreground mt-0.5">Trial: {s.trialName}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-[10px] font-semibold ${s.direction === "increases_probability" ? "text-emerald-400" : "text-rose-400"}`}>
+                        {s.direction === "increases_probability" ? "Supports" : "Opposes"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{s.strength}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {evidencePreview && evidencePreview.length === 0 && (
+            <p className="text-xs text-muted-foreground">No evidence found. Set prior manually based on clinical judgment.</p>
+          )}
+
+          {evidenceDifferentiation && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+              <p className="text-xs font-semibold text-amber-400">{evidenceDifferentiation}</p>
+            </div>
+          )}
+
+          {!evidenceSearched && (
+            <div className="rounded-lg border border-border/40 bg-muted/10 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Prior probability is locked until evidence preview runs. Enter drug name and indication above, then click "Run Evidence Search".</p>
+            </div>
+          )}
+        </section>
+
+        {/* ── BASELINE PROBABILITY (unlocked after evidence preview) ── */}
+        <section className={`rounded-2xl border bg-card p-6 space-y-5 transition ${evidenceSearched ? "border-border" : "border-border/30 opacity-60 pointer-events-none"}`}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Baseline Probability</h2>
+            {!evidenceSearched && <span className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider">Locked — run evidence search first</span>}
+          </div>
 
           <div className="grid grid-cols-[160px_1fr] gap-4 items-start">
             <div className="space-y-1.5">
