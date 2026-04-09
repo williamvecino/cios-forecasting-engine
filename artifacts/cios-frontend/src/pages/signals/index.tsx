@@ -1125,32 +1125,50 @@ export default function SignalsPage() {
       }, 1200);
     };
 
-    const persisted = (() => {
-      try {
-        const raw = localStorage.getItem(`cios.signals:${caseKey}`);
-        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return stripNonMatchingBrandSignals(p, subject) as Signal[]; }
-      } catch {}
-      return null;
-    })();
-    if (persisted && persisted.length > 0) {
-      restoreSignals(persisted);
-    } else if (caseKey && caseKey !== "unknown") {
+    if (caseKey && caseKey !== "unknown") {
       const API = import.meta.env.VITE_API_URL || "";
+      const persisted = (() => {
+        try {
+          const raw = localStorage.getItem(`cios.signals:${caseKey}`);
+          if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return stripNonMatchingBrandSignals(p, subject) as Signal[]; }
+        } catch {}
+        return null;
+      })();
+
       fetch(`${API}/api/cases/${caseKey}/signal-state`)
         .then((r) => r.json())
         .then((data) => {
           if (data?.signals && Array.isArray(data.signals) && data.signals.length > 0) {
-            const cleaned = stripNonMatchingBrandSignals(data.signals, subject) as Signal[];
-            if (cleaned.length > 0) {
-              try { localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(cleaned)); } catch {}
+            const apiCleaned = stripNonMatchingBrandSignals(data.signals, subject) as Signal[];
+            if (apiCleaned.length > 0) {
+              let merged = apiCleaned;
+              if (persisted && persisted.length > 0) {
+                const apiIds = new Set(apiCleaned.map((s: Signal) => s.id));
+                const localExtras = persisted.filter((s: Signal) => !apiIds.has(s.id));
+                const localMap = new Map(persisted.map((s: Signal) => [s.id, s]));
+                merged = apiCleaned.map((s: Signal) => {
+                  const local = localMap.get(s.id);
+                  return local ? { ...s, ...local, text: s.text, category: s.category, direction: s.direction } : s;
+                });
+                if (localExtras.length > 0) merged = [...merged, ...localExtras];
+              }
+              try { localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(merged)); } catch {}
               if (data.contextKey) {
                 try { localStorage.setItem(`cios.aiRequested:${caseKey}`, data.contextKey); } catch {}
               }
-              restoreSignals(cleaned);
+              restoreSignals(merged);
+              return;
             }
           }
+          if (persisted && persisted.length > 0) {
+            restoreSignals(persisted);
+          }
         })
-        .catch(() => {});
+        .catch(() => {
+          if (persisted && persisted.length > 0) {
+            restoreSignals(persisted);
+          }
+        });
     } else {
       setSignals(fallbackSuggestions.map((s: Signal) => enrichSignalFields(s, questionText, outcome)));
     }
