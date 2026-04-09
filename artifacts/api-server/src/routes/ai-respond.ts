@@ -141,6 +141,10 @@ CRITICAL RULES:
 - highest_impact_lever: Name ONE specific action, not a list. Explain why THIS action would have the largest effect on probability. Must be operationally specific, not strategic platitude. The lever MUST be logically tied to the primary constraint.
 - realistic_ceiling: ONE sentence describing what is achievable without removing the binding constraint.
 
+═══ H2H / COMPARATIVE STUDY RECOMMENDATION GUARD (MANDATORY) ═══
+NEVER recommend "conduct a head-to-head trial," "generate H2H data," or "publish comparative effectiveness data" as the highest_impact_lever UNLESS the signal stack already contains comparative or superiority data (e.g., an existing H2H trial result, a published comparative effectiveness study, or indirect comparison analysis). H2H is a valid signal type when data exists. It is NOT a valid recommendation when data does not exist. If no comparative data appears in the signals above, recommend actions that leverage EXISTING evidence strengths instead — publication strategy, KOL education, real-world evidence programs, or payer engagement.
+═══ END H2H GUARD ═══
+
 EXECUTIVE FORMATTING (MANDATORY):
 - All probabilities must be displayed as rounded whole-number percentages (e.g. "18%" not "0.17860861821130714", "39%" not "0.3885")
 - NEVER output raw decimal probabilities in any field
@@ -337,8 +341,9 @@ function buildNeedleMovement(details: SignalDetail[]): NeedleMovement | null {
     contribution: `-${(Math.abs(s.pointContribution ?? 0) * 100).toFixed(1)}pp`,
   }));
 
-  const topConstraintCategory = movesDown[0]?.category || "operational";
-  const topDriverCategory = movesUp[0]?.category || "clinical";
+  // H2H / comparative data detection — check whether the signal stack already contains comparative evidence
+  const allDescriptions = details.map(d => (d.description || "").toLowerCase()).join(" ");
+  const hasComparativeData = /\bh2h\b|head.to.head|superiority|comparative\s+(efficacy|effectiveness|data|trial|study)|vs\s+\w+.*\b(trial|study|data)\b/.test(allDescriptions);
 
   const strategic: string[] = [];
   const tactical: string[] = [];
@@ -357,8 +362,15 @@ function buildNeedleMovement(details: SignalDetail[]): NeedleMovement | null {
       strategic.push(`Build a structured specialist education and adoption program targeting prescriber familiarity barriers`);
       tactical.push(`Deploy peer-to-peer education with KOLs who have direct prescribing experience`);
     } else if (topNeg.category === "competitive") {
-      strategic.push(`Develop differentiation strategy against entrenched alternatives`);
-      tactical.push(`Create comparative effectiveness messaging for specialist detailing`);
+      if (hasComparativeData) {
+        // Comparative data EXISTS — recommend deploying it, not generating it
+        strategic.push(`Accelerate communication of existing comparative efficacy evidence to shift prescriber perception`);
+        tactical.push(`Deploy comparative effectiveness data through peer-reviewed publication and KOL-led education`);
+      } else {
+        // No comparative data — recommend differentiation strategy (NOT H2H study)
+        strategic.push(`Develop differentiation strategy against entrenched alternatives based on current evidence strengths`);
+        tactical.push(`Focus specialist detailing on demonstrated clinical advantages from existing trial data`);
+      }
     } else if (topNeg.category === "access") {
       strategic.push(`Expand payer coverage through health economics and outcomes research submissions`);
       tactical.push(`Prioritize formulary negotiations with top specialty pharmacy networks`);
