@@ -17,6 +17,7 @@
  */
 
 import { db } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { classifyEvidence } from "./evidence-classifier.js";
 import {
   casesTable,
@@ -29,6 +30,7 @@ import {
   guidanceTable,
   fieldIntelligenceTable,
   watchlistTable,
+  caseSignalStateTable,
 } from "@workspace/db";
 import { randomUUID } from "crypto";
 
@@ -39,6 +41,7 @@ async function clearAll() {
   await db.delete(scenariosTable);
   await db.delete(calibrationLogTable);
   await db.delete(caseLibraryTable);
+  await db.delete(caseSignalStateTable);
   await db.delete(signalsTable);
   await db.delete(casesTable);
   await db.delete(actorsTable);
@@ -372,6 +375,70 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         observedAt: new Date("2025-12-15"),
         evidenceStatus: "Verified",
         rootEvidenceId: "ARIK-ROOT-ENCORE",
+        dependencyRole: "root",
+      },
+      {
+        id: randomUUID(),
+        signalId: "ARIK-008",
+        caseId: "CASE-DEMO-01",
+        candidateId: "ARIK-008",
+        brand: "Arikayce",
+        signalDescription:
+          "CONVERT trial \u2014 Arikayce plus background regimen in refractory MAC. 29% culture conversion vs 8.9% placebo at Month 6. AJRCCM 2018. Establishes proof of concept for amikacin liposome inhalation in MAC. Supports first-line hypothesis.",
+        signalType: "Phase III clinical",
+        direction: "Positive",
+        strengthScore: 4,
+        reliabilityScore: 5,
+        scope: "national",
+        timing: "current",
+        likelihoodRatio: 1.0,
+        route: "CIOS\u2192MIOS",
+        targetPopulation: "Pulmonology / ID specialist",
+        miosFlag: "Yes",
+        ohosFlag: "No",
+        weightedSignalScore: 20,
+        actorAdjustedImpact: null,
+        activeLikelihoodRatio: 1.0,
+        absoluteImpact: null,
+        status: "active",
+        createdByType: "human",
+        signalFamily: "Clinical Evidence Strength",
+        sourceUrl: "https://www.ncbi.nlm.nih.gov/pubmed",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
+        rootEvidenceId: "ARIK-ROOT-CONVERT",
+        dependencyRole: "root",
+      },
+      {
+        id: randomUUID(),
+        signalId: "ARIK-009",
+        caseId: "CASE-DEMO-01",
+        candidateId: "ARIK-009",
+        brand: "Arikayce",
+        signalDescription:
+          "Post-marketing REMS requires in-clinic FEV1 monitoring for first 6 doses due to bronchospasm risk (8.4% in trials). Scheduling burden at community pulmonology sites without dedicated spirometry workflow.",
+        signalType: "Safety signal",
+        direction: "Negative",
+        strengthScore: 4,
+        reliabilityScore: 4,
+        scope: "national",
+        timing: "current",
+        likelihoodRatio: 1.0,
+        route: "CIOS\u2192OHOS",
+        targetPopulation: "All prescribers",
+        miosFlag: "No",
+        ohosFlag: "Yes",
+        weightedSignalScore: 16,
+        actorAdjustedImpact: null,
+        activeLikelihoodRatio: 1.0,
+        absoluteImpact: null,
+        status: "active",
+        createdByType: "human",
+        signalFamily: "Safety / Pharmacovigilance",
+        sourceUrl: "https://www.fda.gov/drugs/postmarket-drug-safety-information-patients-and-providers",
+        observedAt: new Date("2025-12-15"),
+        evidenceStatus: "Verified",
+        rootEvidenceId: "ARIK-ROOT-REMS",
         dependencyRole: "root",
       },
 
@@ -1277,6 +1344,37 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         notes: "Monitor competitor regulatory filings and approval timeline.",
       },
     ]);
+
+    const demoCaseIds = ["CASE-DEMO-01", "CASE-DEMO-02", "CASE-DEMO-03"];
+    for (const cid of demoCaseIds) {
+      const caseSignals = await db.select().from(signalsTable).where(eq(signalsTable.caseId, cid));
+      if (caseSignals.length > 0) {
+        const strengthLabel = (s: number) => s >= 4 ? "High" : s >= 3 ? "Medium" : "Low";
+        const reliabilityLabel = (s: number) => s >= 4 ? "Confirmed" : s >= 3 ? "Probable" : "Speculative";
+        const signalData = caseSignals.map(s => ({
+          id: s.signalId,
+          text: s.signalDescription,
+          caveat: "",
+          source: "api",
+          accepted: true,
+          category: s.signalType,
+          strength: strengthLabel(s.strengthScore),
+          direction: s.direction.toLowerCase(),
+          reliability: reliabilityLabel(s.reliabilityScore),
+          evidenceClass: s.evidenceClass || "DynamicSignal",
+          evidenceStatus: s.evidenceStatus || "Verified",
+          countTowardPosterior: s.countTowardPosterior ?? true,
+        }));
+        await db.insert(caseSignalStateTable).values({
+          caseId: cid,
+          signalData,
+          updatedAt: new Date(),
+        }).onConflictDoUpdate({
+          target: caseSignalStateTable.caseId,
+          set: { signalData, updatedAt: new Date() },
+        });
+      }
+    }
 
     return { success: true, message: "Database seeded with generic CIOS demonstration data." };
   } catch (error) {
