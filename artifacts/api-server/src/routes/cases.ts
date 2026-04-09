@@ -209,7 +209,7 @@ router.put("/cases/:caseId", async (req, res) => {
   const [existing] = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
   if (!existing) return res.status(404).json({ error: "Not found" });
 
-  const LOCKED_FIELDS = ["outcomeDefinition", "outcomeThreshold", "timeHorizon", "priorArchetype", "strategicQuestion", "priorProbability"] as const;
+  const LOCKED_FIELDS = ["outcomeDefinition", "outcomeThreshold", "timeHorizon", "priorArchetype", "strategicQuestion"] as const;
   const isLocked = !!existing.fieldsLockedAt;
   const explicitUnlock = body._unlockFields === true;
 
@@ -285,6 +285,49 @@ router.put("/cases/:caseId", async (req, res) => {
     .returning();
   if (!updated) return res.status(404).json({ error: "Not found" });
   res.json(mapCase(updated));
+});
+
+router.patch("/cases/:caseId/prior", async (req, res) => {
+  try {
+    const { priorProbability, reason } = req.body;
+    if (priorProbability == null || typeof priorProbability !== "number" || priorProbability <= 0 || priorProbability >= 1) {
+      return res.status(400).json({ error: "priorProbability must be a number between 0 and 1 (exclusive)." });
+    }
+    if (!reason || typeof reason !== "string" || reason.trim().length < 20) {
+      return res.status(400).json({ error: "reason is required and must be at least 20 characters." });
+    }
+
+    const [existing] = await db.select().from(casesTable).where(eq(casesTable.caseId, req.params.caseId)).limit(1);
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    const oldPrior = existing.priorProbability;
+    const logEntry = {
+      from: oldPrior,
+      to: priorProbability,
+      reason: reason.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    const existingLog = Array.isArray(existing.priorChangeLog) ? existing.priorChangeLog : [];
+    const updatedLog = [...existingLog, logEntry];
+
+    const [updated] = await db.update(casesTable)
+      .set({
+        priorProbability,
+        priorChangeLog: updatedLog,
+        lastUpdate: new Date(),
+      })
+      .where(eq(casesTable.caseId, req.params.caseId))
+      .returning();
+
+    if (!updated) return res.status(404).json({ error: "Not found" });
+
+    console.log(`[prior-edit] caseId=${req.params.caseId} from=${oldPrior} to=${priorProbability} reason="${reason.trim().slice(0, 80)}"`);
+    res.json({ ok: true, caseId: req.params.caseId, previousPrior: oldPrior, newPrior: priorProbability, changeLog: updatedLog });
+  } catch (err: any) {
+    console.error("[prior-edit] Error:", err?.message);
+    res.status(500).json({ error: err?.message || "Failed to update prior" });
+  }
 });
 
 router.delete("/cases/:caseId", async (req, res) => {

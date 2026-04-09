@@ -27,7 +27,8 @@ export const casesTable = pgTable("cases", {
   timeHorizon: text("time_horizon").default("12 months"),
 
   // Bayesian engine inputs
-  priorProbability: real("prior_probability").notNull().default(0.45),
+  priorProbability: real("prior_probability").notNull().default(0.50),
+  priorChangeLog: jsonb("prior_change_log"),
 
   // Actor environment context
   primarySpecialtyProfile: text("primary_specialty_profile").default("General"),

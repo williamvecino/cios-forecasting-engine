@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRoute, Link } from "wouter";
 import { useRunForecast, useGetCase, useListSignals } from "@workspace/api-client-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { RecalculateForecastButton } from "@/components/recalculate-forecast-button";
 import type { CaseSummary, ForecastDetailResponse, SignalDetail, ScenarioSimulationResponse, ScenarioSimulationRequest } from "@workspace/contracts";
 import { AppLayout } from "@/components/layout";
@@ -30,6 +30,9 @@ import {
   Eye,
   AlertCircle,
   Loader2,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 
 function formatPct(v: number) {
@@ -58,6 +61,120 @@ function impactBadgeVariant(label: string): "success" | "warning" | "default" {
   if (label === "High") return "success";
   if (label === "Medium") return "warning";
   return "default";
+}
+
+function PriorEditInline({ caseId, currentPrior }: { caseId: string; currentPrior: number }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(Math.round(currentPrior * 100));
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleOpen = () => {
+    setValue(Math.round(currentPrior * 100));
+    setReason("");
+    setError(null);
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    setError(null);
+  };
+
+  const handleSave = async () => {
+    if (reason.trim().length < 20) {
+      setError("Justification must be at least 20 characters.");
+      return;
+    }
+    const newPrior = value / 100;
+    if (newPrior <= 0 || newPrior >= 1) {
+      setError("Prior must be between 1% and 99%.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const API = import.meta.env.VITE_API_URL || "";
+      const res = await fetch(`${API}/api/cases/${caseId}/prior`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priorProbability: newPrior, reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to update prior");
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      setEditing(false);
+    } catch (err: any) {
+      setError(err?.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div>
+        <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Prior</div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <div className="text-lg font-semibold text-foreground/70">{formatPct(currentPrior)}</div>
+          <button onClick={handleOpen} className="text-muted-foreground hover:text-primary transition-colors" title="Edit prior">
+            <Pencil className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-[260px]">
+      <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Edit Prior</div>
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={99}
+            value={value}
+            onChange={e => setValue(Math.max(1, Math.min(99, Number(e.target.value))))}
+            className="w-16 rounded border border-border bg-background px-2 py-1 text-sm text-center tabular-nums font-semibold"
+          />
+          <span className="text-xs text-muted-foreground">%</span>
+          <span className="text-xs text-muted-foreground ml-2">was {formatPct(currentPrior)}</span>
+        </div>
+        <div>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="Why are you changing the prior? (min 20 chars)"
+            rows={2}
+            className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs resize-none"
+          />
+          <div className="flex items-center justify-between mt-1">
+            <span className={cn("text-[10px]", reason.trim().length < 20 ? "text-destructive/60" : "text-muted-foreground")}>
+              {reason.trim().length}/20 min
+            </span>
+            <div className="flex gap-1.5">
+              <button onClick={handleCancel} disabled={saving} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded border border-border">
+                <X className="w-3 h-3" /> Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || reason.trim().length < 20}
+                className="flex items-center gap-1 text-xs text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-40 transition-colors px-2 py-0.5 rounded"
+              >
+                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save
+              </button>
+            </div>
+          </div>
+          {error && <div className="text-[10px] text-destructive mt-1">{error}</div>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) {
@@ -385,10 +502,8 @@ export default function QuestionDetail() {
                   <div className="text-sm text-muted-foreground mt-1.5">Current probability</div>
                 </div>
                 <div className="flex gap-8">
-                  <div>
-                    <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Prior</div>
-                    <div className="text-lg font-semibold text-foreground/70 mt-0.5">{formatPct(priorProb)}</div>
-                  </div>
+                  <PriorEditInline caseId={caseId} currentPrior={priorProb} />
+
                   <div>
                     <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Change</div>
                     <div className={cn("text-lg font-semibold mt-0.5", changePts >= 0 ? "text-success" : "text-destructive")}>
