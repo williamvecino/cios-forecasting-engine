@@ -156,7 +156,8 @@ function deriveDirectionSafeLR(body: Record<string, any>): number {
   const direction = (body.direction ?? "Positive") as string;
   const precedent = lookupPrecedentLr(signalType, direction);
   if (!precedent.matched) {
-    throw new Error(`Signal type "${signalType}" not found in precedent library. Cannot assign LR.`);
+    console.warn(`[deriveDirectionSafeLR] Signal type "${signalType}" not in precedent library — defaulting LR to 1.0. Will be resolved during recalculation.`);
+    return 1.0;
   }
   return precedent.assignedLr;
 }
@@ -353,7 +354,7 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     sourceCluster: body.sourceCluster || null,
     noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
     evidenceClass: classification.evidenceClass,
-    countTowardPosterior: false, // Always false on creation — verified during transition to active
+    countTowardPosterior: createdByType === "human" ? classification.countTowardPosterior : false,
   }).returning();
 
   // Evidence verification now runs during transition to active (not at creation time),
