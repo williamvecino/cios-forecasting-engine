@@ -160,6 +160,11 @@ export default function DecisionPanels() {
   }, [forecast]);
 
   const topNegativeSignals = useMemo(() => {
+    const isH2hAbsence = (s: SignalDetail) => {
+      const type = (s.signalType || "").toLowerCase();
+      return type.includes("h2h") && s.direction === "Negative";
+    };
+
     const negatives = allSignals
       .filter((s) => {
         const lr = s.likelihoodRatio ?? s.lr ?? 1;
@@ -168,8 +173,9 @@ export default function DecisionPanels() {
       .map((s) => {
         const lr = s.likelihoodRatio ?? s.lr ?? 1;
         const contribution = s.contributionPp ?? (lr < 1 ? Math.round((1 - lr) * prior! * 100) : 0);
-        return { ...s, contribution };
+        return { ...s, contribution, _h2hAbsence: isH2hAbsence(s) };
       })
+      .filter((s) => !s._h2hAbsence)
       .sort((a, b) => b.contribution - a.contribution);
     return negatives.slice(0, 3);
   }, [allSignals, prior]);

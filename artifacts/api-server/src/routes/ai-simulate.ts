@@ -321,6 +321,7 @@ RULES:
 - State clearly what the material changes and what it does not change
 - Identify the primary remaining barrier after accounting for material impact
 - Identify the strongest trigger that would increase movement for this ${isRegulatory ? "stakeholder" : "segment"}
+- CRITICAL: "Absence of H2H (head-to-head) superiority data" is a structural market condition, NOT an actionable recommendation. Do NOT recommend "run a H2H trial" or "generate H2H data" as the strongest trigger for movement. Instead, identify the next most impactful actionable lever (e.g., payer pathway, guideline inclusion, real-world evidence). H2H absence may appear as a barrier but never as the strongest_trigger_for_movement.
 
 OUTPUT FORMAT (return valid JSON):
 {
@@ -395,7 +396,16 @@ Score how the ${body.segment} segment will react given these features and curren
       what_this_changes: parsed.what_this_changes || "",
       what_this_does_not_change: parsed.what_this_does_not_change || "",
       primary_remaining_barrier: parsed.primary_remaining_barrier || "",
-      strongest_trigger_for_movement: parsed.strongest_trigger_for_movement || "",
+      strongest_trigger_for_movement: (() => {
+        const raw = parsed.strongest_trigger_for_movement || "";
+        const lower = raw.toLowerCase();
+        if (lower.includes("h2h") || lower.includes("head-to-head") || lower.includes("head to head") || lower.includes("run a") && lower.includes("trial")) {
+          return parsed.primary_remaining_barrier
+            ? `Resolve: ${parsed.primary_remaining_barrier}`
+            : "Secure favorable payer pathway and access coverage";
+        }
+        return raw;
+      })(),
       material_effectiveness: parsed.material_effectiveness || "",
       material_features: features,
       signal_classifications: Array.isArray(parsed.signal_classifications)
@@ -457,7 +467,9 @@ function buildConstraintContext(body: SimulateRequest): string {
   if (body.signals?.length) {
     parts.push("\nACTIVE SIGNALS:");
     body.signals.forEach(s => {
-      parts.push(`- [${s.direction}] [${s.importance}] ${s.text}`);
+      const isH2hAbsence = (s.text || "").toLowerCase().includes("h2h") && (s.direction || "").toLowerCase() === "negative";
+      const tag = isH2hAbsence ? " [BARRIER ONLY — not actionable]" : "";
+      parts.push(`- [${s.direction}] [${s.importance}] ${s.text}${tag}`);
     });
   }
 
