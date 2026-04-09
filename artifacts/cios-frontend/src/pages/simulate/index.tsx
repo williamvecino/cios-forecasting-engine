@@ -325,6 +325,18 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
 }) {
   const [activeSection, setActiveSection] = useState<AccordionSection>("reaction");
 
+  interface SavedScenarioLocal {
+    name: string;
+    label: "Base" | "Bull" | "Bear" | string;
+    probability: number;
+    reaction: string;
+    barrier: string;
+    trigger: string;
+    confidence: string;
+  }
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenarioLocal[]>([]);
+  const [scenarioName] = useState("");
+
   const apiCaseType = result.case_type;
   const isSafetyFromApi = apiCaseType === "safety_risk";
   const isRegulatoryFromApi = apiCaseType === "regulatory_approval";
