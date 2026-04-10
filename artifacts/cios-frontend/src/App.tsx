@@ -67,9 +67,6 @@ function QuestionPageFresh() {
 function HomeRedirect() {
   const [, navigate] = useLocation();
   useEffect(() => {
-    try {
-      localStorage.removeItem("cios.activeQuestion");
-    } catch {}
     navigate("/question", { replace: true });
   }, [navigate]);
   return null;
