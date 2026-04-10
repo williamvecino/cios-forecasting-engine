@@ -165,10 +165,10 @@ interface Interpretation {
 type PageState = "input" | "structuring" | "reviewing" | "refining" | "creating";
 
 const FORECAST_TEMPLATE_MAP: Record<string, { placeholder: string; archetype: string }> = {
-  "adoption-forecast": { placeholder: "Will [therapy] achieve [X]% adoption among [target specialists] within [timeframe]?", archetype: "Early Adoption Acceleration" },
-  "competitive-displacement": { placeholder: "Will [new entrant] displace [incumbent therapy] in [segment] within [timeframe]?", archetype: "Launch Timing Decision" },
+  "adoption-forecast": { placeholder: "Will [therapy] achieve [X]% adoption among [target specialists] within [timeframe]?", archetype: "Launch Adoption Risk" },
+  "competitive-displacement": { placeholder: "Will [new entrant] displace [incumbent therapy] in [segment] within [timeframe]?", archetype: "Competitive Displacement Risk" },
   "payer-access-risk": { placeholder: "Will [payer/PBM] implement [restriction type] for [therapy] within [timeframe]?", archetype: "Market Access Constraint" },
-  "geographic-expansion": { placeholder: "Will [therapy] achieve formulary access in [geographic region] within [timeframe]?", archetype: "Broad Adoption Expansion" },
+  "geographic-expansion": { placeholder: "Will [therapy] achieve formulary access in [geographic region] within [timeframe]?", archetype: "Launch Adoption Risk" },
 };
 
 export default function QuestionPage() {
@@ -1543,67 +1543,85 @@ export default function QuestionPage() {
               </div>
             )}
 
-            {pageState === "input" && priorTemplates.length > 0 && (
+            {pageState === "input" && (() => {
+              const ARCHETYPE_CARDS: { name: string; prior: number; tagline: string; examples: string; comingSoon: boolean; templateId: string; rationale: string; trap: string }[] = [
+                { name: "Launch Adoption Risk", prior: 0.50, tagline: "Will a new product achieve its adoption target post-launch?", examples: "First-year share goals, formulary uptake speed, launch trajectory vs. plan", comingSoon: false, templateId: "pt-01", rationale: "Baseline assumption for predicting whether a newly launched product will hit its adoption milestone. Half of similar launches meet their initial targets.", trap: "Anchoring too heavily on company guidance timelines without cross-checking regulatory history." },
+                { name: "Competitive Displacement Risk", prior: 0.40, tagline: "Will a new entrant displace an incumbent therapy?", examples: "Biosimilar erosion, best-in-class switching, formulary substitution", comingSoon: false, templateId: "pt-04", rationale: "Baseline assumption for predicting whether a competitive entrant will meaningfully displace an established therapy. Below even because incumbents retain structural advantages.", trap: "Assuming early specialist uptake predicts community physician behavior." },
+                { name: "Market Access Constraint", prior: 0.45, tagline: "Will payer barriers limit a product's commercial reach?", examples: "Prior auth, step therapy, formulary exclusion, coverage decisions", comingSoon: false, templateId: "pt-05", rationale: "Baseline assumption for predicting whether payer, reimbursement, formulary, or coverage barriers will limit use. Below even because access friction is a common bottleneck.", trap: "Overweighting launch-day formulary placement without tracking prior authorization burden." },
+                { name: "Regulatory Outcome Risk", prior: 0.35, tagline: "Will a regulatory milestone succeed or fail?", examples: "FDA approval, label changes, safety reviews, REMS decisions", comingSoon: true, templateId: "pt-02", rationale: "Baseline assumption for predicting whether a regulatory milestone will succeed, be delayed, or fail. Historically, roughly one-third of first-cycle submissions receive approval without delay.", trap: "Assuming regulatory precedent from a different therapeutic area applies equally." },
+                { name: "Early Adoption Acceleration", prior: 0.55, tagline: "Will specialists adopt faster than expected?", examples: "KOL uptake, early prescriber behavior, clinical trial impact on practice", comingSoon: true, templateId: "pt-03", rationale: "Baseline assumption for predicting whether early adopters — specialists, KOLs, or expert centers — will adopt faster than expected. Slightly above even because early-adopter segments tend to move ahead of broader consensus.", trap: "Conflating KOL enthusiasm at congresses with actual prescribing behavior." },
+                { name: "Clinical Differentiation Sustainability", prior: 0.45, tagline: "Will clinical differentiation hold up over time?", examples: "Real-world evidence erosion, competitive data maturation, guideline shifts", comingSoon: true, templateId: "", rationale: "Baseline assumption for predicting whether a product's clinical differentiation will sustain against emerging data, new entrants, and evolving treatment guidelines.", trap: "Overweighting pivotal trial advantages without accounting for real-world evidence convergence." },
+              ];
+              return (
               <div className="space-y-4">
                 <div>
                   <h2 className="text-xl font-bold text-foreground">What type of decision?</h2>
                   <p className="text-sm text-muted-foreground mt-1">Select the archetype that matches your forecasting question. This sets the starting prior and guides signal collection.</p>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                  {priorTemplates.map((t: any) => {
-                    const isSelected = selectedArchetype === t.archetypeName;
-                    const descMap: Record<string, { tagline: string; examples: string }> = {
-                      "Launch Timing Decision": { tagline: "When will a product reach market?", examples: "Generic entry dates, launch readiness, manufacturing timelines" },
-                      "Regulatory Outcome Risk": { tagline: "Will a regulatory milestone succeed or fail?", examples: "FDA approval, label changes, safety reviews, REMS decisions" },
-                      "Early Adoption Acceleration": { tagline: "Will specialists adopt faster than expected?", examples: "KOL uptake, early prescriber behavior, clinical trial impact" },
-                      "Broad Adoption Expansion": { tagline: "Will adoption scale beyond early adopters?", examples: "Community physician uptake, formulary breadth, geographic spread" },
-                      "Market Access Constraint": { tagline: "Will payer barriers limit use?", examples: "Prior auth, step therapy, formulary exclusion, coverage decisions" },
-                    };
-                    const desc = descMap[t.archetypeName] || { tagline: "Strategic forecasting question", examples: "" };
+                  {ARCHETYPE_CARDS.map((card) => {
+                    const isSelected = selectedArchetype === card.name;
+                    const isDisabled = card.comingSoon;
                     return (
                       <button
-                        key={t.id}
+                        key={card.name}
                         type="button"
+                        disabled={isDisabled}
                         onClick={() => {
+                          if (isDisabled) return;
                           if (isSelected) {
                             setSelectedArchetype("");
                             setArchetypeRationale("");
                           } else {
-                            setSelectedArchetype(t.archetypeName);
-                            setArchetypeRationale(t.priorRationale);
+                            setSelectedArchetype(card.name);
+                            setArchetypeRationale(card.rationale);
                           }
                         }}
-                        className={`text-left rounded-2xl border-2 p-5 transition-all ${isSelected ? "border-cyan-500/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/5" : "border-border hover:border-cyan-500/30 bg-card hover:bg-card/80"}`}
+                        className={`text-left rounded-2xl border-2 p-5 transition-all relative ${
+                          isDisabled
+                            ? "border-border/50 bg-card/30 opacity-60 cursor-not-allowed"
+                            : isSelected
+                              ? "border-cyan-500/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/5"
+                              : "border-border hover:border-cyan-500/30 bg-card hover:bg-card/80"
+                        }`}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-bold text-foreground">{t.archetypeName}</span>
-                          <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${isSelected ? "bg-cyan-500/20 text-cyan-300" : "bg-muted text-muted-foreground"}`}>{Math.round(t.defaultPriorProbability * 100)}% prior</span>
-                        </div>
-                        <p className="text-xs text-foreground/70 mb-1.5">{desc.tagline}</p>
-                        {desc.examples && (
-                          <p className="text-[10px] text-muted-foreground">{desc.examples}</p>
+                        {isDisabled && (
+                          <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-widest text-amber-400/70 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">Coming Soon</span>
                         )}
+                        <div className="flex items-center justify-between mb-2 pr-1">
+                          <span className={`text-sm font-bold ${isDisabled ? "text-foreground/50" : "text-foreground"}`}>{card.name}</span>
+                          {!isDisabled && (
+                            <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${isSelected ? "bg-cyan-500/20 text-cyan-300" : "bg-muted text-muted-foreground"}`}>{Math.round(card.prior * 100)}% prior</span>
+                          )}
+                        </div>
+                        <p className={`text-xs mb-1.5 ${isDisabled ? "text-foreground/40" : "text-foreground/70"}`}>{card.tagline}</p>
+                        <p className={`text-[10px] ${isDisabled ? "text-muted-foreground/50" : "text-muted-foreground"}`}>{card.examples}</p>
                       </button>
                     );
                   })}
                 </div>
-                {selectedArchetype && (
-                  <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-2 h-2 rounded-full bg-cyan-400" />
-                      <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">Prior Rationale</span>
-                    </div>
-                    <p className="text-xs text-foreground/70">{archetypeRationale}</p>
-                    {(() => { const t = priorTemplates.find((pt: any) => pt.archetypeName === selectedArchetype); return t?.commonTraps ? (
-                      <div className="mt-2 pt-2 border-t border-cyan-500/10">
-                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Common Trap: </span>
-                        <span className="text-[10px] text-foreground/50">{t.commonTraps}</span>
+                {selectedArchetype && (() => {
+                  const card = ARCHETYPE_CARDS.find((c) => c.name === selectedArchetype);
+                  if (!card) return null;
+                  return (
+                    <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-cyan-400" />
+                        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">Prior Rationale</span>
                       </div>
-                    ) : null; })()}
-                  </div>
-                )}
+                      <p className="text-xs text-foreground/70">{card.rationale}</p>
+                      {card.trap && (
+                        <div className="mt-2 pt-2 border-t border-cyan-500/10">
+                          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Common Trap: </span>
+                          <span className="text-[10px] text-foreground/50">{card.trap}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-            )}
+              );
+            })()}
 
             <div className="rounded-2xl border border-border bg-card p-6">
               <label className="mb-3 block text-lg font-semibold text-foreground">
@@ -1617,10 +1635,8 @@ export default function QuestionPage() {
                 onChange={(e) => setRawInput(e.target.value)}
                 placeholder={(() => {
                   const placeholders: Record<string, string> = {
-                    "Launch Timing Decision": "Will [company] launch [product] in the U.S. by [date], or will the launch be delayed?",
-                    "Regulatory Outcome Risk": "Will the FDA approve [drug] for [indication] within [timeframe]?",
-                    "Early Adoption Acceleration": "Will [drug] achieve [X]% adoption among [specialists] within [timeframe]?",
-                    "Broad Adoption Expansion": "Will [therapy] achieve formulary access in [region] within [timeframe]?",
+                    "Launch Adoption Risk": "Will [drug] achieve >[X]% of new [indication] starts within [timeframe] of launch?",
+                    "Competitive Displacement Risk": "What is the probability that [new entrant] displaces [incumbent] in [indication] within [timeframe]?",
                     "Market Access Constraint": "Will [payer/PBM] implement [restriction] for [therapy] within [timeframe]?",
                   };
                   if (selectedArchetype && placeholders[selectedArchetype]) return placeholders[selectedArchetype];
