@@ -1,65 +1,11 @@
 import { useMemo } from "react";
-import { AlertTriangle, Check, Lightbulb } from "lucide-react";
+import { AlertTriangle, Check, Search } from "lucide-react";
 
 const DRIVER_CATEGORIES: Record<string, { label: string; keywords: string[] }> = {
   economic: { label: "Economic driver", keywords: ["price", "cost", "revenue", "margin", "reimbursement", "formulary", "copay", "economic", "financial", "budget", "payer", "payment", "rebate", "discount", "spend"] },
   structural: { label: "Structural defense", keywords: ["patent", "exclusivity", "regulatory", "fda", "ema", "approval", "label", "indication", "guideline", "formulary position", "lock", "barrier", "protection", "ip", "litigation"] },
   competitive: { label: "Competitive pressure", keywords: ["competitor", "biosimilar", "generic", "market share", "launch", "entrant", "rivalry", "competing", "alternative", "switch", "displacement", "threat"] },
   execution: { label: "Execution capacity", keywords: ["supply", "manufacturing", "distribution", "sales force", "launch readiness", "field", "commercial", "capacity", "infrastructure", "training", "operational", "execution"] },
-};
-
-const SUGGESTED_SIGNALS: Record<string, string[]> = {
-  economic: [
-    "Payer reimbursement rate change expected within forecast window",
-    "New formulary exclusion or step-edit requirement signaled",
-    "Gross-to-net spread widening due to contracting pressure",
-  ],
-  structural: [
-    "Key patent expiry or challenge filing within forecast period",
-    "Regulatory decision (FDA/EMA) pending for label expansion or restriction",
-    "New clinical guideline recommendation affecting prescribing hierarchy",
-  ],
-  competitive: [
-    "Competitor product launch or approval anticipated in forecast window",
-    "Biosimilar/generic entry expected to erode market share",
-    "Competitive clinical data readout that may shift prescriber preference",
-  ],
-  execution: [
-    "Supply chain constraint or manufacturing scale-up risk",
-    "Sales force expansion or contraction planned",
-    "Market access team capacity to handle formulary negotiations",
-  ],
-};
-
-const ADOPTION_SUGGESTED_SIGNALS: Record<string, string[]> = {
-  clinical_evidence_strength: [
-    "Strength of pivotal evidence for the specific use asked about",
-    "Real-world evidence supporting efficacy in the target patient population",
-  ],
-  guideline_soc_movement: [
-    "Likelihood and timing of guideline endorsement for the asked use",
-    "Current guideline positioning relative to competitors",
-  ],
-  access_reimbursement: [
-    "Formulary inclusion without restrictive prior authorization controls",
-    "Payer coverage alignment with the specific use asked about",
-  ],
-  prescriber_behavior: [
-    "Physician prescribing intent for the specific use",
-    "Clinician familiarity and comfort with the therapy",
-  ],
-  operational_delivery_friction: [
-    "Operational burden of therapy administration in the target setting",
-    "Training or infrastructure requirements for prescribers",
-  ],
-  competitive_soc_pressure: [
-    "Current treatment-sequencing inertia among target prescribers",
-    "Competing standard-of-care entrenchment in the target indication",
-  ],
-  launch_market_signals: [
-    "KOL support for the specific positioning asked about",
-    "Medical education and awareness activity in the target specialty",
-  ],
 };
 
 interface DriverCoverageSignal {
@@ -79,15 +25,18 @@ interface AdoptionMechanismCoverage {
 
 export default function DriverCoveragePanel({
   signals,
-  onAddSignal,
+  onSearchMissing,
   adoptionCoverage,
+  searchLoading,
 }: {
   signals: DriverCoverageSignal[];
+  onSearchMissing?: (missingLabels: string[]) => void;
   onAddSignal?: (text: string) => void;
   adoptionCoverage?: {
     mechanism_coverage: AdoptionMechanismCoverage[];
     missing_families: string[];
   } | null;
+  searchLoading?: boolean;
 }) {
   if (adoptionCoverage && adoptionCoverage.mechanism_coverage.length > 0) {
     const missingMechanisms = adoptionCoverage.mechanism_coverage.filter((mc) => !mc.covered);
@@ -144,34 +93,25 @@ export default function DriverCoveragePanel({
           })}
         </div>
 
-        {missingMechanisms.length > 0 && onAddSignal && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-medium">Suggested missing signals</span>
-            </div>
-            <div className="space-y-2">
-              {missingMechanisms.map((mc) => (
-                <div key={mc.family_id} className="space-y-1.5">
-                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    {mc.family_label}
-                  </div>
-                  {(ADOPTION_SUGGESTED_SIGNALS[mc.family_id] || []).map((suggestion, i) => (
-                    <div key={i} className="flex items-center gap-2 group">
-                      <div className="flex-1 text-[11px] text-foreground/70">{suggestion}</div>
-                      <button
-                        type="button"
-                        onClick={() => onAddSignal(suggestion)}
-                        className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition"
-                      >
-                        + Add
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+        {missingMechanisms.length > 0 && onSearchMissing && (
+          <button
+            type="button"
+            onClick={() => onSearchMissing(missingMechanisms.map((mc) => mc.family_label))}
+            disabled={searchLoading}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-300 hover:bg-amber-500/15 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {searchLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-amber-400 border-t-transparent" />
+                Searching for missing signals...
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4" />
+                Search for missing signals
+              </>
+            )}
+          </button>
         )}
       </div>
     );
@@ -252,34 +192,25 @@ export default function DriverCoveragePanel({
         })}
       </div>
 
-      {missingCategories.length > 0 && onAddSignal && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-            <span className="font-medium">Suggested missing signals</span>
-          </div>
-          <div className="space-y-2">
-            {missingCategories.map((cat) => (
-              <div key={cat} className="space-y-1.5">
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  {DRIVER_CATEGORIES[cat]?.label}
-                </div>
-                {SUGGESTED_SIGNALS[cat]?.map((suggestion, i) => (
-                  <div key={i} className="flex items-center gap-2 group">
-                    <div className="flex-1 text-[11px] text-foreground/70">{suggestion}</div>
-                    <button
-                      type="button"
-                      onClick={() => onAddSignal(suggestion)}
-                      className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
+      {missingCategories.length > 0 && onSearchMissing && (
+        <button
+          type="button"
+          onClick={() => onSearchMissing(missingCategories.map((k) => DRIVER_CATEGORIES[k]?.label || k))}
+          disabled={searchLoading}
+          className="w-full flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-300 hover:bg-amber-500/15 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {searchLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-amber-400 border-t-transparent" />
+              Searching for missing signals...
+            </>
+          ) : (
+            <>
+              <Search className="w-4 h-4" />
+              Search for missing signals
+            </>
+          )}
+        </button>
       )}
     </div>
   );

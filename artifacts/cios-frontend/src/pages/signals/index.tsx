@@ -51,17 +51,11 @@ import {
 } from "lucide-react";
 import DataImportDialog from "@/components/signals/DataImportDialog";
 import { SignalProvenanceDrawer, buildProvenance } from "@/components/signals/SignalProvenanceDrawer";
-import ExternalSignalScoutPanel from "@/components/signals/ExternalSignalScoutPanel";
-import SignalNormalizerPanel from "@/components/signals/SignalNormalizerPanel";
-import SignalQualityPanel from "@/components/signals/SignalQualityPanel";
-import ConflictResolverPanel from "@/components/signals/ConflictResolverPanel";
 import type { ImportedRow } from "@/lib/data-import";
 import type { WorkbookMeta } from "@/lib/workbook/normalizeCiosSignals";
 import SignalDependencyPanel, { type SignalLineageInfo } from "@/components/signals/SignalDependencyPanel";
 import SignalMapPanel from "@/components/signals/SignalMapPanel";
 import DriverCoveragePanel from "@/components/signals/DriverCoveragePanel";
-import SignalCompletenessPanel from "@/components/signals/SignalCompletenessPanel";
-import PivotalEvidenceSearch from "@/components/signals/PivotalEvidenceSearch";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 
 
@@ -2665,31 +2659,10 @@ export default function SignalsPage() {
             <DriverCoveragePanel
               signals={allSignals.map((s) => ({ id: s.id, text: s.text, accepted: s.accepted, countTowardPosterior: s.countTowardPosterior }))}
               adoptionCoverage={liveAdoptionCoverage}
-              onAddSignal={(text) => {
-                const base = { strength: "Medium" as Strength, reliability: "Probable" as Reliability };
-                const sig: Signal = enrichSignalFields({
-                  id: `suggest-${Date.now()}`,
-                  text,
-                  caveat: "",
-                  direction: "increases_probability" as Direction,
-                  strength: "Medium",
-                  reliability: "Probable",
-                  impact: computeImpact(base),
-                  category: inferCategory(text),
-                  source: "user",
-                  accepted: true,
-                  priority_source: "manual_confirmed",
-                  is_locked: true,
-                }, questionText, outcome);
-                setSignals((prev) => {
-                  const exists = prev.some((s) => s.text.toLowerCase() === text.toLowerCase());
-                  if (exists) return prev;
-                  const updated = [...prev, sig];
-                  persistSignals(updated);
-                  persistSignalToDb(sig);
-                  setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
-                  return updated;
-                });
+              searchLoading={aiLoading || showActivityPanel}
+              onSearchMissing={(missingLabels) => {
+                runSignalSearch(missingLabels);
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
             />
           )}
@@ -2730,42 +2703,6 @@ export default function SignalsPage() {
             </div>
           )}
 
-          {!aiLoading && allSignals.length >= 2 && (
-            <SignalCompletenessPanel
-              signals={allSignals.map((s) => ({ id: s.id, text: s.text }))}
-              questionText={questionText}
-              questionType={questionType || "binary"}
-              subject={subject || ""}
-              missingFamilies={adoptionCoverage?.missing_families}
-              indication={caseDetails?.diseaseState || caseDetails?.therapeuticArea || ""}
-              onAddSignal={(text) => {
-                const base = { strength: "Medium" as Strength, reliability: "Probable" as Reliability };
-                const sig: Signal = enrichSignalFields({
-                  id: `complete-${Date.now()}`,
-                  text,
-                  caveat: "",
-                  direction: "increases_probability" as Direction,
-                  strength: "Medium",
-                  reliability: "Probable",
-                  impact: computeImpact(base),
-                  category: inferCategory(text),
-                  source: "user",
-                  accepted: true,
-                  priority_source: "manual_confirmed",
-                  is_locked: true,
-                }, questionText, outcome);
-                setSignals((prev) => {
-                  const exists = prev.some((s) => s.text.toLowerCase() === text.toLowerCase());
-                  if (exists) return prev;
-                  const updated = [...prev, sig];
-                  persistSignals(updated);
-                  persistSignalToDb(sig);
-                  setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
-                  return updated;
-                });
-              }}
-            />
-          )}
 
           {/* Show Advanced View toggle — hidden for demo readiness */}
           <div className="border-t border-border pt-3" style={{ display: "none" }}>
