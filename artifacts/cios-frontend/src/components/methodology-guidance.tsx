@@ -126,7 +126,7 @@ function MethodologyInfo({ caseInfo }: { caseInfo: CaseTypeInfo }) {
         <div>
           <p className="text-sm font-medium text-white/90">CIOS Methodology</p>
           <p className="text-xs text-white/60 mt-1">
-            Clinical Intelligence & Outcome System — a 7-step structured forecasting process that transforms evidence into calibrated probability estimates.
+            Clinical Intelligence & Outcome System — a 6-step structured forecasting process that transforms evidence into calibrated probability estimates.
           </p>
         </div>
       </div>
