@@ -77,6 +77,7 @@ export const casesTable = pgTable("cases", {
   lastUpdate: timestamp("last_update").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   isDemo: text("is_demo").default("false"),
+  isDraft: text("is_draft").default("true"),
 
   // Outcome recording (filled in after the fact)
   actualAdoptionRate: real("actual_adoption_rate"),

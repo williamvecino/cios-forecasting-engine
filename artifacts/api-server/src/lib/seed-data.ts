@@ -89,6 +89,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         sponsorIRUrl: "ir.insmed.com",
         sponsorTicker: "INSM",
         isDemo: "true",
+        isDraft: "false",
       },
       {
         id: randomUUID(),
@@ -119,6 +120,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         sponsorIRUrl: "ir.vrtx.com",
         sponsorTicker: "VRTX",
         isDemo: "true",
+        isDraft: "false",
       },
       {
         id: randomUUID(),
@@ -149,6 +151,7 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         sponsorIRUrl: "ir.viridiantx.com",
         sponsorTicker: "VRDN",
         isDemo: "true",
+        isDraft: "false",
       },
     ]);
 

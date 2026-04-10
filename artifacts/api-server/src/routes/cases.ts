@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { casesTable, caseLibraryTable, signalsTable, calibrationLogTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ne, or, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { buildCanonicalCase } from "../lib/canonical-case.js";
 import { verifyPmid } from "../lib/evidence-verification.js";
@@ -9,8 +9,16 @@ import { detectLifecycleStageFromFDA } from "../lib/lifecycle-detect.js";
 
 const router = Router();
 
-router.get("/cases", async (_req, res) => {
-  const cases = await db.select().from(casesTable).orderBy(casesTable.createdAt);
+router.get("/cases", async (req, res) => {
+  const includeDrafts = req.query.includeDrafts === "true";
+  let cases;
+  if (includeDrafts) {
+    cases = await db.select().from(casesTable).orderBy(casesTable.createdAt);
+  } else {
+    cases = await db.select().from(casesTable)
+      .where(or(ne(casesTable.isDraft, "true"), isNull(casesTable.isDraft)))
+      .orderBy(casesTable.createdAt);
+  }
   res.json(cases.map(mapCase));
 });
 
@@ -448,6 +456,7 @@ function mapCase(c: typeof casesTable.$inferSelect) {
     subspecialty: c.subspecialty,
     institutionName: c.institutionName,
     isDemo: c.isDemo,
+    isDraft: c.isDraft,
     priorArchetype: c.priorArchetype,
     priorRationale: c.priorRationale,
     primaryTrialName: c.primaryTrialName,
