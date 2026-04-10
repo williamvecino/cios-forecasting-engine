@@ -1234,6 +1234,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
   const f = forecast as any;
   const delta = (f.posteriorProbability ?? f.currentProbability ?? 0) - (f.priorProbability ?? 0);
+  const posteriorPct = Math.round(((f as any).posteriorProbability ?? f.currentProbability ?? 0) * 100);
   const confidence: Confidence = (f.confidenceLevel ?? "Moderate") as Confidence;
   const interpretation = f.interpretation;
   const summary = interpretation?.primaryStatement || "Current signals support a favorable outcome within the forecast window.";
@@ -1251,7 +1252,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
   const coreLoopStrip = (
     <div className="space-y-0" data-testid="core-loop-strip">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-0 rounded-2xl border border-white/10 bg-[#0A1736] overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 rounded-2xl border border-white/10 bg-[#0A1736] overflow-hidden">
         <div className="p-4 border-r border-white/10 border-b md:border-b-0">
           <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Question</div>
           <div className="text-sm text-white font-medium leading-snug line-clamp-3">{activeQuestion?.text || "No question defined"}</div>
@@ -1266,16 +1267,12 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             {signalDetailsForStrip.filter(s => s.direction === "Positive").length} supportive · {signalDetailsForStrip.filter(s => s.direction === "Negative").length} constraining
           </div>
         </div>
-        <div className="p-4 border-r border-white/10">
+        <div className="p-4">
           <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Forecast</div>
           <div className="text-3xl font-bold text-white">{Math.round(((f as any).posteriorProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0) * 100)}%</div>
           <div className={cn("text-xs font-semibold mt-1", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
             {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts from prior ({Math.round((f.priorProbability ?? 0.5) * 100)}%)
           </div>
-        </div>
-        <div className="p-4">
-          <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Decision</div>
-          <div className="text-sm text-white font-medium">{interpretation?.recommendedAction || "Awaiting judgment"}</div>
           <div className="mt-1">
             <span className={cn(
               "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
@@ -1516,49 +1513,33 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         {coreLoopStrip}
       </section>
 
-      {(() => {
-        const caseKey = activeQuestion?.caseId || "unknown";
-        let decomp: any = null;
-        try {
-          const raw = localStorage.getItem(`cios.eventDecomposition:${caseKey}`);
-          if (raw) decomp = JSON.parse(raw);
-        } catch {}
-        const hasGatesLocal = decomp && decomp.event_gates && decomp.event_gates.length > 0;
-        const brandProb = hasGatesLocal
-          ? decomp.brand_outlook_probability
-          : ((f as any).brandOutlookProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0.5);
-        const apiThreshold: number | null = (f as any).thresholdProbability ?? null;
-        const apiDistComputed = (f as any).distributionComputed ?? true;
-        const dispProb = apiDistComputed ? (apiThreshold ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) : null;
-        const apiPrior = f.priorProbability ?? 0.5;
-        let storedPrior: number | null = null;
-        try {
-          const prev = localStorage.getItem(`cios.judgmentResult:${caseKey}`);
-          if (prev) {
-            const parsed = JSON.parse(prev);
-            if (typeof parsed.probability === "number") {
-              storedPrior = parsed.probability > 1 ? parsed.probability / 100 : parsed.probability;
-            }
-          }
-        } catch {}
-        const effectivePrior = apiPrior;
-        const circDelta = (brandProb ?? f.posteriorProbability ?? f.currentProbability ?? 0.5) - effectivePrior;
-        return (
-          <div className="mt-4">
-            <ForecastComparisonCircles
-              brandOutlookProb={brandProb ?? (f as any).posteriorProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0.5}
-              finalForecastProb={dispProb}
-              priorProbability={effectivePrior}
-              delta={circDelta}
-              confidence={confidence}
-              outcomeThreshold={activeQuestion?.threshold || (f as any).outcomeThreshold || null}
-              distributionComputed={apiDistComputed}
-              consecutiveEqualityWarning={(f as any).consecutiveEqualityWarning ?? null}
-              thresholdSource={(f as any).outcomeThresholdResolution?.source ?? null}
-            />
+      <div className="mt-4">
+        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8">
+          <div className="flex flex-col items-center">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Posterior Probability</div>
+            <div className={cn(
+              "text-6xl font-bold tabular-nums",
+              posteriorPct >= 50 ? "text-emerald-400" : "text-white"
+            )}>
+              {posteriorPct}%
+            </div>
+            <div className="flex items-center gap-3 mt-3 text-sm">
+              <span className="text-slate-500">Prior {Math.round((f.priorProbability ?? 0.5) * 100)}%</span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+              <span className={cn("font-semibold", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts
+              </span>
+            </div>
+            <div className={cn(
+              "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+              confidenceBadgeClass[confidence]
+            )}>
+              {confidence} confidence
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-300 text-center max-w-xl">{summary}</p>
           </div>
-        );
-      })()}
+        </div>
+      </div>
 
       <div className="border-t border-white/10" />
 
@@ -1851,22 +1832,33 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
           return (
             <>
-              {/* === SECTION 2 (cont.): ForecastMeaningPanel within Interpretation context === */}
+              {/* === SECTION 2 (cont.): Posterior Probability Display === */}
               <PanelConnectionLabel label="What the numbers mean">
-                <ForecastMeaningPanel
-                  interpretation={judgmentResult.reasoning}
-                  weakestGate={decomp!.event_gates.sort((a, b) => {
-                    const rank: Record<string, number> = { unresolved: 0, weak: 1, moderate: 2, strong: 3 };
-                    return (rank[a.status] ?? 0) - (rank[b.status] ?? 0);
-                  })[0]}
-                  strongestUnresolved={(() => {
-                    const uw = decomp!.event_gates.filter(g => g.status === "unresolved" || g.status === "weak");
-                    return uw.length > 0
-                      ? [...uw].sort((a, b) => (b.constrains_probability_to ?? 0) - (a.constrains_probability_to ?? 0))[0]
-                      : decomp!.event_gates.find(g => g.status === "moderate") || decomp!.event_gates[0];
-                  })()}
-                  brandPct={brandPct}
-                />
+                <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8">
+                  <div className="flex flex-col items-center">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Posterior Probability</div>
+                    <div className={cn(
+                      "text-6xl font-bold tabular-nums",
+                      posteriorPct >= 50 ? "text-emerald-400" : "text-white"
+                    )}>
+                      {posteriorPct}%
+                    </div>
+                    <div className="flex items-center gap-3 mt-3 text-sm">
+                      <span className="text-slate-500">Prior {Math.round((f.priorProbability ?? 0.5) * 100)}%</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+                      <span className={cn("font-semibold", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                        {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts
+                      </span>
+                    </div>
+                    <div className={cn(
+                      "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                      confidenceBadgeClass[confidence]
+                    )}>
+                      {confidence} confidence
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-slate-300 text-center max-w-xl">{summary}</p>
+                  </div>
+                </div>
               </PanelConnectionLabel>
 
               <div className="border-t border-white/10" />
@@ -2196,56 +2188,28 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
               <div className="space-y-4">
                 <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-                  <div className="grid grid-cols-12 gap-6">
-                    <div className="col-span-12 xl:col-span-4">
-                      <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5 flex flex-col items-center">
-                        <div className="text-sm font-medium text-slate-300 self-start">Current Probability</div>
-                        <div className="mt-4">
-                          <ProbabilityGauge value={f.posteriorProbability ?? f.currentProbability} label="Likelihood Assessment" size={200} />
-                        </div>
-                        <div className="flex items-center gap-4 mt-4 text-sm">
-                          <div className="text-slate-400">
-                            PRIOR{" "}
-                            <span className="text-white font-medium">{(f.priorProbability * 100).toFixed(1)}%</span>
-                          </div>
-                          <ArrowRight className="w-4 h-4 text-slate-600" />
-                          <div className="text-slate-400">
-                            SHIFT{" "}
-                            <span className={delta >= 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                              {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)} pts
-                            </span>
-                          </div>
-                        </div>
-                        <div className={cn(
-                          "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                          confidenceBadgeClass[confidence]
-                        )}>
-                          Confidence: {confidence}
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-slate-300 text-center">{summary}</p>
-                        <div className="mt-2 text-[10px] text-slate-600">Engine v1 · Probability Model</div>
-                      </div>
+                  <div className="flex flex-col items-center py-6">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Posterior Probability</div>
+                    <div className={cn(
+                      "text-6xl font-bold tabular-nums",
+                      posteriorPct >= 50 ? "text-emerald-400" : "text-white"
+                    )}>
+                      {posteriorPct}%
                     </div>
-
-                    <div className="col-span-12 xl:col-span-8 space-y-4">
-                      <div className="grid grid-cols-12 gap-4">
-                        <InfoCard
-                          title="Most Sensitive Driver"
-                          value={topDriver?.name || "—"}
-                          body={topDriver ? `Largest estimated movement: ${topDriver.contributionPoints > 0 ? "+" : ""}${topDriver.contributionPoints} points` : "No drivers identified yet."}
-                        />
-                        <InfoCard
-                          title="Total Upward Pressure"
-                          value={`+${upsideTotal} pts`}
-                          body="Combined estimated upside effect if favorable drivers strengthen."
-                        />
-                        <InfoCard
-                          title="Total Downward Pressure"
-                          value={`-${downsideTotal} pts`}
-                          body="Combined estimated downside effect if resistance drivers intensify."
-                        />
-                      </div>
+                    <div className="flex items-center gap-3 mt-3 text-sm">
+                      <span className="text-slate-500">Prior {Math.round((f.priorProbability ?? 0.5) * 100)}%</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+                      <span className={cn("font-semibold", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                        {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts
+                      </span>
                     </div>
+                    <div className={cn(
+                      "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                      confidenceBadgeClass[confidence]
+                    )}>
+                      {confidence} confidence
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-slate-300 text-center max-w-xl">{summary}</p>
                   </div>
                 </div>
 
