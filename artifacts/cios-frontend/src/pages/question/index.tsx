@@ -210,6 +210,33 @@ export default function QuestionPage() {
       .then((data) => setPriorTemplates(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
+
+  // Read archetype from home page selection
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const archetypeParam = params.get("archetype");
+    if (archetypeParam && !selectedArchetype) {
+      try {
+        const stored = localStorage.getItem("cios.selectedArchetype");
+        if (stored) {
+          const arch = JSON.parse(stored);
+          // Set placeholder text specific to the archetype
+          if (arch.placeholder && !rawInput) {
+            setRawInput("");
+          }
+          // Pre-select the first matching prior template when templates load
+          if (arch.priorArchetypes?.length > 0 && priorTemplates.length > 0) {
+            const match = priorTemplates.find((t: any) => arch.priorArchetypes.includes(t.archetypeName));
+            if (match && !selectedArchetype) {
+              setSelectedArchetype(match.archetypeName);
+              setArchetypeRationale(match.priorRationale || "");
+            }
+          }
+          localStorage.removeItem("cios.selectedArchetype");
+        }
+      } catch {}
+    }
+  }, [priorTemplates, selectedArchetype, rawInput]);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [syncedCaseId, setSyncedCaseId] = useState<string | null>(activeQuestion?.caseId ?? null);
   const [userCleared, setUserCleared] = useState(false);
@@ -1589,7 +1616,18 @@ export default function QuestionPage() {
                 <textarea
                   value={rawInput}
                   onChange={(e) => setRawInput(e.target.value)}
-                  placeholder="Example: Will the FDA implement a safety-related label change for Xarelto within the next 12 months due to GI bleeding risk signals?"
+                  placeholder={(() => {
+                    try {
+                      const stored = localStorage.getItem("cios.selectedArchetype");
+                      if (stored) { const a = JSON.parse(stored); if (a.placeholder) return a.placeholder; }
+                    } catch {}
+                    const params = new URLSearchParams(window.location.search);
+                    const arch = params.get("archetype");
+                    if (arch === "launch-adoption") return "Will [drug] achieve [target]% of new [indication] starts within [time] of launch?";
+                    if (arch === "competitive-displacement") return "What is the probability that [asset] achieves meaningful share against [incumbent] in [indication]?";
+                    if (arch === "evidence-impact") return "How will [trial/data] change prescriber behavior for [drug] in [indication]?";
+                    return "Example: Will the FDA implement a safety-related label change for Xarelto within the next 12 months due to GI bleeding risk signals?";
+                  })()}
                   rows={4}
                   autoFocus
                   disabled={pageState !== "input"}
