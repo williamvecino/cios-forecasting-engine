@@ -506,7 +506,8 @@ function enrichSignalFields(sig: Signal, questionText?: string, outcomeText?: st
     enriched.mechanism_group = assignMechanismGroup(enriched);
   }
   if (questionText) {
-    enriched.causal_aligned = checkCausalAlignment(enriched.text, questionText, outcomeText || questionText);
+    const textAligned = checkCausalAlignment(enriched.text, questionText, outcomeText || questionText);
+    enriched.causal_aligned = textAligned || !!enriched.source;
   }
   const text = enriched.text.toLowerCase();
   const isCompetitorField = text.includes("field force") || text.includes("field capacity") || text.includes("headcount") || text.includes("sales force") || text.includes("coverage intensity") || text.includes("competitor") && (text.includes("capacity") || text.includes("coverage"));
@@ -517,11 +518,12 @@ function enrichSignalFields(sig: Signal, questionText?: string, outcomeText?: st
 }
 
 function reEnrichSignalFields(sig: Signal, questionText?: string, outcomeText?: string): Signal {
+  const aligned = questionText ? checkCausalAlignment(sig.text, questionText, outcomeText || questionText) : true;
   return {
     ...sig,
     driver_role: assignDriverRole(sig),
     mechanism_group: assignMechanismGroup(sig),
-    causal_aligned: questionText ? checkCausalAlignment(sig.text, questionText, outcomeText || questionText) : sig.causal_aligned,
+    causal_aligned: aligned || !!sig.source,
   };
 }
 
