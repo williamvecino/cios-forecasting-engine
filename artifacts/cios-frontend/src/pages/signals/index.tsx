@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useLocation } from "wouter";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
@@ -839,6 +840,7 @@ function getSourceLabel(signal: { source: string; source_type?: string; category
 }
 
 function SignalLockBar({ caseId, signals, onPersistSignal }: { caseId?: string; signals?: Signal[]; onPersistSignal?: (signal: Signal) => Promise<void> }) {
+  const [, navigate] = useLocation();
   const [locked, setLocked] = useState(() => {
     try { return localStorage.getItem(`cios.signalsLocked:${caseId}`) === "true"; } catch { return false; }
   });
@@ -891,7 +893,7 @@ function SignalLockBar({ caseId, signals, onPersistSignal }: { caseId?: string; 
               await new Promise((r) => setTimeout(r, 500));
             }
           }
-          window.location.href = "/forecast";
+          navigate("/forecast");
         }}
         className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
       >
