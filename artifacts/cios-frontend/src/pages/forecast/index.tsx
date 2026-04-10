@@ -6,6 +6,7 @@ import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
 import { EventGatesPanel } from "@/components/forecast/EventGatesPanel";
+import { ProbabilityGauge } from "@/components/ui-components";
 import { DecisionLabSummary } from "@/components/forecast/DecisionLabSummary";
 import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
 import { ExplainBox } from "@/components/forecast/ExplainBox";
@@ -1265,18 +1266,17 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
           </div>
         </div>
         <div className="p-4">
-          <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Forecast</div>
-          <div className="text-3xl font-bold text-white">{Math.round(((f as any).posteriorProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0) * 100)}%</div>
-          <div className={cn("text-xs font-semibold mt-1", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
-            {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts from prior ({Math.round((f.priorProbability ?? 0.5) * 100)}%)
-          </div>
-          <div className="mt-1">
+          <div className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">Status</div>
+          <div className="text-sm text-slate-300 mt-1">
             <span className={cn(
               "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
               confidenceBadgeClass[confidence]
             )}>
               {confidence} confidence
             </span>
+          </div>
+          <div className="text-[10px] text-slate-500 mt-1.5">
+            {drivers.filter(d => d.direction === "Upward").length} upward · {drivers.filter(d => d.direction === "Downward").length} downward drivers
           </div>
         </div>
       </div>
@@ -1510,149 +1510,179 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         {coreLoopStrip}
       </section>
 
-      <div className="mt-4">
-        <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8">
+      {/* === HERO: Prior → Posterior → Delta === */}
+      <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8 mt-4">
+        <div className="flex items-center justify-center gap-10 md:gap-16">
           <div className="flex flex-col items-center">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Posterior Probability</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Prior</div>
+            <div className="text-4xl font-bold tabular-nums text-slate-400">
+              {Math.round((f.priorProbability ?? 0.5) * 100)}%
+            </div>
+          </div>
+          <div className="flex flex-col items-center">
+            <div className={cn(
+              "text-2xl font-bold tabular-nums rounded-full px-4 py-1",
+              delta > 0 ? "text-emerald-400" : delta < 0 ? "text-rose-400" : "text-slate-400"
+            )}>
+              {delta >= 0 ? "+" : ""}{Math.round(delta * 100)}pp
+            </div>
+          </div>
+          <div className="flex flex-col items-center">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Posterior</div>
             <div className={cn(
               "text-6xl font-bold tabular-nums",
               posteriorPct >= 50 ? "text-emerald-400" : "text-white"
             )}>
               {posteriorPct}%
             </div>
-            <div className="flex items-center gap-3 mt-3 text-sm">
-              <span className="text-slate-500">Prior {Math.round((f.priorProbability ?? 0.5) * 100)}%</span>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
-              <span className={cn("font-semibold", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts
-              </span>
-            </div>
-            <div className={cn(
-              "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-              confidenceBadgeClass[confidence]
-            )}>
-              {confidence} confidence
-            </div>
-            <p className="mt-4 text-sm leading-6 text-slate-300 text-center max-w-xl">{summary}</p>
           </div>
         </div>
       </div>
 
-      <div className="border-t border-white/10" />
-
-      {/* === SECTION 2: INTERPRETATION (always visible) === */}
-      <section data-testid="section-interpretation">
-        <div className="flex items-center gap-2 mb-4">
-          <BookOpen className="w-4 h-4 text-violet-400" />
-          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Interpretation</h2>
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-5">
-            <div className="text-sm font-medium text-slate-300">System Interpretation</div>
-            <p className="mt-3 text-base leading-7 text-slate-200">
-              {topDriver ? (
-                <>
-                  This forecast is currently most sensitive to{" "}
-                  <span className="font-semibold text-white">{topDriver.name}</span>. The model is not
-                  saying only one thing matters. It is saying this driver is the fastest lever for
-                  changing the trajectory meaningfully.
-                </>
-              ) : (
-                "Confirm drivers in Step 2 to generate a sensitivity analysis."
-              )}
-            </p>
+      {/* === Three Gauge Circles === */}
+      {(() => {
+        const brandOutlookProb = (f as any).brandOutlookProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0;
+        const finalForecastProb = (f as any).thresholdProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0;
+        const barrierDelta = Math.round((finalForecastProb - brandOutlookProb) * 100);
+        return (
+          <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+              <div className="flex flex-col items-center text-center space-y-2">
+                <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Evidence Strength</div>
+                <ProbabilityGauge value={brandOutlookProb} label="Based on Evidence" size={160} />
+                <div className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
+                  How strong the case looks based on all evidence collected so far
+                </div>
+              </div>
+              <div className="flex flex-col items-center text-center space-y-2">
+                <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Threshold Gap</div>
+                <div className="flex flex-col items-center justify-center w-[160px] h-[160px]">
+                  <div className={cn(
+                    "text-3xl font-bold tabular-nums",
+                    barrierDelta === 0 ? "text-slate-400" : barrierDelta > 0 ? "text-emerald-400" : "text-rose-400"
+                  )}>
+                    {barrierDelta === 0 ? "0" : barrierDelta > 0 ? `+${barrierDelta}` : `${barrierDelta}`}
+                    <span className="text-lg font-normal ml-1">pts</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-2">{barrierDelta < 0 ? "Constraints reduce forecast" : barrierDelta > 0 ? "Target below expected outcome" : "No constraint effect"}</div>
+                </div>
+                <div className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
+                  Gap between evidence strength and target likelihood after barriers
+                </div>
+              </div>
+              <div className="flex flex-col items-center text-center space-y-2">
+                <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Target Likelihood</div>
+                <ProbabilityGauge value={finalForecastProb} label="After Constraints" size={160} />
+                <div className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
+                  How likely the target will be reached once real-world barriers are factored in
+                </div>
+              </div>
+            </div>
           </div>
+        );
+      })()}
 
+      {/* === Plain-English Explanation === */}
+      <div className="rounded-2xl border border-white/10 bg-[#0A1736]/80 p-5">
+        <p className="text-sm leading-7 text-slate-200 text-center max-w-2xl mx-auto">
+          {topDriver ? (
+            <>
+              This forecast is currently most sensitive to{" "}
+              <span className="font-semibold text-white">{topDriver.name}</span>. The model is not
+              saying only one thing matters. It is saying this driver is the fastest lever for
+              changing the trajectory meaningfully.
+            </>
+          ) : (
+            summary
+          )}
+        </p>
+      </div>
+
+      {/* === Collapsible Details Section === */}
+      <details className="rounded-2xl border border-white/10 bg-[#0A1736]/40 overflow-hidden" data-testid="section-details">
+        <summary className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer hover:text-slate-200 select-none flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-violet-400" />
+          Interpretation, Actions &amp; Analysis
+        </summary>
+        <div className="px-5 pb-5 space-y-4 max-h-[600px] overflow-y-auto">
           {interpretation && (
-            <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6 space-y-4">
-              <div className="flex items-start gap-3">
-                <Zap className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
-                <div className="flex-1 space-y-3">
-                  <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Recommended Action</div>
-                  <div className="text-base font-semibold text-white">
-                    {interpretation.recommendedAction || "Monitor signals and reassess."}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {interpretation.confidenceTags?.map((tag: string, i: number) => (
-                      <span key={i} className="rounded-full bg-blue-500/10 border border-blue-400/20 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">{tag}</span>
-                    ))}
-                    {interpretation.forecastInterpretation && (
-                      <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] text-slate-400">{interpretation.forecastInterpretation}</span>
-                    )}
-                  </div>
-                  <div className="text-sm text-slate-300 leading-relaxed">
-                    {interpretation.primaryStatement}
-                  </div>
-
-                  {f.confidenceLevel === "Low" && (
-                    <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-400/30 bg-amber-400/5">
-                      <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                      <div className="text-xs text-amber-300 leading-relaxed">
-                        Low confidence — this forecast has limited signal support. Treat all outputs as preliminary and avoid high-commitment decisions until the evidence base strengthens.
-                      </div>
+            <>
+              <div className="rounded-2xl border border-white/10 bg-[#0A1736] p-5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Zap className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 space-y-3">
+                    <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Recommended Action</div>
+                    <div className="text-base font-semibold text-white">
+                      {interpretation.recommendedAction || "Monitor signals and reassess."}
                     </div>
-                  )}
+                    <div className="text-sm text-slate-300 leading-relaxed">
+                      {interpretation.primaryStatement}
+                    </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {interpretation.suggestedNextSteps?.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider flex items-center gap-1">
-                          <Zap className="w-3 h-3" /> Next Actions
+                    {f.confidenceLevel === "Low" && (
+                      <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-400/30 bg-amber-400/5">
+                        <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-300 leading-relaxed">
+                          Low confidence — this forecast has limited signal support. Treat all outputs as preliminary.
                         </div>
-                        {interpretation.suggestedNextSteps.map((step: string, i: number) => (
-                          <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
-                            <span className="text-emerald-400 shrink-0">&gt;</span>
-                            <span>{step}</span>
-                          </div>
-                        ))}
                       </div>
                     )}
-                    {interpretation.questionRefinements?.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider flex items-center gap-1">
-                          <Zap className="w-3 h-3" /> Question Refinement
-                        </div>
-                        {interpretation.questionRefinements.map((q: string, i: number) => (
-                          <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
-                            <span className="text-blue-400 shrink-0">&gt;</span>
-                            <span>{q}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {interpretation.monitorItems?.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Monitor</div>
-                        {interpretation.monitorItems.map((item: string, i: number) => (
-                          <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
-                            <span className="text-amber-400 shrink-0">&gt;</span>
-                            <span>{item}</span>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      {interpretation.suggestedNextSteps?.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider flex items-center gap-1">
+                            <Zap className="w-3 h-3" /> Next Actions
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {interpretation.riskStatement && (
-                      <div className="space-y-2">
-                        <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider">Risk</div>
-                        <div className="text-xs text-slate-400 leading-relaxed">{interpretation.riskStatement}</div>
-                      </div>
-                    )}
+                          {interpretation.suggestedNextSteps.map((step: string, i: number) => (
+                            <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                              <span className="text-emerald-400 shrink-0">&gt;</span>
+                              <span>{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {interpretation.questionRefinements?.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider flex items-center gap-1">
+                            <Zap className="w-3 h-3" /> Question Refinement
+                          </div>
+                          {interpretation.questionRefinements.map((q: string, i: number) => (
+                            <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                              <span className="text-blue-400 shrink-0">&gt;</span>
+                              <span>{q}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      {interpretation.monitorItems?.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Monitor</div>
+                          {interpretation.monitorItems.map((item: string, i: number) => (
+                            <div key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                              <span className="text-amber-400 shrink-0">&gt;</span>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {interpretation.riskStatement && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider">Risk</div>
+                          <div className="text-xs text-slate-400 leading-relaxed">{interpretation.riskStatement}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-[10px] text-slate-500">
-                <span>{f.confidenceLevel} confidence</span>
-              </div>
-            </div>
+            </>
           )}
         </div>
-      </section>
-
-      <div className="border-t border-white/10" />
+      </details>
 
       {(() => {
         const caseKey = activeQuestion?.caseId || "unknown";
@@ -1829,38 +1859,7 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
 
           return (
             <>
-              {/* === SECTION 2 (cont.): Posterior Probability Display === */}
-              <PanelConnectionLabel label="What the numbers mean">
-                <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-8">
-                  <div className="flex flex-col items-center">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Posterior Probability</div>
-                    <div className={cn(
-                      "text-6xl font-bold tabular-nums",
-                      posteriorPct >= 50 ? "text-emerald-400" : "text-white"
-                    )}>
-                      {posteriorPct}%
-                    </div>
-                    <div className="flex items-center gap-3 mt-3 text-sm">
-                      <span className="text-slate-500">Prior {Math.round((f.priorProbability ?? 0.5) * 100)}%</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
-                      <span className={cn("font-semibold", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                        {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts
-                      </span>
-                    </div>
-                    <div className={cn(
-                      "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                      confidenceBadgeClass[confidence]
-                    )}>
-                      {confidence} confidence
-                    </div>
-                    <p className="mt-4 text-sm leading-6 text-slate-300 text-center max-w-xl">{summary}</p>
-                  </div>
-                </div>
-              </PanelConnectionLabel>
-
-              <div className="border-t border-white/10" />
-
-              {/* === SECTION 3: NEEDLE MOVEMENT (visible) === */}
+              {/* === SECTION 3: NEEDLE MOVEMENT (inside collapsible details) === */}
               <section data-testid="section-needle-movement">
                 <div className="flex items-center gap-2 mb-4">
                   <Zap className="w-4 h-4 text-emerald-400" />
@@ -2184,32 +2183,6 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-                  <div className="flex flex-col items-center py-6">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Posterior Probability</div>
-                    <div className={cn(
-                      "text-6xl font-bold tabular-nums",
-                      posteriorPct >= 50 ? "text-emerald-400" : "text-white"
-                    )}>
-                      {posteriorPct}%
-                    </div>
-                    <div className="flex items-center gap-3 mt-3 text-sm">
-                      <span className="text-slate-500">Prior {Math.round((f.priorProbability ?? 0.5) * 100)}%</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
-                      <span className={cn("font-semibold", delta >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                        {delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts
-                      </span>
-                    </div>
-                    <div className={cn(
-                      "mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-                      confidenceBadgeClass[confidence]
-                    )}>
-                      {confidence} confidence
-                    </div>
-                    <p className="mt-4 text-sm leading-6 text-slate-300 text-center max-w-xl">{summary}</p>
-                  </div>
-                </div>
-
                 {drivers.length > 0 && (
                   <DriverContributionBreakdown drivers={drivers} totalShift={totalShiftPts} upsideTotal={upsideTotal} downsideTotal={downsideTotal} />
                 )}
