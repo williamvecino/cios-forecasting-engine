@@ -67,9 +67,23 @@ function QuestionPageFresh() {
 function HomeRedirect() {
   const [, navigate] = useLocation();
   useEffect(() => {
-    navigate("/question", { replace: true });
+    let target = "/question";
+    try {
+      const saved = localStorage.getItem("cios.lastPath");
+      if (saved && saved !== "/") target = saved;
+    } catch {}
+    navigate(target, { replace: true });
   }, [navigate]);
   return null;
+}
+
+function usePathTracker() {
+  const [location] = useLocation();
+  useEffect(() => {
+    if (location && location !== "/") {
+      try { localStorage.setItem("cios.lastPath", location); } catch {}
+    }
+  }, [location]);
 }
 
 const queryClient = new QueryClient({
@@ -83,6 +97,7 @@ const queryClient = new QueryClient({
 });
 
 function Router() {
+  usePathTracker();
   return (
     <Switch>
       <Route path="/">{() => <HomeRedirect />}</Route>

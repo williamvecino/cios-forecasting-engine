@@ -28,6 +28,7 @@ export default function TopNav() {
     if (item.path === "/question") {
       e.preventDefault();
       clearQuestion();
+      try { localStorage.removeItem("cios.lastPath"); } catch {}
       navigate("/question");
     }
   }
@@ -35,7 +36,7 @@ export default function TopNav() {
   return (
     <nav className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-40">
       <div className="mx-auto max-w-7xl px-6 flex items-center justify-between h-14">
-        <Link href="/" className="flex items-center gap-2" onClick={(e: React.MouseEvent) => { e.preventDefault(); clearQuestion(); navigate("/question"); }}>
+        <Link href="/" className="flex items-center gap-2" onClick={(e: React.MouseEvent) => { e.preventDefault(); clearQuestion(); try { localStorage.removeItem("cios.lastPath"); } catch {} navigate("/question"); }}>
           <Sparkles className="w-5 h-5 text-primary" />
           <span className="text-sm font-bold tracking-wide text-foreground">CIOS</span>
         </Link>
