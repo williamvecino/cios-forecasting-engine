@@ -2154,11 +2154,11 @@ export default function SignalsPage() {
 
   const summary = generateSummary(allSignals, questionType, comparisonGroups.length >= 2 ? comparisonGroups : entities, liveSignalSummary);
 
-  const hasSourceClassification = allSignals.some((s) => s.signal_source);
-  const internalSignals = allSignals.filter((s) => s.signal_source === "internal");
-  const externalSignals = allSignals.filter((s) => s.signal_source === "external");
-  const missingSignals = allSignals.filter((s) => s.signal_source === "missing");
-  const unclassifiedSignals = allSignals.filter((s) => !s.signal_source);
+  const hasSourceClassification = reviewableSignals.some((s) => s.signal_source);
+  const internalSignals = reviewableSignals.filter((s) => s.signal_source === "internal");
+  const externalSignals = reviewableSignals.filter((s) => s.signal_source === "external");
+  const missingSignals = reviewableSignals.filter((s) => s.signal_source === "missing");
+  const unclassifiedSignals = reviewableSignals.filter((s) => !s.signal_source);
   const unclassifiedAccepted = unclassifiedSignals.filter((s) => s.accepted);
   const unclassifiedPending = unclassifiedSignals.filter((s) => !s.accepted);
 
