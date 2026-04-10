@@ -2128,8 +2128,9 @@ export default function SignalsPage() {
     });
     return sorted[0]?.id || null;
   }, [allSignals]);
-  const pending = allSignals.filter((s) => !s.accepted);
-  const accepted = allSignals.filter((s) => s.accepted);
+  const reviewableSignals = allSignals.filter((s) => s.causal_aligned !== false);
+  const pending = reviewableSignals.filter((s) => !s.accepted);
+  const accepted = reviewableSignals.filter((s) => s.accepted);
 
   const isAdoptionQuestion = useMemo(() => {
     if (adoptionCoverage) return true;
@@ -2883,12 +2884,6 @@ function MinimalSignalCard({
   onDismiss,
   onUpdate,
   outcomeLabel,
-  onShowProvenance,
-  isPrimaryDriver,
-  lineage,
-  forecastDetail,
-  caseId,
-  onLineageUpdated,
 }: {
   signal: Signal;
   editing: boolean;
@@ -2904,88 +2899,24 @@ function MinimalSignalCard({
   caseId?: string;
   onLineageUpdated?: () => void;
 }) {
-  const [editingLineage, setEditingLineage] = useState(false);
-  const [lineageForm, setLineageForm] = useState({ dependencyRole: "", rootEvidenceId: "" });
-
-  const LINEAGE_ROLE_COLORS: Record<string, string> = {
-    Echo: "bg-slate-700/50 text-slate-400 border-slate-600/30",
-    Translation: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    Independent: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    "Independent parallel evidence": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    Root: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-    "Root Evidence": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-    Corroborating: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
-    Derivative: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    "Direct derivative": "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    "Second-order derivative": "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  };
-
-  const DEPENDENCY_ROLES = ["Root", "Direct derivative", "Second-order derivative", "Independent parallel evidence", "Corroborating"];
-  const ECHO_TYPES = ["Echo", "Translation", "Independent"];
-
-  const handleOverrideSave = async () => {
-    if (!caseId) return;
-    const API = import.meta.env.VITE_API_URL || "";
-    try {
-      await fetch(`${API}/api/cases/${encodeURIComponent(caseId)}/signals/SIG-${signal.id}/lineage`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dependencyRole: lineageForm.dependencyRole || undefined,
-          rootEvidenceId: lineageForm.rootEvidenceId || undefined,
-        }),
-      });
-      setEditingLineage(false);
-      if (onLineageUpdated) onLineageUpdated();
-    } catch {}
-  };
+  const dirLabel = signal.direction === "increases_probability"
+    ? "Supports"
+    : signal.direction === "decreases_probability"
+      ? "Undermines"
+      : signal.direction === "signals_uncertainty"
+        ? "Uncertain"
+        : signal.direction === "signals_risk_escalation"
+          ? "Risk"
+          : "Supports";
+  const dirColor = signal.direction === "increases_probability"
+    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+    : signal.direction === "decreases_probability"
+      ? "text-red-400 bg-red-500/10 border-red-500/20"
+      : "text-amber-400 bg-amber-500/10 border-amber-500/20";
 
   return (
-    <div className={`rounded-xl border ${isPrimaryDriver ? "border-primary/40 ring-1 ring-primary/20" : signal.workbook_meta ? "border-violet-500/20" : "border-border"} bg-card p-5 ${signal.superseded ? "opacity-40" : ""}`}>
-      {isPrimaryDriver && (
-        <div className="flex items-center gap-1.5 mb-2">
-          <Zap className="w-3.5 h-3.5 text-primary" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Primary Driver</span>
-        </div>
-      )}
-      {signal.driver_role && (
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${DRIVER_ROLE_COLORS[signal.driver_role] || "text-slate-400 bg-slate-500/10 border-slate-500/20"}`}>
-            {DRIVER_ROLE_LABELS[signal.driver_role] || signal.driver_role}
-          </span>
-          {signal.causal_aligned === false && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[9px] font-medium text-amber-400">
-              <AlertTriangle className="w-2.5 h-2.5" />
-              Indirect signal — low decision relevance
-            </span>
-          )}
-        </div>
-      )}
-      {signal.superseded && (
-        <div className="text-xs text-muted-foreground mb-2">Superseded by newer evidence</div>
-      )}
-      {onShowProvenance && (
-        <button
-          type="button"
-          onClick={onShowProvenance}
-          className={`flex items-center gap-1.5 mb-2 text-[10px] transition-colors cursor-pointer ${
-            signal.workbook_meta ? "text-violet-400 hover:text-violet-300" : "text-slate-400 hover:text-slate-300"
-          }`}
-        >
-          {signal.workbook_meta ? <FileSpreadsheet className="w-3 h-3" /> : <Info className="w-3 h-3" />}
-          <span className="font-semibold uppercase tracking-wider">
-            {signal.workbook_meta ? "Workbook" : getSourceLabel(signal)}
-          </span>
-          {signal.workbook_meta?.programId && (
-            <>
-              <span className="text-violet-400/50">·</span>
-              <span className="text-violet-400/70">{signal.workbook_meta.programId}</span>
-            </>
-          )}
-          <span className="text-[9px] opacity-60 ml-1">Provenance</span>
-        </button>
-      )}
-      <div className="flex items-start justify-between gap-4">
+    <div className={`rounded-xl border border-border bg-card p-4 ${signal.superseded ? "opacity-40" : ""}`}>
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {editing ? (
             <textarea
@@ -2995,311 +2926,37 @@ function MinimalSignalCard({
               className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-foreground"
             />
           ) : (
-            <div className="text-sm font-medium text-foreground leading-relaxed">{signal.text}</div>
+            <div className="text-sm text-foreground leading-relaxed">{signal.text}</div>
+          )}
+          {!editing && (
+            <div className="mt-2">
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${dirColor}`}>
+                {dirLabel}
+              </span>
+            </div>
+          )}
+          {editing && (
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <SelectField label="Direction" value={signal.direction} onChange={(v) => onUpdate({ direction: v as Direction })} options={["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]} displayLabels={[`Supports ${outcomeLabel}`, `Undermines ${outcomeLabel}`, "Uncertain", "Risk Escalation", "Operational", "Market Response"]} />
+              <SelectField label="Strength" value={signal.strength} onChange={(v) => onUpdate({ strength: v as Strength })} options={["High", "Medium", "Low"]} />
+              <SelectField label="Confidence" value={signal.reliability} onChange={(v) => onUpdate({ reliability: v as Reliability })} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Strong", "Moderate", "Weak"]} />
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
           <button type="button" onClick={onEdit} className={`rounded-lg border p-1.5 transition ${editing ? "border-primary/30 text-primary bg-primary/10" : "border-border text-muted-foreground hover:bg-muted/20"}`} title="Edit">
             <Pencil className="w-3.5 h-3.5" />
           </button>
           {onAccept && (
-            <button type="button" onClick={onAccept} className="rounded-lg border border-emerald-500/30 p-1.5 text-emerald-400 hover:bg-emerald-500/10 transition" title="Confirm">
+            <button type="button" onClick={onAccept} className="rounded-lg border border-emerald-500/30 p-1.5 text-emerald-400 hover:bg-emerald-500/10 transition" title="Accept">
               <Check className="w-3.5 h-3.5" />
             </button>
           )}
-          <button type="button" onClick={onDismiss} className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition" title="Remove">
-            {signal.accepted ? <Trash2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+          <button type="button" onClick={onDismiss} className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition" title="Reject">
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
-      {editing ? (
-        <div className="mt-3 space-y-3">
-          <div className="grid grid-cols-3 gap-3">
-            <SelectField label="Direction" value={signal.direction} onChange={(v) => onUpdate({ direction: v as Direction })} options={["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]} displayLabels={[`Supports ${outcomeLabel}`, `Slows ${outcomeLabel}`, "Uncertain", "Risk Escalation", "Operational", "Market Response"]} />
-            <SelectField label="Strength" value={signal.strength} onChange={(v) => onUpdate({ strength: v as Strength })} options={["High", "Medium", "Low"]} />
-            <SelectField label="Confidence" value={signal.reliability} onChange={(v) => onUpdate({ reliability: v as Reliability })} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Strong", "Moderate", "Weak"]} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <SelectField label="Driver Role" value={signal.driver_role || "supporting_driver"} onChange={(v) => onUpdate({ driver_role: v as DriverRole })} options={["primary_driver", "supporting_driver", "counterforce", "context_signal", "noise"]} displayLabels={["Primary Driver", "Supporting Driver", "Counterforce", "Context Signal", "Noise"]} />
-            <SelectField label="Mechanism" value={signal.mechanism_group || "execution_change"} onChange={(v) => onUpdate({ mechanism_group: v as MechanismGroup })} options={["economic_pressure", "structural_protection", "competitive_threat", "execution_change"]} displayLabels={["Economic Pressure", "Structural Protection", "Competitive Threat", "Execution Change"]} />
-          </div>
-          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">
-              <Ruler className="w-3 h-3" />
-              Measurement Criteria
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[10px] text-muted-foreground mb-0.5">Baseline Value</label>
-                <input type="text" value={signal.measurement_criteria?.baseline_value || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, baseline_value: e.target.value } })} placeholder="e.g. 450 reps, 68% coverage" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
-              </div>
-              <div>
-                <label className="block text-[10px] text-muted-foreground mb-0.5">Observed Change</label>
-                <input type="text" value={signal.measurement_criteria?.observed_change || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, observed_change: e.target.value } })} placeholder="e.g. +120 reps, -15% coverage" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
-              </div>
-              <div>
-                <label className="block text-[10px] text-muted-foreground mb-0.5">Geographic Scope</label>
-                <input type="text" value={signal.measurement_criteria?.geographic_scope || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, geographic_scope: e.target.value } })} placeholder="e.g. US Northeast, EU5" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
-              </div>
-              <div>
-                <label className="block text-[10px] text-muted-foreground mb-0.5">Time Window</label>
-                <input type="text" value={signal.measurement_criteria?.time_window || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, time_window: e.target.value } })} placeholder="e.g. Q1 2026, 3–6 months" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
-              </div>
-              <div>
-                <label className="block text-[10px] text-muted-foreground mb-0.5">Evidence Source</label>
-                <input type="text" value={signal.measurement_criteria?.evidence_source || ""} onChange={(e) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, evidence_source: e.target.value } })} placeholder="e.g. Internal field report, SEC filing" className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1 text-xs text-foreground" />
-              </div>
-              <SelectField label="Measurement Confidence" value={signal.measurement_criteria?.confidence_level || "Probable"} onChange={(v) => onUpdate({ measurement_criteria: { ...signal.measurement_criteria, confidence_level: v as "Confirmed" | "Probable" | "Speculative" } })} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Confirmed", "Probable", "Speculative"]} />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-3 space-y-2">
-          {signal.signal_domain && (
-            <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${SIGNAL_DOMAIN_COLORS[signal.signal_domain] || "text-slate-400 bg-slate-400/10 border-slate-400/30"}`}>
-              {SIGNAL_DOMAIN_LABELS[signal.signal_domain] || signal.signal_domain}
-            </span>
-          )}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm md:grid-cols-4">
-            <div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Direction</div>
-              <div className="text-foreground/90">{getDirectionLabel(signal.direction, outcomeLabel)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Importance</div>
-              <div className="text-foreground/90">{signal.impact}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Confidence</div>
-              <div className="text-foreground/90">{getConfidenceLabel(signal.reliability)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Source</div>
-              <div className="text-foreground/90">{getSourceLabel(signal)}</div>
-            </div>
-          </div>
-          {signal.measurement_criteria && (signal.measurement_criteria.baseline_value || signal.measurement_criteria.observed_change || signal.measurement_criteria.geographic_scope || signal.measurement_criteria.time_window || signal.measurement_criteria.evidence_source || signal.measurement_criteria.confidence_level) && (
-            <div className="rounded-lg border border-cyan-500/15 bg-cyan-500/5 p-3 mt-2">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Ruler className="w-3 h-3 text-cyan-400" />
-                <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">Measurement Criteria</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs md:grid-cols-3">
-                {signal.measurement_criteria.baseline_value && (
-                  <div>
-                    <span className="text-[9px] text-muted-foreground uppercase">Baseline:</span>
-                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.baseline_value}</span>
-                  </div>
-                )}
-                {signal.measurement_criteria.observed_change && (
-                  <div>
-                    <span className="text-[9px] text-muted-foreground uppercase">Change:</span>
-                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.observed_change}</span>
-                  </div>
-                )}
-                {signal.measurement_criteria.geographic_scope && (
-                  <div>
-                    <span className="text-[9px] text-muted-foreground uppercase">Scope:</span>
-                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.geographic_scope}</span>
-                  </div>
-                )}
-                {signal.measurement_criteria.time_window && (
-                  <div>
-                    <span className="text-[9px] text-muted-foreground uppercase">Window:</span>
-                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.time_window}</span>
-                  </div>
-                )}
-                {signal.measurement_criteria.evidence_source && (
-                  <div>
-                    <span className="text-[9px] text-muted-foreground uppercase">Evidence:</span>
-                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.evidence_source}</span>
-                  </div>
-                )}
-                {signal.measurement_criteria.confidence_level && (
-                  <div>
-                    <span className="text-[9px] text-muted-foreground uppercase">Confidence:</span>
-                    <span className="ml-1 text-foreground/90">{signal.measurement_criteria.confidence_level}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {signal.triggered_flags && signal.triggered_flags.length > 0 && (
-            <div className="mt-2 space-y-1">
-              {signal.triggered_flags.map((flag, i) => (
-                <div key={i} className="flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5">
-                  <Target className="w-3 h-3 text-red-400 shrink-0" />
-                  <span className="text-[10px] font-medium text-red-400">{flag}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {signal.trigger_rules && signal.trigger_rules.length > 0 && (
-            <div className="mt-2 rounded-lg border border-amber-500/15 bg-amber-500/5 p-2">
-              <div className="flex items-center gap-1.5">
-                <Target className="w-2.5 h-2.5 text-amber-400" />
-                <span className="text-[9px] text-amber-400 font-semibold uppercase tracking-wider">Active Trigger Rule</span>
-              </div>
-              <div className="text-[10px] text-amber-400/80 mt-1">{signal.trigger_rules[0].condition}</div>
-            </div>
-          )}
-          {(signal.evidenceClass || signal.evidenceStatus) && (
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              {signal.evidenceClass && (
-                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
-                  signal.evidenceClass === "Eligible" ? "text-blue-400 bg-blue-500/10 border-blue-500/20" :
-                  signal.evidenceClass === "ContextOnly" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
-                  signal.evidenceClass === "Rejected" ? "text-red-400 bg-red-500/10 border-red-500/20" :
-                  "text-slate-400 bg-slate-500/10 border-slate-500/20"
-                }`}>
-                  {signal.evidenceClass === "Eligible" ? "◆ Eligible" :
-                   signal.evidenceClass === "ContextOnly" ? "◇ Context Only" :
-                   signal.evidenceClass === "Rejected" ? "✗ Rejected" :
-                   signal.evidenceClass}
-                </span>
-              )}
-              {signal.countTowardPosterior === true && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 uppercase tracking-wider">
-                  ✓ Counts Toward Forecast
-                </span>
-              )}
-              {signal.countTowardPosterior === false && signal.evidenceClass !== "Rejected" && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-500/5 px-2 py-0.5 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Context Only
-                </span>
-              )}
-              {signal.evidenceStatus && (
-                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
-                  signal.evidenceStatus === "Verified" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
-                  signal.evidenceStatus === "Rejected" ? "text-red-400 bg-red-500/10 border-red-500/20" :
-                  "text-slate-400 bg-slate-500/10 border-slate-500/20"
-                }`}>
-                  {signal.evidenceStatus === "Verified" ? "✓ Evidence Verified" :
-                   signal.evidenceStatus === "Rejected" ? "✗ Evidence Rejected" :
-                   "Evidence Pending"}
-                </span>
-              )}
-            </div>
-          )}
-          {signal.verificationStatus && (
-            <div className="flex items-center gap-2 flex-wrap mt-1">
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
-                signal.verificationStatus === "verified" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
-                signal.verificationStatus === "invalid" ? "text-red-400 bg-red-500/10 border-red-500/20" :
-                signal.verificationStatus === "flagged" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
-                "text-slate-400 bg-slate-500/10 border-slate-500/20"
-              }`}>
-                {signal.verificationStatus === "verified" ? "✓ Verified" :
-                 signal.verificationStatus === "invalid" ? "✗ Invalid ID" :
-                 signal.verificationStatus === "flagged" ? "⚠ Flagged" :
-                 "Unverified"}
-              </span>
-              {signal.identifierType && signal.identifierType !== "unknown" && (
-                <span className="text-[9px] text-muted-foreground font-mono">
-                  {signal.identifierType.toUpperCase()}: {signal.identifierValue}
-                </span>
-              )}
-              {signal.verificationRedFlags && (() => {
-                try {
-                  const flags = JSON.parse(signal.verificationRedFlags) as string[];
-                  return flags.map((f, i) => (
-                    <span key={i} className="text-[9px] text-amber-400/80 bg-amber-500/5 rounded px-1.5 py-0.5 border border-amber-500/15">
-                      {f}
-                    </span>
-                  ));
-                } catch { return null; }
-              })()}
-            </div>
-          )}
-          {lineage && (
-            <div className="space-y-1.5 mt-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${LINEAGE_ROLE_COLORS[lineage.echoVsTranslation] || LINEAGE_ROLE_COLORS[lineage.dependencyRole] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
-                  {lineage.echoVsTranslation}
-                </span>
-                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-medium ${LINEAGE_ROLE_COLORS[lineage.dependencyRole] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
-                  {lineage.dependencyRole}
-                </span>
-                <span className="text-[9px] text-muted-foreground">{lineage.sourceCluster}</span>
-                {lineage.compressionFactor < 1 && (
-                  <span className="text-[9px] text-amber-400/70" title={`This signal's weight is reduced to ${Math.round(lineage.compressionFactor * 100)}% because it echoes or derives from an upstream signal`}>
-                    ×{lineage.compressionFactor.toFixed(2)} weight
-                  </span>
-                )}
-                {lineage.novelInformationFlag === "Yes" && (
-                  <span className="text-[9px] text-emerald-400/60 bg-emerald-500/10 rounded-full px-1.5 py-0.5 border border-emerald-500/20">Novel</span>
-                )}
-                {lineage.novelInformationFlag === "No" && (
-                  <span className="text-[9px] text-rose-400/60 bg-rose-500/10 rounded-full px-1.5 py-0.5 border border-rose-500/20">No novel info</span>
-                )}
-                {lineage.novelInformationFlag === "Partial" && (
-                  <span className="text-[9px] text-amber-400/60 bg-amber-500/10 rounded-full px-1.5 py-0.5 border border-amber-500/20">Partial novelty</span>
-                )}
-                {lineage.lineageOverride && (
-                  <span className="text-[9px] text-violet-400/70 bg-violet-500/10 rounded-full px-1.5 py-0.5 border border-violet-500/20">Manual override</span>
-                )}
-              </div>
-              <div className="flex items-center gap-3 text-[9px]">
-                <span className="text-muted-foreground">Root: <span className="text-foreground/70 font-mono">{lineage.rootEvidenceId}</span></span>
-                {caseId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLineageForm({ dependencyRole: lineage.dependencyRole, rootEvidenceId: lineage.rootEvidenceId });
-                      setEditingLineage(!editingLineage);
-                    }}
-                    className="text-indigo-400 hover:text-indigo-300 transition cursor-pointer underline"
-                  >
-                    {editingLineage ? "Cancel" : "Edit lineage"}
-                  </button>
-                )}
-              </div>
-              {editingLineage && (
-                <div className="mt-2 p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-muted-foreground mb-1">Dependency Role</label>
-                      <select
-                        value={lineageForm.dependencyRole}
-                        onChange={(e) => setLineageForm(f => ({ ...f, dependencyRole: e.target.value }))}
-                        className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-xs text-foreground"
-                      >
-                        {DEPENDENCY_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-muted-foreground mb-1">Root Evidence ID</label>
-                      <input
-                        type="text"
-                        value={lineageForm.rootEvidenceId}
-                        onChange={(e) => setLineageForm(f => ({ ...f, rootEvidenceId: e.target.value }))}
-                        className="w-full rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-xs text-foreground font-mono"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setEditingLineage(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1 rounded-lg border border-border transition cursor-pointer">Cancel</button>
-                    <button type="button" onClick={handleOverrideSave} className="text-xs text-indigo-400 hover:text-indigo-300 px-3 py-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 transition cursor-pointer">Save Override</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {/* Signal Weight section — hidden for demo readiness, kept contribution only */}
-          {forecastDetail && (
-            <div className="mt-2 rounded-lg border border-slate-500/15 bg-slate-500/5 p-2.5">
-              <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-[11px]">
-                <div>
-                  <span className="text-[9px] text-muted-foreground uppercase">Contribution</span>
-                  <div className={`font-mono ${forecastDetail.pointContribution > 0 ? "text-emerald-400" : forecastDetail.pointContribution < 0 ? "text-red-400" : "text-foreground/90"}`}>
-                    {forecastDetail.pointContribution > 0 ? "+" : ""}{(forecastDetail.pointContribution * 100).toFixed(1)}pp
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
