@@ -2218,9 +2218,14 @@ export default function SignalsPage() {
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Step 3
             </div>
-            <h1 className="mt-2 text-2xl font-semibold text-foreground">
-              What new information do we have?
-            </h1>
+            <div className="mt-2 flex items-start justify-between gap-4">
+              <h1 className="text-2xl font-semibold text-foreground">
+                What new information do we have?
+              </h1>
+              <p className="text-xs text-muted-foreground text-right max-w-sm shrink-0 leading-relaxed pt-1">
+                Accept, modify, or delete each signal before you go to the next step. You can also add your own signals or ask the engine to search for them.
+              </p>
+            </div>
           </div>
 
           {activeQuestion?.caseId && (
