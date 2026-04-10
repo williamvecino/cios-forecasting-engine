@@ -64,28 +64,6 @@ function QuestionPageFresh() {
   return <QuestionPage key={key} />;
 }
 
-function HomeRedirect() {
-  const [, navigate] = useLocation();
-  useEffect(() => {
-    let target = "/question";
-    try {
-      const saved = localStorage.getItem("cios.lastPath");
-      if (saved && saved !== "/") target = saved;
-    } catch {}
-    navigate(target, { replace: true });
-  }, [navigate]);
-  return null;
-}
-
-function usePathTracker() {
-  const [location] = useLocation();
-  useEffect(() => {
-    if (location && location !== "/") {
-      try { localStorage.setItem("cios.lastPath", location); } catch {}
-    }
-  }, [location]);
-}
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -97,10 +75,9 @@ const queryClient = new QueryClient({
 });
 
 function Router() {
-  usePathTracker();
   return (
     <Switch>
-      <Route path="/">{() => <HomeRedirect />}</Route>
+      <Route path="/"><Redirect to="/forecasts" /></Route>
       <Route path="/forecasts" component={ForecastsPage} />
       <Route path="/library" component={LibraryPage} />
       <Route path="/system" component={SystemPage} />
