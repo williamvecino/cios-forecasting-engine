@@ -85,6 +85,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         competitorProfile: "Entrenched standard of care",
         topSupportiveActor: null,
         topConstrainingActor: null,
+        priorArchetype: "Launch Adoption Risk",
+        priorRationale:
+          "Posterior moved modestly from the 28% prior. The signal picture is genuinely mixed: strong ENCORE Phase III data and a concentrated KOL network at academic NTM centers push toward adoption, but guideline lag, daily nebulizer treatment burden, payer uncertainty around first-line coverage, and REMS monitoring requirements pull in the opposite direction. No single signal dominates — the forecast reflects real uncertainty about whether operational barriers will yield fast enough for the 30% threshold within 24 months.",
         sponsorCompany: "Insmed",
         sponsorIRUrl: "ir.insmed.com",
         sponsorTicker: "INSM",
@@ -116,6 +119,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         competitorProfile: "Own-franchise displacement (Orkambi/Symdeko)",
         topSupportiveActor: null,
         topConstrainingActor: null,
+        priorArchetype: "Launch Adoption Risk",
+        priorRationale:
+          "Posterior moved sharply upward from the 72% prior. Trikafta is a first-in-class transformative triple-combination CFTR modulator with an overwhelmingly supportive signal stack: pivotal AURORA Phase III showing 14.3 ppFEV1 improvement across >90% of the CF population, CFF and ACMG guideline endorsement as the preferred therapy, a highly centralized care model with ~130 accredited CF centers enabling rapid conversion, and own-franchise displacement eliminating external competitor friction. Real-world registry data confirms >85% uptake within 6 months of expanded label — the fastest modulator adoption in CF history. The only modest drag comes from Medicaid step-through requirements and $311K list price optics, but copay assistance covering >95% of commercially insured patients and pediatric label expansion further reinforce the upward trajectory. The signal stack is almost uniformly positive.",
         sponsorCompany: "Vertex Pharmaceuticals",
         sponsorIRUrl: "ir.vrtx.com",
         sponsorTicker: "VRTX",
@@ -147,6 +153,9 @@ export async function seedDatabase(force = false): Promise<{ success: boolean; m
         competitorProfile: "Tepezza (teprotumumab) — established first-mover biologic for TED",
         topSupportiveActor: null,
         topConstrainingActor: null,
+        priorArchetype: "Competitive Displacement Risk",
+        priorRationale:
+          "Posterior moved downward from the 28% prior. Tepezza (teprotumumab) is the dominant signal driving the forecast lower: it is entrenched as standard of care with established dosing protocols, patient monitoring pathways, and insurance approval workflows built around it at academic TED centers. The absence of head-to-head superiority data eliminates the evidence-based rationale physicians would need to switch from an effective incumbent. Payer step-edit requirements mandating documented Tepezza failure or contraindication before veligrotug coverage compound the competitive headwind. Phase 2 mechanism validation showing comparable proptosis reduction via distinct IGF-1R binding is the sole supportive signal — necessary for regulatory viability but insufficient to overcome the displacement barrier within 24 months.",
         sponsorCompany: "Viridian Therapeutics",
         sponsorIRUrl: "ir.viridiantx.com",
         sponsorTicker: "VRDN",
