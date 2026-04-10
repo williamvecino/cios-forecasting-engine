@@ -2235,69 +2235,14 @@ export default function SignalsPage() {
 
           {showActivityPanel && processingPhase && processingPhase !== "ready" && (
             <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-b from-blue-500/[0.06] to-[#0A1736] p-6" data-testid="signal-search-activity">
-              <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="w-8 h-8 text-blue-400 animate-spin shrink-0" />
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">
-                      Searching for signals and relevant data
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Editing is disabled while search is in progress
-                    </div>
-                  </div>
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-6 h-6 text-blue-400 animate-spin shrink-0" />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-foreground">Finding evidence...</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Searching sources, collecting signals, and validating relevance</div>
                 </div>
-
-                <div className="space-y-2">
-                  {([
-                    { key: "searching", label: "Searching sources" },
-                    { key: "collecting", label: "Collecting candidate signals" },
-                    { key: "normalizing", label: "Normalizing and deduplicating" },
-                    { key: "assessing", label: "Assessing signal relevance" },
-                    { key: "preparing", label: "Preparing results" },
-                  ] as const).map((step) => {
-                    const phaseOrder = ["searching", "collecting", "normalizing", "assessing", "preparing", "processing"];
-                    const currentIdx = phaseOrder.indexOf(processingPhase ?? "searching");
-                    const stepIdx = phaseOrder.indexOf(step.key);
-                    const isComplete = stepIdx < currentIdx;
-                    const isActive = stepIdx === currentIdx;
-                    return (
-                      <div key={step.key} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 ${isActive ? "bg-blue-500/10 border border-blue-500/20" : isComplete ? "bg-emerald-500/5" : "opacity-40"}`}>
-                        {isComplete ? (
-                          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                        ) : isActive ? (
-                          <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
-                        ) : (
-                          <div className="w-4 h-4 rounded-full border border-muted-foreground/30 shrink-0" />
-                        )}
-                        <span className={`text-xs font-medium ${isActive ? "text-blue-300" : isComplete ? "text-emerald-300/80" : "text-muted-foreground"}`}>
-                          {step.label}
-                        </span>
-                        {isComplete && processingCounts.found > 0 && step.key === "collecting" && (
-                          <span className="ml-auto text-[10px] text-emerald-400/70">{processingCounts.found} found</span>
-                        )}
-                        {isActive && processingCounts.found > 0 && step.key === "collecting" && (
-                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.found} found</span>
-                        )}
-                        {isComplete && processingCounts.normalized > 0 && step.key === "normalizing" && (
-                          <span className="ml-auto text-[10px] text-emerald-400/70">{processingCounts.normalized} processed</span>
-                        )}
-                        {isActive && processingCounts.normalized > 0 && step.key === "normalizing" && (
-                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.normalized} processing</span>
-                        )}
-                        {isActive && processingCounts.validated > 0 && step.key === "assessing" && (
-                          <span className="ml-auto text-[10px] text-blue-400/80">{processingCounts.validated} validated</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {slowWarning && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="text-xs text-amber-300">Still processing — this may take a few more seconds</span>
-                  </div>
+                {processingCounts.found > 0 && (
+                  <span className="text-xs text-blue-400 font-medium">{processingCounts.found} found</span>
                 )}
               </div>
             </div>
@@ -2322,189 +2267,27 @@ export default function SignalsPage() {
             </div>
           )}
 
-          {caseDetails?.assetName && (
-            <PivotalEvidenceSearch
-              caseId={caseKey}
-              drugName={caseDetails.assetName}
-              indication={caseDetails.diseaseState || caseDetails.therapeuticArea || ""}
-              onSignalsApproved={() => {
-                const API = import.meta.env.VITE_API_URL || "";
-                fetch(`${API}/api/cases/${caseKey}/signals`)
-                  .then((r) => r.json())
-                  .then((dbSignals: any[]) => {
-                    if (!Array.isArray(dbSignals) || dbSignals.length === 0) return;
-                    const newSignals: Signal[] = dbSignals
-                      .filter((ds: any) => ds.signalFamily === "structured-evidence" || ds.signalFamily === "pivotal-trial")
-                      .map((ds: any) => enrichSignalFields({
-                        id: ds.signalId?.replace(/^SIG-/, "") || ds.id,
-                        text: ds.signalDescription || "",
-                        caveat: "",
-                        direction: (ds.direction || "positive").toLowerCase() as any,
-                        strength: ds.strengthScore >= 4 ? "High" : ds.strengthScore >= 2 ? "Moderate" : "Low",
-                        reliability: ds.reliabilityScore >= 4 ? "Confirmed" : ds.reliabilityScore >= 2 ? "Credible" : "Anecdotal",
-                        impact: "moderate",
-                        category: "evidence",
-                        source: "user",
-                        accepted: true,
-                        source_url: ds.sourceUrl || null,
-                        countTowardPosterior: ds.countTowardPosterior ?? true,
-                        signal_family: ds.signalFamily || undefined,
-                        evidenceStatus: ds.evidenceStatus || "verified",
-                        evidenceClass: ds.evidenceClass || "Eligible",
-                      }, questionText, outcome));
-                    setSignals((prev) => {
-                      const existingIds = new Set(prev.map((s) => s.id));
-                      const toAdd = newSignals.filter((s) => !existingIds.has(s.id));
-                      if (toAdd.length === 0) return prev;
-                      const updated = [...prev, ...toAdd];
-                      persistSignals(updated);
-                      return updated;
-                    });
-                  })
-                  .catch(() => {});
-              }}
-            />
-          )}
-
-          {!showFindPanel ? (
+          {!aiLoading && !showActivityPanel && !showReadyBanner && allSignals.length === 0 && (
             <button
               type="button"
-              onClick={() => {
-                setShowFindPanel(true);
-                if (!structuredSearchDone && structuredCandidates.length === 0 && !structuredSearchLoading) {
-                  runStructuredSearch();
-                }
-              }}
-              disabled={aiLoading || showActivityPanel || structuredSearchLoading}
-              className="w-full rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-6 py-4 text-left transition hover:border-primary/50 hover:from-primary/15 disabled:opacity-50 disabled:cursor-not-allowed group"
+              onClick={() => runSignalSearch()}
+              disabled={aiLoading || showActivityPanel}
+              className="w-full rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-6 py-5 text-left transition hover:border-primary/50 hover:from-primary/15 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
               <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-primary/15 p-2.5 group-hover:bg-primary/25 transition">
-                  <Search className="w-5 h-5 text-primary" />
+                <div className="rounded-xl bg-primary/15 p-3 group-hover:bg-primary/25 transition">
+                  <Search className="w-6 h-6 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-semibold text-foreground">Search Evidence</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Search clinical trials, regulatory filings, guidelines, safety data, and payer coverage</div>
+                  <div className="text-base font-semibold text-foreground">Find Evidence</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Automatically search, collect, normalize, and validate signals from authoritative sources</div>
                 </div>
-                <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition" />
+                <ArrowUpRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition" />
               </div>
             </button>
-          ) : (
-            <div className="rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-card p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-xl bg-primary/15 p-2">
-                    <Search className="w-4 h-4 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">Evidence Search Results</h3>
-                    <p className="text-xs text-muted-foreground">Approve or dismiss each candidate</p>
-                  </div>
-                </div>
-                <button type="button" onClick={() => setShowFindPanel(false)} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Globe className="w-3.5 h-3.5" />
-                <span>Structured search across clinical trials, label data, guidelines, safety, and payer access</span>
-              </div>
-
-              {structuredSearchLoading && (
-                <div className="flex items-center justify-center gap-3 py-6">
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
-                  <span className="text-sm text-muted-foreground">Searching evidence sources...</span>
-                </div>
-              )}
-
-              {structuredSearchError && (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs text-destructive">
-                  {structuredSearchError}
-                </div>
-              )}
-
-              {!structuredSearchLoading && structuredSearchDone && structuredCandidates.length === 0 && (
-                <div className="text-center py-4 text-sm text-muted-foreground">No new evidence candidates found.</div>
-              )}
-
-              {structuredCandidates.length > 0 && (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-                  {structuredCandidates.map((candidate) => (
-                    <div key={candidate.tempId} className="rounded-xl border border-border bg-card p-4 space-y-2">
-                      <div className="flex items-start gap-2">
-                        <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                          candidate.evidenceCategory?.toLowerCase().includes("clinical") ? "bg-blue-500/20 text-blue-300" :
-                          candidate.evidenceCategory?.toLowerCase().includes("safety") ? "bg-amber-500/20 text-amber-300" :
-                          candidate.evidenceCategory?.toLowerCase().includes("guideline") ? "bg-green-500/20 text-green-300" :
-                          candidate.evidenceCategory?.toLowerCase().includes("payer") || candidate.evidenceCategory?.toLowerCase().includes("access") ? "bg-purple-500/20 text-purple-300" :
-                          candidate.evidenceCategory?.toLowerCase().includes("label") || candidate.evidenceCategory?.toLowerCase().includes("regulatory") ? "bg-cyan-500/20 text-cyan-300" :
-                          "bg-muted text-muted-foreground"
-                        }`}>{candidate.evidenceCategory || "Evidence"}</span>
-                        <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                          candidate.direction === "increases_probability" ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"
-                        }`}>{candidate.direction === "increases_probability" ? "Supports" : "Constrains"}</span>
-                      </div>
-                      <p className="text-sm text-foreground leading-relaxed">{candidate.text}</p>
-                      {candidate.trialName && (
-                        <p className="text-xs text-muted-foreground">Trial: {candidate.trialName}</p>
-                      )}
-                      {candidate.source_url && (
-                        <a href={candidate.source_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline truncate block">
-                          {candidate.source_title || candidate.source_url}
-                        </a>
-                      )}
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                        <span>Strength: {candidate.strength}</span>
-                        <span>Confidence: {candidate.reliability}</span>
-                      </div>
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => approveStructuredCandidate(candidate)}
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 transition"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => rejectStructuredCandidate(candidate.tempId)}
-                          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          Dismiss
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => runStructuredSearch()}
-                  disabled={structuredSearchLoading}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition disabled:opacity-50"
-                >
-                  <Search className="w-4 h-4" />
-                  {structuredSearchDone ? "Search Again" : "Search Evidence"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowFindPanel(false);
-                  }}
-                  className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
           )}
 
-          {showReadyBanner && !aiLoading && (
+          {(showReadyBanner || (!aiLoading && !showActivityPanel && allSignals.length > 0)) && (
             <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-card p-5 transition-all duration-500">
               <div className="flex items-center gap-3">
                 <div className="rounded-full bg-emerald-500/20 p-1.5">
@@ -2512,14 +2295,19 @@ export default function SignalsPage() {
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-emerald-300">Signals ready for review</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">You can now edit or accept signals</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Accept or reject each signal below</div>
                 </div>
-                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                  <span>Found: <span className="text-foreground font-medium">{processingCounts.found}</span></span>
-                  <span>Validated: <span className="text-foreground font-medium">{processingCounts.validated}</span></span>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>Found: <span className="text-foreground font-medium">{allSignals.length}</span></span>
+                  <span>Accepted: <span className="text-foreground font-medium">{allSignals.filter(s => s.accepted).length}</span></span>
                 </div>
-                <button type="button" onClick={() => setShowReadyBanner(false)} className="text-muted-foreground hover:text-foreground ml-1">
-                  <X className="w-3.5 h-3.5" />
+                <button
+                  type="button"
+                  onClick={() => runSignalSearch()}
+                  disabled={aiLoading || showActivityPanel}
+                  className="ml-2 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition disabled:opacity-50"
+                >
+                  Re-harvest
                 </button>
               </div>
             </div>
@@ -2530,112 +2318,6 @@ export default function SignalsPage() {
               {aiError}
             </div>
           )}
-
-          <ExternalSignalScoutPanel
-            activeQuestion={questionText}
-            subject={subject}
-            programId={subject ? `SCOUT-${subject.toUpperCase().replace(/\s+/g, "_")}` : undefined}
-            therapeuticArea={storedTherapeuticArea}
-            timeHorizon={activeQuestion?.timeHorizon}
-            existingSignalTexts={allSignals.map((s) => s.text)}
-            onAcceptSignal={(sig) => {
-              const newSignal: Signal = enrichSignalFields({
-                id: `scout-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                text: sig.text,
-                caveat: `Source: ${sig.sourceType}`,
-                direction: sig.direction,
-                strength: sig.strength,
-                reliability: sig.reliability,
-                impact: sig.strength === "High" ? "High" : sig.strength === "Low" ? "Low" : "Medium",
-                category: (["evidence", "access", "competition", "guideline", "timing", "adoption"].includes(sig.category) ? sig.category : "evidence") as Category,
-                source: "system",
-                accepted: false,
-                signal_class: "observed",
-                signal_family: "brand_clinical_regulatory",
-                signal_source: "external",
-                source_url: null,
-                source_type: sig.sourceType,
-                observed_date: sig.sourceDate || null,
-                citation_excerpt: null,
-                brand_verified: false,
-                priority_source: "ai_derived",
-                is_locked: false,
-              }, questionText, outcome);
-              setSignals((prev) => {
-                const updated = [...prev, newSignal];
-                persistSignals(updated);
-                return updated;
-              });
-              persistSignalToDb(newSignal);
-            }}
-          />
-
-          <SignalNormalizerPanel
-            signals={allSignals.map((s) => ({
-              id: s.id,
-              text: s.text,
-              direction: s.direction,
-              strength: s.strength,
-              confidence: s.reliability,
-              source: s.source,
-              sourceType: s.source_type,
-              category: s.category,
-              signalSource: s.signal_source,
-            }))}
-            activeQuestion={questionText}
-            onRemoveDuplicate={(signalId) => {
-              setSignals((prev) => {
-                const updated = prev.filter((s) => s.id !== signalId);
-                persistSignals(updated);
-                return updated;
-              });
-            }}
-            onFlagConflict={(signalId, conflictsWith) => {
-              setSignals((prev) => {
-                const updated = prev.map((s) =>
-                  s.id === signalId
-                    ? { ...s, conflict_with: conflictsWith }
-                    : s.id === conflictsWith
-                    ? { ...s, conflict_with: signalId }
-                    : s
-                );
-                persistSignals(updated);
-                return updated;
-              });
-            }}
-          />
-
-          <SignalQualityPanel
-            question={questionText}
-            signals={allSignals.map((s) => ({
-              id: s.id,
-              text: s.text,
-              direction: s.direction,
-              strength: s.strength,
-              reliability: s.reliability,
-              source: s.source,
-              source_type: s.source_type,
-              observed_date: s.observed_date || null,
-            }))}
-          />
-
-          {/* Signal Dependency Panel — hidden for demo readiness */}
-          {false && activeQuestion?.caseId && (
-            <SignalDependencyPanel caseId={activeQuestion.caseId} onData={handleDependencyData} refreshKey={lineageRefreshKey} />
-          )}
-
-          <ConflictResolverPanel
-            question={questionText}
-            signals={allSignals.map((s) => ({
-              id: s.id,
-              text: s.text,
-              direction: s.direction,
-              strength: s.strength,
-              reliability: s.reliability,
-              source: s.source,
-              source_type: s.source_type,
-            }))}
-          />
 
           {!aiLoading && hasSourceClassification && (
             <>
@@ -2920,17 +2602,14 @@ export default function SignalsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setShowFindPanel(true);
-                  if (!structuredSearchDone && structuredCandidates.length === 0 && !structuredSearchLoading) {
-                    runStructuredSearch();
-                  }
+                  runSignalSearch();
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
-                disabled={aiLoading || structuredSearchLoading}
+                disabled={aiLoading || showActivityPanel}
                 className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Search className="w-4 h-4" />
-                Search More Evidence
+                Re-harvest
               </button>
             </div>
           ) : (
