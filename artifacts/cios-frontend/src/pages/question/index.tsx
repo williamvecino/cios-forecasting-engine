@@ -26,8 +26,6 @@ import {
   PenLine,
   Plus,
   Sparkles,
-  Upload,
-  MessageSquare,
   CheckCircle2,
   XCircle,
   SplitSquareVertical,
@@ -1545,78 +1543,115 @@ export default function QuestionPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <button
-                type="button"
-                onClick={() => setShowImportProject(false)}
-                className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
-                  !showImportProject
-                    ? "border-primary/50 bg-primary/5"
-                    : "border-border hover:border-primary/30 bg-card"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`rounded-lg p-2.5 ${!showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
-                    <MessageSquare className={`w-5 h-5 ${!showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">Ask a Question</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">Type a decision question in plain language</div>
-                  </div>
+            {pageState === "input" && priorTemplates.length > 0 && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">What type of decision?</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Select the archetype that matches your forecasting question. This sets the starting prior and guides signal collection.</p>
                 </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowImportProject(true)}
-                className={`rounded-xl border-2 px-5 py-5 text-left transition group ${
-                  showImportProject
-                    ? "border-primary/50 bg-primary/5"
-                    : "border-border hover:border-primary/30 bg-card"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`rounded-lg p-2.5 ${showImportProject ? "bg-primary/10" : "bg-muted/20"}`}>
-                    <Upload className={`w-5 h-5 ${showImportProject ? "text-primary" : "text-muted-foreground group-hover:text-primary"} transition`} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">Import Project</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">Upload files, images, or paste text</div>
-                  </div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {priorTemplates.map((t: any) => {
+                    const isSelected = selectedArchetype === t.archetypeName;
+                    const descMap: Record<string, { tagline: string; examples: string }> = {
+                      "Launch Timing Decision": { tagline: "When will a product reach market?", examples: "Generic entry dates, launch readiness, manufacturing timelines" },
+                      "Regulatory Outcome Risk": { tagline: "Will a regulatory milestone succeed or fail?", examples: "FDA approval, label changes, safety reviews, REMS decisions" },
+                      "Early Adoption Acceleration": { tagline: "Will specialists adopt faster than expected?", examples: "KOL uptake, early prescriber behavior, clinical trial impact" },
+                      "Broad Adoption Expansion": { tagline: "Will adoption scale beyond early adopters?", examples: "Community physician uptake, formulary breadth, geographic spread" },
+                      "Market Access Constraint": { tagline: "Will payer barriers limit use?", examples: "Prior auth, step therapy, formulary exclusion, coverage decisions" },
+                    };
+                    const desc = descMap[t.archetypeName] || { tagline: "Strategic forecasting question", examples: "" };
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedArchetype("");
+                            setArchetypeRationale("");
+                          } else {
+                            setSelectedArchetype(t.archetypeName);
+                            setArchetypeRationale(t.priorRationale);
+                          }
+                        }}
+                        className={`text-left rounded-2xl border-2 p-5 transition-all ${isSelected ? "border-cyan-500/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/5" : "border-border hover:border-cyan-500/30 bg-card hover:bg-card/80"}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold text-foreground">{t.archetypeName}</span>
+                          <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${isSelected ? "bg-cyan-500/20 text-cyan-300" : "bg-muted text-muted-foreground"}`}>{Math.round(t.defaultPriorProbability * 100)}% prior</span>
+                        </div>
+                        <p className="text-xs text-foreground/70 mb-1.5">{desc.tagline}</p>
+                        {desc.examples && (
+                          <p className="text-[10px] text-muted-foreground">{desc.examples}</p>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/case-input")}
-                className="rounded-xl border-2 border-border hover:border-primary/30 bg-card px-5 py-5 text-left transition group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg p-2.5 bg-muted/20">
-                    <FileText className="w-5 h-5 text-muted-foreground group-hover:text-primary transition" />
+                {selectedArchetype && (
+                  <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-2 h-2 rounded-full bg-cyan-400" />
+                      <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">Prior Rationale</span>
+                    </div>
+                    <p className="text-xs text-foreground/70">{archetypeRationale}</p>
+                    {(() => { const t = priorTemplates.find((pt: any) => pt.archetypeName === selectedArchetype); return t?.commonTraps ? (
+                      <div className="mt-2 pt-2 border-t border-cyan-500/10">
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Common Trap: </span>
+                        <span className="text-[10px] text-foreground/50">{t.commonTraps}</span>
+                      </div>
+                    ) : null; })()}
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">Structured Input</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">Fill in the standard case form</div>
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/ingest")}
-                className="rounded-xl border-2 border-border hover:border-primary/30 bg-card px-5 py-5 text-left transition group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg p-2.5 bg-muted/20">
-                    <Layers className="w-5 h-5 text-muted-foreground group-hover:text-primary transition" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">Ingest Document</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">Classify decisions from full text</div>
-                  </div>
-                </div>
-              </button>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <label className="mb-3 block text-lg font-semibold text-foreground">
+                What decision are you trying to make?
+              </label>
+              <p className="text-sm text-muted-foreground mb-4">
+                Type your question in plain language. CIOS will structure it, validate feasibility, and recommend an outcome format before you proceed.
+              </p>
+              <textarea
+                value={rawInput}
+                onChange={(e) => setRawInput(e.target.value)}
+                placeholder={(() => {
+                  const placeholders: Record<string, string> = {
+                    "Launch Timing Decision": "Will [company] launch [product] in the U.S. by [date], or will the launch be delayed?",
+                    "Regulatory Outcome Risk": "Will the FDA approve [drug] for [indication] within [timeframe]?",
+                    "Early Adoption Acceleration": "Will [drug] achieve [X]% adoption among [specialists] within [timeframe]?",
+                    "Broad Adoption Expansion": "Will [therapy] achieve formulary access in [region] within [timeframe]?",
+                    "Market Access Constraint": "Will [payer/PBM] implement [restriction] for [therapy] within [timeframe]?",
+                  };
+                  if (selectedArchetype && placeholders[selectedArchetype]) return placeholders[selectedArchetype];
+                  return "Example: Will the FDA implement a safety-related label change for Xarelto within the next 12 months due to GI bleeding risk signals?";
+                })()}
+                rows={4}
+                autoFocus
+                disabled={pageState !== "input"}
+                className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
+                    e.preventDefault();
+                    handleStructure();
+                  }
+                }}
+              />
+
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleStructure}
+                  disabled={!rawInput.trim() || pageState !== "input"}
+                  className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Analyze Question
+                </button>
+              </div>
             </div>
 
-            {showImportProject ? (
+            {showImportProject && (
               <ImportProjectDialog
                 onImportComplete={handleImportComplete}
                 onMultiImport={handleMultiImport}
@@ -1627,112 +1662,6 @@ export default function QuestionPage() {
                   setSubmitError(null);
                 }}
               />
-            ) : (
-              <>
-              {pageState === "input" && priorTemplates.length > 0 && (
-                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-cyan-400" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Choose an Archetype</span>
-                  </div>
-                  <p className="text-xs text-foreground/60">Select the decision pattern that matches your question. This sets the starting prior and guides the analysis.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {priorTemplates.map((t: any) => {
-                      const isSelected = selectedArchetype === t.archetypeName;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedArchetype("");
-                              setArchetypeRationale("");
-                            } else {
-                              setSelectedArchetype(t.archetypeName);
-                              setArchetypeRationale(t.priorRationale);
-                            }
-                          }}
-                          className={`text-left rounded-xl border p-3 transition ${isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-border hover:border-slate-600 bg-card/50"}`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-semibold text-foreground">{t.archetypeName}</span>
-                            <span className="text-[10px] font-mono text-cyan-400">{Math.round(t.defaultPriorProbability * 100)}%</span>
-                          </div>
-                          <p className="text-[10px] text-cyan-400/70">{
-                            ({
-                              "Launch Timing Decision": "launch date uncertainty",
-                              "Regulatory Outcome Risk": "approval or delay questions",
-                              "Early Adoption Acceleration": "specialist uptake questions",
-                              "Broad Adoption Expansion": "community scale-up questions",
-                              "Market Access Constraint": "reimbursement / formulary questions",
-                            } as Record<string, string>)[t.archetypeName] || "strategic forecasting"
-                          }</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {selectedArchetype && (
-                    <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-3 mt-1">
-                      <div className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider mb-1">Selected Rationale</div>
-                      <p className="text-xs text-foreground/70">{archetypeRationale}</p>
-                      {(() => { const t = priorTemplates.find((pt: any) => pt.archetypeName === selectedArchetype); return t?.commonTraps ? (
-                        <div className="mt-2">
-                          <div className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-0.5">Common Trap</div>
-                          <p className="text-[10px] text-foreground/50">{t.commonTraps}</p>
-                        </div>
-                      ) : null; })()}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="rounded-2xl border border-border bg-card p-6">
-                <label className="mb-3 block text-lg font-semibold text-foreground">
-                  What decision are you trying to make?
-                </label>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Type your question in plain language. CIOS will structure it, validate feasibility, and recommend an outcome format before you proceed.
-                </p>
-                <textarea
-                  value={rawInput}
-                  onChange={(e) => setRawInput(e.target.value)}
-                  placeholder={(() => {
-                    try {
-                      const stored = localStorage.getItem("cios.selectedArchetype");
-                      if (stored) { const a = JSON.parse(stored); if (a.placeholder) return a.placeholder; }
-                    } catch {}
-                    const params = new URLSearchParams(window.location.search);
-                    const arch = params.get("archetype");
-                    if (arch === "launch-adoption") return "Will [drug] achieve [target]% of new [indication] starts within [time] of launch?";
-                    if (arch === "competitive-displacement") return "What is the probability that [asset] achieves meaningful share against [incumbent] in [indication]?";
-                    if (arch === "evidence-impact") return "How will [trial/data] change prescriber behavior for [drug] in [indication]?";
-                    return "Example: Will the FDA implement a safety-related label change for Xarelto within the next 12 months due to GI bleeding risk signals?";
-                  })()}
-                  rows={4}
-                  autoFocus
-                  disabled={pageState !== "input"}
-                  className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 resize-none disabled:opacity-50"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && rawInput.trim()) {
-                      e.preventDefault();
-                      handleStructure();
-                    }
-                  }}
-                />
-
-                <div className="mt-4 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleStructure}
-                    disabled={!rawInput.trim() || pageState !== "input"}
-                    className="rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Analyze Question
-                  </button>
-                </div>
-              </div>
-              </>
             )}
 
             <DeferredQuestionsPanel onUseQuestion={(text) => {
@@ -1741,28 +1670,62 @@ export default function QuestionPage() {
             }} />
 
             {pageState === "input" && !isEditMode && (
-              <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">Prepared Cases</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Jump into a fully configured case with signals already loaded.</p>
+              <>
+                <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Prepared Cases</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Jump into a fully configured case with signals already loaded.</p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {DEMO_CASES.map((dc) => (
+                      <button
+                        key={dc.caseId}
+                        type="button"
+                        onClick={() => {
+                          clearQuestion();
+                          setTimeout(() => navigate(`/case/${dc.caseId}/forecast`), 0);
+                        }}
+                        className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-white/[0.06] hover:border-white/20 transition flex items-center gap-3 cursor-pointer"
+                      >
+                        <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400">{dc.label}</span>
+                        <span>{dc.question}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  {DEMO_CASES.map((dc) => (
+
+                <div className="mt-4 border-t border-white/5 pt-6">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3">Other input methods</p>
+                  <div className="grid grid-cols-2 gap-3">
                     <button
-                      key={dc.caseId}
                       type="button"
-                      onClick={() => {
-                        clearQuestion();
-                        setTimeout(() => navigate(`/case/${dc.caseId}/forecast`), 0);
-                      }}
-                      className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-xs text-foreground/80 hover:bg-white/[0.06] hover:border-white/20 transition flex items-center gap-3 cursor-pointer"
+                      onClick={() => navigate("/case-input")}
+                      className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left transition hover:bg-white/[0.05] hover:border-white/20 group"
                     >
-                      <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400">{dc.label}</span>
-                      <span>{dc.question}</span>
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition" />
+                        <div>
+                          <div className="text-xs font-medium text-foreground/60 group-hover:text-foreground/80 transition">Structured Input</div>
+                          <div className="text-[10px] text-muted-foreground/40">Define a case manually</div>
+                        </div>
+                      </div>
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/ingest")}
+                      className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left transition hover:bg-white/[0.05] hover:border-white/20 group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Layers className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition" />
+                        <div>
+                          <div className="text-xs font-medium text-foreground/60 group-hover:text-foreground/80 transition">Ingest Document</div>
+                          <div className="text-[10px] text-muted-foreground/40">Upload a PDF, abstract, or any file</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </>
         ) : null}
