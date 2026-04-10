@@ -97,6 +97,7 @@ function Router() {
       <Route path="/case/:caseId/question">{() => <CaseWorkflowRedirect targetStep="question" />}</Route>
       <Route path="/case/:caseId/signals">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
       <Route path="/case/:caseId/pending-signals">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
+      <Route path="/case/:caseId/forecast">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
       <Route path="/case/:caseId/scenario">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
       <Route path="/case/:caseId/ledger">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
       <Route path="/case/:caseId/agents/detection">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>

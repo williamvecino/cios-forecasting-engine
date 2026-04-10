@@ -57,7 +57,7 @@ export default function ForecastsPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Forecasts</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              All your forecast cases. Each opens into the 4-step workflow.
+              All your forecast cases. Each opens into the 6-step workflow.
             </p>
           </div>
           <Link

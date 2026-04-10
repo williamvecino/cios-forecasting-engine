@@ -886,12 +886,16 @@ function SignalLockBar({ caseId, signals, onPersistSignal }: { caseId?: string; 
       <button
         type="button"
         onClick={async () => {
+          const cid = caseId;
           if (signals && onPersistSignal) {
             const unpersisted = signals.filter((s) => !s.accepted && !s.superseded);
             if (unpersisted.length > 0) {
               await Promise.all(unpersisted.map((s) => onPersistSignal(s)));
               await new Promise((r) => setTimeout(r, 500));
             }
+          }
+          if (cid) {
+            localStorage.setItem(`cios.signalsLocked:${cid}`, "true");
           }
           navigate("/forecast");
         }}

@@ -1539,8 +1539,11 @@ export default function QuestionPage() {
               ];
               return (
               <div className="space-y-4">
-                <div>
-                  <h2 className="text-xl font-bold text-foreground">What type of decision?</h2>
+                <div className="rounded-2xl border border-border bg-card p-6">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Step 1
+                  </div>
+                  <h1 className="mt-2 text-2xl font-semibold text-foreground">Define the Question</h1>
                   <p className="text-sm text-muted-foreground mt-1">Select the archetype that matches your forecasting question. This sets the starting prior and guides signal collection.</p>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
