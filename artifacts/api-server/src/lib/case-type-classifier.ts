@@ -11,6 +11,7 @@ export type CaseType =
   | "operational_execution"
   | "strategic_partnership"
   | "policy_environment"
+  | "generic_entry_timing"
   | "unclassified";
 
 export interface CaseTypeResult {
@@ -47,6 +48,14 @@ const CASE_TYPE_RULES: {
     contextPatterns: [/launch/i, /pre.?launch/i, /new\s+indication/i, /approval/i, /first.?in.?class/i],
     driverDomains: ["regulatory_readiness", "field_force_deployment", "channel_access", "medical_education", "kol_engagement", "supply_chain"],
     description: "New product or indication launch — focuses on readiness gates, field force alignment, and initial access",
+  },
+  {
+    type: "generic_entry_timing",
+    keywords: ["generic", "biosimilar", "launch", "entry", "anda", "paragraph iv", "settlement", "manufacturing", "vial", "lyophilized", "sterile", "delayed", "delay"],
+    questionTypes: ["adoption_probability", "time_to_adoption"],
+    contextPatterns: [/generic.*launch/i, /generic.*entry/i, /biosimilar.*launch/i, /launch.*generic/i, /launch.*biosimilar/i, /will.*launch.*by/i, /will.*launch.*in/i, /delayed.*to/i, /timing/i, /anda/i, /paragraph\s+iv/i, /settlement/i],
+    driverDomains: ["ip_settlement_terms", "manufacturing_readiness", "anda_regulatory_status", "management_signaling", "analyst_consensus", "supply_chain_capability", "capacity_constraints"],
+    description: "Generic/biosimilar entry timing — focuses on IP settlement, manufacturing readiness, ANDA status, management signaling, and supply chain capability",
   },
   {
     type: "competitive_defense",

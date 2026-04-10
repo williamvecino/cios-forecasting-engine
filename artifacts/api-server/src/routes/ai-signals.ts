@@ -26,6 +26,14 @@ function isAdoptionCase(caseFrame: CaseFrame): boolean {
     caseFrame.archetypeLabel.toLowerCase().includes("adoption");
 }
 
+function isGenericEntryCase(caseFrame: CaseFrame, questionText: string): boolean {
+  if (caseFrame.caseType === "generic_entry_timing") return true;
+  const q = questionText.toLowerCase();
+  const hasGeneric = /generic|biosimilar|anda/i.test(q);
+  const hasTiming = /launch|entry|enter|timing|when|by\s+(late|early|mid|q[1-4]|20\d\d)/i.test(q);
+  return hasGeneric && hasTiming;
+}
+
 function hasThresholdAndTimeWindow(questionText: string): boolean {
   const hasThreshold = /(?:≥|>=|at least|reach|exceed|achieve)\s*\d+/i.test(questionText) ||
     /\d+\s*%/i.test(questionText);
@@ -184,6 +192,39 @@ THRESHOLD-WINDOW EXPANSION: This question specifies both an adoption threshold a
   }
 
   return prompt;
+}
+
+function buildGenericEntryTimingPrompt(questionText: string, subject: string): string {
+  return `
+GENERIC / BIOSIMILAR ENTRY TIMING CASE — SPECIALIZED SIGNAL GENERATION RULES:
+
+This is NOT an adoption case. This question asks WHEN a generic or biosimilar product will launch. The decision mechanism is driven by manufacturing readiness, IP/legal resolution, regulatory status, and management signaling — NOT by clinical evidence strength or prescriber behavior.
+
+REQUIRED MECHANISM FAMILIES (generate at least one signal per family):
+1. IP / SETTLEMENT TERMS — Paragraph IV settlement dates, authorized generic entry dates, patent expiry schedule, litigation status. What does the IP landscape allow?
+2. ANDA / REGULATORY STATUS — ANDA filing status, FDA review timeline, tentative approval status, any Complete Response Letters or deficiencies.
+3. MANUFACTURING SITE READINESS — Does the manufacturer have a confirmed, FDA-inspected site capable of producing this specific dosage form (e.g., sterile lyophilized vial, long-acting injectable, depot formulation)? Include site name, location, inspection history, and any Form 483 issues.
+4. MANUFACTURING CAPACITY CONSTRAINTS — Is the required production line shared with higher-priority products? Are there capacity bottlenecks, competing line time, or resource allocation conflicts?
+5. MANAGEMENT SIGNALING — Track management language evolution across earnings calls, investor days, JPM presentations. Downshifts from "confident" to "potential" to silence are leading indicators of timeline slippage. Quote specific language changes with dates.
+6. ANALYST / SELL-SIDE CONSENSUS — What do sell-side analysts covering both the innovator and generic company expect? Is there analyst coverage of this specific entry, or is it absent? Absence of coverage is itself a signal.
+7. INTERNATIONAL MANUFACTURING CAPABILITY — Does the company have sterile manufacturing capability at international facilities (India, EU) that could supply the US market? What is the FDA inspection status of those facilities?
+
+SIGNAL TYPES SPECIFIC TO GENERIC ENTRY TIMING:
+- Innovator marketing plan actions that imply generic entry date (e.g., budget adjustments, brand defense preparations)
+- Generic company primary source statements about timeline (earnings calls, investor presentations)
+- Manufacturing site identification or absence thereof
+- Competing products constraining manufacturing capacity
+- Management language evolution (confidence downshifts over time are strong negative signals)
+- Wall Street research coverage or absence on the entry date
+- FDA facility inspection history and readiness
+- Contract manufacturing organization (CMO) arrangements
+- Technology transfer status for complex formulations (LAI, lyophilized, sterile)
+
+MINIMUM SIGNAL COUNT: Generate at least 7 materially distinct signals covering different mechanism families.
+BRAND/SUBJECT: ${subject}
+QUESTION: ${questionText}
+
+CRITICAL: Do NOT generate clinical adoption signals (prescriber behavior, guideline movement, formulary access) for this case type. Those are irrelevant to the timing question. Focus exclusively on the manufacturing, regulatory, legal, and signaling drivers that determine WHEN entry occurs.`;
 }
 
 interface SignalGenerationRequest {
@@ -469,6 +510,7 @@ Convert relevant verified brand developments into observed signals first, then a
 ${buildFrameConstraintPrompt(caseFrame)}
 
 ${isAdoptionCase(caseFrame) ? buildAdoptionExpansionPrompt(body.questionText) : ""}
+${isGenericEntryCase(caseFrame, body.questionText) ? buildGenericEntryTimingPrompt(body.questionText, body.subject) : ""}
 
 ${isSafetyRiskCase(body.questionText) ? `SAFETY/RISK CASE RULES:
 - This is a safety/risk case. Safety signals are PRIMARY drivers with highest weight.

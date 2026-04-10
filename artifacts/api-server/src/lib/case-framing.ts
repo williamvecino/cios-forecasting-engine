@@ -972,6 +972,7 @@ const CLASSIFIER_TO_PROFILE_MAP: Record<CaseType, string> = {
   operational_execution: "operational_execution",
   strategic_partnership: "strategic_partnership",
   policy_environment: "policy_environment",
+  generic_entry_timing: "launch_readiness",
   unclassified: "launch_readiness",
 };
 
