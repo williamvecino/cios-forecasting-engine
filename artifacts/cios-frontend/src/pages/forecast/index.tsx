@@ -5,10 +5,7 @@ import { useRunForecast, useGetCase, useListCases } from "@workspace/api-client-
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
-import { ProbabilityGauge } from "@/components/ui-components";
-import { ForecastComparisonCircles } from "@/components/forecast/ForecastComparisonCircles";
 import { EventGatesPanel } from "@/components/forecast/EventGatesPanel";
-import { ForecastMeaningPanel } from "@/components/forecast/ForecastMeaningPanel";
 import { DecisionLabSummary } from "@/components/forecast/DecisionLabSummary";
 import { ExecutiveJudgment } from "@/components/forecast/ExecutiveJudgment";
 import { ExplainBox } from "@/components/forecast/ExplainBox";
