@@ -11,10 +11,10 @@ const SAMPLE_QUESTIONS = [
 ];
 
 const TEMPLATES = [
-  { name: "Adoption Forecast", description: "Predict whether a therapy will gain adoption in a target segment." },
-  { name: "Competitive Displacement", description: "Assess probability of a new entrant displacing incumbent therapy." },
-  { name: "Payer Access Risk", description: "Forecast likelihood of payer restrictions or formulary changes." },
-  { name: "Geographic Expansion", description: "Rank geographic areas by adoption readiness." },
+  { name: "Adoption Forecast", slug: "adoption-forecast", description: "Predict whether a therapy will gain adoption in a target segment.", placeholder: "Will [therapy] achieve [X]% adoption among [target specialists] within [timeframe]?", archetype: "Early Adoption Acceleration" },
+  { name: "Competitive Displacement", slug: "competitive-displacement", description: "Assess probability of a new entrant displacing incumbent therapy.", placeholder: "Will [new entrant] displace [incumbent therapy] in [segment] within [timeframe]?", archetype: "Launch Timing Decision" },
+  { name: "Payer Access Risk", slug: "payer-access-risk", description: "Forecast likelihood of payer restrictions or formulary changes.", placeholder: "Will [payer/PBM] implement [restriction type] for [therapy] within [timeframe]?", archetype: "Market Access Constraint" },
+  { name: "Geographic Expansion", slug: "geographic-expansion", description: "Rank geographic areas by adoption readiness.", placeholder: "Will [therapy] achieve formulary access in [geographic region] within [timeframe]?", archetype: "Broad Adoption Expansion" },
 ];
 
 export default function LibraryPage() {
@@ -60,13 +60,14 @@ export default function LibraryPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {TEMPLATES.map((t) => (
-              <div
+              <Link
                 key={t.name}
-                className="rounded-xl border border-border bg-card px-5 py-4 space-y-1"
+                href={`/question?template=${t.slug}`}
+                className="rounded-xl border border-border bg-card px-5 py-4 space-y-1 hover:border-violet-500/30 hover:bg-violet-500/5 transition cursor-pointer block"
               >
                 <div className="text-sm font-semibold text-foreground">{t.name}</div>
                 <div className="text-xs text-muted-foreground">{t.description}</div>
-              </div>
+              </Link>
             ))}
           </div>
         </section>

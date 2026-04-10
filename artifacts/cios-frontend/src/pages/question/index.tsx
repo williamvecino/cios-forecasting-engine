@@ -166,16 +166,33 @@ interface Interpretation {
 
 type PageState = "input" | "structuring" | "reviewing" | "refining" | "creating";
 
+const FORECAST_TEMPLATE_MAP: Record<string, { placeholder: string; archetype: string }> = {
+  "adoption-forecast": { placeholder: "Will [therapy] achieve [X]% adoption among [target specialists] within [timeframe]?", archetype: "Early Adoption Acceleration" },
+  "competitive-displacement": { placeholder: "Will [new entrant] displace [incumbent therapy] in [segment] within [timeframe]?", archetype: "Launch Timing Decision" },
+  "payer-access-risk": { placeholder: "Will [payer/PBM] implement [restriction type] for [therapy] within [timeframe]?", archetype: "Market Access Constraint" },
+  "geographic-expansion": { placeholder: "Will [therapy] achieve formulary access in [geographic region] within [timeframe]?", archetype: "Broad Adoption Expansion" },
+};
+
 export default function QuestionPage() {
   const [, navigate] = useLocation();
   const { activeQuestion, createQuestion, updateQuestion, clearQuestion } = useActiveQuestion();
   const createCaseMutation = useCreateCase();
 
-  const [rawInput, setRawInput] = useState(activeQuestion?.text ?? "");
+  const initTemplateSlug = (() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("template") || "";
+  })();
+
+  const [rawInput, setRawInput] = useState(() => {
+    if (initTemplateSlug && FORECAST_TEMPLATE_MAP[initTemplateSlug]) {
+      return FORECAST_TEMPLATE_MAP[initTemplateSlug].placeholder;
+    }
+    return activeQuestion?.text ?? "";
+  });
   const [pageState, setPageState] = useState<PageState>("input");
 
   useEffect(() => {
-    if (!activeQuestion) {
+    if (!activeQuestion && !initTemplateSlug) {
       setRawInput("");
       setPageState("input");
       setStructuringResult(null);
@@ -211,7 +228,6 @@ export default function QuestionPage() {
       .catch(() => {});
   }, []);
 
-  // Read archetype from home page selection
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const archetypeParam = params.get("archetype");
@@ -220,11 +236,9 @@ export default function QuestionPage() {
         const stored = localStorage.getItem("cios.selectedArchetype");
         if (stored) {
           const arch = JSON.parse(stored);
-          // Set placeholder text specific to the archetype
           if (arch.placeholder && !rawInput) {
             setRawInput("");
           }
-          // Pre-select the first matching prior template when templates load
           if (arch.priorArchetypes?.length > 0 && priorTemplates.length > 0) {
             const match = priorTemplates.find((t: any) => arch.priorArchetypes.includes(t.archetypeName));
             if (match && !selectedArchetype) {
@@ -235,6 +249,14 @@ export default function QuestionPage() {
           localStorage.removeItem("cios.selectedArchetype");
         }
       } catch {}
+    }
+    if (initTemplateSlug && FORECAST_TEMPLATE_MAP[initTemplateSlug] && priorTemplates.length > 0) {
+      const mapped = FORECAST_TEMPLATE_MAP[initTemplateSlug];
+      const match = priorTemplates.find((pt: any) => pt.archetypeName === mapped.archetype);
+      if (match) {
+        setSelectedArchetype(match.archetypeName);
+        setArchetypeRationale(match.priorRationale);
+      }
     }
   }, [priorTemplates, selectedArchetype, rawInput]);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
