@@ -1628,6 +1628,64 @@ export default function QuestionPage() {
                 }}
               />
             ) : (
+              <>
+              {pageState === "input" && priorTemplates.length > 0 && (
+                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-cyan-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Choose an Archetype</span>
+                  </div>
+                  <p className="text-xs text-foreground/60">Select the decision pattern that matches your question. This sets the starting prior and guides the analysis.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {priorTemplates.map((t: any) => {
+                      const isSelected = selectedArchetype === t.archetypeName;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedArchetype("");
+                              setArchetypeRationale("");
+                            } else {
+                              setSelectedArchetype(t.archetypeName);
+                              setArchetypeRationale(t.priorRationale);
+                            }
+                          }}
+                          className={`text-left rounded-xl border p-3 transition ${isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-border hover:border-slate-600 bg-card/50"}`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-foreground">{t.archetypeName}</span>
+                            <span className="text-[10px] font-mono text-cyan-400">{Math.round(t.defaultPriorProbability * 100)}%</span>
+                          </div>
+                          <p className="text-[10px] text-cyan-400/70">{
+                            ({
+                              "Launch Timing Decision": "launch date uncertainty",
+                              "Regulatory Outcome Risk": "approval or delay questions",
+                              "Early Adoption Acceleration": "specialist uptake questions",
+                              "Broad Adoption Expansion": "community scale-up questions",
+                              "Market Access Constraint": "reimbursement / formulary questions",
+                            } as Record<string, string>)[t.archetypeName] || "strategic forecasting"
+                          }</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedArchetype && (
+                    <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/5 p-3 mt-1">
+                      <div className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider mb-1">Selected Rationale</div>
+                      <p className="text-xs text-foreground/70">{archetypeRationale}</p>
+                      {(() => { const t = priorTemplates.find((pt: any) => pt.archetypeName === selectedArchetype); return t?.commonTraps ? (
+                        <div className="mt-2">
+                          <div className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-0.5">Common Trap</div>
+                          <p className="text-[10px] text-foreground/50">{t.commonTraps}</p>
+                        </div>
+                      ) : null; })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-2xl border border-border bg-card p-6">
                 <label className="mb-3 block text-lg font-semibold text-foreground">
                   What decision are you trying to make?
@@ -1674,6 +1732,7 @@ export default function QuestionPage() {
                   </button>
                 </div>
               </div>
+              </>
             )}
 
             <DeferredQuestionsPanel onUseQuestion={(text) => {
