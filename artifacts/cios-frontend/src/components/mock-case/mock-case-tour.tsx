@@ -108,42 +108,6 @@ export default function MockCaseTour({ open, onClose }: Props) {
           </div>
         );
 
-      case "decide":
-        return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <MockBlock title="Adoption Segment">
-                {MOCK_CASE.decision.adoptionSegment}
-              </MockBlock>
-              <MockBlock title="What Is Blocking Progress">
-                {MOCK_CASE.decision.barrier}
-              </MockBlock>
-              <MockBlock title="Readiness Timeline">
-                {MOCK_CASE.decision.readiness}
-              </MockBlock>
-              <MockBlock title="Competitive Risk">
-                {MOCK_CASE.decision.competitiveRisk}
-              </MockBlock>
-              <div className="md:col-span-2">
-                <MockBlock title="Feasibility Assessment">
-                  {MOCK_CASE.decision.growthFeasibility}
-                </MockBlock>
-              </div>
-            </div>
-
-            <div>
-              <div className="text-sm font-semibold text-foreground">
-                Recommended Actions by Scenario
-              </div>
-              <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-                {MOCK_CASE.scenarioDecisions.map((item) => (
-                  <ScenarioDecisionCard key={item.scenario} item={item} />
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-
       default:
         return null;
     }

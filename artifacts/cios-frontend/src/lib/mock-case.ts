@@ -1,4 +1,4 @@
-export type MockCaseStepKey = "question" | "signals" | "forecast" | "decide";
+export type MockCaseStepKey = "question" | "signals" | "forecast";
 
 export interface MockCaseStep {
   key: MockCaseStepKey;
@@ -180,20 +180,6 @@ export const MOCK_CASE_STEPS: MockCaseStep[] = [
       "Scenario planning across Base / Upside / Downside",
       "Key driver impact is surfaced",
       "Timing is made explicit",
-    ],
-  },
-  {
-    key: "decide",
-    label: "4 — Decide",
-    title: "Turn the forecast into action",
-    description:
-      "The final step translates probability into decisions about segments, barriers, timing, and risk.",
-    highlights: [
-      "Who moves first",
-      "What is blocking adoption",
-      "When to act",
-      "What competitive risks to watch",
-      "Scenario-aware recommended actions",
     ],
   },
 ];

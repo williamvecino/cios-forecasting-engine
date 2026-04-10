@@ -1,5 +1,6 @@
 export type WorkflowStep = "question" | "comparison-groups" | "signals" | "forecast" | "decide" | "respond" | "simulate";
 
+
 export interface OutcomeDimension {
   name: string;
   levels: string[];
@@ -71,22 +72,15 @@ export function getWorkflowSteps(): {
       path: "/forecast",
     },
     {
-      key: "decide",
-      label: "5 — Decide",
-      title: "Decide",
-      description: "Turn the judgment into action.",
-      path: "/decide",
-    },
-    {
       key: "respond",
-      label: "6 — Respond",
+      label: "5 — Respond",
       title: "Respond",
       description: "Generate a client-ready response.",
       path: "/respond",
     },
     {
       key: "simulate",
-      label: "7 — Simulate",
+      label: "6 — Simulate",
       title: "Simulate Adoption Reaction",
       description: "Test how segments react to specific materials.",
       path: "/simulate",
@@ -127,9 +121,7 @@ const CASE_SCOPED_KEYS = [
   "cios.baseGates",
   "cios.signalReadiness",
   "cios.judgmentResult",
-  "cios.decideResult",
   "cios.respondResult",
-  "cios.assumptions",
 ];
 
 export function clearCaseState(caseId: string): void {

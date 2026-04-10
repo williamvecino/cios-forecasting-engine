@@ -22,7 +22,6 @@ import StabilityTests from "@/pages/stability-tests/index";
 import QuestionPage from "@/pages/question/index";
 import SignalsPage from "@/pages/signals/index";
 import ForecastPage from "@/pages/forecast/index";
-import DecidePage from "@/pages/decide/index";
 import RespondPage from "@/pages/respond/index";
 import SimulatePage from "@/pages/simulate/index";
 import SimulationEnginePage from "@/pages/simulate/simulation-engine";
@@ -87,7 +86,7 @@ function Router() {
       <Route path="/comparison-groups" component={ComparisonGroupsPage} />
       <Route path="/signals" component={SignalsPage} />
       <Route path="/forecast" component={ForecastPage} />
-      <Route path="/decide" component={DecidePage} />
+      <Route path="/decide"><Redirect to="/respond" /></Route>
       <Route path="/respond" component={RespondPage} />
       <Route path="/simulate" component={SimulatePage} />
       <Route path="/simulation-engine" component={SimulationEnginePage} />
@@ -106,7 +105,7 @@ function Router() {
       <Route path="/case/:caseId/agents/message">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
       <Route path="/case/:caseId/discover">{() => <CaseWorkflowRedirect targetStep="signals" />}</Route>
       <Route path="/case/:caseId/analogs">{() => <CaseWorkflowRedirect targetStep="forecast" />}</Route>
-      <Route path="/case/:caseId/portfolio">{() => <CaseWorkflowRedirect targetStep="decide" />}</Route>
+      <Route path="/case/:caseId/portfolio">{() => <CaseWorkflowRedirect targetStep="respond" />}</Route>
       <Route path="/case/:caseId/respond">{() => <CaseWorkflowRedirect targetStep="respond" />}</Route>
       <Route path="/case/:caseId/simulate">{() => <CaseWorkflowRedirect targetStep="simulate" />}</Route>
       <Route path="/case/:caseId/:rest*">{() => <CaseWorkflowRedirect targetStep="question" />}</Route>

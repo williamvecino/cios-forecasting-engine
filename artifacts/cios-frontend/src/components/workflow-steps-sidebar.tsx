@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Check, Shield } from "lucide-react";
+import { Check } from "lucide-react";
 import type { WorkflowStep } from "../lib/workflow";
 
 const STEPS = [
@@ -7,32 +7,22 @@ const STEPS = [
   { key: "comparison-groups", label: "Define Comparison Groups", path: "/comparison-groups" },
   { key: "signals", label: "Add Information", path: "/signals" },
   { key: "forecast", label: "Judge", path: "/forecast" },
-  { key: "decide", label: "Decide", path: "/decide" },
   { key: "respond", label: "Respond", path: "/respond" },
   { key: "simulate", label: "Simulate", path: "/simulate" },
 ] as const;
 
-const ASSUMPTION_INSERT_AFTER = "forecast";
-
 interface Props {
   currentStep: WorkflowStep;
   hasActiveQuestion: boolean;
-  assumptionCount?: number;
-  hasInvalidatedAssumptions?: boolean;
-  onOpenAssumptions?: () => void;
 }
 
 export default function WorkflowStepsSidebar({
   currentStep,
   hasActiveQuestion,
-  assumptionCount = 0,
-  hasInvalidatedAssumptions = false,
-  onOpenAssumptions,
 }: Props) {
   const [location] = useLocation();
 
   const currentIdx = STEPS.findIndex((s) => location.startsWith(s.path));
-  const showAssumptions = hasActiveQuestion && currentIdx >= 3 && !!onOpenAssumptions;
 
   const items: React.ReactNode[] = [];
 
@@ -81,28 +71,6 @@ export default function WorkflowStepsSidebar({
       );
     }
 
-    if (step.key === ASSUMPTION_INSERT_AFTER && showAssumptions) {
-      items.push(
-        <button
-          key="forecast-assumptions"
-          onClick={onOpenAssumptions}
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition w-full text-muted-foreground hover:bg-muted/20 hover:text-foreground border border-transparent"
-        >
-          <Shield className="w-4 h-4 text-primary/60" />
-          <span className="flex-1 text-left">Forecast Assumptions</span>
-          {assumptionCount > 0 && (
-            <span className="rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-bold">
-              {assumptionCount}
-            </span>
-          )}
-          {hasInvalidatedAssumptions && (
-            <span className="rounded-full bg-rose-400/10 text-rose-400 px-1.5 py-0.5 text-[10px] font-bold">
-              !
-            </span>
-          )}
-        </button>
-      );
-    }
   });
 
   return (

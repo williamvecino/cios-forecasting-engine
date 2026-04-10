@@ -29,7 +29,7 @@ export default function WorkflowSidebar({
         {steps.map((step) => {
           const gated =
             !hasActiveQuestion &&
-            (step.key === "signals" || step.key === "forecast" || step.key === "decide");
+            (step.key === "signals" || step.key === "forecast");
 
           const isActive = location === step.path || currentStep === step.key;
 

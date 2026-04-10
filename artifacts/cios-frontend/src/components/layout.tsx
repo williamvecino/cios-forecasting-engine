@@ -8,7 +8,6 @@ function resolveCurrentStep(location: string): WorkflowStep {
   if (location.startsWith("/question")) return "question";
   if (location.startsWith("/signals")) return "signals";
   if (location.startsWith("/forecast")) return "forecast";
-  if (location.startsWith("/decide")) return "decide";
   return "question";
 }
 

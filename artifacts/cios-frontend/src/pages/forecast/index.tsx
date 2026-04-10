@@ -2722,8 +2722,8 @@ function BottomLinks({ forecastData }: { forecastData?: any }) {
             <span key={item} className="rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-400">{item}</span>
           ))}
         </div>
-        <Link href="/decide" className="mt-5 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500">
-          Go to Decide
+        <Link href="/respond" className="mt-5 inline-flex rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+          Continue to Respond
         </Link>
       </div>
       <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">

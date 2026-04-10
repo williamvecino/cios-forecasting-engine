@@ -173,7 +173,7 @@ export function MethodologyGuidance({ questionText, currentStep }: MethodologyGu
   const [activeTab, setActiveTab] = useState<GuidanceTab>("segmentation");
   const caseInfo = detectCaseType(questionText || "");
 
-  const showSegmentation = !currentStep || ["forecast", "decide", "respond", "simulate"].includes(currentStep);
+  const showSegmentation = !currentStep || ["forecast", "respond", "simulate"].includes(currentStep);
 
   if (!showSegmentation && currentStep !== "signals") return null;
 
