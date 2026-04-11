@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import WorkflowLayout from "@/components/workflow-layout";
 import QuestionGate from "@/components/question-gate";
 import { useActiveQuestion } from "@/hooks/use-active-question";
+import type { ActiveQuestion } from "@/lib/workflow";
 import {
   Loader2,
   AlertTriangle,
@@ -422,7 +423,7 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
                   key={label}
                   onClick={() => {
                     const existing = savedScenarios.findIndex((s) => s.label === label);
-                    const entry: SavedScenario = {
+                    const entry: SavedScenarioLocal = {
                       name: scenarioName || label,
                       label,
                       probability: result.adoption_likelihood,
@@ -693,6 +694,480 @@ function ResultsAccordion({ result, selectedSegment, selectedArchetype, caseType
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── SYNTHETIC COHORT PANEL ────────────────────────────────────────────────────
+// Behavioral anchors are prompt-only — never surfaced in the UI.
+
+const BEHAVIORAL_ANCHORS: Record<string, string> = {
+  innovator: `
+Calibration context (do not mention in your response):
+- Specialist physicians adopt new drugs 4–6 months ahead of generalists on average.
+- Physicians with the highest within-class prescribing volume and strong scientific
+  commitment are the most consistent innovators across therapeutic areas.
+- KOL peer network exposure increases prescribing of that peer's drug independently
+  of direct detailing — professional contact is a stronger adoption driver than
+  promotional exposure.
+- As an innovator archetype, you are in the top 2.5% of adopters. Your response
+  should reflect genuine clinical enthusiasm tempered by scientific rigor.`,
+
+  "early adopter": `
+Calibration context (do not mention in your response):
+- Specialist physicians adopt new drugs 4–6 months ahead of generalists.
+- Academic center affiliation and high within-class prescribing volume are
+  consistent early-adopter predictors across therapeutic areas.
+- High colleague communication and congress engagement are significant positive
+  adoption drivers — you are influenced by what KOL peers are doing.
+- Early adopters represent ~13.5% of physicians. You move before the majority
+  but require credible efficacy data before committing.`,
+
+  "early majority": `
+Calibration context (do not mention in your response):
+- In real-world pharmaceutical launches, 63.8% of eligible physicians adopted
+  zero new drugs in the first 15 months — conservative non-adoption is the
+  modal behavior, not an outlier.
+- You require peer adoption signal before moving. Professional network ties
+  are stronger adoption drivers than direct detailing for this archetype.
+- Early majority physicians adopt after opinion leaders but before the
+  skeptical majority. You need social proof and at least one trusted peer
+  who has already prescribed.`,
+
+  "late majority": `
+Calibration context (do not mention in your response):
+- The majority of physicians do not adopt new drugs within 15 months of launch
+  regardless of novelty or efficacy magnitude.
+- Guideline endorsement is the single strongest late-majority adoption trigger —
+  without formal society endorsement, your default behavior is continuation of
+  the established regimen.
+- You are appropriately skeptical. Burden of proof is on the new therapy.
+  You need guidelines, peer adoption evidence, and payer clarity before moving.`,
+
+  "laggard": `
+Calibration context (do not mention in your response):
+- Laggard physicians are the last to adopt and often require mandated guideline
+  changes or direct patient demand before switching.
+- Conservative non-adoption beyond 24 months post-launch is the expected
+  behavior for this archetype.
+- You are highly risk-averse, cost-sensitive, and defer to established
+  multidrug regimens unless there is overwhelming evidence and payer support.`
+};
+
+const PAYER_ANCHORS = `
+Calibration context (do not mention in your response):
+- Payers default to restriction for all specialty drugs above $10K/year unless
+  clinical differentiation is unambiguous and net price is negotiated.
+- Step therapy through an established comparator is the default policy position
+  for second-in-class agents regardless of clinical profile.
+- Prior authorization burden correlates with: absence of guideline endorsement,
+  presence of a cheaper comparator, and unresolved safety signals.
+- Access timeline for unrestricted coverage averages 6–18 months post-approval
+  even for first-in-class agents in rare disease.`;
+
+const PHYSICIAN_PERSONAS = [
+  {
+    id: "P1",
+    label: "Academic Specialist",
+    specialty: "Academic medical center, disease-focused specialist, high patient volume in target condition",
+    experience: "14 years",
+    adopter: "early adopter",
+    payer: "65% commercial, 25% Medicare, 10% Medicaid",
+    kol: "Attends major specialty congress annually, reads primary literature, aware of recent trial data"
+  },
+  {
+    id: "P2",
+    label: "Community Specialist",
+    specialty: "Community hospital or private practice specialist, moderate patient volume",
+    experience: "20 years",
+    adopter: "early majority",
+    payer: "55% commercial, 35% Medicare, 10% Medicaid",
+    kol: "Reads specialty society guidelines, attends regional meetings, influenced by local KOL peers"
+  },
+  {
+    id: "P3",
+    label: "KOL / Investigator",
+    specialty: "Major academic center, clinical trial investigator in this therapeutic area",
+    experience: "18 years",
+    adopter: "innovator",
+    payer: "70% commercial, 25% Medicare",
+    kol: "Advisory board member, speaker, publishes in the area, deep familiarity with trial data"
+  },
+  {
+    id: "P4",
+    label: "General / Referring Physician",
+    specialty: "General medicine or primary care, occasional patients in target condition, refers to specialists",
+    experience: "16 years",
+    adopter: "late majority",
+    payer: "50% commercial, 40% Medicare, 10% Medicaid",
+    kol: "Follows guidelines only, limited specialty congress attendance, defers to specialist recommendations"
+  }
+];
+
+const PAYER_PERSONAS = [
+  {
+    id: "PY1",
+    label: "Commercial Formulary MD",
+    type: "Commercial health plan",
+    role: "P&T committee medical director, specialty drug coverage decisions",
+    focus: "Clinical differentiation from existing SOC, ICER review, net price vs comparator, safety signals"
+  },
+  {
+    id: "PY2",
+    label: "Medicare Part D Director",
+    type: "Medicare Part D plan",
+    role: "Specialty tier formulary management, utilization management policy",
+    focus: "WAC vs net price, step therapy requirements, Part B vs D routing, budget impact per member"
+  },
+  {
+    id: "PY3",
+    label: "Medicaid P&T Pharmacist",
+    type: "State Medicaid program",
+    role: "P&T committee clinical pharmacist, prior authorization criteria",
+    focus: "Step therapy through established regimen first, supplemental rebate leverage, lowest net cost"
+  }
+];
+
+function buildEvidenceBrief(activeQuestion: ActiveQuestion): string {
+  try {
+    const caseId = activeQuestion.caseId || activeQuestion.id;
+    const signals: any[] = JSON.parse(
+      localStorage.getItem(`cios.signals:${caseId}`) ||
+      localStorage.getItem("cios.signals") ||
+      "[]"
+    );
+    const accepted = signals
+      .filter((s: any) => s.countTowardPosterior === true)
+      .map((s: any) => `${s.label || s.source || "Signal"}: ${s.description || s.text || ""}`)
+      .join(" ");
+
+    return [
+      activeQuestion.subject && `Subject: ${activeQuestion.subject}.`,
+      activeQuestion.outcome && `Outcome of interest: ${activeQuestion.outcome}.`,
+      activeQuestion.threshold && `Threshold: ${activeQuestion.threshold}.`,
+      activeQuestion.timeHorizon && `Time horizon: ${activeQuestion.timeHorizon}.`,
+      `Clinical question: ${activeQuestion.text}`,
+      accepted && `Active evidence signals: ${accepted}`,
+    ].filter(Boolean).join(" ");
+  } catch {
+    return activeQuestion.text || "No evidence brief available.";
+  }
+}
+
+async function callPhysicianPersona(
+  persona: typeof PHYSICIAN_PERSONAS[0],
+  evidenceBrief: string,
+  subject: string
+): Promise<any> {
+  const anchor = BEHAVIORAL_ANCHORS[persona.adopter.toLowerCase()]
+    || BEHAVIORAL_ANCHORS["early majority"];
+
+  const prompt = `You are a synthetic physician with the following profile:
+- Specialty and setting: ${persona.specialty}
+- Years in practice: ${persona.experience}
+- Adopter profile: ${persona.adopter} (Rogers diffusion curve)
+- Payer mix: ${persona.payer}
+- KOL and CME engagement: ${persona.kol}
+${anchor}
+
+You are deciding whether to prescribe or adopt ${subject} based on the following evidence:
+${evidenceBrief}
+
+Respond ONLY with a JSON object, no preamble, no markdown, no explanation:
+{
+  "wouldAdopt": true or false,
+  "confidence": <integer 1-10>,
+  "adoptionReadiness": "immediate" | "watch-and-wait" | "needs-guideline-support" | "unlikely",
+  "topReason": "<single most compelling reason to adopt, max 12 words>",
+  "topConcern": "<single biggest barrier to adoption, max 12 words>",
+  "messageNeeded": "<what single thing would change your decision, max 12 words>"
+}
+
+Be clinically honest. Conservative non-adoption is the empirically observed modal behavior. Only adopt if the evidence genuinely changes your clinical calculus for this patient population.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 350,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  const data = await res.json();
+  const text = data.content?.find((b: any) => b.type === "text")?.text || "{}";
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
+}
+
+async function callPayerPersona(
+  persona: typeof PAYER_PERSONAS[0],
+  evidenceBrief: string,
+  subject: string
+): Promise<any> {
+  const prompt = `You are a synthetic payer decision-maker with the following profile:
+- Plan type: ${persona.type}
+- Role: ${persona.role}
+- Primary decision focus: ${persona.focus}
+${PAYER_ANCHORS}
+
+You are making a formulary and coverage decision for ${subject}.
+Evidence and clinical context:
+${evidenceBrief}
+
+Respond ONLY with a JSON object, no preamble, no markdown, no explanation:
+{
+  "formularyDecision": "unrestricted" | "restricted-with-PA" | "step-therapy-required" | "non-covered",
+  "accessTimeline": "immediate" | "6-months" | "12-months" | "unlikely",
+  "priorAuthBurden": "low" | "moderate" | "high",
+  "stepTherapyLikelihood": <integer 1-10>,
+  "primaryBarrier": "<single biggest coverage barrier, max 12 words>",
+  "keyQuestion": "<one question you would ask the manufacturer, max 15 words>"
+}
+
+Be realistic. Specialty drug restriction is the default. Unrestricted access requires unambiguous differentiation and competitive net pricing.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 350,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  const data = await res.json();
+  const text = data.content?.find((b: any) => b.type === "text")?.text || "{}";
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
+}
+
+interface SyntheticCohortPanelProps {
+  activeQuestion: ActiveQuestion;
+  posterior: number | null;
+}
+
+function SyntheticCohortPanel({ activeQuestion, posterior }: SyntheticCohortPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0, current: "" });
+  const [physicianResults, setPhysicianResults] = useState<Record<string, any>>({});
+  const [payerResults, setPayerResults] = useState<Record<string, any>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  const evidenceBrief = buildEvidenceBrief(activeQuestion);
+  const subject = activeQuestion.subject
+    || activeQuestion.entities?.[0]
+    || activeQuestion.text.split(" ").slice(1, 4).join(" ")
+    || "the intervention";
+
+  const runCohort = useCallback(async () => {
+    setRunning(true);
+    setPhysicianResults({});
+    setPayerResults({});
+    setError(null);
+    const total = PHYSICIAN_PERSONAS.length + PAYER_PERSONAS.length;
+    setProgress({ done: 0, total, current: "" });
+    let done = 0;
+    const phys: Record<string, any> = {};
+    const pay: Record<string, any> = {};
+
+    for (const p of PHYSICIAN_PERSONAS) {
+      setProgress(prev => ({ ...prev, current: p.label }));
+      try {
+        phys[p.id] = await callPhysicianPersona(p, evidenceBrief, subject);
+        done++;
+        setPhysicianResults({ ...phys });
+        setProgress(prev => ({ ...prev, done }));
+      } catch (e: any) {
+        setError(`${p.label}: ${e.message}`);
+        setRunning(false);
+        return;
+      }
+    }
+
+    for (const p of PAYER_PERSONAS) {
+      setProgress(prev => ({ ...prev, current: p.label }));
+      try {
+        pay[p.id] = await callPayerPersona(p, evidenceBrief, subject);
+        done++;
+        setPayerResults({ ...pay });
+        setProgress(prev => ({ ...prev, done }));
+      } catch (e: any) {
+        setError(`${p.label}: ${e.message}`);
+        setRunning(false);
+        return;
+      }
+    }
+
+    setRunning(false);
+  }, [evidenceBrief, subject]);
+
+  const physArray = Object.values(physicianResults);
+  const payArray = Object.values(payerResults);
+  const simComplete =
+    physArray.length === PHYSICIAN_PERSONAS.length &&
+    payArray.length === PAYER_PERSONAS.length;
+
+  const synthAdoptionRate = physArray.length > 0
+    ? Math.round(physArray.filter((r: any) => r.wouldAdopt).length / physArray.length * 100)
+    : null;
+
+  const accessBlockPct = payArray.length > 0
+    ? Math.round(
+        payArray.filter((r: any) =>
+          ["step-therapy-required", "non-covered"].includes(r.formularyDecision)
+        ).length / payArray.length * 100
+      )
+    : null;
+
+  const unrestrictedPct = payArray.length > 0
+    ? Math.round(
+        payArray.filter((r: any) => r.formularyDecision === "unrestricted").length
+        / payArray.length * 100
+      )
+    : null;
+
+  const effectivePosterior =
+    synthAdoptionRate !== null && accessBlockPct !== null
+      ? Math.round(synthAdoptionRate * (1 - accessBlockPct / 100))
+      : null;
+
+  const delta =
+    synthAdoptionRate !== null && posterior !== null
+      ? Math.abs(synthAdoptionRate - posterior)
+      : null;
+
+  const concordant = delta !== null && delta <= 12;
+
+  const borderColor = simComplete
+    ? concordant ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.3)"
+    : "rgba(255,255,255,0.08)";
+
+  return (
+    <div style={{ marginTop: 20, border: `1px solid ${borderColor}`, borderRadius: 12, overflow: "hidden", transition: "border-color 0.4s ease" }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)", userSelect: "none" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontFamily: "monospace", fontSize: 10, color: "#3b82f6", letterSpacing: "0.12em", textTransform: "uppercase" }}>Synthetic Cohort</span>
+          <span style={{ fontSize: 11, color: "#475569" }}>{PHYSICIAN_PERSONAS.length} physicians · {PAYER_PERSONAS.length} payers</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {simComplete && delta !== null && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: concordant ? "#10b981" : "#f59e0b" }}>
+              {concordant ? `\u2713 concordant \u0394${delta}pp` : `\u26A0 divergent \u0394${delta}pp`}
+            </span>
+          )}
+          {simComplete && effectivePosterior !== null && (
+            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#94a3b8" }}>effective {effectivePosterior}%</span>
+          )}
+          <span style={{ color: "#334155", fontSize: 12 }}>{expanded ? "\u25B2" : "\u25BC"}</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ padding: "16px 18px" }}>
+          <button
+            onClick={runCohort}
+            disabled={running}
+            style={{ width: "100%", padding: "11px", background: running ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.85)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: running ? "not-allowed" : "pointer", marginBottom: 16, letterSpacing: "0.01em", transition: "background 0.2s" }}
+          >
+            {running ? `Running ${progress.current} \u2014 ${progress.done}/${progress.total}` : `Run Cohort \u00B7 ${PHYSICIAN_PERSONAS.length} physicians + ${PAYER_PERSONAS.length} payers`}
+          </button>
+
+          {error && (
+            <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 10px", background: "rgba(239,68,68,0.08)", borderRadius: 6, border: "1px solid rgba(239,68,68,0.2)" }}>{error}</div>
+          )}
+
+          {(physArray.length > 0 || payArray.length > 0) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                  <span>Physicians</span>
+                  {synthAdoptionRate !== null && <span style={{ color: synthAdoptionRate >= 50 ? "#10b981" : "#f59e0b", fontFamily: "monospace" }}>{synthAdoptionRate}% adopt</span>}
+                </div>
+                {PHYSICIAN_PERSONAS.map(p => {
+                  const r = physicianResults[p.id];
+                  if (!r) return (
+                    <div key={p.id} style={{ padding: "9px 11px", background: "rgba(255,255,255,0.015)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 7, marginBottom: 6, opacity: 0.4 }}>
+                      <div style={{ fontSize: 11, color: "#475569" }}>{p.label}</div>
+                      <div style={{ fontSize: 10, color: "#334155", marginTop: 2 }}>{running && progress.current === p.label ? "running..." : "pending"}</div>
+                    </div>
+                  );
+                  const readinessColor: Record<string, string> = { "immediate": "#10b981", "watch-and-wait": "#f59e0b", "needs-guideline-support": "#f97316", "unlikely": "#ef4444" };
+                  return (
+                    <div key={p.id} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.02)", border: `1px solid ${r.wouldAdopt ? "rgba(59,130,246,0.25)" : "rgba(255,255,255,0.05)"}`, borderRadius: 7, marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                        <div>
+                          <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 500 }}>{p.label}</div>
+                          <div style={{ fontSize: 10, color: readinessColor[r.adoptionReadiness] || "#94a3b8", marginTop: 1 }}>{r.adoptionReadiness?.replace(/-/g, " ")}</div>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4, color: r.wouldAdopt ? "#10b981" : "#64748b", background: r.wouldAdopt ? "rgba(16,185,129,0.1)" : "rgba(100,116,139,0.08)" }}>{r.wouldAdopt ? "ADOPT" : "NO"}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#10b981", marginBottom: 3, lineHeight: 1.4 }}>{"\u2713"} {r.topReason}</div>
+                      <div style={{ fontSize: 11, color: "#f87171", lineHeight: 1.4 }}>{"\u26A0"} {r.topConcern}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div>
+                <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                  <span>Payers</span>
+                  {unrestrictedPct !== null && <span style={{ color: unrestrictedPct >= 50 ? "#10b981" : "#f59e0b", fontFamily: "monospace" }}>{unrestrictedPct}% clear</span>}
+                </div>
+                {PAYER_PERSONAS.map(p => {
+                  const r = payerResults[p.id];
+                  if (!r) return (
+                    <div key={p.id} style={{ padding: "9px 11px", background: "rgba(255,255,255,0.015)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 7, marginBottom: 6, opacity: 0.4 }}>
+                      <div style={{ fontSize: 11, color: "#475569" }}>{p.label}</div>
+                      <div style={{ fontSize: 10, color: "#334155", marginTop: 2 }}>{running && progress.current === p.label ? "running..." : "pending"}</div>
+                    </div>
+                  );
+                  const accessColor: Record<string, string> = { "unrestricted": "#10b981", "restricted-with-PA": "#f59e0b", "step-therapy-required": "#f97316", "non-covered": "#ef4444" };
+                  const timelineColor: Record<string, string> = { "immediate": "#10b981", "6-months": "#f59e0b", "12-months": "#f97316", "unlikely": "#ef4444" };
+                  return (
+                    <div key={p.id} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.02)", border: `1px solid ${(accessColor[r.formularyDecision] || "#64748b")}25`, borderRadius: 7, marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                        <div>
+                          <div style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 500 }}>{p.label}</div>
+                          <div style={{ fontSize: 10, color: timelineColor[r.accessTimeline] || "#94a3b8", marginTop: 1 }}>{r.accessTimeline} access</div>
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, color: accessColor[r.formularyDecision] || "#94a3b8", background: (accessColor[r.formularyDecision] || "#94a3b8") + "15", textAlign: "right", maxWidth: 100, lineHeight: 1.3 }}>{r.formularyDecision?.replace(/-/g, " ").toUpperCase()}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#f87171", marginBottom: 3, lineHeight: 1.4 }}>{"\u26A0"} {r.primaryBarrier}</div>
+                      <div style={{ fontSize: 10, color: "#64748b", fontStyle: "italic", lineHeight: 1.4 }}>Q: {r.keyQuestion}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {simComplete && synthAdoptionRate !== null && (
+            <div style={{ padding: "14px 16px", borderRadius: 10, background: concordant ? "rgba(16,185,129,0.05)" : "rgba(245,158,11,0.05)", border: `1px solid ${concordant ? "rgba(16,185,129,0.18)" : "rgba(245,158,11,0.18)"}` }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
+                {[
+                  { label: "CIOS Posterior", value: posterior !== null ? `${posterior}%` : "\u2014", color: "#3b82f6" },
+                  { label: "Synth Adoption", value: `${synthAdoptionRate}%`, color: concordant ? "#10b981" : "#f59e0b" },
+                  { label: "Payer Clear", value: unrestrictedPct !== null ? `${unrestrictedPct}%` : "\u2014", color: (unrestrictedPct ?? 0) >= 50 ? "#10b981" : "#f59e0b" },
+                  { label: "Effective", value: effectivePosterior !== null ? `${effectivePosterior}%` : "\u2014", color: "#94a3b8" },
+                ].map((s, i) => (
+                  <div key={i} style={{ textAlign: "center" }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 9, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginTop: 2 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.6, color: concordant ? "#10b981" : "#f59e0b" }}>
+                {concordant
+                  ? `\u2713 Cross-method concordance (\u0394${delta}pp) \u2014 synthetic cohort corroborates Bayesian posterior.${effectivePosterior !== null ? ` Payer-adjusted effective posterior: ${effectivePosterior}%.` : ""}`
+                  : `\u26A0 Divergence detected (\u0394${delta}pp) \u2014 synthetic adoption rate departs from Bayesian posterior. Review prior calibration or signal characterization before proceeding.`}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1348,6 +1823,13 @@ export default function SimulatePage() {
               selectedArchetype={selectedArchetype}
               caseTypeInfo={caseTypeInfo}
               onReset={reset}
+            />
+          )}
+
+          {result && !loading && activeQuestion && (
+            <SyntheticCohortPanel
+              activeQuestion={activeQuestion}
+              posterior={result.adoption_likelihood ?? null}
             />
           )}
         </div>
