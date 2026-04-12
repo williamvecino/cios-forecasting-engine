@@ -74,6 +74,7 @@ import agentRegistryRouter from "./agent-registry.js";
 import precedentLibraryRouter from "./precedent-library.js";
 import pivotalSearchRouter from "./pivotal-search.js";
 import completenessCheckRouter from "./completeness-check.js";
+import versionRouter from "./version.js";
 
 const router: IRouter = Router();
 
@@ -152,5 +153,6 @@ router.use(agentRegistryRouter);
 router.use(precedentLibraryRouter);
 router.use(pivotalSearchRouter);
 router.use(completenessCheckRouter);
+router.use(versionRouter);
 
 export default router;
