@@ -37,11 +37,19 @@ export default function ObjectionHandlingPanel({
   question,
   therapeuticArea,
   indication,
+  forecastProbability,
+  primaryConstraint,
+  topNegativeDriver,
+  signalDetails,
 }: {
   brand: string;
   question: string;
   therapeuticArea?: string;
   indication?: string;
+  forecastProbability?: number | null;
+  primaryConstraint?: string;
+  topNegativeDriver?: string;
+  signalDetails?: Array<{ description?: string; direction?: string; pointContribution?: number }>;
 }) {
   const [result, setResult] = useState<BaosResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,7 +64,16 @@ export default function ObjectionHandlingPanel({
       const res = await fetch(`${getApiBase()}/agents/baos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand, question, therapeuticArea, indication }),
+        body: JSON.stringify({
+          brand,
+          question,
+          therapeuticArea: indication || therapeuticArea,
+          indication,
+          forecastProbability,
+          primaryConstraint,
+          topNegativeDriver,
+          barriers: signalDetails?.filter(s => s.direction === "negative").map(s => s.description) || [],
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: BaosResult = await res.json();

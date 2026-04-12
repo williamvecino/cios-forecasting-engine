@@ -27,6 +27,8 @@ import {
   BarChart3,
   Layers,
   Search,
+  FileText,
+  DollarSign,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
@@ -192,6 +194,7 @@ export default function RespondPage() {
   const { activeQuestion, clearQuestion } = useActiveQuestion();
   const [data, setData] = useState<RespondResult | null>(null);
   const [forecastData, setForecastData] = useState<ForecastData>({});
+  const [caseData, setCaseData] = useState<CaseData>({});
   const [coherence, setCoherence] = useState<CoherenceResult | null>(null);
   const [usingRevised, setUsingRevised] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -199,6 +202,12 @@ export default function RespondPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [diagnosticsUserOverride, setDiagnosticsUserOverride] = useState<boolean | null>(null);
+  const [fieldBriefing, setFieldBriefing] = useState<string | null>(null);
+  const [fieldBriefingLoading, setFieldBriefingLoading] = useState(false);
+  const [fieldBriefingCopied, setFieldBriefingCopied] = useState(false);
+  const [payerDossier, setPayerDossier] = useState<string | null>(null);
+  const [payerDossierLoading, setPayerDossierLoading] = useState(false);
+  const [payerDossierCopied, setPayerDossierCopied] = useState(false);
 
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.question || activeQuestion?.rawInput || activeQuestion?.text || "";
@@ -259,7 +268,7 @@ export default function RespondPage() {
       const apiBase = getApiBase();
 
       let fetchedForecast: ForecastData = {};
-      let caseData: CaseData = {};
+      let fetchedCaseData: CaseData = {};
 
       try {
         const [forecastRes, caseRes] = await Promise.all([
@@ -272,7 +281,8 @@ export default function RespondPage() {
         }
         if (caseRes.ok) {
           const caseJson = await caseRes.json();
-          caseData = caseJson.data || caseJson;
+          fetchedCaseData = caseJson.data || caseJson;
+          setCaseData(fetchedCaseData);
         }
       } catch {}
 
@@ -309,17 +319,17 @@ export default function RespondPage() {
       } catch {}
 
       const payload = {
-        subject: activeQuestion.subject || caseData.assetName || activeQuestion.text,
+        subject: activeQuestion.subject || fetchedCaseData.assetName || activeQuestion.text,
         questionText: activeQuestion.text,
-        outcome: caseData.outcomeDefinition || activeQuestion.outcome || "adoption",
-        timeHorizon: caseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
+        outcome: fetchedCaseData.outcomeDefinition || activeQuestion.outcome || "adoption",
+        timeHorizon: fetchedCaseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
         probability,
         constrainedProbability,
         posteriorProbability: fetchedForecast.posteriorProbability ?? null,
         thresholdProbability: fetchedForecast.thresholdProbability ?? null,
-        successDefinition: caseData.outcomeDefinition || null,
-        outcomeThreshold: caseData.outcomeThreshold || null,
-        strategicQuestion: caseData.strategicQuestion || null,
+        successDefinition: fetchedCaseData.outcomeDefinition || null,
+        outcomeThreshold: fetchedCaseData.outcomeThreshold || null,
+        strategicQuestion: fetchedCaseData.strategicQuestion || null,
         signalDetails: fetchedForecast.signalDetails || [],
         signals,
         derived_decisions: decideData?.derived_decisions || null,
@@ -348,10 +358,10 @@ export default function RespondPage() {
         const verifyPayload = {
           respondOutput: result,
           caseId,
-          strategicQuestion: caseData.strategicQuestion || activeQuestion.text,
-          successDefinition: caseData.outcomeDefinition || null,
-          outcomeThreshold: caseData.outcomeThreshold || null,
-          timeHorizon: caseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
+          strategicQuestion: fetchedCaseData.strategicQuestion || activeQuestion.text,
+          successDefinition: fetchedCaseData.outcomeDefinition || null,
+          outcomeThreshold: fetchedCaseData.outcomeThreshold || null,
+          timeHorizon: fetchedCaseData.timeHorizon || activeQuestion.timeHorizon || "12 months",
           posteriorProbability: fetchedForecast.posteriorProbability ?? null,
           thresholdProbability: fetchedForecast.thresholdProbability ?? null,
           signalDetails: fetchedForecast.signalDetails || [],
@@ -406,6 +416,79 @@ export default function RespondPage() {
     setCoherence(null);
     setUsingRevised(false);
     generate();
+  }
+
+  async function generateFieldBriefing() {
+    setFieldBriefingLoading(true);
+    setFieldBriefing(null);
+    try {
+      const brand = activeQuestion?.subject || "";
+      const indication = caseData?.outcomeDefinition || "";
+      const prob = forecastData?.posteriorProbability ?? forecastData?.currentProbability ?? 0;
+      const timeHorizon = caseData?.timeHorizon || "24 months";
+      const topPositiveDriver = data?.needle_movement?.moves_up?.[0]?.name || "Not identified";
+      const primaryConstraint = data?.primary_constraint || "Not identified";
+      const recommendedAction = data?.needle_movement?.recommended_actions?.strategic?.[0] || "Not identified";
+
+      const prompt = `Generate a one-page MSL field briefing for ${brand} in ${indication}.
+Forecast: ${Math.round(prob * 100)}% probability of achieving target within ${timeHorizon}.
+Primary driver: ${topPositiveDriver}
+Primary barrier: ${primaryConstraint}
+Recommended action: ${recommendedAction}
+Format as a scannable briefing an MSL can read in 2 minutes. Use these sections only: Forecast Summary (2 sentences), Key Evidence (3 bullet points), Primary Barrier (1 sentence), Your Action (1 specific recommendation). No jargon. Plain language.`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 600,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const resData = await res.json();
+      const text = resData.content?.find((b: any) => b.type === "text")?.text || "No response generated.";
+      setFieldBriefing(text);
+    } catch (e: any) {
+      setFieldBriefing(`Error: ${e.message}`);
+    } finally {
+      setFieldBriefingLoading(false);
+    }
+  }
+
+  async function generatePayerDossier() {
+    setPayerDossierLoading(true);
+    setPayerDossier(null);
+    try {
+      const brand = activeQuestion?.subject || "";
+      const indication = caseData?.outcomeDefinition || "";
+      const prob = forecastData?.posteriorProbability ?? forecastData?.currentProbability ?? 0;
+      const primaryConstraint = data?.primary_constraint || "Not identified";
+      const topNegativeDriver = data?.needle_movement?.moves_down?.[0]?.name || "Not identified";
+
+      const prompt = `Generate a payer value argument for ${brand} in ${indication}.
+Forecast probability: ${Math.round(prob * 100)}%
+Primary access barrier: ${primaryConstraint}
+Top negative access signal: ${topNegativeDriver}
+Generate three sections: (1) Clinical Evidence Summary — 2 sentences on efficacy, (2) Value Proposition — why this drug is worth covering, (3) Recommended Engagement — one specific action to improve formulary position. Plain language, no statistical jargon.`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 600,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const resData = await res.json();
+      const text = resData.content?.find((b: any) => b.type === "text")?.text || "No response generated.";
+      setPayerDossier(text);
+    } catch (e: any) {
+      setPayerDossier(`Error: ${e.message}`);
+    } finally {
+      setPayerDossierLoading(false);
+    }
   }
 
   return (
@@ -659,19 +742,130 @@ export default function RespondPage() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <Layers className="w-4 h-4 text-muted-foreground" />
-                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Post-Forecast Strategy Tools</h2>
+                  <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Strategy Tools</h2>
                 </div>
-                <p className="text-xs text-muted-foreground">These tools read the forecast output to inform strategy. They do not write to the signal register or influence the forecast.</p>
+                <p className="text-xs text-muted-foreground">Generate strategic content from this forecast. Content updates automatically when the forecast changes.</p>
 
                 <MessageStrategyPanel
                   brand={activeQuestion?.subject || ""}
                   question={questionText}
+                  indication={caseData?.outcomeDefinition || ""}
+                  forecastProbability={forecastData?.posteriorProbability ?? forecastData?.currentProbability ?? null}
+                  primaryConstraint={data?.primary_constraint || ""}
+                  topPositiveDriver={data?.needle_movement?.moves_up?.[0]?.name || ""}
+                  topNegativeDriver={data?.needle_movement?.moves_down?.[0]?.name || ""}
+                  recommendedAction={data?.needle_movement?.recommended_actions?.strategic?.[0] || ""}
                 />
 
                 <ObjectionHandlingPanel
                   brand={activeQuestion?.subject || ""}
                   question={questionText}
+                  indication={caseData?.outcomeDefinition || ""}
+                  forecastProbability={forecastData?.posteriorProbability ?? forecastData?.currentProbability ?? null}
+                  primaryConstraint={data?.primary_constraint || ""}
+                  topNegativeDriver={data?.needle_movement?.moves_down?.[0]?.name || ""}
+                  signalDetails={forecastData?.signalDetails || []}
                 />
+
+                {/* Field Briefing */}
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-emerald-500/20">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      <h3 className="text-sm font-bold text-foreground">Field Briefing</h3>
+                      <span className="text-xs text-muted-foreground">MSL-ready one-pager</span>
+                    </div>
+                    <button
+                      onClick={generateFieldBriefing}
+                      disabled={fieldBriefingLoading}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {fieldBriefingLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <FileText className="w-3 h-3" />
+                      )}
+                      {fieldBriefing ? "Re-generate" : "Generate"}
+                    </button>
+                  </div>
+                  {fieldBriefingLoading && (
+                    <div className="px-5 py-6 flex items-center gap-3">
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                      <div>
+                        <div className="text-sm text-foreground">Generating field briefing...</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">Creating scannable MSL briefing from forecast data</div>
+                      </div>
+                    </div>
+                  )}
+                  {fieldBriefing && !fieldBriefingLoading && (
+                    <div className="px-5 py-4 space-y-3">
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(fieldBriefing);
+                            setFieldBriefingCopied(true);
+                            setTimeout(() => setFieldBriefingCopied(false), 2000);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition"
+                        >
+                          {fieldBriefingCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          {fieldBriefingCopied ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{fieldBriefing}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payer Dossier */}
+                <div className="rounded-xl border border-violet-500/30 bg-violet-500/5">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-violet-500/20">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-violet-400" />
+                      <h3 className="text-sm font-bold text-foreground">Payer Dossier</h3>
+                      <span className="text-xs text-muted-foreground">Value argument for formulary access</span>
+                    </div>
+                    <button
+                      onClick={generatePayerDossier}
+                      disabled={payerDossierLoading}
+                      className="flex items-center gap-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-500/20 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {payerDossierLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <DollarSign className="w-3 h-3" />
+                      )}
+                      {payerDossier ? "Re-generate" : "Generate"}
+                    </button>
+                  </div>
+                  {payerDossierLoading && (
+                    <div className="px-5 py-6 flex items-center gap-3">
+                      <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
+                      <div>
+                        <div className="text-sm text-foreground">Generating payer dossier...</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">Building value argument from forecast signals</div>
+                      </div>
+                    </div>
+                  )}
+                  {payerDossier && !payerDossierLoading && (
+                    <div className="px-5 py-4 space-y-3">
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(payerDossier);
+                            setPayerDossierCopied(true);
+                            setTimeout(() => setPayerDossierCopied(false), 2000);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition"
+                        >
+                          {payerDossierCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          {payerDossierCopied ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{payerDossier}</div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="pt-2" />

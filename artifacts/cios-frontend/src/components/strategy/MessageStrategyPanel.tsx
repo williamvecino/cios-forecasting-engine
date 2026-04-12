@@ -38,11 +38,21 @@ export default function MessageStrategyPanel({
   question,
   therapeuticArea,
   indication,
+  forecastProbability,
+  primaryConstraint,
+  topPositiveDriver,
+  topNegativeDriver,
+  recommendedAction,
 }: {
   brand: string;
   question: string;
   therapeuticArea?: string;
   indication?: string;
+  forecastProbability?: number | null;
+  primaryConstraint?: string;
+  topPositiveDriver?: string;
+  topNegativeDriver?: string;
+  recommendedAction?: string;
 }) {
   const [result, setResult] = useState<MiosResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,7 +67,17 @@ export default function MessageStrategyPanel({
       const res = await fetch(`${getApiBase()}/agents/mios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand, question, therapeuticArea, indication }),
+        body: JSON.stringify({
+          brand,
+          question,
+          therapeuticArea: indication || therapeuticArea,
+          indication,
+          forecastProbability,
+          primaryConstraint,
+          topPositiveDriver,
+          topNegativeDriver,
+          recommendedAction,
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: MiosResult = await res.json();
