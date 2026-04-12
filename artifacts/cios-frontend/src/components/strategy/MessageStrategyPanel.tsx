@@ -43,6 +43,7 @@ export default function MessageStrategyPanel({
   topPositiveDriver,
   topNegativeDriver,
   recommendedAction,
+  signalDetails,
 }: {
   brand: string;
   question: string;
@@ -53,6 +54,7 @@ export default function MessageStrategyPanel({
   topPositiveDriver?: string;
   topNegativeDriver?: string;
   recommendedAction?: string;
+  signalDetails?: Array<{ description?: string; direction?: string; pointContribution?: number }>;
 }) {
   const [result, setResult] = useState<MiosResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,6 +79,14 @@ export default function MessageStrategyPanel({
           topPositiveDriver,
           topNegativeDriver,
           recommendedAction,
+          currentBelief: primaryConstraint
+            ? `Current belief: ${primaryConstraint} limits adoption of ${brand}`
+            : `Current belief: existing standard of care is preferred over ${brand}`,
+          desiredBelief: `Desired belief: ${brand} offers meaningful clinical value for appropriate patients`,
+          evidenceSignals: signalDetails
+            ?.filter(s => s.direction === "positive")
+            .slice(0, 3)
+            .map(s => ({ description: s.description || "", pointContribution: s.pointContribution || 0 })),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

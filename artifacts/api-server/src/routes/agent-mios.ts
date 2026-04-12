@@ -10,6 +10,14 @@ interface MiosInput {
   therapeuticArea?: string;
   indication?: string;
   context?: string;
+  forecastProbability?: number;
+  primaryConstraint?: string;
+  topPositiveDriver?: string;
+  topNegativeDriver?: string;
+  recommendedAction?: string;
+  currentBelief?: string;
+  desiredBelief?: string;
+  evidenceSignals?: Array<{ description: string; pointContribution: number }>;
 }
 
 interface MiosEvidenceSignal {
@@ -31,6 +39,8 @@ interface MiosOutput {
   beliefShiftsIdentified: string[];
   evidenceSignals: MiosEvidenceSignal[];
   searchSummary: string;
+  verifiedCount: number;
+  totalCount: number;
 }
 
 router.post("/agents/mios", async (req, res) => {
@@ -106,13 +116,26 @@ OUTPUT FORMAT (JSON):
   "searchSummary": "brief summary of evidence landscape"
 }`;
 
+  const forecastContext = [
+    input.forecastProbability != null ? `Forecast probability: ${Math.round(input.forecastProbability * 100)}%` : "",
+    input.primaryConstraint ? `Primary adoption barrier identified: ${input.primaryConstraint}` : "",
+    input.topPositiveDriver ? `Strongest positive driver: ${input.topPositiveDriver}` : "",
+    input.topNegativeDriver ? `Strongest negative driver: ${input.topNegativeDriver}` : "",
+    input.currentBelief ? `Current HCP belief to shift: ${input.currentBelief}` : "",
+    input.desiredBelief ? `Desired HCP belief: ${input.desiredBelief}` : "",
+    input.evidenceSignals?.length
+      ? `Top evidence signals from forecast:\n${input.evidenceSignals.map((s, i) => `${i + 1}. ${s.description}`).join("\n")}`
+      : "",
+  ].filter(Boolean).join("\n");
+
   const userPrompt = `Brand: ${input.brand}
 Question: ${input.question}
 ${input.therapeuticArea ? `Therapeutic Area: ${input.therapeuticArea}` : ""}
 ${input.indication ? `Indication: ${input.indication}` : ""}
 ${input.context ? `Additional Context: ${input.context}` : ""}
+${forecastContext ? `\n${forecastContext}` : ""}
 
-Find all relevant clinical evidence for ${input.brand} that bears on this question. Identify the belief shifts first, then find evidence for each.`;
+Find all relevant clinical evidence for ${input.brand} that supports shifting from the current belief to the desired belief. Prioritize evidence that directly addresses the primary barrier identified above.`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -129,39 +152,55 @@ Find all relevant clinical evidence for ${input.brand} that bears on this questi
     const raw = response.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(raw);
 
+    const allSignals: MiosEvidenceSignal[] = Array.isArray(parsed.evidenceSignals)
+      ? await Promise.all(parsed.evidenceSignals.map(async (s: any) => {
+          const combinedText = `${s.evidenceText || ""} ${s.trialOrSource || ""}`;
+          const { identifiers } = extractIdentifiers(combinedText);
+          const redFlags = detectRedFlags(combinedText, identifiers.length);
+
+          // Verify any extracted identifiers against registries
+          let verificationStatus: "verified" | "invalid" | "unverified" | "flagged" = redFlags.length > 0 ? "flagged" : "unverified";
+          for (const id of identifiers) {
+            const check = await verifyIdentifier(id.type, id.value);
+            if (check.outcome === "valid") { verificationStatus = "verified"; break; }
+            if (check.outcome === "invalid") { verificationStatus = "invalid"; break; }
+          }
+
+          return {
+            beliefShift: s.beliefShift || "",
+            evidenceText: s.evidenceText || "",
+            trialOrSource: s.trialOrSource || "",
+            direction: s.direction === "negative" ? "negative" : "positive",
+            strength: ["High", "Medium", "Low"].includes(s.strength) ? s.strength : "Medium",
+            confidence: ["Confirmed", "Probable", "Speculative"].includes(s.confidence) ? s.confidence : "Probable",
+            whyItMatters: s.whyItMatters || "",
+            relevanceToQuestion: s.relevanceToQuestion || "",
+            sourceGrounded: identifiers.length > 0,
+            redFlags,
+            verificationStatus,
+          };
+        }))
+      : [];
+
+    const totalCount = allSignals.length;
+
+    // Filter: keep only signals that are verified, or unverified with a grounded source.
+    // Remove signals that are invalid or flagged without a grounded source (likely fabricated).
+    const evidenceSignals = allSignals.filter(s => {
+      if (s.verificationStatus === "verified") return true;
+      if (s.verificationStatus === "unverified" && s.sourceGrounded) return true;
+      return false;
+    });
+
+    const verifiedCount = evidenceSignals.filter(s => s.verificationStatus === "verified").length;
+
     const result: MiosOutput = {
       brand: input.brand,
       beliefShiftsIdentified: Array.isArray(parsed.beliefShiftsIdentified) ? parsed.beliefShiftsIdentified : [],
-      evidenceSignals: Array.isArray(parsed.evidenceSignals)
-        ? await Promise.all(parsed.evidenceSignals.map(async (s: any) => {
-            const combinedText = `${s.evidenceText || ""} ${s.trialOrSource || ""}`;
-            const { identifiers } = extractIdentifiers(combinedText);
-            const redFlags = detectRedFlags(combinedText, identifiers.length);
-
-            // Verify any extracted identifiers against registries
-            let verificationStatus: "verified" | "invalid" | "unverified" | "flagged" = redFlags.length > 0 ? "flagged" : "unverified";
-            for (const id of identifiers) {
-              const check = await verifyIdentifier(id.type, id.value);
-              if (check.outcome === "valid") { verificationStatus = "verified"; break; }
-              if (check.outcome === "invalid") { verificationStatus = "invalid"; break; }
-            }
-
-            return {
-              beliefShift: s.beliefShift || "",
-              evidenceText: s.evidenceText || "",
-              trialOrSource: s.trialOrSource || "",
-              direction: s.direction === "negative" ? "negative" : "positive",
-              strength: ["High", "Medium", "Low"].includes(s.strength) ? s.strength : "Medium",
-              confidence: ["Confirmed", "Probable", "Speculative"].includes(s.confidence) ? s.confidence : "Probable",
-              whyItMatters: s.whyItMatters || "",
-              relevanceToQuestion: s.relevanceToQuestion || "",
-              sourceGrounded: identifiers.length > 0,
-              redFlags,
-              verificationStatus,
-            };
-          }))
-        : [],
+      evidenceSignals,
       searchSummary: parsed.searchSummary || "",
+      verifiedCount,
+      totalCount,
     };
 
     return res.json(result);

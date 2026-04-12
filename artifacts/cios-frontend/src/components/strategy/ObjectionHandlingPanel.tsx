@@ -56,12 +56,14 @@ export default function ObjectionHandlingPanel({
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
 
-  async function runBaos() {
+  async function runAnalysis() {
     setLoading(true);
     setError(null);
     setResult(null);
+    const apiBase = getApiBase();
     try {
-      const res = await fetch(`${getApiBase()}/agents/baos`, {
+      // Step 1: Run MIOS to get evidence
+      const miosRes = await fetch(`${apiBase}/agents/mios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -72,14 +74,33 @@ export default function ObjectionHandlingPanel({
           forecastProbability,
           primaryConstraint,
           topNegativeDriver,
-          barriers: signalDetails?.filter(s => s.direction === "negative").map(s => s.description) || [],
+          currentBelief: `${brand} faces adoption barriers`,
+          desiredBelief: `${brand} overcomes key adoption barriers`,
+          evidenceSignals: signalDetails
+            ?.filter(s => s.direction === "negative")
+            .map(s => ({ description: s.description || "", pointContribution: s.pointContribution || 0 })),
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: BaosResult = await res.json();
-      setResult(data);
+      if (!miosRes.ok) throw new Error(`MIOS failed: HTTP ${miosRes.status}`);
+      const miosData = await miosRes.json();
+
+      // Step 2: Pass MIOS evidence to BAOS
+      const baosRes = await fetch(`${apiBase}/agents/baos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brand,
+          question,
+          therapeuticArea: indication || therapeuticArea,
+          indication,
+          miosEvidence: miosData.evidenceSignals || [],
+        }),
+      });
+      if (!baosRes.ok) throw new Error(`BAOS failed: HTTP ${baosRes.status}`);
+      const baosData: BaosResult = await baosRes.json();
+      setResult(baosData);
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Analysis failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -95,7 +116,7 @@ export default function ObjectionHandlingPanel({
         </div>
         {!result && !loading && (
           <button
-            onClick={runBaos}
+            onClick={runAnalysis}
             disabled={!brand}
             className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition disabled:opacity-50 cursor-pointer"
           >
@@ -105,7 +126,7 @@ export default function ObjectionHandlingPanel({
         )}
         {result && (
           <button
-            onClick={runBaos}
+            onClick={runAnalysis}
             className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition cursor-pointer"
           >
             <Brain className="w-3 h-3" />
@@ -122,7 +143,7 @@ export default function ObjectionHandlingPanel({
           <div>
             <div className="text-sm text-foreground">Identifying cognitive barriers...</div>
             <div className="text-xs text-muted-foreground mt-0.5">
-              Analyzing HCP behavioral barriers for {brand}
+              Gathering evidence for {brand}, then analyzing HCP behavioral barriers
             </div>
           </div>
         </div>

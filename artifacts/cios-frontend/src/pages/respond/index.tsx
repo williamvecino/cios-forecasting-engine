@@ -755,6 +755,7 @@ Generate three sections: (1) Clinical Evidence Summary — 2 sentences on effica
                   topPositiveDriver={data?.needle_movement?.moves_up?.[0]?.name || ""}
                   topNegativeDriver={data?.needle_movement?.moves_down?.[0]?.name || ""}
                   recommendedAction={data?.needle_movement?.recommended_actions?.strategic?.[0] || ""}
+                  signalDetails={forecastData?.signalDetails || []}
                 />
 
                 <ObjectionHandlingPanel
