@@ -940,12 +940,20 @@ Be realistic. Specialty drug restriction is the default. Unrestricted access req
   return JSON.parse(text.replace(/```json|```/g, "").trim());
 }
 
+interface CohortResults {
+  synthAdoptionRate: number | null;
+  unrestrictedPct: number | null;
+  cohortComplete: boolean;
+}
+
 interface SyntheticCohortPanelProps {
   activeQuestion: ActiveQuestion;
   posterior: number | null;
+  autoExpand?: boolean;
+  onResults?: (results: CohortResults) => void;
 }
 
-function SyntheticCohortPanel({ activeQuestion, posterior }: SyntheticCohortPanelProps) {
+function SyntheticCohortPanel({ activeQuestion, posterior, autoExpand, onResults }: SyntheticCohortPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0, current: "" });
@@ -1037,6 +1045,16 @@ function SyntheticCohortPanel({ activeQuestion, posterior }: SyntheticCohortPane
       : null;
 
   const concordant = delta !== null && delta <= 12;
+
+  useEffect(() => {
+    if (onResults) {
+      onResults({ synthAdoptionRate, unrestrictedPct, cohortComplete: simComplete });
+    }
+  }, [synthAdoptionRate, unrestrictedPct, simComplete, onResults]);
+
+  useEffect(() => {
+    if (autoExpand && !expanded) setExpanded(true);
+  }, [autoExpand]);
 
   const borderColor = simComplete
     ? concordant ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.3)"
@@ -1209,6 +1227,12 @@ export default function SimulatePage() {
   const [showUpload, setShowUpload] = useState(false);
   const [showDecisionSupport, setShowDecisionSupport] = useState(false);
 
+  // Two-section layout state
+  const [scenarioEngineExpanded, setScenarioEngineExpanded] = useState(true);
+  const [cohortSectionExpanded, setCohortSectionExpanded] = useState(false);
+  const [showScenarioBuilder, setShowScenarioBuilder] = useState(false);
+  const [cohortResults, setCohortResults] = useState<CohortResults>({ synthAdoptionRate: null, unrestrictedPct: null, cohortComplete: false });
+
   const caseId = activeQuestion?.caseId || activeQuestion?.id || "";
   const questionText = activeQuestion?.text || "";
 
@@ -1283,6 +1307,33 @@ export default function SimulatePage() {
       }
     } catch {}
   }, [caseId]);
+
+  // Bayesian posterior from forecast engine localStorage
+  const bayesianPosterior = useMemo(() => {
+    if (!caseId) return null;
+    try {
+      const decomp = localStorage.getItem(`cios.eventDecomposition:${caseId}`);
+      if (decomp) {
+        const parsed = JSON.parse(decomp);
+        return parsed.constrained_probability ?? parsed.brand_outlook_probability ?? null;
+      }
+    } catch {}
+    return null;
+  }, [caseId]);
+
+  // Readout bar computed values
+  const readoutConcordanceDelta = cohortResults.synthAdoptionRate !== null && bayesianPosterior !== null
+    ? Math.abs(cohortResults.synthAdoptionRate - bayesianPosterior)
+    : null;
+  const readoutConcordant = readoutConcordanceDelta !== null && readoutConcordanceDelta <= 10;
+  const readoutEffective = useMemo(() => {
+    if (bayesianPosterior === null || cohortResults.synthAdoptionRate === null) return null;
+    if (readoutConcordant) {
+      return Math.round((bayesianPosterior + cohortResults.synthAdoptionRate) / 2);
+    }
+    return Math.min(bayesianPosterior, cohortResults.synthAdoptionRate);
+  }, [bayesianPosterior, cohortResults.synthAdoptionRate, readoutConcordant]);
+
   const caseTypeInfo = useMemo(() => detectCaseType(questionText), [questionText]);
   const SEGMENTS = caseTypeInfo.isSafety ? SAFETY_RISK_SEGMENTS : caseTypeInfo.isRegulatory ? getRegulatorySegments(questionText) : DEFAULT_SEGMENTS;
 
@@ -1491,19 +1542,90 @@ export default function SimulatePage() {
   return (
     <WorkflowLayout currentStep="simulate" activeQuestion={activeQuestion} onClearQuestion={clearQuestion}>
       <QuestionGate activeQuestion={activeQuestion}>
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto pb-28">
           <div className="mb-8">
-            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Step 7</p>
-            <h1 className="text-2xl font-bold text-foreground">Simulate Stakeholder Response</h1>
+            <h1 className="text-2xl font-bold text-foreground">Simulate</h1>
             <p className="text-[15px] text-muted-foreground mt-2 leading-relaxed">
-              Test how a defined segment responds to a specific scenario under current constraints.
+              Validate the posterior through scenario analysis and synthetic stakeholder response.
             </p>
           </div>
 
-          {!result && !loading && (
-            <>
-              <StepIndicator current={currentStep} steps={["Define Scenario", "Select Segment", "Attach Evidence", "Run Simulation"]} />
+          {/* ── Section 1: Scenario Engine ── */}
+          <div className="rounded-xl border border-border bg-card mb-6 overflow-hidden">
+            <button
+              onClick={() => setScenarioEngineExpanded(!scenarioEngineExpanded)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/10 transition text-left"
+            >
+              <div>
+                <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-primary" />
+                  Scenario Engine
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">What happens if the evidence changes?</p>
+              </div>
+              {scenarioEngineExpanded
+                ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
 
+            {scenarioEngineExpanded && (
+              <div className="px-6 pb-6">
+                {/* Bear/Base/Bull compact card */}
+                {savedScenarios.length >= 2 && (
+                  <div className={`grid gap-3 mb-4 ${savedScenarios.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                    {savedScenarios.map((s) => {
+                      const borderCls = s.label === "Bear" ? "border-rose-500/20 bg-rose-500/5"
+                        : s.label === "Bull" ? "border-emerald-500/20 bg-emerald-500/5"
+                        : "border-blue-500/20 bg-blue-500/5";
+                      const labelCls = s.label === "Bear" ? "text-rose-400"
+                        : s.label === "Bull" ? "text-emerald-400"
+                        : "text-blue-400";
+                      const valCls = s.probability >= 65 ? "text-emerald-400"
+                        : s.probability >= 40 ? "text-amber-400"
+                        : "text-rose-400";
+                      return (
+                        <div key={s.label} className={`rounded-xl border p-4 text-center ${borderCls}`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-wider ${labelCls}`}>{s.label}</p>
+                          <p className={`text-3xl font-bold mt-1 ${valCls}`}>{s.probability}%</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">{s.confidence} conf.</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Result card when a simulation has been run */}
+                {result && !loading && (
+                  <div className="mb-4">
+                    <ResultsAccordion
+                      result={result}
+                      selectedSegment={selectedSegment}
+                      selectedArchetype={selectedArchetype}
+                      caseTypeInfo={caseTypeInfo}
+                      onReset={reset}
+                    />
+                  </div>
+                )}
+
+                {loading && (
+                  <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3 mb-4">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    <p className="text-[15px] text-muted-foreground">
+                      Extracting material features and scoring {selectedSegment} reaction...
+                    </p>
+                  </div>
+                )}
+
+                {/* Configure scenario toggle */}
+                <button
+                  onClick={() => setShowScenarioBuilder(!showScenarioBuilder)}
+                  className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground hover:text-foreground transition mb-4"
+                >
+                  {showScenarioBuilder ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  Configure scenario
+                </button>
+
+                {showScenarioBuilder && (
               <div className="space-y-8">
                 <section>
                   <div className="flex items-center gap-2 mb-4">
@@ -1804,34 +1926,77 @@ export default function SimulatePage() {
                 />
 
               </div>
-            </>
-          )}
+                )}
+              </div>
+            )}
+          </div>
 
-          {loading && (
-            <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-[15px] text-muted-foreground">
-                Extracting material features and scoring {selectedSegment} reaction...
-              </p>
+          {/* ── Section 2: Synthetic Cohort ── */}
+          <div className="rounded-xl border border-border bg-card mb-6 overflow-hidden">
+            <button
+              onClick={() => setCohortSectionExpanded(!cohortSectionExpanded)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/10 transition text-left"
+            >
+              <div>
+                <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Users className="w-4 h-4 text-primary" />
+                  Synthetic Cohort
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">What do physicians and payers do with this evidence?</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {cohortResults.cohortComplete && cohortResults.synthAdoptionRate !== null && (
+                  <span className={`text-xs font-semibold ${cohortResults.synthAdoptionRate >= 50 ? "text-emerald-400" : "text-amber-400"}`}>
+                    {cohortResults.synthAdoptionRate}% adopt
+                  </span>
+                )}
+                {cohortSectionExpanded
+                  ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </div>
+            </button>
+
+            {cohortSectionExpanded && activeQuestion && (
+              <div className="px-6 pb-6">
+                <SyntheticCohortPanel
+                  activeQuestion={activeQuestion}
+                  posterior={result?.adoption_likelihood ?? bayesianPosterior}
+                  autoExpand={cohortSectionExpanded}
+                  onResults={setCohortResults}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ── Combined Readout Bar — always visible ── */}
+          <div className="sticky bottom-4 z-10 rounded-xl border border-border bg-card/95 backdrop-blur-sm shadow-lg px-6 py-4">
+            <div className="grid grid-cols-4 gap-4 text-center">
+              <div>
+                <p className="text-xl font-bold font-mono text-blue-400">
+                  {bayesianPosterior !== null ? `${bayesianPosterior}%` : "\u2014"}
+                </p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">Bayesian Posterior</p>
+              </div>
+              <div>
+                <p className={`text-xl font-bold font-mono ${cohortResults.synthAdoptionRate !== null ? (cohortResults.synthAdoptionRate >= 50 ? "text-emerald-400" : "text-amber-400") : "text-muted-foreground/30"}`}>
+                  {cohortResults.synthAdoptionRate !== null ? `${cohortResults.synthAdoptionRate}%` : "\u2014"}
+                </p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">Synthetic Adoption</p>
+              </div>
+              <div>
+                <p className={`text-xl font-bold ${readoutConcordanceDelta !== null ? (readoutConcordant ? "text-emerald-400" : "text-rose-400") : "text-muted-foreground/30"}`}>
+                  {readoutConcordanceDelta !== null ? (readoutConcordant ? "\u2713" : "\u2717") : "\u2014"}
+                </p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">Concordant</p>
+              </div>
+              <div>
+                <p className={`text-xl font-bold font-mono ${readoutEffective !== null ? "text-foreground" : "text-muted-foreground/30"}`}>
+                  {readoutEffective !== null ? `${readoutEffective}%` : "\u2014"}
+                </p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">Effective Posterior</p>
+              </div>
             </div>
-          )}
-
-          {result && !loading && (
-            <ResultsAccordion
-              result={result}
-              selectedSegment={selectedSegment}
-              selectedArchetype={selectedArchetype}
-              caseTypeInfo={caseTypeInfo}
-              onReset={reset}
-            />
-          )}
-
-          {result && !loading && activeQuestion && (
-            <SyntheticCohortPanel
-              activeQuestion={activeQuestion}
-              posterior={result.adoption_likelihood ?? null}
-            />
-          )}
+          </div>
         </div>
       </QuestionGate>
     </WorkflowLayout>
