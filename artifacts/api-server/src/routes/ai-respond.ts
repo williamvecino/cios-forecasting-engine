@@ -322,40 +322,85 @@ interface ActionTemplate {
   tactical: string;
 }
 
-function buildCategoryAction(category: string, anchor: string, timing: string): ActionTemplate {
+const STRATEGIC_STEMS: Record<string, string[]> = {
+  access: [
+    "Stand up a payer-engagement and HEOR/BIA workstream with coverage-policy language tailored for P&T review",
+    "Commission a HEOR/BIA dossier and formulary-positioning playbook to underpin payer access",
+    "Build a coverage-policy and P&T narrative that aligns formulary submissions with payer evidence requirements",
+  ],
+  clinical: [
+    "Launch a prescriber-education and protocol-integration program that folds existing clinical evidence and tolerability management into the standard pathway",
+    "Stand up a clinical-evidence integration and tolerability-management initiative for treating physicians",
+    "Develop a protocol-embedded prescriber-education curriculum focused on clinical evidence integration and tolerability management",
+  ],
+  operational: [
+    "Build a workflow-integration and patient-onboarding program covering device and administration support",
+    "Stand up a device-training and administration-support service to remove onboarding friction in the clinical workflow",
+    "Launch a clinic-workflow redesign with embedded onboarding and administration support staffed by device specialists",
+  ],
+  regulatory: [
+    "Align label, submission strategy, and post-marketing commitments with stakeholder expectations",
+    "Develop a post-marketing evidence plan and FDA-guidance-aligned communication strategy that reinforces label intent",
+    "Structure a submission and label-alignment workstream with post-marketing commitments mapped to FDA guidance",
+  ],
+  competitive: [
+    "Deploy a differentiation and positioning program that marshals head-to-head or indirect comparative evidence into core messaging",
+    "Build a head-to-head positioning narrative that anchors differentiation against the incumbent option",
+    "Stand up a competitive-positioning and differentiation workstream supported by head-to-head or indirect comparative analyses",
+  ],
+  default: [
+    "Design a targeted intervention",
+    "Stand up a focused workstream",
+    "Launch a cross-functional response plan",
+  ],
+};
+
+const TACTICAL_STEMS: Record<string, string[]> = {
+  access: [
+    "Brief account teams on formulary and prior-authorization positioning",
+    "Equip payer field teams with a coverage-policy and HEOR/BIA fact base",
+    "Run targeted P&T meeting prep with formulary-aligned messaging",
+  ],
+  clinical: [
+    "Roll out specialist-facing clinical materials and peer-led education",
+    "Deploy prescriber-education modules with tolerability-management protocols",
+    "Activate medical science liaisons with protocol-integration and clinical-evidence talking points",
+  ],
+  operational: [
+    "Pilot clinic workflow optimization and administration-support services at high-volume centers",
+    "Stand up onboarding pods with device-training and workflow-integration coaches",
+    "Run a workflow-redesign sprint with administration-support and device-handling coverage",
+  ],
+  regulatory: [
+    "Coordinate medical, regulatory, and commercial teams on label-aligned communication",
+    "Brief field and medical teams on submission-aligned and post-marketing-consistent messaging",
+    "Run a label-and-FDA-guidance alignment workshop that translates submission language into field talking points",
+  ],
+  competitive: [
+    "Equip field teams with differentiation messaging and objection handlers",
+    "Deploy positioning-and-differentiation talk tracks with head-to-head evidence",
+    "Run head-to-head messaging drills and positioning workshops with field teams",
+  ],
+  default: [
+    "Brief field and medical teams on the specific response",
+    "Activate cross-functional teams to respond",
+    "Coordinate a tactical response across functions",
+  ],
+};
+
+function buildCategoryAction(category: string, anchor: string, timing: string, variantIndex: number): ActionTemplate {
   const quoted = anchor ? `“${anchor}”` : "the surfaced constraint";
-  switch (category) {
-    case "access":
-      return {
-        strategic: `Stand up a payer-engagement and HEOR/BIA workstream with coverage-policy language tailored for P&T review; addresses the constraint surfaced by ${quoted} ${timing}.`,
-        tactical: `Brief account teams on formulary and prior-authorization positioning that directly rebuts ${quoted} ${timing}.`,
-      };
-    case "clinical":
-      return {
-        strategic: `Launch a prescriber-education and protocol-integration program that folds existing clinical evidence and tolerability management into the standard pathway; addresses the constraint surfaced by ${quoted} ${timing}.`,
-        tactical: `Roll out specialist-facing clinical materials and peer-led education anchored to ${quoted} ${timing}.`,
-      };
-    case "operational":
-      return {
-        strategic: `Build a workflow-integration and patient-onboarding program covering device and administration support; addresses the constraint surfaced by ${quoted} ${timing}.`,
-        tactical: `Pilot clinic workflow optimization and administration-support services at high-volume centers to reduce the burden described in ${quoted} ${timing}.`,
-      };
-    case "regulatory":
-      return {
-        strategic: `Align label, submission strategy, and post-marketing commitments with stakeholder expectations; addresses the constraint surfaced by ${quoted} ${timing}.`,
-        tactical: `Coordinate medical, regulatory, and commercial teams on label-aligned communication that answers ${quoted} ${timing}.`,
-      };
-    case "competitive":
-      return {
-        strategic: `Deploy a differentiation and positioning program that marshals head-to-head or indirect comparative evidence into core messaging; addresses the constraint surfaced by ${quoted} ${timing}.`,
-        tactical: `Equip field teams with differentiation messaging and objection handlers that directly respond to ${quoted} ${timing}.`,
-      };
-    default:
-      return {
-        strategic: `Design a targeted intervention that addresses the constraint surfaced by ${quoted} ${timing}.`,
-        tactical: `Brief field and medical teams on the specific response to ${quoted} ${timing}.`,
-      };
-  }
+  const key = STRATEGIC_STEMS[category] ? category : "default";
+  const strategicStems = STRATEGIC_STEMS[key];
+  const tacticalStems = TACTICAL_STEMS[key];
+  const idx = ((variantIndex % strategicStems.length) + strategicStems.length) % strategicStems.length;
+  const strategicStem = strategicStems[idx];
+  const tacticalStem = tacticalStems[idx];
+  const suffix = `addresses the constraint surfaced by ${quoted} ${timing}`;
+  return {
+    strategic: `${strategicStem}; ${suffix}.`,
+    tactical: `${tacticalStem}; ${suffix}.`,
+  };
 }
 
 function classifyImpact(absContribution: number): "high" | "moderate" | "low" {
@@ -404,13 +449,16 @@ function buildNeedleMovement(details: SignalDetail[]): NeedleMovement | null {
 
   const strategic: string[] = [];
   const tactical: string[] = [];
+  const categoryUseCount: Record<string, number> = {};
 
   for (const signal of blockingSignals) {
     const absPp = Math.abs((signal.pointContribution ?? 0) * 100);
     const category = classifyCategory(signal.description || "");
     const anchor = signalAnchor(signal.description || "");
     const timing = timingForWeightPp(absPp);
-    const action = buildCategoryAction(category, anchor, timing);
+    const variantIndex = categoryUseCount[category] ?? 0;
+    categoryUseCount[category] = variantIndex + 1;
+    const action = buildCategoryAction(category, anchor, timing, variantIndex);
     strategic.push(action.strategic);
     tactical.push(action.tactical);
   }
