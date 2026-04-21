@@ -1863,6 +1863,7 @@ export default function SignalsPage() {
     const dbDirection = isNegativeDirection(signal.direction) ? "Negative" : (signal.direction === "neutral" || signal.direction === "signals_uncertainty") ? "Neutral" : "Positive";
 
     const fromAddSignalForm = opts?.fromAddSignalForm === true;
+    const isUserSignal = fromAddSignalForm;
     // Only the Add Signal form is subject to source-anchor enforcement in this
     // pass. CSV imports, AI/Re-harvest outputs, and workbook imports retain
     // their existing behaviour per the task scope.
