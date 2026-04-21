@@ -32,6 +32,8 @@ import { Link, useLocation } from "wouter";
 import SavedQuestionsPanel from "@/components/question/SavedQuestionsPanel";
 import MessageStrategyPanel from "@/components/strategy/MessageStrategyPanel";
 import ObjectionHandlingPanel from "@/components/strategy/ObjectionHandlingPanel";
+import FieldBriefingButton from "@/components/strategy/FieldBriefingButton";
+import PayerDossierButton from "@/components/strategy/PayerDossierButton";
 
 interface GapViolation {
   phrase: string;
@@ -672,6 +674,53 @@ export default function RespondPage() {
                   brand={activeQuestion?.subject || ""}
                   question={questionText}
                   signalDetails={forecastData.signalDetails}
+                />
+
+                <FieldBriefingButton
+                  brand={activeQuestion?.subject || ""}
+                  indication={(data as any)?.decision_clarity?.successDefinition || undefined}
+                  forecastProbability={forecastData?.posteriorProbability}
+                  primaryConstraint={data?.primary_constraint}
+                  topPositiveDriver={data?.needle_movement?.moves_up?.[0]?.contribution}
+                  topNegativeDriver={data?.needle_movement?.moves_down?.[0]?.contribution}
+                  recommendedAction={data?.needle_movement?.recommended_actions?.strategic?.[0]}
+                  topSignals={(() => {
+                    const sigs = forecastData.signalDetails || [];
+                    return sigs
+                      .sort((a: any, b: any) => Math.abs(b.pointContribution ?? 0) - Math.abs(a.pointContribution ?? 0))
+                      .slice(0, 3)
+                      .map((s: any) => s.description || s.signalId || "");
+                  })()}
+                  target={(data as any)?.decision_clarity?.outcomeThreshold || (data as any)?.decision_clarity?.successDefinition || undefined}
+                  caseId={caseId}
+                />
+
+                <PayerDossierButton
+                  brand={activeQuestion?.subject || ""}
+                  indication={(data as any)?.decision_clarity?.successDefinition || undefined}
+                  forecastProbability={forecastData?.posteriorProbability}
+                  primaryConstraint={data?.primary_constraint}
+                  topPositiveDriver={data?.needle_movement?.moves_up?.[0]?.contribution}
+                  topNegativeDriver={data?.needle_movement?.moves_down?.[0]?.contribution}
+                  recommendedAction={data?.needle_movement?.recommended_actions?.strategic?.[0]}
+                  caseId={caseId}
+                  topPositiveSignals={(() => {
+                    const sigs = forecastData.signalDetails || [];
+                    return sigs
+                      .filter((s: any) => (s.pointContribution ?? 0) > 0)
+                      .slice(0, 3)
+                      .map((s: any) => s.description || s.signalId || "");
+                  })()}
+                  accessBarrierSignal={(() => {
+                    const sigs = forecastData.signalDetails || [];
+                    const payer = sigs.find((s: any) =>
+                      ((s.description || s.signalId || "").toLowerCase().match(/payer|access|formulary|reimbursement/)) &&
+                      (s.pointContribution ?? 0) < 0
+                    );
+                    if (payer) return payer.description || payer.signalId || undefined;
+                    const neg = sigs.find((s: any) => (s.pointContribution ?? 0) < 0);
+                    return neg ? (neg.description || neg.signalId || undefined) : undefined;
+                  })()}
                 />
               </div>
 

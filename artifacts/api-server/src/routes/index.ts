@@ -74,6 +74,8 @@ import agentRegistryRouter from "./agent-registry.js";
 import precedentLibraryRouter from "./precedent-library.js";
 import pivotalSearchRouter from "./pivotal-search.js";
 import completenessCheckRouter from "./completeness-check.js";
+import strategyPromptRouter from "./strategy-prompt.js";
+import signalStackContextRouter from "./signal-stack-context.js";
 
 const router: IRouter = Router();
 
@@ -152,5 +154,7 @@ router.use(agentRegistryRouter);
 router.use(precedentLibraryRouter);
 router.use(pivotalSearchRouter);
 router.use(completenessCheckRouter);
+router.use(strategyPromptRouter);
+router.use(signalStackContextRouter);
 
 export default router;
