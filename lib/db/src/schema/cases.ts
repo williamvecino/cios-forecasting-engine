@@ -84,6 +84,9 @@ export const casesTable = pgTable("cases", {
   actualOutcomeNotes: text("actual_outcome_notes"),
   outcomeRecordedAt: timestamp("outcome_recorded_at"),
   outcomePublishedToLibrary: text("outcome_published_to_library").default("false"),
+  outcomeKnown: text("outcome_known"),
+  outcomeValue: text("outcome_value"),
+  outcomeDate: timestamp("outcome_date"),
 });
 
 export const insertCaseSchema = createInsertSchema(casesTable).omit({
