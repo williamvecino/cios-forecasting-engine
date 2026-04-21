@@ -40,7 +40,7 @@ function hasNamedEntity(description: string): boolean {
     /\b(?:Cigna|Aetna|UnitedHealth|Humana|Anthem|Kaiser|BlueCross|Medicare|Medicaid)\b/i,
     /\b(?:CONVERT|KEYNOTE|CHECKMATE|IMPOWER|PACIFIC|HIMALAYA|TOPAZ|ORIENT|NEUTRINO|FISSION|POSITRON|VALENCE|ION|ASTRAL|SAPPHIRE|OPERA|ORATORIO|ORION|SOLO|CARTITUDE|KarMMa|ARMADA|PREMIER|IMMhance|IMMvent|ULTIMMA|SUSTAIN|LEADER|PIONEER|ARISE|ENCORE|THRIVE|SELECT)\b/,
     /\b(?:ARIKAYCE|KEYTRUDA|OPDIVO|TECENTRIQ|IMFINZI|TAGRISSO|LYNPARZA|Lamira|Trikafta|Orkambi|Symdeko|Kalydeco|Tepezza|Ocrevus|Copaxone|Glatopa|Repatha|Praluent|Leqvio|Dupixent|Zejula|Skyrizi|Stelara|Humira|Remicade|Enbrel|Abecma|Carvykti|FoundationOne|Sovaldi|Harvoni|Ozempic|Victoza|Wegovy|Rybelsus)\b/i,
-    /\b(?:amikacin|pembrolizumab|nivolumab|atezolizumab|durvalumab|osimertinib)\b/i,
+    /\b(?:amikacin|pembrolizumab|nivolumab|atezolizumab|durvalumab|osimertinib|peginterferon|ribavirin)\b/i,
     /\b(?:PCSK9|CD20|IL-?23|TNF-?[\u03b1a]?|PARP|TMB-?high|GLP-?1|CFTR|HCV|MAC|RRMS|RRMM|TED|CVOT|ASCVD|MACE|SVR12|PASI\s*\d+|ACR\s*\d+|ORR|PFS|HbA1c|LDL-?C)\b/i,
     /\bn\s*=\s*\d+\b/i,
   ];
@@ -60,7 +60,7 @@ function hasSpecificEvent(description: string): boolean {
     /\b(real-world|registry|post-marketing|pharmacovigilance|observational)\b/i,
     /\b(market entry|market withdrawal|approval|launch|filing|designation|breakthrough therapy)\b/i,
     /\b(survey|prescrib\w+|discontinu\w+|enroll\w+|convert\w+)\b/i,
-    /\b(?:dosing|injection|infusion|mechanism|monoclonal|biologic|manufacturing|switching|adherence|generic\s+entry|reduction|improvement|superiority)\b/i,
+    /\b(?:dosing|injection|infusion|mechanism|monoclonal|biologic|manufacturing|switching|adherence|generic\s+entry|reduction|improvement|superiority|superior)\b/i,
     /\b(?:complete response|relapse rate|culture conversion|weight loss)\b/i,
     /\binterferon[-.\s]?free\b/i,
     /\b12[-.\s]?week\s+(?:treatment|course|regimen)\b/i,
