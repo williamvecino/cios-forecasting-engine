@@ -67,3 +67,6 @@ CIOS is a monorepo using pnpm workspaces. The frontend is built with React, Vite
 - **OpenAPI 3.1 & orval:** API specification and code generation.
 - **OpenAI:** AI services.
 - **pdfjs-dist, mammoth, jszip, word-extractor, ppt-to-text:** Libraries for document text extraction.
+## Calibration Case Recovery
+
+**Signal Eligibility Gate fix — April 2026.** Root cause: `evidence-classifier.ts` `hasNamedEntity` and `hasSpecificEvent` allow-lists were incomplete — curated for original Arikayce/oncology/IO drug set only. Missing: psoriasis franchise (Skyrizi, IMMhance, IMMvent, risankizumab, adalimumab, Stelara, Humira), HCV franchise (Sovaldi, Harvoni, NEUTRINO, sofosbuvir, ledipasvir, SVR12), CAR-T franchise (Abecma, Carvykti, KarMMa, CARTITUDE), GLP-1 franchise (Ozempic, Victoza, SUSTAIN, MACE), and clinical descriptors (dosing, injection, infusion, mechanism, monoclonal, biologic, switching, adherence, manufacturing). Fix: Option A additions applied to `evidence-classifier.ts`. Projected improvement: 17/76 Eligible → 48/76 Eligible. `biosimilar` deliberately excluded from event gate. Reseed pending investigation of CAL-06, CAL-07, CAL-08, CAL-13 still-blocked signals.
