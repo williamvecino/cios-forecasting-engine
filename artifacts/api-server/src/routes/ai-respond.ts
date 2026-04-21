@@ -191,6 +191,16 @@ Answer these executive questions in the structured format:
 
     const parsed = JSON.parse(content);
 
+    // Signal-anchored overrides: primary_constraint and highest_impact_lever
+    // are derived deterministically from the already-computed signalDetails
+    // and buildNeedleMovement output, so the two fields cannot fabricate
+    // signals that are not in the accepted ledger. strategic_recommendation
+    // and realistic_ceiling remain LLM-generated.
+    const needleMovement = buildNeedleMovement(body.signalDetails || []);
+    const topNeg = [...(body.signalDetails || [])]
+      .filter((s) => (s.pointContribution ?? 0) < 0)
+      .sort((a, b) => (a.pointContribution ?? 0) - (b.pointContribution ?? 0))[0];
+
     const validated = {
       strategic_recommendation: typeof parsed.strategic_recommendation === "string"
         ? parsed.strategic_recommendation
@@ -205,6 +215,18 @@ Answer these executive questions in the structured format:
         ? parsed.realistic_ceiling
         : parsed.realistic_ceiling?.text || "",
     };
+
+    if (topNeg) {
+      const cleanDesc = stripSignalId(topNeg.description || "").trim();
+      const ppDrag = Math.abs((topNeg.pointContribution ?? 0) * 100).toFixed(1);
+      validated.primary_constraint = replaceGapPhrases(
+        `The single binding constraint is ${cleanDesc} (${ppDrag}pp drag on the posterior).`
+      );
+    }
+    const topStrategic = needleMovement?.recommended_actions?.strategic?.[0];
+    if (topStrategic) {
+      validated.highest_impact_lever = replaceGapPhrases(topStrategic);
+    }
 
     const gapFields = {
       strategic_recommendation: validated.strategic_recommendation,
@@ -227,8 +249,6 @@ Answer these executive questions in the structured format:
       targetProbability: body.thresholdProbability ?? fallbackProb,
       environmentStrength: body.posteriorProbability ?? null,
     };
-
-    const needleMovement = buildNeedleMovement(body.signalDetails || []);
 
     res.json({
       ...validated,
