@@ -4,13 +4,20 @@ import type { ActiveQuestion } from "../lib/workflow";
 import { storeActiveQuestion, getStoredActiveQuestion } from "../lib/workflow";
 
 function buildOutcomeAnchor(q: ActiveQuestion): string {
-  const outcome = q.outcome || "adoption";
-  const subject = q.subject || "";
-  const horizon = q.timeHorizon || "";
-  const outcomeCapitalized = outcome.charAt(0).toUpperCase() + outcome.slice(1);
-  const parts = [outcomeCapitalized];
-  if (subject) parts.push(`of ${subject}`);
-  if (horizon) parts.push(`within ${horizon}`);
+  const outcomeRaw = (q.outcome || "adoption").trim();
+  const subject = (q.subject || "").trim();
+  const horizon = (q.timeHorizon || "").trim();
+  const outcomeLower = outcomeRaw.toLowerCase();
+
+  const outcomeCapitalized = outcomeRaw.charAt(0).toUpperCase() + outcomeRaw.slice(1);
+  const parts = [outcomeCapitalized.replace(/\.\s*$/, "")];
+
+  if (subject && !outcomeLower.includes(subject.toLowerCase())) {
+    parts.push(`of ${subject}`);
+  }
+  if (horizon && !outcomeLower.includes(horizon.toLowerCase())) {
+    parts.push(`within ${horizon}`);
+  }
   return parts.join(" ");
 }
 
@@ -133,13 +140,6 @@ export default function ActiveQuestionBanner({ activeQuestion, draftText, onClea
               <div className="mt-2 text-lg font-semibold text-foreground">
                 {activeQuestion.text}
               </div>
-              {activeQuestion.outcome && (
-                <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5">
-                  <Target className="w-3.5 h-3.5 text-primary shrink-0" />
-                  <span className="text-xs font-semibold text-primary/80 uppercase tracking-wider">Outcome being forecast:</span>
-                  <span className="text-xs font-medium text-foreground">{activeQuestion.outcome}</span>
-                </div>
-              )}
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="rounded-full bg-muted/30 px-3 py-1">
                   ID: {activeQuestion.id}

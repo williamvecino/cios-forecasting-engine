@@ -1520,11 +1520,18 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
             </div>
           </div>
           <div className="flex flex-col items-center">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+              Evidence Effect
+            </div>
             <div className={cn(
-              "text-2xl font-bold tabular-nums rounded-full px-4 py-1",
-              delta > 0 ? "text-emerald-400" : delta < 0 ? "text-rose-400" : "text-slate-400"
+              "text-sm font-semibold rounded-full border px-4 py-1.5",
+              delta > 0
+                ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+                : delta < 0
+                  ? "text-rose-400 border-rose-500/30 bg-rose-500/10"
+                  : "text-slate-400 border-slate-500/30 bg-slate-500/10"
             )}>
-              {delta >= 0 ? "+" : ""}{Math.round(delta * 100)}pp
+              {delta > 0 ? "Stronger" : delta < 0 ? "Weaker" : "Unchanged"}
             </div>
           </div>
           <div className="flex flex-col items-center">
@@ -1564,16 +1571,14 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
                   Our updated view after weighing every signal you collected.
                   {moved ? (
                     <>
-                      {" "}The evidence moved the outlook{" "}
+                      {" "}On balance, the evidence makes the case{" "}
                       <span className={cn("font-semibold", movedUp ? "text-emerald-400" : "text-rose-400")}>
-                        {movedUp ? "up" : "down"} by {Math.abs(deltaPP)} points
+                        {movedUp ? "stronger" : "weaker"}
                       </span>
-                      {movedUp
-                        ? " — the case is stronger than we assumed."
-                        : " — the case is weaker than we assumed."}
+                      {" "}than we initially assumed.
                     </>
                   ) : (
-                    <> The evidence did not meaningfully change the outlook from where we started.</>
+                    <> On balance, the evidence did not meaningfully change the outlook from where we started.</>
                   )}
                 </p>
               </div>
