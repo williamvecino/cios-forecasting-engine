@@ -191,6 +191,16 @@ Answer these executive questions in the structured format:
 
     const parsed = JSON.parse(content);
 
+    // Signal-anchored overrides: primary_constraint and highest_impact_lever
+    // are derived deterministically from the already-computed signalDetails
+    // and buildNeedleMovement output, so the two fields cannot fabricate
+    // signals that are not in the accepted ledger. strategic_recommendation
+    // and realistic_ceiling remain LLM-generated.
+    const needleMovement = buildNeedleMovement(body.signalDetails || []);
+    const topNeg = [...(body.signalDetails || [])]
+      .filter((s) => (s.pointContribution ?? 0) < 0)
+      .sort((a, b) => (a.pointContribution ?? 0) - (b.pointContribution ?? 0))[0];
+
     const validated = {
       strategic_recommendation: typeof parsed.strategic_recommendation === "string"
         ? parsed.strategic_recommendation
@@ -205,6 +215,18 @@ Answer these executive questions in the structured format:
         ? parsed.realistic_ceiling
         : parsed.realistic_ceiling?.text || "",
     };
+
+    if (topNeg) {
+      const cleanDesc = stripSignalId(topNeg.description || "").trim();
+      const ppDrag = Math.abs((topNeg.pointContribution ?? 0) * 100).toFixed(1);
+      validated.primary_constraint = replaceGapPhrases(
+        `The single binding constraint is ${cleanDesc} (${ppDrag}pp drag on the posterior).`
+      );
+    }
+    const topStrategic = needleMovement?.recommended_actions?.strategic?.[0];
+    if (topStrategic) {
+      validated.highest_impact_lever = replaceGapPhrases(topStrategic);
+    }
 
     const gapFields = {
       strategic_recommendation: validated.strategic_recommendation,
@@ -227,8 +249,6 @@ Answer these executive questions in the structured format:
       targetProbability: body.thresholdProbability ?? fallbackProb,
       environmentStrength: body.posteriorProbability ?? null,
     };
-
-    const needleMovement = buildNeedleMovement(body.signalDetails || []);
 
     res.json({
       ...validated,
@@ -292,14 +312,115 @@ interface NeedleMovement {
 
 function classifyCategory(desc: string): string {
   const d = desc.toLowerCase();
-  if (/phase\s*(i|ii|iii|iv)|trial|sputum|culture\s*conversion|efficacy|endpoint|fev1/i.test(d)) return "clinical";
-  if (/formulary|payer|coverage|reimbursement|copay|prior\s*auth|specialty\s*pharmacy/i.test(d)) return "access";
-  if (/nebuliz|administrat|infusion|dosing|delivery|logistics|rems|monitoring/i.test(d)) return "operational";
-  if (/prescrib|adopt|survey|familiarity|awareness|education|behavior/i.test(d)) return "behavioral";
-  if (/off-label|compet|entrenched|alternative|pipeline|generic|biosimilar/i.test(d)) return "competitive";
-  if (/safety|adverse|discontinu|bronchospasm|tolerab|pharmacovigilance/i.test(d)) return "clinical";
+  if (/\blabel\b|post.?marketing|\bpmr\b|\bpmc\b|submission|sponsor commitment|fda\s+(guidance|requirement)|regulatory\s+(commitment|pathway|hold)/i.test(d)) return "regulatory";
+  if (/formulary|payer|coverage|reimbursement|copay|prior\s*auth|specialty\s*pharmacy|\bheor\b|\bbia\b|\bp\s*&\s*t\b|medicaid|medicare/i.test(d)) return "access";
+  if (/off-label|compet|entrenched|alternative|pipeline|generic|biosimilar|standard\s+of\s+care|incumbent/i.test(d)) return "competitive";
+  if (/nebuliz|administrat|infusion|dosing|delivery|logistics|\brems\b|monitoring|workflow|onboarding|device|clinic\s+capacity/i.test(d)) return "operational";
+  if (/phase\s*(i|ii|iii|iv)|trial|sputum|culture\s*conversion|efficacy|endpoint|fev1|guideline|ats\/idsa|ats |\bidsa\b|society\s+endors|tolerab|safety|adverse|discontinu|bronchospasm|pharmacovigilance/i.test(d)) return "clinical";
+  if (/prescrib|adopt|survey|familiarity|awareness|education|behavior/i.test(d)) return "clinical";
   if (/population|prevalence|incidence|eligible|patient\s*pool/i.test(d)) return "operational";
   return "operational";
+}
+
+function timingForWeightPp(absWeightPp: number): string {
+  if (absWeightPp >= 8) return "within 60 days of launch";
+  if (absWeightPp >= 4) return "within 90 days of launch";
+  return "within 180 days of launch";
+}
+
+function signalAnchor(description: string): string {
+  const stripped = stripSignalId(description || "").trim();
+  if (!stripped) return "";
+  const firstSentence = stripped.match(/^[^.!?]+[.!?]/);
+  const snippet = (firstSentence ? firstSentence[0] : stripped).trim();
+  const truncated = snippet.length > 140 ? snippet.slice(0, 140).replace(/\s+\S*$/, "") + "…" : snippet;
+  return truncated.replace(/\s+$/, "").replace(/[.!?]+$/, "");
+}
+
+interface ActionTemplate {
+  strategic: string;
+  tactical: string;
+}
+
+const STRATEGIC_STEMS: Record<string, string[]> = {
+  access: [
+    "Stand up a payer-engagement and HEOR/BIA workstream with coverage-policy language tailored for P&T review",
+    "Commission a HEOR/BIA dossier and formulary-positioning playbook to underpin payer access",
+    "Build a coverage-policy and P&T narrative that aligns formulary submissions with payer evidence requirements",
+  ],
+  clinical: [
+    "Launch a prescriber-education and protocol-integration program that folds existing clinical evidence and tolerability management into the standard pathway",
+    "Stand up a clinical-evidence integration and tolerability-management initiative for treating physicians",
+    "Develop a protocol-embedded prescriber-education curriculum focused on clinical evidence integration and tolerability management",
+  ],
+  operational: [
+    "Build a workflow-integration and patient-onboarding program covering device and administration support",
+    "Stand up a device-training and administration-support service to remove onboarding friction in the clinical workflow",
+    "Launch a clinic-workflow redesign with embedded onboarding and administration support staffed by device specialists",
+  ],
+  regulatory: [
+    "Align label, submission strategy, and post-marketing commitments with stakeholder expectations",
+    "Develop a post-marketing evidence plan and FDA-guidance-aligned communication strategy that reinforces label intent",
+    "Structure a submission and label-alignment workstream with post-marketing commitments mapped to FDA guidance",
+  ],
+  competitive: [
+    "Deploy a differentiation and positioning program that marshals head-to-head or indirect comparative evidence into core messaging",
+    "Build a head-to-head positioning narrative that anchors differentiation against the incumbent option",
+    "Stand up a competitive-positioning and differentiation workstream supported by head-to-head or indirect comparative analyses",
+  ],
+  default: [
+    "Design a targeted intervention",
+    "Stand up a focused workstream",
+    "Launch a cross-functional response plan",
+  ],
+};
+
+const TACTICAL_STEMS: Record<string, string[]> = {
+  access: [
+    "Brief account teams on formulary and prior-authorization positioning",
+    "Equip payer field teams with a coverage-policy and HEOR/BIA fact base",
+    "Run targeted P&T meeting prep with formulary-aligned messaging",
+  ],
+  clinical: [
+    "Roll out specialist-facing clinical materials and peer-led education",
+    "Deploy prescriber-education modules with tolerability-management protocols",
+    "Activate medical science liaisons with protocol-integration and clinical-evidence talking points",
+  ],
+  operational: [
+    "Pilot clinic workflow optimization and administration-support services at high-volume centers",
+    "Stand up onboarding pods with device-training and workflow-integration coaches",
+    "Run a workflow-redesign sprint with administration-support and device-handling coverage",
+  ],
+  regulatory: [
+    "Coordinate medical, regulatory, and commercial teams on label-aligned communication",
+    "Brief field and medical teams on submission-aligned and post-marketing-consistent messaging",
+    "Run a label-and-FDA-guidance alignment workshop that translates submission language into field talking points",
+  ],
+  competitive: [
+    "Equip field teams with differentiation messaging and objection handlers",
+    "Deploy positioning-and-differentiation talk tracks with head-to-head evidence",
+    "Run head-to-head messaging drills and positioning workshops with field teams",
+  ],
+  default: [
+    "Brief field and medical teams on the specific response",
+    "Activate cross-functional teams to respond",
+    "Coordinate a tactical response across functions",
+  ],
+};
+
+function buildCategoryAction(category: string, anchor: string, timing: string, variantIndex: number): ActionTemplate {
+  const quoted = anchor ? `“${anchor}”` : "the surfaced constraint";
+  const key = STRATEGIC_STEMS[category] ? category : "default";
+  const strategicStems = STRATEGIC_STEMS[key];
+  const tacticalStems = TACTICAL_STEMS[key];
+  const idx = ((variantIndex % strategicStems.length) + strategicStems.length) % strategicStems.length;
+  const strategicStem = strategicStems[idx];
+  const tacticalStem = tacticalStems[idx];
+  const suffix = `addresses the constraint surfaced by ${quoted} ${timing}`;
+  return {
+    strategic: `${strategicStem}; ${suffix}.`,
+    tactical: `${tacticalStem}; ${suffix}.`,
+  };
 }
 
 function classifyImpact(absContribution: number): "high" | "moderate" | "low" {
@@ -341,50 +462,25 @@ function buildNeedleMovement(details: SignalDetail[]): NeedleMovement | null {
     contribution: `-${(Math.abs(s.pointContribution ?? 0) * 100).toFixed(1)}pp`,
   }));
 
-  // H2H / comparative data detection — check whether the signal stack already contains comparative evidence
-  const allDescriptions = details.map(d => (d.description || "").toLowerCase()).join(" ");
-  const hasComparativeData = /\bh2h\b|head.to.head|superiority|comparative\s+(efficacy|effectiveness|data|trial|study)|vs\s+\w+.*\b(trial|study|data)\b/.test(allDescriptions);
+  // One strategic + one tactical action per blocking signal (negative weight, has anchor text).
+  // Signals are already countTowardPosterior-filtered upstream (forecasts.ts). Skip any signal
+  // without a non-empty description — that is the engine's equivalent of the sourceQuote requirement.
+  const blockingSignals = sorted.filter(s => (s.pointContribution ?? 0) < 0 && signalAnchor(s.description || "").length > 0);
 
   const strategic: string[] = [];
   const tactical: string[] = [];
+  const categoryUseCount: Record<string, number> = {};
 
-  if (movesDown.length > 0) {
-    const topNeg = movesDown[0];
-    const rawShort = topNeg.name.split(/[—(,]/)[0].trim();
-    const constraintShortName = rawShort.length > 60 ? rawShort.slice(0, 60).replace(/\s+\S*$/, "") : rawShort.toLowerCase();
-    if (topNeg.category === "clinical") {
-      strategic.push(`Address ${topNeg.name.toLowerCase().includes("bronchospasm") || topNeg.name.toLowerCase().includes("safety") || topNeg.name.toLowerCase().includes("pharmacovigilance") ? "safety profile concerns" : "clinical evidence gaps"} through targeted real-world evidence programs`);
-      tactical.push(`Develop specialist-facing materials addressing ${constraintShortName}`);
-    } else if (topNeg.category === "operational") {
-      strategic.push(`Redesign the administration pathway to reduce operational friction from ${constraintShortName}`);
-      tactical.push(`Launch clinic workflow optimization pilots at high-volume prescribing centers`);
-    } else if (topNeg.category === "behavioral") {
-      strategic.push(`Build a structured specialist education and adoption program targeting prescriber familiarity barriers`);
-      tactical.push(`Deploy peer-to-peer education with KOLs who have direct prescribing experience`);
-    } else if (topNeg.category === "competitive") {
-      if (hasComparativeData) {
-        // Comparative data EXISTS — recommend deploying it, not generating it
-        strategic.push(`Accelerate communication of existing comparative efficacy evidence to shift prescriber perception`);
-        tactical.push(`Deploy comparative effectiveness data through peer-reviewed publication and KOL-led education`);
-      } else {
-        // No comparative data — recommend differentiation strategy (NOT H2H study)
-        strategic.push(`Develop differentiation strategy against entrenched alternatives based on current evidence strengths`);
-        tactical.push(`Focus specialist detailing on demonstrated clinical advantages from existing trial data`);
-      }
-    } else if (topNeg.category === "access") {
-      strategic.push(`Expand payer coverage through health economics and outcomes research submissions`);
-      tactical.push(`Prioritize formulary negotiations with top specialty pharmacy networks`);
-    }
-  }
-
-  if (movesUp.length > 0) {
-    const topPos = movesUp[0];
-    if (topPos.category === "clinical") {
-      strategic.push(`Maximize leverage of clinical evidence from ${topPos.name.split("(")[0].trim()} across all stakeholder communications`);
-    } else if (topPos.category === "access") {
-      strategic.push(`Accelerate formulary expansion building on existing ${topPos.name.split("(")[0].trim().toLowerCase()}`);
-    }
-    tactical.push(`Integrate top positive driver evidence into field team messaging immediately`);
+  for (const signal of blockingSignals) {
+    const absPp = Math.abs((signal.pointContribution ?? 0) * 100);
+    const category = classifyCategory(signal.description || "");
+    const anchor = signalAnchor(signal.description || "");
+    const timing = timingForWeightPp(absPp);
+    const variantIndex = categoryUseCount[category] ?? 0;
+    categoryUseCount[category] = variantIndex + 1;
+    const action = buildCategoryAction(category, anchor, timing, variantIndex);
+    strategic.push(action.strategic);
+    tactical.push(action.tactical);
   }
 
   if (strategic.length === 0) strategic.push("Conduct root-cause analysis on the primary binding constraint to identify structural intervention points");

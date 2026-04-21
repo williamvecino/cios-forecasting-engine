@@ -95,6 +95,58 @@ function isValidUrl(str: string): boolean {
   } catch { return false; }
 }
 
+// Known placeholder URL patterns that must NOT be allowed to anchor a signal
+// that affects the posterior. A signal using any of these URLs is treated as
+// unanchored and is either rejected or downgraded (countTowardPosterior=false).
+const PLACEHOLDER_URL_PATTERNS: RegExp[] = [
+  /cios\.internal/i,
+  /user-reported/i,
+  /example\.com/i,
+  /localhost/i,
+  /127\.0\.0\.1/i,
+];
+
+function isPlaceholderUrl(url: string): boolean {
+  return PLACEHOLDER_URL_PATTERNS.some((p) => p.test(url));
+}
+
+interface SourceAnchorValidationError {
+  field: "evidenceSnippet" | "sourceUrl";
+  message: string;
+}
+
+function validateSourceAnchor(body: Record<string, any>): SourceAnchorValidationError | null {
+  const evidenceSnippet = typeof body.evidenceSnippet === "string" ? body.evidenceSnippet.trim() : "";
+  const signalDescription = typeof body.signalDescription === "string" ? body.signalDescription.trim() : "";
+  const sourceUrl = typeof body.sourceUrl === "string" ? body.sourceUrl.trim() : "";
+
+  if (!evidenceSnippet) {
+    return {
+      field: "evidenceSnippet",
+      message: "Source quote (evidenceSnippet) is required. A signal must carry a verbatim excerpt from its cited source.",
+    };
+  }
+  if (evidenceSnippet.toLowerCase() === signalDescription.toLowerCase()) {
+    return {
+      field: "evidenceSnippet",
+      message: "Source quote must be a verbatim excerpt from the cited document, not a restatement of the signal description.",
+    };
+  }
+  if (!sourceUrl || !isValidUrl(sourceUrl)) {
+    return {
+      field: "sourceUrl",
+      message: "Source URL is required and must be a fully-formed http:// or https:// URL.",
+    };
+  }
+  if (isPlaceholderUrl(sourceUrl)) {
+    return {
+      field: "sourceUrl",
+      message: "Placeholder or internal URLs (cios.internal, user-reported, example.com, localhost, 127.0.0.1) are not permitted as signal sources.",
+    };
+  }
+  return null;
+}
+
 function computeEvidenceStatus(body: Record<string, any>): { status: "Verified" | "Rejected"; rejectionReasons: string[] } {
   const reasons: string[] = [];
 
@@ -205,8 +257,26 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     });
   }
 
+  // Source-anchor governance: user-added signals must carry a real sourceQuote
+  // and a real external URL. When enforceSourceQuote is true, failing anchors
+  // are rejected (400). The caller may opt in to a downgrade path by also
+  // passing bypassEvidenceGate=true, which persists the signal but forces
+  // countTowardPosterior=false and evidenceClass="ContextOnly" so it cannot
+  // affect the forecast until reviewed.
+  const enforceSourceQuote = body.enforceSourceQuote === true;
+  const bypassEvidenceGate = body.bypassEvidenceGate === true;
+  const anchorError = enforceSourceQuote ? validateSourceAnchor(body) : null;
+  if (anchorError && !bypassEvidenceGate) {
+    return res.status(400).json({
+      error: "Source anchor validation failed",
+      field: anchorError.field,
+      message: anchorError.message,
+      rule: "No signal may affect the posterior without a real sourceQuote and a resolvable external URL.",
+    });
+  }
+
   const evidence = computeEvidenceStatus(body);
-  if (evidence.status === "Rejected") {
+  if (evidence.status === "Rejected" && !bypassEvidenceGate) {
     return res.status(400).json({
       error: "Evidence gate failed",
       evidenceStatus: "Rejected",
@@ -353,8 +423,13 @@ router.post("/cases/:caseId/signals", async (req, res) => {
     lineageType: body.lineageType || null,
     sourceCluster: body.sourceCluster || null,
     noveltyFlag: typeof body.noveltyFlag === "boolean" ? body.noveltyFlag : true,
-    evidenceClass: classification.evidenceClass,
-    countTowardPosterior: createdByType === "human" ? classification.countTowardPosterior : false,
+    // If the caller opted into the downgrade path (bypassEvidenceGate) or the
+    // source-anchor check failed during an enforced submission, persist the
+    // signal but quarantine it as ContextOnly and exclude it from the posterior.
+    evidenceClass: (bypassEvidenceGate || anchorError) ? "ContextOnly" : classification.evidenceClass,
+    countTowardPosterior: (bypassEvidenceGate || anchorError)
+      ? false
+      : (createdByType === "human" ? classification.countTowardPosterior : false),
   }).returning();
 
   // Evidence verification now runs during transition to active (not at creation time),
@@ -370,10 +445,20 @@ router.post("/cases/:caseId/signals", async (req, res) => {
   });
 
   const response: Record<string, any> = { ...created };
+  const downgraded = bypassEvidenceGate || !!anchorError;
+  const classificationReasons = downgraded
+    ? [
+        ...classification.classificationReasons,
+        anchorError
+          ? `Source anchor failed (${anchorError.field}): ${anchorError.message} — quarantined as ContextOnly.`
+          : "Caller opted into the unverified submission path — quarantined as ContextOnly.",
+      ]
+    : classification.classificationReasons;
   response._classification = {
-    evidenceClass: classification.evidenceClass,
-    countTowardPosterior: classification.countTowardPosterior,
-    reasons: classification.classificationReasons,
+    evidenceClass: downgraded ? "ContextOnly" : classification.evidenceClass,
+    countTowardPosterior: downgraded ? false : classification.countTowardPosterior,
+    reasons: classificationReasons,
+    unverified: downgraded,
   };
   if (duplicateWarnings.length > 0) {
     response._integrityWarnings = {

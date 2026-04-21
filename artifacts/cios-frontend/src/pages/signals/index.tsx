@@ -1724,6 +1724,9 @@ export default function SignalsPage() {
   const [newDirection, setNewDirection] = useState<Direction>("increases_probability");
   const [newStrength, setNewStrength] = useState<Strength>("Medium");
   const [newReliability, setNewReliability] = useState<Reliability>("Probable");
+  const [newSourceQuote, setNewSourceQuote] = useState("");
+  const [newSourceUrl, setNewSourceUrl] = useState("");
+  const [addSignalError, setAddSignalError] = useState<string | null>(null);
 
   const CATEGORY_TO_SIGNAL_TYPE: Record<Category, string> = {
     evidence: "Phase III clinical",
@@ -1827,12 +1830,23 @@ export default function SignalsPage() {
     return updated;
   }
 
-  function persistSignalToDb(signal: Signal): Promise<void> {
+  function persistSignalToDb(signal: Signal, opts?: { unverified?: boolean; fromAddSignalForm?: boolean }): Promise<void> {
     const caseId = activeQuestion?.caseId;
     if (!caseId) return Promise.resolve();
 
     const API = import.meta.env.VITE_API_URL || "";
     const dbDirection = isNegativeDirection(signal.direction) ? "Negative" : (signal.direction === "neutral" || signal.direction === "signals_uncertainty") ? "Neutral" : "Positive";
+
+    const fromAddSignalForm = opts?.fromAddSignalForm === true;
+    // Only the Add Signal form is subject to source-anchor enforcement in this
+    // pass. CSV imports, AI/Re-harvest outputs, and workbook imports retain
+    // their existing behaviour per the task scope.
+    const evidenceSnippet = fromAddSignalForm
+      ? (signal.citation_excerpt || "")
+      : (signal.citation_excerpt || signal.text);
+    const sourceUrl = fromAddSignalForm
+      ? (signal.source_url || "")
+      : (signal.source_url || "https://cios.internal/user-reported");
 
     return fetch(`${API}/api/cases/${caseId}/signals`, {
       method: "POST",
@@ -1847,9 +1861,9 @@ export default function SignalsPage() {
         scope: "national",
         timing: "current",
         status: "active",
-        sourceLabel: signal.source === "user" ? "User input" : "CIOS research",
-        sourceUrl: signal.source_url || "https://cios.internal/user-reported",
-        evidenceSnippet: signal.text,
+        sourceLabel: isUserSignal ? "User input" : "CIOS research",
+        sourceUrl,
+        evidenceSnippet,
         signalScope: "market",
         observedAt: signal.observed_date || new Date().toISOString(),
         createdByType: "human",
@@ -1857,6 +1871,11 @@ export default function SignalsPage() {
         dependencyRole: "Root",
         rootEvidenceId: `SIG-${signal.id}`,
         novelInformationFlag: "Yes",
+        // Add Signal form: enforce source-anchor rules. Other paths keep
+        // existing behaviour. The downgrade path (opts.unverified) preserves
+        // the signal but asks the server to force countTowardPosterior=false.
+        enforceSourceQuote: fromAddSignalForm,
+        bypassEvidenceGate: fromAddSignalForm && opts?.unverified === true,
       }),
     }).then(async (resp) => {
       if (resp && resp.ok) {
@@ -1994,21 +2013,65 @@ export default function SignalsPage() {
     setEditingId(null);
   }
 
-  function addCustomSignal() {
-    if (!newText.trim()) return;
-    const trimmed = newText.trim().toLowerCase();
-    const isDuplicate = signals.some(
-      (s) => s.text.toLowerCase() === trimmed
-    );
+  const PLACEHOLDER_URL_PATTERNS = [/cios\.internal/i, /user-reported/i, /example\.com/i, /localhost/i, /127\.0\.0\.1/i];
+
+  function isValidSourceUrl(url: string): boolean {
+    try {
+      const u = new URL(url);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+      if (PLACEHOLDER_URL_PATTERNS.some((p) => p.test(url))) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function addCustomSignal(opts?: { unverified?: boolean }) {
+    setAddSignalError(null);
+    const text = newText.trim();
+    const quote = newSourceQuote.trim();
+    const url = newSourceUrl.trim();
+    const unverified = opts?.unverified === true;
+
+    if (!text) {
+      setAddSignalError("Signal description is required.");
+      return;
+    }
+
+    if (!unverified) {
+      if (!quote) {
+        setAddSignalError("Source quote is required. Add a verbatim excerpt from the cited document, or use the unverified path.");
+        return;
+      }
+      if (quote.toLowerCase() === text.toLowerCase()) {
+        setAddSignalError("Source quote must differ from the signal description — it must be a verbatim excerpt from the cited document.");
+        return;
+      }
+      if (!url) {
+        setAddSignalError("Source URL is required. Use the unverified path if no external URL is available.");
+        return;
+      }
+      if (PLACEHOLDER_URL_PATTERNS.some((p) => p.test(url))) {
+        setAddSignalError("Placeholder or internal URLs (cios.internal, user-reported, example.com, localhost) are not permitted. Provide a real external source URL.");
+        return;
+      }
+      if (!isValidSourceUrl(url)) {
+        setAddSignalError("Source URL must be a fully-formed http:// or https:// URL.");
+        return;
+      }
+    }
+
+    const trimmed = text.toLowerCase();
+    const isDuplicate = signals.some((s) => s.text.toLowerCase() === trimmed);
     if (isDuplicate) {
-      alert("This signal already exists. Each signal can only be added once.");
+      setAddSignalError("This signal already exists. Each signal can only be added once.");
       return;
     }
     const base = { strength: newStrength, reliability: newReliability };
-    const autoCategory = inferCategory(newText.trim());
+    const autoCategory = inferCategory(text);
     const sig: Signal = enrichSignalFields({
       id: `user-${Date.now()}`,
-      text: newText.trim(),
+      text,
       caveat: "",
       direction: newDirection,
       strength: newStrength,
@@ -2019,6 +2082,10 @@ export default function SignalsPage() {
       accepted: true,
       priority_source: "manual_confirmed",
       is_locked: true,
+      source_url: url || null,
+      citation_excerpt: quote || null,
+      countTowardPosterior: unverified ? false : undefined,
+      evidenceClass: unverified ? "ContextOnly" : undefined,
     }, questionText, outcome);
     setSignals((prev) => {
       const updated = [...prev, sig];
@@ -2026,7 +2093,7 @@ export default function SignalsPage() {
       setTimeout(() => triggerGateRecalculation(updated, sig.text), 0);
       return updated;
     });
-    persistSignalToDb(sig);
+    persistSignalToDb(sig, { unverified, fromAddSignalForm: true });
     const cid = activeQuestion?.caseId;
     if (cid) {
       localStorage.setItem(`cios.signalsLocked:${cid}`, "false");
@@ -2035,6 +2102,8 @@ export default function SignalsPage() {
     setNewDirection("positive");
     setNewStrength("Medium");
     setNewReliability("Probable");
+    setNewSourceQuote("");
+    setNewSourceUrl("");
     setShowAddForm(false);
   }
 
@@ -2624,30 +2693,72 @@ export default function SignalsPage() {
             <div className="rounded-xl border border-border bg-card p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">Add Signal</h3>
-                <button type="button" onClick={() => setShowAddForm(false)} className="text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={() => { setShowAddForm(false); setAddSignalError(null); }} className="text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <textarea
-                value={newText}
-                onChange={(e) => setNewText(e.target.value)}
-                placeholder="Describe the signal..."
-                rows={2}
-                className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50"
-              />
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Signal description</label>
+                <textarea
+                  value={newText}
+                  onChange={(e) => setNewText(e.target.value)}
+                  placeholder="Describe the signal..."
+                  rows={2}
+                  className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50"
+                />
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <SelectField label="Direction" value={newDirection} onChange={(v) => setNewDirection(v as Direction)} options={["increases_probability", "decreases_probability", "signals_uncertainty", "signals_risk_escalation", "operational_readiness", "market_response"]} displayLabels={["Supports outcome", "Slows outcome", "Uncertain", "Risk Escalation", "Operational", "Market Response"]} />
                 <SelectField label="Strength" value={newStrength} onChange={(v) => setNewStrength(v as Strength)} options={["High", "Medium", "Low"]} />
                 <SelectField label="Confidence" value={newReliability} onChange={(v) => setNewReliability(v as Reliability)} options={["Confirmed", "Probable", "Speculative"]} displayLabels={["Strong", "Moderate", "Weak"]} />
               </div>
-              <button
-                type="button"
-                onClick={addCustomSignal}
-                disabled={!newText.trim()}
-                className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Add Signal
-              </button>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Source quote <span className="text-rose-400">*</span></label>
+                <textarea
+                  value={newSourceQuote}
+                  onChange={(e) => setNewSourceQuote(e.target.value)}
+                  placeholder="Verbatim excerpt from the cited document (required to affect the forecast)"
+                  rows={2}
+                  className="w-full rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Source URL <span className="text-rose-400">*</span></label>
+                <input
+                  type="url"
+                  value={newSourceUrl}
+                  onChange={(e) => setNewSourceUrl(e.target.value)}
+                  placeholder="https://... (required to affect the forecast)"
+                  className="w-full rounded-xl border border-border bg-muted/20 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50"
+                />
+              </div>
+              {addSignalError && (
+                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-400">
+                  {addSignalError}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => addCustomSignal()}
+                  disabled={!newText.trim() || !newSourceQuote.trim() || !newSourceUrl.trim()}
+                  className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Add Signal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addCustomSignal({ unverified: true })}
+                  disabled={!newText.trim()}
+                  title="Adds the signal without a verified source quote or URL. It will not affect the forecast until reviewed."
+                  className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-300 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Add as unverified (will not affect forecast)
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Source quote and URL are required for a signal to affect the forecast. Signals without a real source quote and a resolvable external URL are quarantined as <span className="font-semibold text-amber-400">Unverified</span> and excluded from the posterior.
+              </p>
             </div>
           )}
 
@@ -2935,10 +3046,18 @@ function MinimalSignalCard({
             <div className="text-sm text-foreground leading-relaxed">{signal.text}</div>
           )}
           {!editing && (
-            <div className="mt-2">
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
               <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${dirColor}`}>
                 {dirLabel}
               </span>
+              {signal.source === "user" && signal.countTowardPosterior === false && (
+                <span
+                  className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300"
+                  title="This signal was added without a verified source quote or URL. It does not affect the forecast until reviewed."
+                >
+                  Unverified · excluded
+                </span>
+              )}
             </div>
           )}
           {editing && (

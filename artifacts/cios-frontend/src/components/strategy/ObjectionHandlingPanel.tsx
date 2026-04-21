@@ -25,6 +25,14 @@ interface BaosResult {
   barrierSummary: string;
 }
 
+export interface ObjectionSignalInput {
+  description?: string;
+  signalType?: string;
+  direction?: string;
+  pointContribution?: number;
+  signalId?: string;
+}
+
 function getApiBase() {
   if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
     return `https://${window.location.hostname}:443/api`;
@@ -32,16 +40,35 @@ function getApiBase() {
   return "/api";
 }
 
+function toMiosEvidence(signals: ObjectionSignalInput[]) {
+  return (signals || [])
+    .filter((s) => (s.description || "").trim().length > 0)
+    .map((s) => {
+      const dir = (s.direction || "").toLowerCase();
+      const absPp = Math.abs((s.pointContribution ?? 0) * 100);
+      const strength = absPp >= 5 ? "High" : absPp >= 2.5 ? "Medium" : "Low";
+      return {
+        evidenceText: s.description || "",
+        trialOrSource: s.signalType || s.signalId || "CIOS signal ledger",
+        direction: dir === "positive" ? "positive" : dir === "negative" ? "negative" : "neutral",
+        strength,
+        whyItMatters: `${strength}-strength ${dir || "neutral"} signal in the accepted ledger.`,
+      };
+    });
+}
+
 export default function ObjectionHandlingPanel({
   brand,
   question,
   therapeuticArea,
   indication,
+  signalDetails,
 }: {
   brand: string;
   question: string;
   therapeuticArea?: string;
   indication?: string;
+  signalDetails?: ObjectionSignalInput[];
 }) {
   const [result, setResult] = useState<BaosResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,10 +80,11 @@ export default function ObjectionHandlingPanel({
     setError(null);
     setResult(null);
     try {
+      const miosEvidence = toMiosEvidence(signalDetails || []);
       const res = await fetch(`${getApiBase()}/agents/baos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand, question, therapeuticArea, indication }),
+        body: JSON.stringify({ brand, question, therapeuticArea, indication, miosEvidence }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: BaosResult = await res.json();
