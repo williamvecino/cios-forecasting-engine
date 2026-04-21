@@ -1539,43 +1539,43 @@ function ForecastContent({ activeQuestion }: { activeQuestion: any }) {
         </div>
       </div>
 
-      {/* === Three Gauge Circles === */}
+      {/* === What Prior & Posterior Mean (lay executive language) === */}
       {(() => {
-        const brandOutlookProb = (f as any).brandOutlookProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0;
-        const finalForecastProb = (f as any).thresholdProbability ?? f.posteriorProbability ?? f.currentProbability ?? 0;
-        const barrierDelta = Math.round((finalForecastProb - brandOutlookProb) * 100);
+        const priorPct = Math.round((f.priorProbability ?? 0.5) * 100);
+        const postPct = posteriorPct;
+        const deltaPP = Math.round(delta * 100);
+        const movedUp = deltaPP > 0;
+        const movedDown = deltaPP < 0;
+        const moved = movedUp || movedDown;
         return (
           <div className="rounded-3xl border border-white/10 bg-[#0A1736] p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-              <div className="flex flex-col items-center text-center space-y-2">
-                <div className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Evidence Strength</div>
-                <ProbabilityGauge value={brandOutlookProb} label="Based on Evidence" size={160} />
-                <div className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
-                  How strong the case looks based on all evidence collected so far
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Where we started — Prior {priorPct}%</div>
+                <p className="text-sm leading-7 text-slate-200">
+                  Our starting belief before reviewing the evidence for this question. It reflects what
+                  a reasonable executive would have expected given the situation, with no new data yet
+                  factored in.
+                </p>
               </div>
-              <div className="flex flex-col items-center text-center space-y-2">
-                <div className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">Threshold Gap</div>
-                <div className="flex flex-col items-center justify-center w-[160px] h-[160px]">
-                  <div className={cn(
-                    "text-3xl font-bold tabular-nums",
-                    barrierDelta === 0 ? "text-slate-400" : barrierDelta > 0 ? "text-emerald-400" : "text-rose-400"
-                  )}>
-                    {barrierDelta === 0 ? "0" : barrierDelta > 0 ? `+${barrierDelta}` : `${barrierDelta}`}
-                    <span className="text-lg font-normal ml-1">pts</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-2">{barrierDelta < 0 ? "Constraints reduce forecast" : barrierDelta > 0 ? "Target below expected outcome" : "No constraint effect"}</div>
-                </div>
-                <div className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
-                  Gap between evidence strength and target likelihood after barriers
-                </div>
-              </div>
-              <div className="flex flex-col items-center text-center space-y-2">
-                <div className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Target Likelihood</div>
-                <ProbabilityGauge value={finalForecastProb} label="After Constraints" size={160} />
-                <div className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
-                  How likely the target will be reached once real-world barriers are factored in
-                </div>
+              <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Where we are now — Posterior {postPct}%</div>
+                <p className="text-sm leading-7 text-slate-200">
+                  Our updated view after weighing every signal you collected.
+                  {moved ? (
+                    <>
+                      {" "}The evidence moved the outlook{" "}
+                      <span className={cn("font-semibold", movedUp ? "text-emerald-400" : "text-rose-400")}>
+                        {movedUp ? "up" : "down"} by {Math.abs(deltaPP)} points
+                      </span>
+                      {movedUp
+                        ? " — the case is stronger than we assumed."
+                        : " — the case is weaker than we assumed."}
+                    </>
+                  ) : (
+                    <> The evidence did not meaningfully change the outlook from where we started.</>
+                  )}
+                </p>
               </div>
             </div>
           </div>
