@@ -54,47 +54,85 @@ export default function ForecastsPage() {
           </div>
         )}
 
-        {!isLoading && allCases.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {allCases.map((c: any) => {
-              const cid = c.caseId || c.id;
-              const prob = c.currentProbability;
-              const conf = c.confidenceLevel;
-              return (
-                <Link
-                  key={cid}
-                  href={`/case/${cid}/question`}
-                  className="rounded-2xl border border-border bg-card p-5 hover:border-primary/30 hover:bg-muted/10 transition space-y-3 group"
-                >
-                  <div className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary transition">
-                    {c.strategicQuestion || c.assetName || "Untitled"}
-                  </div>
+        {!isLoading && allCases.length > 0 && (() => {
+          const numericSuffix = (cid: string) => {
+            const m = String(cid).match(/(\d+)\s*$/);
+            return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+          };
+          const bucketOf = (cid: string): "demo" | "calibration" | "other" => {
+            const u = String(cid).toUpperCase();
+            if (u.includes("CASE-DEMO-") || u.includes("DEMO-")) return "demo";
+            if (u.includes("CASE-CAL-") || u.includes("CAL-")) return "calibration";
+            return "other";
+          };
+          const sortByNum = (a: any, b: any) =>
+            numericSuffix(a.caseId || a.id) - numericSuffix(b.caseId || b.id);
 
-                  <div className="flex items-center gap-3">
-                    {prob != null ? (
-                      <span className="text-2xl font-bold text-primary">
-                        {Math.round(prob * 100)}%
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground italic">No forecast</span>
-                    )}
-                    {conf && (
-                      <span className="rounded-full bg-muted/30 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {conf}
-                      </span>
-                    )}
-                  </div>
+          const demo = allCases.filter((c: any) => bucketOf(c.caseId || c.id) === "demo").sort(sortByNum);
+          const calibration = allCases.filter((c: any) => bucketOf(c.caseId || c.id) === "calibration").sort(sortByNum);
+          const other = allCases.filter((c: any) => bucketOf(c.caseId || c.id) === "other").sort(sortByNum);
 
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-mono">{cid}</span>
-                    {c.primaryBrand && <span>· {c.primaryBrand}</span>}
-                  </div>
+          const renderCard = (c: any) => {
+            const cid = c.caseId || c.id;
+            const prob = c.currentProbability;
+            const conf = c.confidenceLevel;
+            return (
+              <Link
+                key={cid}
+                href={`/case/${cid}/question`}
+                className="rounded-2xl border border-border bg-card p-5 hover:border-primary/30 hover:bg-muted/10 transition space-y-3 group"
+              >
+                <div className="text-sm font-medium text-foreground line-clamp-2 group-hover:text-primary transition">
+                  {c.strategicQuestion || c.assetName || "Untitled"}
+                </div>
 
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                <div className="flex items-center gap-3">
+                  {prob != null ? (
+                    <span className="text-2xl font-bold text-primary">
+                      {Math.round(prob * 100)}%
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">No forecast</span>
+                  )}
+                  {conf && (
+                    <span className="rounded-full bg-muted/30 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {conf}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-mono">{cid}</span>
+                  {c.primaryBrand && <span>· {c.primaryBrand}</span>}
+                </div>
+
+              </Link>
+            );
+          };
+
+          const renderSection = (title: string, subtitle: string, items: any[]) => {
+            if (items.length === 0) return null;
+            return (
+              <section className="space-y-3">
+                <div className="flex items-baseline justify-between border-b border-border/60 pb-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">{title}</h2>
+                  <span className="text-xs text-muted-foreground">{subtitle} · {items.length}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {items.map(renderCard)}
+                </div>
+              </section>
+            );
+          };
+
+          return (
+            <div className="space-y-8">
+              {renderSection("Demo cases", "Live demonstration forecasts", demo)}
+              {renderSection("Calibration cases", "Validation set with known outcomes", calibration)}
+              {renderSection("Other cases", "Uncategorized", other)}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
