@@ -62,6 +62,10 @@ function hasSpecificEvent(description: string): boolean {
     /\b(survey|prescrib\w+|discontinu\w+|enroll\w+|convert\w+)\b/i,
     /\b(?:dosing|injection|infusion|mechanism|monoclonal|biologic|manufacturing|switching|adherence|generic\s+entry|reduction|improvement|superiority)\b/i,
     /\b(?:complete response|relapse rate|culture conversion|weight loss)\b/i,
+    /\binterferon[-.\s]?free\b/i,
+    /\b12[-.\s]?week\s+(?:treatment|course|regimen)\b/i,
+    /\bonce[-.\s]?weekly\b/i,
+    /\bsubcutaneous\s+injection\b/i,
   ];
   return eventIndicators.some((re) => re.test(description));
 }
