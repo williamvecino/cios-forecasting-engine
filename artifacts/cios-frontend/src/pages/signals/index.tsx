@@ -180,6 +180,30 @@ function stripNonMatchingBrandSignals(signals: any[], currentSubject?: string): 
 
 type Direction = "positive" | "negative" | "neutral" | "increases_probability" | "decreases_probability" | "signals_uncertainty" | "signals_risk_escalation" | "operational_readiness" | "market_response";
 
+// Normalizes direction values arriving from the API (which stores DB-form
+// "Positive"/"Negative"/"Neutral", or lowercase "positive"/"negative"/"neutral"
+// from /signal-state) into the verb-form values that MinimalSignalCard's
+// dirLabel/dirColor switches recognize. Verb-form values pass through
+// unchanged. Null/undefined collapse to "signals_uncertainty".
+function normalizeDbDirection(raw: unknown): Direction {
+  if (raw == null) return "signals_uncertainty";
+  const s = String(raw).trim();
+  switch (s.toLowerCase()) {
+    case "positive": return "increases_probability";
+    case "negative": return "decreases_probability";
+    case "neutral":  return "signals_uncertainty";
+    case "increases_probability":
+    case "decreases_probability":
+    case "signals_uncertainty":
+    case "signals_risk_escalation":
+    case "operational_readiness":
+    case "market_response":
+      return s.toLowerCase() as Direction;
+    default:
+      return "signals_uncertainty";
+  }
+}
+
 type SignalDomain = "clinical_evidence" | "safety_pharmacovigilance" | "regulatory_activity" | "guideline_activity" | "market_access" | "operational_readiness" | "competitive_dynamics" | "legal_litigation";
 
 const SIGNAL_DOMAIN_LABELS: Record<SignalDomain, string> = {
@@ -1146,7 +1170,8 @@ export default function SignalsPage() {
         .then((r) => r.json())
         .then((data) => {
           if (data?.signals && Array.isArray(data.signals) && data.signals.length > 0) {
-            const apiCleaned = stripNonMatchingBrandSignals(data.signals, subject) as Signal[];
+            const normalized = data.signals.map((s: any) => ({ ...s, direction: normalizeDbDirection(s.direction) }));
+            const apiCleaned = stripNonMatchingBrandSignals(normalized, subject) as Signal[];
             if (apiCleaned.length > 0) {
               try { localStorage.setItem(`cios.signals:${caseKey}`, JSON.stringify(apiCleaned)); } catch {}
               if (data.contextKey) {
@@ -1164,7 +1189,7 @@ export default function SignalsPage() {
                   id: s.signalId || s.id,
                   text: s.signalDescription || s.text || "",
                   type: s.signalType || s.type || "",
-                  direction: s.direction || "Neutral",
+                  direction: normalizeDbDirection(s.direction),
                   source: s.sourceUrl || s.source || "",
                   sourceLabel: s.sourceLabel || "",
                   countTowardPosterior: s.countTowardPosterior !== false,
