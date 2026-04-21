@@ -514,9 +514,14 @@ export default function CaseInputPage() {
                       {s.trialName && <p className="text-muted-foreground mt-0.5">Trial: {s.trialName}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`text-[10px] font-semibold ${s.direction === "increases_probability" ? "text-emerald-400" : "text-rose-400"}`}>
-                        {s.direction === "increases_probability" ? "Supports" : "Opposes"}
-                      </span>
+                      {(() => {
+                        const dir = String(s.direction || "").toLowerCase();
+                        const isPos = dir === "increases_probability" || dir === "positive";
+                        const isNeg = dir === "decreases_probability" || dir === "negative" || dir === "signals_risk_escalation";
+                        const cls = isPos ? "text-emerald-400" : isNeg ? "text-rose-400" : "text-slate-400";
+                        const label = isPos ? "Supports" : isNeg ? "Undermines" : "Neutral";
+                        return <span className={`text-[10px] font-semibold ${cls}`}>{label}</span>;
+                      })()}
                       <span className="text-[10px] text-muted-foreground">{s.strength}</span>
                     </div>
                   </div>

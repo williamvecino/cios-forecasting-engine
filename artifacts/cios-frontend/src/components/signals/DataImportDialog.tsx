@@ -401,7 +401,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
                           row.direction === "positive" ? "text-emerald-400" :
                           row.direction === "negative" ? "text-red-400" : "text-slate-400"
                         }`}>
-                          {row.direction === "positive" ? "Supports" : row.direction === "negative" ? "Slows" : "Neutral"}
+                          {row.direction === "positive" ? "Supports" : row.direction === "negative" ? "Undermines" : "Neutral"}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
                           Importance: {row.strength || "Medium"}
@@ -465,7 +465,7 @@ export default function DataImportDialog({ open, onClose, onImport, activeQuesti
                           row.direction === "positive" ? "text-emerald-400" :
                           row.direction === "negative" ? "text-red-400" : "text-slate-400"
                         }`}>
-                          {row.direction === "positive" ? "Supports" : row.direction === "negative" ? "Slows" : "Neutral"}
+                          {row.direction === "positive" ? "Supports" : row.direction === "negative" ? "Undermines" : "Neutral"}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
                           Importance: {row.strength || "Medium"}
