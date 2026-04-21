@@ -671,6 +671,7 @@ export default function RespondPage() {
                 <ObjectionHandlingPanel
                   brand={activeQuestion?.subject || ""}
                   question={questionText}
+                  signalDetails={forecastData.signalDetails}
                 />
               </div>
 
